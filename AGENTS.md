@@ -114,10 +114,11 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   *and* the six translations. Keep the version chip's `id="preloader-version">vX.Y.Z`
   shape too: `scripts/bump-version.sh` rewrites it (`scripts/test-preloader-stages.php`
   locks all of it).
-- **Versioning**: bump version in **4 places** together with `scripts/bump-version.sh`
-  (`index.html` badges, `manifest.json`, `sw.js` cache name, `app.js` i18n token),
-  and add a `CHANGELOG.md` entry. `auto-merge-to-main` + `create-release` read the
-  version from `index.html`.
+- **Versioning**: bump version with `scripts/bump-version.sh X.Y.Z` in **5 places**
+  (`index.html` badges, `manifest.json`, `sw.js` cache name, `app.js` i18n token,
+  `README.md` version badge), add a `CHANGELOG.md` entry and prepend the release to
+  the README “What’s new” line (prose, so it stays manual).
+  `auto-merge-to-main` + `create-release` read the version from `index.html`.
 - **i18n**: never hardcode user-facing strings. Use `t('key')` (JS) /
   `data-i18n*` (HTML) and add the key to **all** locales (it/en/de/fr/es/zh).
   `scripts/i18n-audit.py` (run in CI) fails on used-but-missing keys; give `tl()`

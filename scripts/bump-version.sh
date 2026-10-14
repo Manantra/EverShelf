@@ -13,6 +13,7 @@
 #   manifest.json – "version"
 #   sw.js        – CACHE name
 #   assets/js/app.js – _I18N_VERSION (translation cache buster)
+#   README.md    – version badge (the "What's new" line below it stays manual)
 #
 set -euo pipefail
 
@@ -38,8 +39,9 @@ INDEX="$ROOT/index.html"
 MANIFEST="$ROOT/manifest.json"
 SW="$ROOT/sw.js"
 APPJS="$ROOT/assets/js/app.js"
+README="$ROOT/README.md"
 
-for f in "$INDEX" "$MANIFEST" "$SW" "$APPJS"; do
+for f in "$INDEX" "$MANIFEST" "$SW" "$APPJS" "$README"; do
     [[ -f "$f" ]] || { echo "Error: missing $f" >&2; exit 1; }
 done
 
@@ -58,10 +60,15 @@ sed -i -E "s/(const CACHE = 'evershelf-v)[0-9.]+(')/\1${VERSION}\2/" "$SW"
 sed -i -E "s/(_I18N_VERSION = ')[0-9]{8}[a-z](')/\1${STAMP}\2/" "$APPJS"
 sed -i -E "s/(\?v=)[0-9]{8}[a-z]/\1${STAMP}/g" "$APPJS"
 
+# ── README.md: shields.io version badge (drifted to 1.11.6 once already) ────
+sed -i -E "s|(badge/version-)[0-9]+\.[0-9]+\.[0-9]+|\1${VERSION}|" "$README"
+
 echo "Bumped version to v${VERSION} (asset stamp ${STAMP}) in:"
 echo "  - index.html (2 badges + ?v= queries)"
 echo "  - manifest.json"
 echo "  - sw.js (CACHE)"
 echo "  - assets/js/app.js (_I18N_VERSION)"
+echo "  - README.md (version badge)"
 echo
-echo "Remember to add a CHANGELOG.md entry for v${VERSION}."
+echo "Remember to add a CHANGELOG.md entry for v${VERSION} and to prepend the"
+echo "new release to the README \"What's new\" line (prose stays manual)."

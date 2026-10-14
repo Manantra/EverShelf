@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### i18n
 - New keys in all six locales, no hardcoded Italian left in the low-stock modal, `aria-label="Close"` wired to `btn.close`, dead `dashboard.banner_advice_format` removed (and its assertion dropped from `scripts/test-i18n-icons.php`). `scripts/i18n-audit.py`: 0 missing keys, 0 unwired attributes.
 
+### Tooling & docs
+- `scripts/bump-version.sh` also rewrites the **README version badge**, which had silently drifted to 1.11.6; the “What’s new” line stays manual (prose) and the script reminds you.
+- Context/agent tooling committed: `.clinerules` (always-on digest of `AGENTS.md`) and `.clineignore` (hides generated, binary, runtime and vendor files — ~94% of the repo — from the AI context).
+- `README`, `CHANGELOG`, `docs/OPTIMIZATION-BACKLOG.md` and `TODO.md` realigned with the release.
+
 ## [1.11.11] - 2026-10-10
 
 ### Scan screen redesign

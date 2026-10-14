@@ -47,9 +47,10 @@ runtime/binary files — if a task truly needs one, ask first.
 
 ## 3. Version / asset / i18n hygiene
 
-- Version lives in **4 places** → always run `scripts/bump-version.sh X.Y.Z`
-  (`index.html` badges, `manifest.json`, `sw.js` CACHE, `app.js` i18n token)
-  and add a top `CHANGELOG.md` entry.
+- Version lives in **5 places** → always run `scripts/bump-version.sh X.Y.Z`
+  (`index.html` badges, `manifest.json`, `sw.js` CACHE, `app.js` i18n token,
+  `README.md` version badge), add a top `CHANGELOG.md` entry and prepend the
+  release to the README “What’s new” line.
 - Edited `app.js` / `style.css` → bump the `?v=` stamp in `index.html` and the
   `sw.js` CACHE name (the script above does it).
 - Entries with `t('key')` must be a literal, bare `t('…')` call — a helper or a
