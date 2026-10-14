@@ -52,7 +52,8 @@ runtime/binary files — if a task truly needs one, ask first.
   `README.md` version badge), add a top `CHANGELOG.md` entry and prepend the
   release to the README “What’s new” line.
 - Edited `app.js` / `style.css` → bump the `?v=` stamp in `index.html` and the
-  `sw.js` CACHE name (the script above does it).
+  `sw.js` CACHE name (the script above does it; the CACHE carries version + stamp
+  letter and the stamp auto-increments within the same day).
 - Entries with `t('key')` must be a literal, bare `t('…')` call — a helper or a
   PHP-only string is invisible to `scripts/i18n-audit.py`.
 

@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.13] - 2026-10-14
+
+### Recipes
+- The per-ingredient **Usa** button was the smallest control on the screen (0.78 rem): it is now **1.55 rem** (double) with a 48 px minimum height and generous padding, so it reads like the primary action it is — including the transient ⏳ state. The passive **✔ Scalato** label stays a little smaller (1.05 rem) so it does not squeeze the ingredient name on a phone.
+
+### Fixes / tooling
+- `scripts/bump-version.sh`: the `sw.js` cache pattern never matched a cache name carrying the asset-stamp letter, so `evershelf-v1.11.12d` survived the 1.11.13 bump and the browser kept serving the stale stylesheet. The pattern now accepts the optional letter and writes `<version><stamp letter>` (`evershelf-v1.11.13b`).
+- The default asset stamp no longer collides inside the same day: it continues from the stamp already in `index.html` (`20261014a` → `20261014b`) instead of silently reusing `<today>a`, which made a CSS-only release keep the same `?v=`.
+
 ## [1.11.12] - 2026-10-14
 
 ### Alerts: one-word verdicts

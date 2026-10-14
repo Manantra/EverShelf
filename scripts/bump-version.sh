@@ -20,7 +20,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 VERSION="${1:-}"
-STAMP="${2:-$(date +%Y%m%d)a}"
+STAMP="${2:-}"
 
 if [[ -z "$VERSION" ]]; then
     echo "Usage: $0 <major.minor.patch> [asset-stamp]" >&2
@@ -28,10 +28,6 @@ if [[ -z "$VERSION" ]]; then
 fi
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Error: version must look like 1.2.3 (got '$VERSION')" >&2
-    exit 1
-fi
-if ! [[ "$STAMP" =~ ^[0-9]{8}[a-z]$ ]]; then
-    echo "Error: asset stamp must look like 20261004a (got '$STAMP')" >&2
     exit 1
 fi
 
@@ -45,6 +41,35 @@ for f in "$INDEX" "$MANIFEST" "$SW" "$APPJS" "$README"; do
     [[ -f "$f" ]] || { echo "Error: missing $f" >&2; exit 1; }
 done
 
+# ── Asset stamp ─────────────────────────────────────────────────────────────
+# Two bumps in the same day used to reuse "<today>a" verbatim, so a CSS-only
+# change kept the same ?v= and the browser served the stale file. Default is now
+# "next letter after the stamp already in index.html" (20261014a → 20261014b).
+if [[ -z "$STAMP" ]]; then
+    TODAY="$(date +%Y%m%d)"
+    CURRENT_STAMP="$(grep -oE '\?v=[0-9]{8}[a-z]' "$INDEX" | head -1 | sed 's/?v=//' || true)"
+    if [[ "$CURRENT_STAMP" == "$TODAY"* && "$CURRENT_STAMP" =~ ^[0-9]{8}[a-z]$ ]]; then
+        LAST_LETTER="${CURRENT_STAMP: -1}"
+        if [[ "$LAST_LETTER" == "z" ]]; then
+            echo "Error: asset stamp for $TODAY already reached …z — pass one explicitly" >&2
+            exit 1
+        fi
+        NEXT_LETTER="$(printf "\\$(printf '%03o' $(( $(printf '%d' "'${LAST_LETTER}") + 1 )))")"
+        STAMP="${TODAY}${NEXT_LETTER}"
+    else
+        STAMP="${TODAY}a"
+    fi
+fi
+
+if ! [[ "$STAMP" =~ ^[0-9]{8}[a-z]$ ]]; then
+    echo "Error: asset stamp must look like 20261004a (got '$STAMP')" >&2
+    exit 1
+fi
+
+# The cache name carries the stamp letter too: a style-only release still has to
+# invalidate the service-worker cache.
+STAMP_LETTER="${STAMP: -1}"
+
 # ── index.html: badges + cache-busting query strings ────────────────────────
 sed -i -E "s/(header-version\">v)[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/" "$INDEX"
 sed -i -E "s/(preloader-version\">v)[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/" "$INDEX"
@@ -53,8 +78,8 @@ sed -i -E "s/(\?v=)[0-9]{8}[a-z]/\1${STAMP}/g" "$INDEX"
 # ── manifest.json: version field ────────────────────────────────────────────
 sed -i -E "s/(\"version\"[[:space:]]*:[[:space:]]*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\1${VERSION}\2/" "$MANIFEST"
 
-# ── sw.js: cache name ───────────────────────────────────────────────────────
-sed -i -E "s/(const CACHE = 'evershelf-v)[0-9.]+(')/\1${VERSION}\2/" "$SW"
+# ── sw.js: cache name (version + stamp letter) ──────────────────────────────
+sed -i -E "s/(const CACHE = 'evershelf-v)[0-9]+\.[0-9]+\.[0-9]+[a-z]?(')/\1${VERSION}${STAMP_LETTER}\2/" "$SW"
 
 # ── app.js: i18n cache buster + asset query strings ─────────────────────────
 sed -i -E "s/(_I18N_VERSION = ')[0-9]{8}[a-z](')/\1${STAMP}\2/" "$APPJS"

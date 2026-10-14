@@ -6668,15 +6668,20 @@ body:has(#page-scan.active) .app-content {
     border-bottom-color: #1a3a0c;
 }
 
+/* Recipe ingredient Usa (use) button: a primary action, sized like one.
+   Double the old 0.78rem — it was the smallest control on the recipes screen. */
 .btn-use-ingredient {
     flex-shrink: 0;
     background: var(--primary);
     color: #fff;
     border: none;
     border-radius: var(--radius-sm);
-    padding: 4px 10px;
-    font-size: 0.78rem;
-    font-weight: 600;
+    padding: 8px 18px;
+    min-height: 48px;
+    font-size: 1.55rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.2s, opacity 0.2s;
@@ -6691,8 +6696,13 @@ body:has(#page-scan.active) .app-content {
     opacity: 0.6;
 }
 
+/* The deducted label (✔ Scalato) is a status, not a tap target: bigger than
+   before but it must not squeeze the ingredient name on a phone. */
 .btn-use-ingredient.btn-used {
     background: var(--success);
+    font-size: 1.05rem;
+    min-height: 40px;
+    padding: 6px 12px;
 }
 
 .recipe-ing-used .recipe-ing-text {
