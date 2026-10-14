@@ -178,11 +178,36 @@ assert_same($hideable, array_values(array_intersect($cardFlagged, $hideable)),
     'the card flags every catalogue entry the list would hide in month ' . $cardMonth);
 assert_same('shopping.seasonal_tip_' . $cardMonth, $card['tip_key'], 'the card returns a stable i18n tip key');
 
+// ── Out-of-season dismiss: a rejected item stays off until its peak returns ──
+// The user removes a peak produce from the list; without the dismiss the smart
+// list and the cron re-add it at the next run, which is the "it comes back"
+// bug this feature closes.
+$dismissDb = new PDO('sqlite::memory:');
+$dismissDb->exec("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)");
+assert_true(!seasonalIsDismissed($dismissDb, 'Anguria'), 'nothing is dismissed before the user acts');
+seasonalMarkDismissed($dismissDb, 'Anguria');
+assert_true(seasonalIsDismissed($dismissDb, 'Anguria'), 'a removed out-of-season item is remembered');
+assert_true(seasonalIsDismissed($dismissDb, 'Anguria Bio'), 'the whole buyable family is remembered');
+assert_true(!seasonalIsDismissed($dismissDb, 'Zucchine'), 'an unrelated produce stays suggestible');
+$activeMap = ['anguria' => ['until' => '2999-01']];
+assert_true(seasonalIsDismissedKey($activeMap, 'Anguria', 10), 'the dismiss is active before the peak month');
+$expiredMap = ['anguria' => ['until' => '2020-06']];
+assert_true(!seasonalIsDismissedKey($expiredMap, 'Anguria', 10), 'the dismiss expires once the peak month has passed');
+$dismissReview = seasonalReviewShopping($dismissDb, []);
+foreach ($dismissReview['suggest_add'] as $dismissSuggestion) {
+    assert_true(empty($dismissSuggestion['reason_key']) ? false : true,
+        'every seasonal suggestion carries a translatable reason_key');
+}
+
 // ── Every tip key the API can emit exists in all six locales ────────────────
 // The i18n audit only sees keys used in JS; keys returned by PHP are covered here.
 $localeKeys = ['shopping.seasonal_out_note'];
 for ($m = 1; $m <= 12; $m++) {
     $localeKeys[] = 'shopping.seasonal_tip_' . $m;
+}
+// Reason keys the review card hands the client to explain each suggestion.
+foreach (['bought', 'often_eats', 'same_kind'] as $reason) {
+    $localeKeys[] = 'shopping.seasonal_reason_' . $reason;
 }
 $missingKeys = [];
 foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $locale) {
@@ -199,7 +224,7 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $locale) {
     }
 }
 assert_true($missingKeys === [],
-    'every monthly tip key and the note exist in all six locales'
+    'every monthly tip key, reason key and the note exist in all six locales'
     . ($missingKeys ? ' (missing ' . implode(', ', array_slice($missingKeys, 0, 5)) . ')' : ''));
 
 echo $fail === 0 ? "\nAll seasonal match tests passed.\n" : "\n{$fail} test(s) failed.\n";

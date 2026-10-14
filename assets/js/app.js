@@ -352,6 +352,10 @@ let _scaleUserDismissed    = false; // user tapped or edited → don't retrigger
 let _scaleRecipeAutoFillPaused = false; // pause flag for recipe-use modal only
 let _scaleLastConfirmedGrams = null; // grams of last auto-confirmed weight (to detect product change)
 let _scaleLastStableGrams = null; // last accepted stable reading in grams (for jitter filtering)
+let _scaleNavBaselineG = null;     // baseline grams on choice screens (detect "rising")
+let _scaleNavPeakG = null;         // peak while arming auto-navigate
+let _scaleNavArmed = false;        // countdown running toward Use/Add
+let _scalePreserveWeightOnNav = false; // keep latest weight across showUseForm/showAddForm
 
 function _scaleToGrams(value, unit) {
     if (!isFinite(value)) return null;
@@ -449,9 +453,11 @@ function _scaleOnMessage(msg) {
         if (diagW) diagW.textContent = `${parseFloat(msg.value).toFixed(1)} ${msg.unit || 'g'}`;
         // Always update the persistent live box on the use page (every message, stable or not)
         _scaleUpdateLiveBox(liveMsg);
-        // If weight is NOT stable: stop any running timer/bar but keep the sentinel value.
-        // The sentinel is reset only when a genuinely different stable value arrives.
-        if (!liveMsg.stable) {
+        // Choice screens (Usa/Butta/Aggiungi): rising weight → 5s progress on the scale-relevant button
+        _scaleHandleChoiceScreenRise(liveMsg);
+        // If weight is NOT stable: stop use/recipe stability bars, but NOT an armed
+        // choice-screen navigate countdown (placing food makes the scale bounce).
+        if (!liveMsg.stable && !_scaleNavArmed) {
             _cancelScaleTimersOnly();
         }
         // Fulfil pending callback on stable reading
@@ -460,14 +466,186 @@ function _scaleOnMessage(msg) {
             _scaleWeightCallback = null;
             cb(liveMsg);
         }
-        // Drive stability logic on use page
+        // Drive stability logic on use / add pages
         if (liveMsg.stable && _currentPageId === 'use') {
             _scaleAutoFillUse(liveMsg);
+        }
+        if (liveMsg.stable && _currentPageId === 'add') {
+            _scaleAutoFillAdd(liveMsg);
         }
         // Same for recipe-use modal
         if (liveMsg.stable && document.getElementById('ruse-quantity') && !_scaleRecipeAutoFillPaused) {
             _scaleAutoFillRecipeUse(liveMsg);
         }
+    }
+}
+
+/** Grams from a scale weight message (null if unusable). */
+function _scaleMsgToGrams(msg) {
+    if (!msg) return null;
+    const raw = parseFloat(msg.value);
+    if (!isFinite(raw) || raw < 0) return null;
+    return _scaleToGrams(raw, msg.unit);
+}
+
+/**
+ * On choice screens whose next step uses the scale (action → Usa / Aggiungi),
+ * a rising weight arms a 5s progress bar on that button, then navigates and
+ * lets the dedicated page pick up the reading.
+ */
+function _scaleNavTargetForPage() {
+    if (_currentPageId !== 'action') return null;
+    const useBtn = document.getElementById('btn-action-use');
+    if (useBtn) {
+        return {
+            btnId: 'btn-action-use',
+            go: () => _scaleNavigatePreserveWeight(() => showUseForm()),
+        };
+    }
+    const addBtn = document.getElementById('btn-action-add');
+    if (addBtn) {
+        // Only auto-offer Add when the product is weighed (g/ml) — pieces don't need the scale
+        const u = (currentProduct?.unit || currentProduct?.package_unit || '').toLowerCase();
+        const weighed = u === 'g' || u === 'ml' || u === 'kg' || u === 'l'
+            || (currentProduct?.package_unit && /^(g|ml|kg|l)$/i.test(currentProduct.package_unit));
+        if (!weighed) return null;
+        return {
+            btnId: 'btn-action-add',
+            go: () => _scaleNavigatePreserveWeight(() => showAddForm()),
+        };
+    }
+    return null;
+}
+
+function _scaleNavigatePreserveWeight(fn) {
+    _scalePreserveWeightOnNav = true;
+    const saved = _scaleLatestWeight;
+    try {
+        fn();
+    } finally {
+        _scalePreserveWeightOnNav = false;
+    }
+    if (saved) _scaleLatestWeight = saved;
+    // Kick the destination page's scale autofill once the form is up
+    setTimeout(() => {
+        if (!_scaleLatestWeight) return;
+        if (_currentPageId === 'use') {
+            if (_scaleLatestWeight.stable) _scaleAutoFillUse(_scaleLatestWeight);
+            else _scaleUpdateLiveBox(_scaleLatestWeight);
+        } else if (_currentPageId === 'add' && _scaleLatestWeight.stable) {
+            _scaleAutoFillAdd(_scaleLatestWeight);
+        }
+    }, 120);
+}
+
+function _scaleResetNavRiseState() {
+    _scaleNavBaselineG = null;
+    _scaleNavPeakG = null;
+    _scaleNavArmed = false;
+}
+
+function _scaleHandleChoiceScreenRise(msg) {
+    const s = getSettings();
+    if (!s.scale_enabled || !s.scale_gateway_url || !_scaleConnected) return;
+
+    const grams = _scaleMsgToGrams(msg);
+    if (grams === null) return;
+
+    const target = _scaleNavTargetForPage();
+    if (!target) {
+        // Left the choice screen — drop arming state (timers cancelled by page nav)
+        if (_scaleNavArmed) {
+            _cancelScaleAutoConfirm(false);
+            _scaleResetNavRiseState();
+        } else {
+            _scaleNavBaselineG = grams;
+        }
+        return;
+    }
+
+    if (_scaleNavBaselineG === null) {
+        _scaleNavBaselineG = grams;
+        _scaleNavPeakG = grams;
+        return;
+    }
+
+    // "Rising": empty→food or a clear +20 g climb from the baseline
+    const risingFromEmpty = _scaleNavBaselineG < 8 && grams >= 15;
+    const risingClimb = grams - _scaleNavBaselineG >= 20;
+    const rising = risingFromEmpty || risingClimb;
+
+    if (_scaleNavArmed) {
+        if (grams > (_scaleNavPeakG || 0)) _scaleNavPeakG = grams;
+        // Took the item off (or a big drop) → cancel
+        if (grams + 12 < (_scaleNavPeakG || 0) || grams < 8) {
+            _cancelScaleAutoConfirm(false);
+            _scaleResetNavRiseState();
+            _scaleNavBaselineG = grams;
+        }
+        return;
+    }
+
+    if (rising && !_scaleUserDismissed && !_scaleAutoConfirmTimer) {
+        _scaleNavArmed = true;
+        _scaleNavPeakG = grams;
+        _startScaleAutoConfirm(() => {
+            _scaleNavArmed = false;
+            _scaleNavBaselineG = grams;
+            target.go();
+        }, target.btnId);
+        return;
+    }
+
+    // Stable empty plate → refresh baseline so the next placement can arm again
+    if (msg.stable && grams < 5) {
+        _scaleNavBaselineG = grams;
+        _scaleNavPeakG = grams;
+        _scaleUserDismissed = false;
+    }
+}
+
+/**
+ * Auto-fill add-quantity from a stable scale reading (g/ml products).
+ * Mirrors the use-page path so choice-screen → Add can land with the weight ready.
+ */
+function _scaleAutoFillAdd(msg) {
+    if (!msg || _currentPageId !== 'add') return;
+    const unitEl = document.getElementById('add-unit');
+    const inp = document.getElementById('add-quantity');
+    if (!unitEl || !inp) return;
+    let unit = (unitEl.value || '').toLowerCase();
+    if (unit === 'conf') {
+        const pkg = (document.getElementById('add-conf-unit')?.value || currentProduct?.package_unit || '').toLowerCase();
+        if (pkg !== 'g' && pkg !== 'ml') return;
+        // Fill conf size? Prefer filling quantity in g/ml when unit is weight
+        return;
+    }
+    if (unit !== 'g' && unit !== 'ml') return;
+
+    const grams = _scaleMsgToGrams(msg);
+    if (grams === null || grams < 10) return;
+
+    let val;
+    if (unit === 'g') {
+        val = Math.round(grams);
+    } else {
+        const density = _scaleDensityForProduct(currentProduct);
+        val = Math.round(grams / density);
+    }
+    if (val < 10) return;
+
+    if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
+        _cancelScaleTimersOnly();
+        _scaleStabilityVal = val;
+        _startScaleStabilityWait(() => {
+            inp.value = val;
+            inp.dataset.manuallySet = 'true';
+            _startScaleAutoConfirm(() => {
+                _scaleLastConfirmedGrams = grams;
+                const form = document.querySelector('#page-add form');
+                if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }, 'btn-add-submit');
+        });
     }
 }
 
@@ -633,9 +811,22 @@ function _scaleAutoFillUse(msg) {
         _cancelScaleStabilityWait();
         return;
     }
-    if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
+    if (val !== _scaleStabilityVal) {
+        // New stable reading → restart the 5 s stability wait + confirm bar
+        _scaleStabilityVal = val;
+        _scaleUserDismissed = false;
+        _cancelScaleTimersOnly();
+        _startScaleStabilityWait(() => {
+            const inp = document.getElementById('use-quantity');
+            if (inp) inp.value = val;
+            _startScaleAutoConfirm(() => {
+                _scaleLastConfirmedGrams = grams;
+                const form = document.querySelector('#page-use form');
+                if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }, 'btn-use-submit');
+        });
+    } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
         // Same value, not dismissed, no timer running (e.g. after brief !stable interruption)
-        // → restart stability wait so it eventually completes
         _cancelScaleTimersOnly();
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('use-quantity');
@@ -647,8 +838,7 @@ function _scaleAutoFillUse(msg) {
             }, 'btn-use-submit');
         });
     }
-    // Same value + dismissed → do nothing (user explicitly dismissed this value)
-    // Same value + timer running → do nothing (already counting down)
+    // Same value + dismissed → do nothing; same value + timer running → keep counting
 }
 
 /** Format a recipe-use quantity for big on-screen numbers. */
@@ -847,8 +1037,17 @@ function _cancelScaleTimersOnly() {
     _cancelScaleStabilityWait();
     const useBtn  = document.getElementById('btn-use-submit');
     const ruseBtn = document.getElementById('btn-ruse-submit');
+    const addBtn  = document.getElementById('btn-add-submit');
+    const actUse  = document.getElementById('btn-action-use');
+    const actAdd  = document.getElementById('btn-action-add');
     if (useBtn)  useBtn.style.background = '';
     if (ruseBtn) ruseBtn.style.background = '';
+    if (addBtn)  addBtn.style.background = '';
+    if (actUse)  actUse.style.background = '';
+    if (actAdd)  actAdd.style.background = '';
+    if (_scaleNavArmed) {
+        _scaleNavArmed = false;
+    }
     // Reset modal confirm bar
     const confirmBar = document.getElementById('ruse-scale-confirm-bar');
     const confirmWrap = document.getElementById('ruse-scale-confirm-wrap');
@@ -1204,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261010g'; // bump when translations change
+const _I18N_VERSION = '20261014a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2133,6 +2332,7 @@ function getExpiredSafety(item, daysExpired) {
     }
 
     // === FRIGO e DISPENSA ===
+    // Labels stay short badges (Va bene / Controlla / Non mangiare / Buttalo); tips are title-only.
     const highRisk = ['latticini', 'carne', 'pesce', 'verdura', 'frutta'];
     const medRisk = ['pane', 'surgelati'];
 
@@ -2140,7 +2340,7 @@ function getExpiredSafety(item, daysExpired) {
         if (inFrigo && daysExpired <= 2) {
             return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_highRisk_check') };
         }
-        return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_highRisk_danger') };
+        return { level: 'danger', icon: '🚫', label: t('status.dont_eat'), tip: t('status.tip_highRisk_danger') };
     }
 
     if (medRisk.includes(cat)) {
@@ -6419,6 +6619,13 @@ function showPage(pageId, param = null, options = {}) {
         stopScanner();
     }
 
+    // Leaving the action choice screen cancels a rising-scale navigate countdown
+    // (unless we are navigating because of that countdown).
+    if (pageId !== 'action' && !_scalePreserveWeightOnNav) {
+        if (_scaleNavArmed) _cancelScaleAutoConfirm(false);
+        _scaleResetNavRiseState();
+    }
+
     // Scroll to top
     window.scrollTo(0, 0);
 
@@ -7578,14 +7785,13 @@ async function loadDashboard() {
                 else if (days === 1) daysText = t('expiry.expired_yesterday');
                 else daysText = t('expiry.expired_days').replace('{days}', days);
                 const safety = getExpiredSafety(item, days);
-                // One plain sentence saying what to do with it (eat / check / discard).
-                const verdict = t('dashboard.banner_advice_format', { label: safety.label, tip: safety.tip });
+                // Short badge only (Controlla / Va bene / Buttalo / Non mangiare) — tip on hover.
                 return `
                 <div class="alert-item expired-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         ${_alertItemHead(item)}
                         ${_alertItemMeta(item)}
-                        <span class="alert-item-verdict banner-safety-${safety.level}">${safety.icon} ${escapeHtml(verdict)}</span>
+                        <span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
@@ -7849,6 +8055,24 @@ function _localizeSeasonalTip(key) {
     }
 }
 
+/**
+ * Translate the "why this produce is in season for you" reason.
+ *
+ * Same contract as the tip: PHP returns a stable `reason_key`, the client
+ * resolves it with a literal t() call so scripts/i18n-audit.py sees the key,
+ * and an unknown key (older cached payload) is returned verbatim.
+ */
+function _localizeSeasonalReason(key) {
+    const k = String(key || '');
+    if (typeof t !== 'function') return '';
+    switch (k) {
+        case 'shopping.seasonal_reason_bought':     return t('shopping.seasonal_reason_bought');
+        case 'shopping.seasonal_reason_often_eats': return t('shopping.seasonal_reason_often_eats');
+        case 'shopping.seasonal_reason_same_kind':  return t('shopping.seasonal_reason_same_kind');
+        default: return '';
+    }
+}
+
 /** Shopping: in-season suggestions + out-of-season removals (free IT calendar). */
 async function loadSeasonalReview() {
     const box = document.getElementById('seasonal-review');
@@ -7898,8 +8122,11 @@ async function loadSeasonalReview() {
                 const n = escapeHtml(s.name);
                 const nameJs = JSON.stringify(s.name);
                 const badge = s.bought_before ? ` <em class="seasonal-bought">${escapeHtml(t('shopping.seasonal_bought_before'))}</em>` : '';
+                // Why this one: habits and pantry, never the bare calendar.
+                const why = _localizeSeasonalReason(s.reason_key);
+                const whyHtml = why ? `<span class="seasonal-reason">${escapeHtml(why)}</span>` : '';
                 return `<div class="seasonal-row">
-                    <span>${n}${badge}</span>
+                    <span class="seasonal-row-text"><span>${n}${badge}</span>${whyHtml}</span>
                     <button type="button" class="btn-banner btn-banner-ok" onclick='addSeasonalSuggestion(${nameJs})'>${t('shopping.seasonal_add')}</button>
                 </div>`;
             }).join('');
@@ -7939,6 +8166,9 @@ async function removeSeasonalOutOfSeason(name, rawName) {
             rawName: rawName || name,
             listUUID: shoppingListUUID,
             purchased: false,
+            // Remember the removal until the produce is back in season, otherwise
+            // the smart list / cron re-adds the same out-of-season item at once.
+            seasonal_dismiss: true,
         });
         showToast(t('shopping.seasonal_removed_toast'), 'info');
         await loadShoppingList();
@@ -7961,6 +8191,7 @@ async function removeAllSeasonalOutOfSeason() {
                 rawName: o.raw_name || o.name,
                 listUUID: shoppingListUUID,
                 purchased: false,
+                seasonal_dismiss: true,
             });
         }
         showToast(t('shopping.seasonal_removed_toast'), 'info');
@@ -8404,7 +8635,7 @@ function renderBannerItem() {
         detailEl.innerHTML = `
             <div class="banner-fact">${escapeHtml(whenText)}${dateText ? ' · ' + escapeHtml(dateText) : ''}</div>
             ${_alertItemMeta(item)}
-            <div class="banner-verdict banner-safety-${safety.level}">${safety.icon} ${escapeHtml(t('dashboard.banner_advice_format', { label: safety.label, tip: safety.tip }))}</div>`;
+            <div class="banner-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</div>`;
         let btns = '';
         btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_expired_action_finished')}</button>`;
         if (!isOpenedExpiry && safety.level !== 'danger') {
@@ -10270,8 +10501,9 @@ async function itemDetailUseAll(productId, location) {
 }
 
 function closeModal() {
-    // Spesa spend prompt: overlay onclick="closeModal()" must also resume the scanner
-    const resumeSpesaScan = _spesaSpendModalOpen && _spesaMode;
+    // Spesa spend prompt: only start/resume the camera AFTER the popup is gone
+    // (starting under the dialog race-starts barcode decode and causes chaos).
+    const startSpesaAfterSpend = _spesaSpendModalOpen && _spesaMode;
     if (_spesaSpendModalOpen) _spesaSpendModalOpen = false;
 
     document.getElementById('modal-overlay').style.display = 'none';
@@ -10282,7 +10514,7 @@ function closeModal() {
     _scaleWeightCallback = null;
     _bannerEditPending = false;
 
-    if (resumeSpesaScan) resumeScanner();
+    if (startSpesaAfterSpend) _spesaBeginScanning();
 }
 
 async function _openUsePage(productId, location) {
@@ -11107,7 +11339,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261010b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261014a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11117,7 +11349,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261010b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261014a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -12836,15 +13068,15 @@ function showProductAction() {
             
             btnsContainer.className = 'action-buttons-4col';
             btnsContainer.innerHTML = `
-                <button class="btn btn-huge btn-success" onclick="showAddForm()">
+                <button type="button" class="btn btn-huge btn-success" id="btn-action-add" onclick="showAddForm()">
                     <span class="btn-icon">📥</span>
                     <span class="btn-text">${t('action.add_btn')}<br><small>${t('action.add_more_sub')}</small></span>
                 </button>
-                <button class="btn btn-huge btn-danger" onclick="showUseForm()">
+                <button type="button" class="btn btn-huge btn-danger" id="btn-action-use" onclick="showUseForm()">
                     <span class="btn-icon">📤</span>
                     <span class="btn-text">${t('action.use_btn')}<br><small>${t('action.use_qty_sub')}</small></span>
                 </button>
-                <button class="btn btn-huge btn-throw" onclick="showThrowForm()">
+                <button type="button" class="btn btn-huge btn-throw" id="btn-action-throw" onclick="showThrowForm()">
                     <span class="btn-icon">🗑️</span>
                     <span class="btn-text">${t('action.throw_btn')}<br><small>${t('action.throw_sub')}</small></span>
                 </button>
@@ -12870,7 +13102,7 @@ function showProductAction() {
             statusBar.style.display = 'none';
             btnsContainer.className = 'action-buttons';
             btnsContainer.innerHTML = `
-                <button class="btn btn-huge btn-success" onclick="showAddForm()" style="flex:1">
+                <button type="button" class="btn btn-huge btn-success" id="btn-action-add" onclick="showAddForm()" style="flex:1">
                     <span class="btn-icon">📥</span>
                     <span class="btn-text">${t('action.add_btn')}<br><small>${t('action.add_sub')}</small></span>
                 </button>
@@ -13678,6 +13910,11 @@ function finishEditScanAiBrand(cancel = false) {
 function showAddForm() {
     _snapshotCatalogTitle();
     _renderAddProductPreview();
+    _scaleUserDismissed = false;
+    _scaleStabilityVal = null;
+    // Weight is kept by _scaleNavigatePreserveWeight when auto-navigating from the action page
+    _cancelScaleAutoConfirm(false);
+    _scaleResetNavRiseState();
     
     // Set unit selector
     const unit = currentProduct.unit || 'pz';
@@ -14460,8 +14697,12 @@ function showUseForm() {
     _useSubmitting = false;
     _scaleUserDismissed = false;
     _scaleStabilityVal  = null;
-    _scaleLatestWeight  = null; // clear stale weight from previous product
+    // Keep the live reading when we auto-navigated here from a rising scale
+    if (!_scalePreserveWeightOnNav) {
+        _scaleLatestWeight = null; // clear stale weight from previous product
+    }
     _cancelScaleAutoConfirm(false);
+    _scaleResetNavRiseState();
     document.getElementById('use-quantity').value = 1;
     document.getElementById('use-location').value = 'dispensa';
     document.getElementById('use-unit-switch').style.display = 'none';
@@ -15290,7 +15531,7 @@ function showLowStockBringPrompt(result, afterCallback) {
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3>⚠️ Sta per finire!</h3>
+            <h3>${t('lowstock.title')}</h3>
             <button class="modal-close" onclick="closeLowStockPrompt()">✕</button>
         </div>
         <div style="padding:0 16px 16px">
@@ -15298,7 +15539,7 @@ function showLowStockBringPrompt(result, afterCallback) {
             ${smartNote}
             <p style="margin-bottom:16px">${t('lowstock.question')}</p>
             <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring()">
-                ${t('lowstock.yes')}
+                ${_isShoppingBringMode() ? t('lowstock.yes') : t('lowstock.yes_list')}
             </button>
             <button type="button" class="btn btn-secondary full-width" style="margin-top:8px" onclick="closeLowStockPrompt()">
                 ${t('lowstock.no')}
@@ -15326,12 +15567,15 @@ async function addLowStockToBring() {
             pinned[bringName.toLowerCase()] = Date.now();
             _pinnedBringCache = pinned;
             _saveToServer('pinned_bring', pinned);
-            showToast(t('shopping.added_to_bring').replace('{n}', data.added), 'success');
+            showToast(
+                (_isShoppingBringMode() ? t('shopping.added_to_bring') : t('shopping.added_to_list')).replace('{n}', data.added),
+                'success'
+            );
         } else if (data.success && data.skipped > 0) {
             showToast(t('shopping.already_in_list_short'), 'info');
         }
     } catch (e) {
-        showToast(t('error.bring_add'), 'error');
+        showToast(_isShoppingBringMode() ? t('error.bring_add') : t('error.add_to_list'), 'error');
     }
     const cb = window._lowStockAfterCallback;
     window._lowStockAfterCallback = null;
@@ -17401,10 +17645,37 @@ function _isBringPurchased(name, urgency) {
     });
 }
 
+/** Mirror of PHP smartItemMatchesHighUseRestock — ≤25% of buy or runs out soon. */
+function _smartItemMatchesHighUseRestock(item) {
+    if (!item) return false;
+    const qty = parseFloat(item.current_qty ?? item.quantity ?? 0);
+    if (qty <= 0.001) return true;
+    const uses = parseFloat(item.uses_per_month ?? 0);
+    const u = item.urgency || 'none';
+    const highUse = uses >= 1.5 || ['critical', 'high', 'medium'].includes(u);
+    if (!highUse) return false;
+    const pct = item.pct_left != null ? Number(item.pct_left) : null;
+    if (pct != null && pct <= 25) return true;
+    const daysLeft = item.days_left != null ? Number(item.days_left) : null;
+    const plan = Math.max(1, Math.round(Number(item.edible_days ?? item.plan_days ?? 14)));
+    return daysLeft != null && daysLeft <= plan;
+}
+
+/** Mirror of PHP smartItemNeedsRestockOverride — staples running low beat "Comprato". */
+function _smartItemOverridesPurchaseBlock(item) {
+    if (!item) return false;
+    const qty = parseFloat(item.current_qty ?? item.quantity ?? 0);
+    if (qty <= 0.001) return true;
+    if (_smartItemMatchesHighUseRestock(item)) return true;
+    const u = item.urgency || 'none';
+    return ['critical', 'high', 'medium'].includes(u);
+}
+
 /** Drop smart-shopping rows the user already bought (blocklist from spesa). */
 function _filterPurchasedSmartItems(items) {
     if (!Array.isArray(items) || !items.length) return items || [];
     return items.filter(item => {
+        if (_smartItemOverridesPurchaseBlock(item)) return true;
         const names = [item.shopping_name, item.name].filter(Boolean);
         return !names.some(n => _isBringPurchased(n, item.urgency));
     });
@@ -17418,23 +17689,24 @@ async function autoAddCriticalItems() {
     const toAdd = smartShoppingItems.filter(i => {
         if (i.on_bring) return false;
         const gName = i.shopping_name || i.name;
-        if (_isBringPurchased(gName, i.urgency)) return false;
-        if (['critical', 'high'].includes(i.urgency)) return true;
-        // Depleted food must land on the list unless the user blocked it
+        if (_isBringPurchased(gName, i.urgency) && !_smartItemOverridesPurchaseBlock(i)) return false;
         const qty = parseFloat(i.current_qty ?? i.quantity ?? 0);
-        return qty <= 0.001 && ['medium', 'low'].includes(i.urgency);
+        if (qty <= 0.001) return ['critical', 'high', 'medium', 'low'].includes(i.urgency);
+        if (_smartItemMatchesHighUseRestock(i)) return true;
+        return ['critical', 'high', 'medium'].includes(i.urgency);
     });
     if (toAdd.length === 0) return;
     const itemsToAdd = toAdd.map(i => ({
         name: i.shopping_name || i.name,
-        specification: _urgencyToSpec(i.urgency),
+        rawName: i.name,
+        specification: _buildSmartSpec(i),
     }));
     try {
         const result = await api('shopping_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
             // Track these as auto-added so cleanupObsoleteBringItems can safely remove them later
             _markAutoAddedBring(itemsToAdd.map(i => i.name));
-            showToast(t('shopping.add_urgent_toast', { n: result.added }), 'success');
+            showToast(t(_isShoppingBringMode() ? 'shopping.add_urgent_toast' : 'shopping.add_urgent_toast_list', { n: result.added }), 'success');
             logOperation('bring_auto_add', { added: itemsToAdd.map(i => i.name) });
             loadShoppingList();
         }
@@ -18694,9 +18966,11 @@ async function addSmartToBring() {
         });
         showLoading(false);
         if (result.success) {
+            const bring = _isShoppingBringMode();
             const msg = result.added > 0
-                ? t('shopping.added_to_bring', { n: result.added }) + (result.skipped > 0 ? ` (${t('shopping.added_to_bring_skip', { n: result.skipped })})` : '')
-                : t('shopping.all_on_bring');
+                ? (bring ? t('shopping.added_to_bring', { n: result.added }) : t('shopping.added_to_list', { n: result.added }))
+                    + (result.skipped > 0 ? ` (${t('shopping.added_to_bring_skip', { n: result.skipped })})` : '')
+                : (bring ? t('shopping.all_on_bring') : t('shopping.all_on_list'));
             showToast(msg, result.added > 0 ? 'success' : 'info');
             // Mark all manually-added items as user-pinned so cleanupObsoleteBringItems never removes them
             if (result.added > 0) {
@@ -18867,6 +19141,42 @@ function _buildSmartSpec(smartMatch) {
     return parts.join(' · ');
 }
 
+/** Short why-line for a smart-shopping / list row (one reason, few words). */
+function _shoppingPrimaryReason(smartData) {
+    const fromItem = smartData?.reason;
+    if (fromItem) return _localizeSmartReason(fromItem);
+    const reasons = smartData?.reasons;
+    if (!Array.isArray(reasons) || !reasons.length) return '';
+    // Keep a bare t() touch for each key so scripts/i18n-audit.py sees them.
+    t('shopping.reason_out_of_stock');
+    t('shopping.reason_near_empty');
+    t('shopping.reason_ends_in');
+    t('shopping.reason_stock_insufficient');
+    t('shopping.reason_ends_in_cycle');
+    t('shopping.reason_low_stock');
+    t('shopping.reason_expired');
+    t('shopping.reason_expires_in');
+    t('shopping.reason_expires_rebuy');
+    t('shopping.reason_only_one_pack');
+    t('shopping.reason_only_one_piece');
+    t('shopping.reason_only_two_packs');
+    t('shopping.reason_only_two_pieces');
+    t('shopping.reason_minimal_stock');
+    t('shopping.reason_frequent_use');
+    t('shopping.reason_opened_soon');
+    const preferred = [
+        'out_of_stock', 'near_empty', 'ends_in', 'stock_insufficient', 'ends_in_cycle',
+        'low_stock', 'expired', 'expires_in', 'expires_rebuy', 'only_one_pack',
+        'only_one_piece', 'only_two_packs', 'only_two_pieces', 'minimal_stock',
+        'frequent_use', 'opened_soon',
+    ];
+    for (const code of preferred) {
+        const hit = reasons.find(r => String(r).split(':')[0] === code);
+        if (hit) return _localizeSmartReason(hit);
+    }
+    return _localizeSmartReason(reasons[0]);
+}
+
 /** True if Bring spec still contains product/brand text beyond urgency markers. */
 function _specNeedsGenericCleanup(spec) {
     return !!_specDisplayText(spec || '').trim();
@@ -18962,11 +19272,14 @@ async function loadShoppingList() {
         
         if (!data.success) {
             statusEl.style.display = 'block';
-            const isMissingCreds = data.error && data.error.toLowerCase().includes('credenziali bring');
+            // Bring! is optional: a missing-credentials message only makes sense in
+            // mirror mode, otherwise show the plain connection error.
+            const isBringMode = _isShoppingBringMode();
+            const isMissingCreds = isBringMode && data.error && data.error.toLowerCase().includes('credenziali bring');
             if (isMissingCreds) {
                 statusEl.innerHTML = `<div class="bring-error">🔑 ${t('shopping.bring_not_configured')}</div>`;
             } else {
-                statusEl.innerHTML = `<div class="bring-error">⚠️ ${escapeHtml(data.error || t('error.bring_connection'))}</div>`;
+                statusEl.innerHTML = `<div class="bring-error">⚠️ ${escapeHtml(data.error || (isBringMode ? t('error.bring_connection') : t('error.connection')))}</div>`;
             }
             return;
         }
@@ -19025,7 +19338,7 @@ async function loadShoppingList() {
             return;
         }
         statusEl.style.display = 'block';
-        statusEl.innerHTML = `<div class="bring-error">${t('error.bring_connection')}</div>`;
+        statusEl.innerHTML = `<div class="bring-error">${_isShoppingBringMode() ? t('error.bring_connection') : t('error.connection')}</div>`;
     }
 }
 
@@ -19168,9 +19481,12 @@ function _shoppingListSubtitle(item, displayName) {
     return spec || '';
 }
 
-function _shopRowInnerHtml({ displayName, subtitle = '', qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
+function _shopRowInnerHtml({ displayName, subtitle = '', reason = '', qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
     const subHtml = subtitle
         ? `<div class="shop-row-subtitle">${escapeHtml(subtitle)}</div>`
+        : '';
+    const reasonHtml = reason
+        ? `<div class="shop-row-reason">${escapeHtml(reason)}</div>`
         : '';
     return `
     <div class="shop-row-swipe-zones">
@@ -19188,6 +19504,7 @@ function _shopRowInnerHtml({ displayName, subtitle = '', qtyHtml, priceCell, vis
                     ${urgencyBadge}
                 </div>
                 ${subHtml}
+                ${reasonHtml}
             </div>
             ${priceCell || ''}
         </div>
@@ -19466,6 +19783,7 @@ async function renderShoppingItems(force = false) {
                 ${_shopRowInnerHtml({
                     displayName,
                     subtitle: _shoppingListSubtitle(item, displayName),
+                    reason: _shoppingPrimaryReason(smartData || item),
                     qtyHtml,
                     priceCell,
                     visualHtml,
@@ -19884,7 +20202,11 @@ function updateSuggestionActionBtn() {
     const btn = document.querySelector('#suggestion-actions .btn-success');
     if (btn) {
         const nItems = selected.length;
-        btn.textContent = `✅ ${nItems === 1 ? t('shopping.bring_add_one') : t('shopping.bring_add_many').replace('{n}', nItems)}`;
+        // Bring! is optional: never name it in the UI unless it is the active mode.
+        const bring = _isShoppingBringMode();
+        btn.textContent = `✅ ${nItems === 1
+            ? (bring ? t('shopping.bring_add_one') : t('shopping.list_add_one'))
+            : (bring ? t('shopping.bring_add_many') : t('shopping.list_add_many')).replace('{n}', nItems)}`;
         btn.disabled = nItems === 0;
     }
 }
@@ -19908,7 +20230,10 @@ async function addSelectedSuggestions() {
         const data = await api('shopping_add', {}, 'POST', { items, listUUID: shoppingListUUID });
         
         if (data.success) {
-            let msg = data.added === 1 ? t('shopping.bring_added_one') : t('shopping.bring_added_many').replace('{n}', data.added);
+            const bring = _isShoppingBringMode();
+            let msg = data.added === 1
+                ? (bring ? t('shopping.bring_added_one') : t('shopping.added_to_list', { n: 1 }))
+                : (bring ? t('shopping.bring_added_many').replace('{n}', data.added) : t('shopping.added_to_list', { n: data.added }));
             if (data.skipped > 0) msg += ` ${t('shopping.bring_skipped').replace('{n}', data.skipped)}`;
             showToast(msg, 'success');
             // Refresh list
@@ -19926,7 +20251,7 @@ async function addSelectedSuggestions() {
     }
     
     btn.disabled = false;
-    btn.innerHTML = `✅ ${t('shopping.bring_add_selected')}`;
+    btn.innerHTML = `✅ ${_isShoppingBringMode() ? t('shopping.bring_add_selected') : t('shopping.list_add_selected')}`;
 }
 
 // ===== UTILITY FUNCTIONS =====
@@ -20170,7 +20495,7 @@ async function loadLog(more = false) {
                 let icon, typeLabel, colorClass;
                 if (tx.type === 'bring') {
                     icon = '🛒';
-                    typeLabel = t('log.type_bring');
+                    typeLabel = t(_isShoppingBringMode() ? 'log.type_bring' : 'log.type_list');
                     colorClass = 'log-bring';
                 } else if (tx.type === 'in') {
                     icon = '➕';
@@ -21815,7 +22140,7 @@ async function submitRecipeUse(useAll) {
                 ), 800);
             }
             if (result.added_to_shopping || result.added_to_bring) {
-                setTimeout(() => showToast(t('recipes.finished_added_bring_toast'), 'info'), 1500);
+                setTimeout(() => showToast(t(_isShoppingBringMode() ? 'recipes.finished_added_bring_toast' : 'recipes.finished_added_list_toast'), 'info'), 1500);
             }
             
             const usedLocation = result.used_location || location;
@@ -26677,15 +27002,16 @@ function _spesaPromptOptionalSpend() {
     if (_spesaSpendPromptShown) {
         // Gate stuck (e.g. modal dismissed without skip handler) — unblock scan
         if (_spesaSpendModalOpen && _spesaMode) {
-            _spesaSpendModalOpen = false;
-            resumeScanner();
+            _spesaBeginScanning();
         }
         return;
     }
     _spesaSpendPromptShown = true;
     _spesaSpendModalOpen = true;
     _clearSpesaAiFallbackTimers();
-    pauseScanner();
+    // If the camera page is already open, pause decode while the dialog is up.
+    // Otherwise we have not opened scan yet — do not start the camera under the popup.
+    if (_currentPageId === 'scan') pauseScanner();
 
     const sym = _spesaCurrencySymbol();
     const modalHtml = `
@@ -26693,7 +27019,7 @@ function _spesaPromptOptionalSpend() {
             <h3 class="edit-modal-heading">${escapeHtml(t('shopping.spend_modal_title'))}</h3>
             <button class="modal-close" onclick="_spesaSpendSkip()">✕</button>
         </div>
-        <div style="padding:16px">
+        <div style="padding:16px" onclick="event.stopPropagation()">
             <p style="margin:0 0 10px; color: var(--text-light)">
                 ${escapeHtml(t('shopping.spend_modal_hint'))}
             </p>
@@ -26714,10 +27040,26 @@ function _spesaPromptOptionalSpend() {
     if (inp) setTimeout(() => inp.focus(), 50);
 }
 
+/** After the spend popup closes: open (or resume) the camera for spesa scanning. */
+function _spesaBeginScanning() {
+    if (!_spesaMode) {
+        _spesaSpendModalOpen = false;
+        return;
+    }
+    _spesaSpendModalOpen = false;
+    if (_currentPageId !== 'scan') {
+        showPage('scan');
+    } else {
+        resumeScanner();
+    }
+    updateSpesaBanner();
+}
+
 async function _spesaSpendSave() {
     const inp = document.getElementById('spend-amount-input');
     const raw = inp ? inp.value : '';
     const amount = parseFloat(String(raw).replace(',', '.'));
+    // closeModal → _spesaBeginScanning (camera only after the popup is gone)
     closeModal();
 
     if (!_spesaMode) return;
@@ -26772,7 +27114,7 @@ async function startSpesaMode() {
     _spesaMode = true;
     _spesaSession = [];
     _spesaSpendPromptShown = false;
-    // Block barcode decode BEFORE opening the scan page (avoids race with async initScanner)
+    // Keep decode blocked until the spend popup is closed — then _spesaBeginScanning().
     _spesaSpendModalOpen = true;
     _spesaAiFallbackCanceled = false;
     _spesaAiFallbackUsedThisCycle = false;
@@ -26788,8 +27130,12 @@ async function startSpesaMode() {
     } catch (_) {}
 
     showToast(t('scan.mode_shopping_activated'), 'success');
-    showPage('scan');
-    updateSpesaBanner();
+    // Ask "how much did you spend?" FIRST. Opening the scan page under that dialog
+    // races initScanner with the modal and starts decoding too early.
+    if (_currentPageId === 'scan') {
+        pauseScanner();
+        updateSpesaBanner();
+    }
     _spesaPromptOptionalSpend();
 }
 

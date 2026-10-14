@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.12] - 2026-10-14
+
+### Alerts: one-word verdicts
+- Expired/opened rows and the dashboard banner no longer print a full sentence: a coloured pill badge (**Va bene / Controlla / Non mangiare / Buttalo**) with the advice in the `title` tooltip. `.safety-pill-*` replaces the old `.banner-safety-*` text rules; `status.dont_eat` added to all six locales.
+
+### Seasonality
+- **Removing an out-of-season product now sticks.** `shopping_remove` accepts `seasonal_dismiss` and stores the family in `app_settings.seasonal_dismissed` until its next peak month (`seasonalMarkDismissed` / `seasonalIsDismissed`); smart shopping *and* the internal auto-add cron skip it, so it cannot reappear on the next run.
+- Unknown/empty pantry categories no longer exempt a produce from the calendar check (a mistagged "Peperoni" was able to come back).
+- **Suggestions are now evidence-based instead of calendar filler**: the review card scores purchases of the produce/family (100+), its real consumption (90+), then the kind-level habit as a lower-ranked fallback; a produce the household never buys or eats is not suggested at all. Every card shows *why* (`shopping.seasonal_reason_bought` / `_often_eats` / `_same_kind`), locked by `scripts/test-seasonal-match.php` in all six locales.
+
+### Bring! is optional (and now invisible)
+- When the internal list is the active mode, no button, toast, log entry or error message names Bring! anymore: suggestion buttons, low-stock prompt (plus its previously hardcoded modal title), add/limit toasts, activity-log label, finished-product toast and connection errors all switch to the list wording (`shopping.list_add_*`, `shopping.added_to_list`, `shopping.all_on_list`, `lowstock.yes_list`, `log.type_list`, `recipes.finished_added_list_toast`, `error.add_to_list`).
+
+### UI
+- Bigger tap targets: dashboard action buttons (`Usa`, `Ricetta`, `Modifica`, `Butta`) and the item-detail actions grew from 0.72/0.82 rem to 0.82/0.95 rem with ≥34/52 px height; seasonal **Togli/Aggiungi** buttons follow.
+
+### i18n
+- New keys in all six locales, no hardcoded Italian left in the low-stock modal, `aria-label="Close"` wired to `btn.close`, dead `dashboard.banner_advice_format` removed (and its assertion dropped from `scripts/test-i18n-icons.php`). `scripts/i18n-audit.py`: 0 missing keys, 0 unwired attributes.
+
 ## [1.11.11] - 2026-10-10
 
 ### Scan screen redesign

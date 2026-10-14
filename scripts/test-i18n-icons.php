@@ -141,7 +141,6 @@ assert_true($htmlHits === 0, 'no markup shows an icon next to a label that alrea
 
 // ── [3] the dashboard copy must exist, with placeholders, in all locales ────
 $required = [
-    'dashboard.banner_advice_format'         => ['{label}', '{tip}'],
     'dashboard.banner_sold_date'             => ['{date}'],
     'dashboard.still_have_qty'               => ['{qty}'],
     'dashboard.banner_expired_action_extend' => [],

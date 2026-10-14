@@ -1,0 +1,102 @@
+# EverShelf — Cline working rules
+
+Self-hosted **pantry manager**: PHP 8 + SQLite backend, vanilla-JS SPA/PWA.
+No framework, no runtime build step. Repo root = `/var/www/html/dispensa`.
+
+**Read `AGENTS.md` first** — it is the full working guide. This file is the short
+digest that always applies. Deep architecture: `docs/CODEBASE-MAP.md`.
+
+## 1. Never read the giant files in full
+
+| File | Size | How to navigate |
+|---|---|---|
+| `assets/js/app.js` | ~29 200 lines | `docs/INDEX-app-js.md` (function → line), then a ranged read |
+| `api/index.php` | ~20 600 lines | `docs/INDEX-api-index.md` |
+| `index.html` | ~2 770 lines | `grep -n` for the id you need |
+| `CHANGELOG.md` | ~2 280 lines | never read whole; `head` it or anchor an edit on the top heading |
+| `translations/*.json` | ~130 KB each | `python3 -c` + `grep` on the key, not the whole file |
+
+Always locate with `grep -n "functionName" file` or the indexes, then read only
+that range (`start_line`/`end_line`). `.clineignore` hides generated/vendor/
+runtime/binary files — if a task truly needs one, ask first.
+
+## 2. Conventions
+
+- **Language**: code, comments and docs in **English**. UI strings must never be
+  hardcoded: `t('key')` in JS / `data-i18n="key"` in HTML, and the key must be
+  added to **all six** locales (it, en, de, fr, es, zh). Optional UI text coming
+  from PHP returns a `hint_key` (+ `hint_args`) / `tip_key` / `reasons[]`, never a
+  literal string.
+- **Backend**: every HTTP action is one `case` in `switch ($action)` in
+  `api/index.php` (+ its handler function below). Errors → `{"success":false,
+  "error":"..."}` inside the existing global try/catch; never print HTML before
+  JSON. Log with `EverLog::info/warn/error/debug/exception` and a
+  `['event' => 'snake_case_key']` context — never `error_log`/`var_dump`.
+- **Security**: new action → add it to the right allow-list in
+  `api/lib/security.php` only when intended. Never trust client headers
+  (`Origin`, `Referer`, `Sec-Fetch-Site`).
+- **Frontend**: plain JS, `escapeHtml()` before any `innerHTML`; no inline
+  `onclick` with unescaped data; use the `api(action, payload)` wrapper (app.js
+  ~line 5384).
+- **Product titles** (`products.name`/`kind`) go exclusively through
+  `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
+  Never add a second dictionary or write a title elsewhere.
+- **DB schema/migrations**: `api/database.php` (`initializeDB`, `migrateDB`).
+- **Style**: follow the surrounding code, 4-space indent, docblock + comment
+  style already in use; keep comments explanatory, not decorative.
+
+## 3. Version / asset / i18n hygiene
+
+- Version lives in **4 places** → always run `scripts/bump-version.sh X.Y.Z`
+  (`index.html` badges, `manifest.json`, `sw.js` CACHE, `app.js` i18n token)
+  and add a top `CHANGELOG.md` entry.
+- Edited `app.js` / `style.css` → bump the `?v=` stamp in `index.html` and the
+  `sw.js` CACHE name (the script above does it).
+- Entries with `t('key')` must be a literal, bare `t('…')` call — a helper or a
+  PHP-only string is invisible to `scripts/i18n-audit.py`.
+
+## 4. Validate before saying "done"
+
+```bash
+# syntax
+find api -name '*.php' -exec php -l {} \;
+node -c assets/js/app.js && node -c sw.js
+for f in mcp-server/src/*.js; do node --check "$f"; done
+
+# i18n
+python3 -c "import json,glob; [json.load(open(f)) for f in glob.glob('translations/*.json')]"
+python3 scripts/i18n-audit.py
+
+# regression tests (run the ones the change touches)
+php scripts/test-shopping-guards.php
+php scripts/test-product-kind-prefix.php
+php scripts/test-product-number.php
+php scripts/test-preloader-stages.php
+php scripts/test-dashboard-panels.php
+php scripts/test-settings-nav.php
+php scripts/test-i18n-icons.php
+php scripts/test-html-in-text.php
+php scripts/test-auto-favorite.php
+php scripts/test-recipe-archive.php
+php scripts/test-seasonal-match.php
+# full list: ls scripts/test-*.php
+
+# after big edits, regenerate the navigation indexes
+bash scripts/gen-code-index.sh
+```
+
+Run locally: `php -S 127.0.0.1:8080` → http://127.0.0.1:8080
+
+## 5. Git
+
+- Work on **`develop`**; CI auto-merges `develop → main` and tags the release.
+- Commit prefixes used in history: `feat:`, `fix:`, `release:`, `merge:`.
+- Never commit `/todo/` (internal notes), `.env`, keystores or APKs.
+- Don't touch `.github/workflows/*` pushes blindly: pushing workflow files needs
+  a `workflow`-scoped PAT (see `todo/0001-ci-*.patch`).
+
+## 6. Response style for this project
+
+- Be concise: diff-first, no restating the whole file.
+- State assumptions and any file you intentionally left out of scope.
+- Report the exact commands you ran and their result.

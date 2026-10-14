@@ -198,7 +198,14 @@ function seasonalIsAllYearCrop(string $name): bool {
  * staples keep working whatever the calendar says.
  */
 function seasonalProduceOutOfSeason(string $name, string $category = '', ?int $month = null): bool {
-    if (!seasonalIsFreshCategory($category) || seasonalIsAllYearCrop($name)) {
+    if (seasonalIsAllYearCrop($name) || seasonalIsPreserved($name)) {
+        return false;
+    }
+    // Explicit pantry categories (conserve, latticini, altro…) never hide.
+    // Empty/unknown category: trust the produce-name match so a mistagged
+    // "Peperoni" cannot keep reappearing on the list after the user removes it.
+    $cat = trim($category);
+    if ($cat !== '' && !seasonalIsFreshCategory($cat)) {
         return false;
     }
     $match = seasonalMatchProduce($name, $month);
@@ -279,6 +286,128 @@ function seasonalStatusForName(string $name, ?int $month = null): string {
     return $m['status'] ?? 'unknown';
 }
 
+/** Buyable generic key used for seasonal dismiss / dedupe. */
+function seasonalGenericKey(string $name): string {
+    $n = trim($name);
+    if ($n === '') {
+        return '';
+    }
+    if (function_exists('computeShoppingName')) {
+        $g = trim((string)computeShoppingName($n));
+        if ($g !== '') {
+            return seasonalNormalize($g);
+        }
+    }
+    return seasonalNormalize($n);
+}
+
+/** @return array<string,array{until:string}> */
+function seasonalLoadDismissed(PDO $db): array {
+    try {
+        $raw = $db->query("SELECT value FROM app_settings WHERE key = 'seasonal_dismissed'")->fetchColumn();
+        $map = $raw ? json_decode((string)$raw, true) : [];
+        if (!is_array($map)) {
+            return [];
+        }
+        $out = [];
+        foreach ($map as $k => $v) {
+            $key = seasonalNormalize((string)$k);
+            if ($key === '') {
+                continue;
+            }
+            if (is_array($v) && !empty($v['until'])) {
+                $out[$key] = ['until' => (string)$v['until']];
+            } elseif (is_string($v) && $v !== '') {
+                $out[$key] = ['until' => $v];
+            }
+        }
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function seasonalSaveDismissed(PDO $db, array $map): void {
+    $db->prepare(
+        "INSERT INTO app_settings (key, value, updated_at) VALUES ('seasonal_dismissed', ?, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+    )->execute([json_encode($map, JSON_UNESCAPED_UNICODE)]);
+}
+
+/** True when a dismiss key is still active for the given calendar month. */
+function seasonalIsDismissedKey(array $dismissed, string $key, ?int $month = null): bool {
+    $key = seasonalNormalize($key);
+    if ($key === '' || !isset($dismissed[$key]['until'])) {
+        return false;
+    }
+    $until = (string)$dismissed[$key]['until'];
+    if (!preg_match('/^(\d{4})-(\d{2})$/', $until, $m)) {
+        return false;
+    }
+    $month = $month ?? (int)date('n');
+    $nowYm = ((int)date('Y') * 100) + $month;
+    $untilYm = ((int)$m[1] * 100) + (int)$m[2];
+    return $nowYm < $untilYm;
+}
+
+function seasonalIsDismissed(PDO $db, string $name, ?int $month = null): bool {
+    $dismissed = seasonalLoadDismissed($db);
+    $keys = array_filter([
+        seasonalGenericKey($name),
+        seasonalNormalize($name),
+        seasonalNormalize(explode(' ', trim($name))[0] ?? ''),
+    ]);
+    foreach ($keys as $k) {
+        if (seasonalIsDismissedKey($dismissed, $k, $month)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Remember an out-of-season remove until the produce's next peak month,
+ * so smart auto-add cannot resurrect it while it is still off-season.
+ */
+function seasonalMarkDismissed(PDO $db, string $name): void {
+    $match = seasonalMatchProduce($name);
+    $peak = array_map('intval', $match['item']['peak'] ?? []);
+    $month = (int)date('n');
+    $year = (int)date('Y');
+    $nextPeak = null;
+    sort($peak);
+    foreach ($peak as $m) {
+        if ($m > $month) {
+            $nextPeak = $m;
+            break;
+        }
+    }
+    if ($nextPeak === null && $peak !== []) {
+        $nextPeak = (int)$peak[0];
+        $year++;
+    }
+    if ($nextPeak === null) {
+        $nextPeak = $month;
+        $year++;
+    }
+    $until = sprintf('%04d-%02d', $year, $nextPeak);
+    $map = seasonalLoadDismissed($db);
+    foreach ([$name, seasonalGenericKey($name)] as $label) {
+        $gk = seasonalGenericKey($label);
+        if ($gk === '') {
+            continue;
+        }
+        $map[$gk] = ['until' => $until];
+    }
+    $nowStamp = sprintf('%04d-%02d', (int)date('Y'), $month);
+    foreach ($map as $k => $entry) {
+        if (((string)($entry['until'] ?? '')) <= $nowStamp) {
+            unset($map[$k]);
+        }
+    }
+    seasonalSaveDismissed($db, $map);
+}
+
 /**
  * Review shopping list vs seasonality + suggest peak produce not already stocked/listed.
  *
@@ -339,8 +468,9 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         ];
     }
 
-    // Stock names (cookable)
+    // Stock names + kinds currently in the pantry (fresh produce only).
     $stockNorm = [];
+    $stockKinds = [];
     try {
         $rows = $db->query("
             SELECT p.name, p.category, p.shopping_name
@@ -360,13 +490,23 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
                     $stockNorm[$gk] = true;
                 }
             }
+            $mStock = seasonalMatchProduce((string)$r['name'], $month);
+            $kind = (string)($mStock['item']['kind'] ?? '');
+            if ($kind !== '') {
+                $stockKinds[$kind] = ($stockKinds[$kind] ?? 0) + 1;
+            }
         }
     } catch (Throwable $e) {
         $rows = [];
     }
 
-    // Past purchases boost suggestions
+    // Purchases (in) and real consumption (out) — habits, not calendar filler.
+    // Kept apart on purpose: "you usually buy it" and "you eat it often" are
+    // different reasons and the card states one of them.
     $boughtBoost = [];
+    $consumedBoost = [];
+    $consumedKinds = [];
+    $boughtKinds = [];
     try {
         $bought = $db->query("
             SELECT p.name, COUNT(*) AS c
@@ -377,12 +517,50 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
             GROUP BY p.id
         ")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($bought as $b) {
-            $boughtBoost[seasonalNormalize((string)$b['name'])] = (int)$b['c'];
+            $bn = seasonalNormalize((string)$b['name']);
+            $boughtBoost[$bn] = (int)$b['c'];
+            $mBuy = seasonalMatchProduce((string)$b['name'], $month);
+            $bk = (string)($mBuy['item']['kind'] ?? '');
+            if ($bk !== '') {
+                $boughtKinds[$bk] = ($boughtKinds[$bk] ?? 0) + (int)$b['c'];
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    try {
+        $used = $db->query("
+            SELECT p.name, p.shopping_name, COUNT(*) AS c, SUM(t.quantity) AS qty
+            FROM transactions t
+            JOIN products p ON p.id = t.product_id
+            WHERE t.type IN ('out','waste') AND t.undone = 0
+              AND t.created_at >= date('now', '-180 days')
+            GROUP BY p.id
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($used as $u) {
+            $mUse = seasonalMatchProduce((string)$u['name'], $month);
+            $uk = (string)($mUse['item']['kind'] ?? '');
+            if ($uk !== '') {
+                $consumedKinds[$uk] = ($consumedKinds[$uk] ?? 0) + max(1, (int)$u['c']);
+            }
+            // Same three keys the matcher probes (name, first token, buyable family).
+            $usedName = (string)$u['name'];
+            $hits = 1 + (int)$u['c'];
+            foreach (array_unique([
+                seasonalNormalize($usedName),
+                seasonalNormalize(explode(' ', $usedName)[0] ?? $usedName),
+                seasonalGenericKey((string)($u['shopping_name'] ?? '') ?: $usedName),
+            ]) as $ukey) {
+                if ($ukey !== '') {
+                    $consumedBoost[$ukey] = ($consumedBoost[$ukey] ?? 0) + $hits;
+                }
+            }
         }
     } catch (Throwable $e) {
         // ignore
     }
 
+    $dismissed = seasonalLoadDismissed($db);
     $suggest = [];
     foreach ($catalog['items'] ?? [] as $item) {
         if (!is_array($item) || !empty($item['imported'])) {
@@ -398,9 +576,10 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         }
         $n = seasonalNormalize($name);
         $first = seasonalNormalize(explode(' ', $name)[0] ?? $name);
-        $shopKey = '';
-        if (function_exists('computeShoppingName')) {
-            $shopKey = seasonalNormalize(computeShoppingName($name));
+        $shopKey = seasonalGenericKey($name);
+        if (seasonalIsDismissedKey($dismissed, $shopKey !== '' ? $shopKey : $n, $month)
+            || seasonalIsDismissedKey($dismissed, $first, $month)) {
+            continue;
         }
         // Skip if already on list or in stock (name, first token, or shopping generic).
         $listed = isset($onListNorm[$n]) || isset($onListNorm[$first])
@@ -410,33 +589,60 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         if ($listed || $stocked) {
             continue;
         }
-        // Prefer items the household has bought before, or short common names
-        $boost = $boughtBoost[$n] ?? $boughtBoost[$first] ?? 0;
-        $common = mb_strlen($name) <= 14 ? 1 : 0;
-        $score = $boost * 10 + $common * 5 + (count($peak) <= 3 ? 2 : 0);
+
+        $kind = (string)($item['kind'] ?? '');
+        $boughtCount   = (int)($boughtBoost[$n] ?? $boughtBoost[$first] ?? ($shopKey !== '' ? ($boughtBoost[$shopKey] ?? 0) : 0));
+        $consumedCount = (int)($consumedBoost[$n] ?? $consumedBoost[$first] ?? ($shopKey !== '' ? ($consumedBoost[$shopKey] ?? 0) : 0));
+        $kindEat   = $kind !== '' ? (int)($consumedKinds[$kind] ?? 0) : 0;
+        $kindBuy   = $kind !== '' ? (int)($boughtKinds[$kind] ?? 0) : 0;
+        $kindStock = $kind !== '' ? (int)($stockKinds[$kind] ?? 0) : 0;
+
+        // Score the evidence, not the calendar: a card must be justified by
+        // something the household demonstrably does. Specific evidence first
+        // (this produce, or its buyable family), the coarse kind-level habit as
+        // a lower-ranked fallback — and nothing at all for a produce they never
+        // touch, which is what made the old card look random.
+        $score = 0;
+        $reasonKey = '';
+        if ($boughtCount > 0) {
+            $score = 100 + min(40, $boughtCount * 8);
+            $reasonKey = 'shopping.seasonal_reason_bought';
+        } elseif ($consumedCount > 0) {
+            $score = 90 + min(30, $consumedCount * 6);
+            $reasonKey = 'shopping.seasonal_reason_often_eats';
+        } elseif ($kindEat >= 3) {
+            $score = 60 + min(20, $kindEat);
+            $reasonKey = 'shopping.seasonal_reason_often_eats';
+        } elseif ($kindBuy >= 2) {
+            $score = 40 + min(15, $kindBuy);
+            $reasonKey = 'shopping.seasonal_reason_same_kind';
+        } else {
+            continue;
+        }
+        // Boosters: they reorder already-justified cards, never create one.
+        if ($kindStock > 0) {
+            $score += 10;
+        }
+        if (count($peak) <= 3) {
+            $score += 5;
+        }
         $suggest[] = [
             'name' => $name,
-            'kind' => (string)($item['kind'] ?? ''),
+            'kind' => $kind,
             'status' => 'peak',
             'score' => $score,
-            'bought_before' => $boost > 0,
+            'bought_before' => $boughtCount > 0,
+            'reason_key' => $reasonKey,
         ];
     }
     usort($suggest, static fn($a, $b) => ($b['score'] <=> $a['score']) ?: strcmp($a['name'], $b['name']));
-    // Prefer previously bought, then top commons — max 8
-    $preferBought = array_values(array_filter($suggest, static fn($s) => !empty($s['bought_before'])));
-    $rest = array_values(array_filter($suggest, static fn($s) => empty($s['bought_before'])));
-    $merged = array_merge($preferBought, $rest);
     // One tip per buyable family ("Avocado" / "Avocado Hass" → single card).
     $seenGeneric = [];
     $suggestAdd = [];
-    foreach ($merged as $s) {
-        $key = seasonalNormalize((string)($s['name'] ?? ''));
-        if (function_exists('computeShoppingName')) {
-            $gk = seasonalNormalize(computeShoppingName((string)($s['name'] ?? '')));
-            if ($gk !== '') {
-                $key = $gk;
-            }
+    foreach ($suggest as $s) {
+        $key = seasonalGenericKey((string)($s['name'] ?? ''));
+        if ($key === '') {
+            $key = seasonalNormalize((string)($s['name'] ?? ''));
         }
         $first = seasonalNormalize(explode(' ', (string)($s['name'] ?? ''))[0] ?? '');
         if ($key === '' || isset($seenGeneric[$key]) || ($first !== '' && isset($seenGeneric[$first]))) {
@@ -447,7 +653,7 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
             $seenGeneric[$first] = true;
         }
         $suggestAdd[] = $s;
-        if (count($suggestAdd) >= 8) {
+        if (count($suggestAdd) >= 6) {
             break;
         }
     }

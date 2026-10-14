@@ -13707,6 +13707,29 @@ function resolveShoppingListItemUrgency(string $name, string $rawName, string $s
     return parseUrgencyFromShoppingSpec($spec);
 }
 
+/** Pick the most useful smart-shopping reason code for list UI (stable order). */
+function shoppingPrimaryReasonCode(array $reasons): ?string {
+    if ($reasons === []) {
+        return null;
+    }
+    $preferred = [
+        'out_of_stock', 'near_empty', 'ends_in', 'stock_insufficient', 'ends_in_cycle',
+        'low_stock', 'expired', 'expires_in', 'expires_rebuy', 'only_one_pack',
+        'only_one_piece', 'only_two_packs', 'only_two_pieces', 'minimal_stock',
+        'frequent_use', 'opened_soon',
+    ];
+    foreach ($preferred as $code) {
+        foreach ($reasons as $r) {
+            $raw = (string)$r;
+            $base = explode(':', $raw, 2)[0];
+            if ($base === $code) {
+                return $raw;
+            }
+        }
+    }
+    return (string)$reasons[0];
+}
+
 /** Attach urgency fields to a shopping-list purchase row. */
 function enrichShoppingListItem(array $item, array $smartItems): array {
     $name    = (string)($item['name'] ?? '');
@@ -13718,6 +13741,14 @@ function enrichShoppingListItem(array $item, array $smartItems): array {
     $item['urgency_label'] = $meta['urgency_label'];
     $item['urgency_color'] = $meta['urgency_color'];
     $item['urgent']        = $meta['urgent'];
+    $si = _matchSmartShoppingItem($name, $smartItems);
+    if ($si === null && $rawName !== '' && mb_strtolower($rawName) !== mb_strtolower($name)) {
+        $si = _matchSmartShoppingItem($rawName, $smartItems);
+    }
+    if ($si !== null && !empty($si['reasons']) && is_array($si['reasons'])) {
+        $item['reasons'] = array_values($si['reasons']);
+        $item['reason'] = shoppingPrimaryReasonCode($item['reasons']);
+    }
     return $item;
 }
 
@@ -13757,28 +13788,68 @@ function smartItemStockCoversCacheNeed(array $si): bool {
     }
     $daysLeft = $si['days_left'] ?? null;
     $horizon = (int)round((float)($si['edible_days'] ?? 7));
-    if ($daysLeft !== null && is_numeric($daysLeft) && (float)$daysLeft < max(1, $horizon)) {
+    // Inclusive: exactly N days left does not cover an N-day window.
+    if ($daysLeft !== null && is_numeric($daysLeft) && (float)$daysLeft <= max(1, $horizon)) {
         return false;
     }
     return $qty >= $need;
 }
 
-function smartItemShouldSyncToBring(array $si): bool {
-    $u = $si['urgency'] ?? 'none';
-    // Stock at home already covers the planning window → nothing to sync, at any
-    // urgency (a restocked item must not be re-added, nor kept, on the list).
+/**
+ * True when a smart row must reappear despite a "Comprato" / remove blocklist.
+ * High-use staples at ≤25% of a typical buy, or about to run out, must not stay hidden.
+ */
+function smartItemNeedsRestockOverride(array $si): bool {
+    $qty = (float)($si['current_qty'] ?? $si['quantity'] ?? 0);
+    if ($qty <= 0.001) {
+        return true;
+    }
+    // High-use ≤25% / runs out soon wins over "stock covers edible window".
+    if (smartItemMatchesHighUseRestock($si)) {
+        return true;
+    }
     if (smartItemStockCoversCacheNeed($si)) {
         return false;
     }
-    if (in_array($u, ['critical', 'high'], true)) {
+    $u = (string)($si['urgency'] ?? 'none');
+    return in_array($u, ['critical', 'high', 'medium'], true);
+}
+
+/** In-loop variant before the smart row array exists. */
+function smartShoppingUrgencyOverridesBlock(string $urgency, float $qty, float $daysLeft, bool $isUrgentStaple): bool {
+    if (in_array($urgency, ['critical', 'high', 'medium'], true)) {
         return true;
+    }
+    if ($qty <= 0.001) {
+        return true;
+    }
+    if ($isUrgentStaple && $daysLeft <= 14.0) {
+        return true;
+    }
+    return $daysLeft <= 7.0;
+}
+
+function smartItemShouldSyncToBring(array $si): bool {
+    $u = $si['urgency'] ?? 'none';
+    if ($u === 'none' || $u === '') {
+        return false;
     }
     $qty = (float)($si['current_qty'] ?? $si['quantity'] ?? 0);
-    // Depleted → always sync medium/low predictions onto the shopping list
-    if ($qty <= 0.001 && in_array($u, ['medium', 'low'], true)) {
+    // Depleted → always sync.
+    if ($qty <= 0.001) {
         return true;
     }
-    return false;
+    // High-use: ≤25% of typical purchase OR runs out within the plan window.
+    // Checked before coverage so 3 eggs with days_left == edible_days still sync.
+    if (smartItemMatchesHighUseRestock($si)) {
+        return true;
+    }
+    // Stock at home already covers the planning window → nothing to sync.
+    if (smartItemStockCoversCacheNeed($si)) {
+        return false;
+    }
+    // Other medium+/urgent predictions (expiry, etc.) still sync when not covered.
+    return in_array($u, ['critical', 'high', 'medium'], true);
 }
 
 // ===== BRING PURCHASED BLOCKLIST (server-side, synced with app_settings.bring_blocklist) =====
@@ -13953,20 +14024,17 @@ function bringFilterPurchasedFromList(PDO $db, array $purchase, string $listUUID
 function smartItemHideFromPredictions(PDO $db, array $item): bool {
     $name    = (string)($item['name'] ?? '');
     $generic = trim((string)($item['shopping_name'] ?? '')) ?: $name;
+
+    // Never suppress urgent / nearly-empty staples — "just bought" must not hide
+    // eggs that are already almost gone or about to run out again.
+    if (smartItemNeedsRestockOverride($item)) {
+        return false;
+    }
+
     if (bringIsPurchasedBlocked($db, $name, $generic)) {
         return true;
     }
 
-    // Never suppress urgent / nearly-empty staples — "just bought" must not hide
-    // eggs that are already almost gone or expired.
-    $urgency = (string)($item['urgency'] ?? '');
-    if (in_array($urgency, ['critical', 'high'], true)) {
-        return false;
-    }
-    $daysLeft = $item['days_left'] ?? null;
-    if ($daysLeft !== null && is_numeric($daysLeft) && (float)$daysLeft <= 7) {
-        return false;
-    }
     $fresh = bringShoppingFamilyFreshStockQty($db, $generic);
     if ($fresh <= 0) {
         // Only expired leftovers (or empty) — still need a restock suggestion
@@ -13990,6 +14058,10 @@ function smartShoppingFilterPurchased(PDO $db, array $items): array {
 
 /** Skip auto-add/sync when the family was removed or bought recently (blocklist). */
 function bringSmartItemSkipBringSync(PDO $db, array $si): bool {
+    // Restock need wins over "Comprato" — staples running low must reappear.
+    if (smartItemNeedsRestockOverride($si)) {
+        return false;
+    }
     $name    = (string)($si['name'] ?? '');
     $generic = trim((string)($si['shopping_name'] ?? '')) ?: $name;
     return bringIsPurchasedBlocked($db, $name, $generic);
@@ -15092,15 +15164,7 @@ function shoppingSyncProductFromCache(PDO $db, int $productId): void {
     }
 
     $genericName = $si['shopping_name'] ?: $si['name'];
-    $specParts = [];
-    if (!empty($si['name']) && $si['name'] !== $genericName) {
-        $specParts[] = $si['name'] . (!empty($si['brand']) ? ' · ' . $si['brand'] : '');
-    }
-    $qtyLabel = formatSmartSuggestQty($si);
-    if ($qtyLabel !== null) {
-        $specParts[] = '🛒 ' . $qtyLabel;
-    }
-    $spec = implode(' · ', $specParts);
+    $spec = evershelfBuildShoppingSpec($si);
 
     $existing = internalFindShoppingListRowByGeneric($db, $genericName, $si['name'] ?? $genericName);
     if ($existing) {
@@ -15521,9 +15585,8 @@ function bringAutoAddCritical(PDO $db): array {
     $updated = 0;
     foreach ($smartItems as $si) {
         if (!smartItemShouldSyncToBring($si)) continue;
-        // Family already covered by a sibling variant → the cleanup would drop it at once.
-        $generic = trim((string)($si['shopping_name'] ?? '')) ?: trim((string)($si['name'] ?? ''));
-        if ($generic !== '' && evershelfFamilyStockQty($db, $generic) > 0.001) continue;
+        // Partial family stock is fine — smartItemShouldSyncToBring already
+        // refuses rows whose stock covers the planning window.
         $result = bringUpsertSmartItem($db, $si, $listUUID, $bringData, $onBring);
         if (!empty($result['added'])) $added++;
         if (!empty($result['updated'])) $updated++;
@@ -15563,10 +15626,13 @@ function internalShoppingAutoAddCritical(PDO $db): array {
         if ($name === '') {
             continue;
         }
-        // Generic list: skip if another product in the same family still has stock.
-        if (evershelfFamilyStockQty($db, $name) > 0.001) {
+        // Out-of-season dismiss: the user removed it on purpose, so a stale smart
+        // cache must not resurrect it before its next peak month.
+        if (seasonalIsDismissed($db, $name) || seasonalIsDismissed($db, (string)($si['name'] ?? ''))) {
             continue;
         }
+        // Partial leftovers (3 eggs, half a litre of milk) must still auto-add when
+        // the planning window is not covered — do not skip on family_qty > 0.
         $rawName = trim((string)($si['name'] ?? '')) ?: $name;
         $genKey = internalShoppingListGenericKey($db, $name, $rawName);
         $spec = evershelfBuildShoppingSpec($si);
@@ -15584,6 +15650,8 @@ function internalShoppingAutoAddCritical(PDO $db): array {
         if ($stmt->rowCount() > 0) {
             $added++;
             $onListKeys[$genKey] = true;
+            // Restock need cleared the purchase block — keep cron/UI in sync.
+            bringClearPurchasedNames($db, [$name, $rawName]);
         }
     }
 
@@ -16053,6 +16121,12 @@ function bringRemoveItem(): void {
     } else {
         bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name), false);
     }
+    if (!empty($input['seasonal_dismiss'])) {
+        seasonalMarkDismissed($db, $name);
+        if ($rawName !== '' && strcasecmp($rawName, $name) !== 0) {
+            seasonalMarkDismissed($db, $rawName);
+        }
+    }
     echo json_encode(['success' => true, 'removed' => $ok, 'purchased' => $asPurchased]);
 }
 
@@ -16480,6 +16554,82 @@ function smartAvgPurchaseQty(float $totalBought, int $buyCount): float {
     return $totalBought / $buyCount;
 }
 
+/** Stock share of a typical purchase at/below which a high-use product must hit the list. */
+const SMART_HIGH_USE_STOCK_PCT = 25.0;
+
+/**
+ * Typical purchase size for the % remaining rule (avg buy → family avg → default).
+ */
+function smartPurchaseRefQty(float $totalBought, int $buyCount, float $defQty, float $qtyFallback, float $familyAvgBuy = 0.0): float {
+    $avg = smartAvgPurchaseQty($totalBought, $buyCount);
+    if ($avg > 0.001) {
+        return $avg;
+    }
+    if ($familyAvgBuy > 0.001) {
+        return $familyAvgBuy;
+    }
+    if ($defQty > 0.001) {
+        return $defQty;
+    }
+    return max(1.0, $qtyFallback);
+}
+
+/**
+ * High-use restock rule: below 25% of typical purchase, or empty within the plan window.
+ *
+ * @return array{needed:bool,by_pct:bool,by_days:bool,pct:float}
+ */
+function smartHighUseNeedsList(
+    bool $isHighUse,
+    float $pctOfPurchase,
+    float $qty,
+    float $daysLeft,
+    float $dailyRate,
+    int $planDays
+): array {
+    $out = ['needed' => false, 'by_pct' => false, 'by_days' => false, 'pct' => $pctOfPurchase];
+    if (!$isHighUse || $qty <= 0.0) {
+        return $out;
+    }
+    if ($pctOfPurchase <= SMART_HIGH_USE_STOCK_PCT) {
+        $out['needed'] = true;
+        $out['by_pct'] = true;
+    }
+    $horizon = max(1, $planDays);
+    if ($dailyRate > 0.0 && $daysLeft <= $horizon) {
+        $out['needed'] = true;
+        $out['by_days'] = true;
+    }
+    return $out;
+}
+
+/** True when a cached smart row matches the high-use ≤25% / runs-out-soon rule. */
+function smartItemMatchesHighUseRestock(array $si): bool {
+    $qty = (float)($si['current_qty'] ?? $si['quantity'] ?? 0);
+    if ($qty <= 0.001) {
+        return true;
+    }
+    $uses = (float)($si['uses_per_month'] ?? 0);
+    $u = (string)($si['urgency'] ?? 'none');
+    $isHighUse = $uses >= 1.5 || in_array($u, ['critical', 'high', 'medium'], true);
+    if (!$isHighUse) {
+        return false;
+    }
+    $pct = $si['pct_left'] ?? null;
+    $plan = (int)round((float)($si['edible_days'] ?? $si['plan_days'] ?? 14));
+    $daysLeft = $si['days_left'] ?? null;
+    $daily = (float)($si['daily_rate'] ?? 0);
+    $check = smartHighUseNeedsList(
+        true,
+        $pct !== null && is_numeric($pct) ? (float)$pct : 100.0,
+        $qty,
+        $daysLeft !== null && is_numeric($daysLeft) ? (float)$daysLeft : 999.0,
+        $daily > 0 ? $daily : (($daysLeft !== null && is_numeric($daysLeft) && (float)$daysLeft < 999) ? 1.0 : 0.0),
+        max(1, $plan)
+    );
+    return !empty($check['needed']);
+}
+
 /**
  * Floor piece suggestions to a believable trip size (bag/bunch), not a single fruit.
  * Uses average past purchase when available; otherwise a small pack from use frequency.
@@ -16629,7 +16779,8 @@ function smartItemStockCoversNeed(float $freshQty, float $periodNeed, float $day
     if ($freshQty <= 0 || $periodNeed <= 0) {
         return false;
     }
-    if ($daysLeft < max(1, $horizonDays)) {
+    // Inclusive: stock that lasts exactly the horizon still needs a restock trip.
+    if ($daysLeft <= max(1, $horizonDays)) {
         return false;
     }
     return $freshQty >= $periodNeed;
@@ -16777,15 +16928,29 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // And freshStockByShoppingName: same but only counting non-expired batches.
     $stockByShoppingName = [];
     $freshStockByShoppingName = [];
+    $familyBuyTotals = []; // shopping_name → [bought, buys] for typical-purchase %
     foreach ($products as $pStock) {
-        $qty = isset($inventory[$pStock['id']]) ? (float)$inventory[$pStock['id']]['total_qty'] : 0;
-        if ($qty <= 0) continue;
         $sName = strtolower(trim($pStock['shopping_name'] ?? ''));
         if ($sName !== '' && productMatchesShoppingFamily($pStock['name'], $pStock['shopping_name'])) {
-            $stockByShoppingName[$sName] = ($stockByShoppingName[$sName] ?? 0) + $qty;
-            $fQty = isset($inventory[$pStock['id']]) ? (float)($inventory[$pStock['id']]['fresh_qty'] ?? $qty) : 0;
-            if ($fQty > 0) {
-                $freshStockByShoppingName[$sName] = ($freshStockByShoppingName[$sName] ?? 0) + $fQty;
+            $qty = isset($inventory[$pStock['id']]) ? (float)$inventory[$pStock['id']]['total_qty'] : 0;
+            if ($qty > 0) {
+                $stockByShoppingName[$sName] = ($stockByShoppingName[$sName] ?? 0) + $qty;
+                $fQty = isset($inventory[$pStock['id']]) ? (float)($inventory[$pStock['id']]['fresh_qty'] ?? $qty) : 0;
+                if ($fQty > 0) {
+                    $freshStockByShoppingName[$sName] = ($freshStockByShoppingName[$sName] ?? 0) + $fQty;
+                }
+            }
+            $txFam = $txData[$pStock['id']] ?? null;
+            if ($txFam) {
+                $bc = (int)($txFam['buy_count'] ?? 0);
+                $tb = (float)($txFam['total_bought'] ?? 0);
+                if ($bc > 0 && $tb > 0) {
+                    if (!isset($familyBuyTotals[$sName])) {
+                        $familyBuyTotals[$sName] = ['bought' => 0.0, 'buys' => 0];
+                    }
+                    $familyBuyTotals[$sName]['bought'] += $tb;
+                    $familyBuyTotals[$sName]['buys'] += $bc;
+                }
             }
         }
     }
@@ -16890,11 +17055,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $freshQty = $inv ? (float)($inv['fresh_qty'] ?? $qty) : 0;
 
         // --- Stock level assessment ---
-        // percentage_left: how much is left vs typical purchase size
-        // Use average of totalBought/buyCount if available, else default_quantity, else best-guess from defQty or 1
-        $refQty = $totalBought > 0 && $buyCount > 0
-            ? $totalBought / $buyCount
-            : ($defQty > 0 ? $defQty : max(1, $qty)); // avoid inflating pctLeft for products with no history
+        // percentage_left: how much is left vs typical purchase size (avg buy / family avg / default).
+        $sNameForRef = strtolower(trim($p['shopping_name'] ?? ''));
+        $familyAvgBuy = 0.0;
+        if ($sNameForRef !== '' && isset($familyBuyTotals[$sNameForRef])) {
+            $familyAvgBuy = smartAvgPurchaseQty(
+                (float)$familyBuyTotals[$sNameForRef]['bought'],
+                (int)$familyBuyTotals[$sNameForRef]['buys']
+            );
+        }
+        $refQty = smartPurchaseRefQty($totalBought, $buyCount, $defQty, $qty, $familyAvgBuy);
         $pctLeft = $refQty > 0 ? min(200, ($qty / $refQty) * 100) : ($qty > 0 ? 100 : 0);
         // pctLeft based on FRESH (non-expired) stock only — used for expiry-aware suppression
         $freshPctLeft = $refQty > 0 ? min(200, ($freshQty / $refQty) * 100) : ($freshQty > 0 ? 100 : 0);
@@ -16993,32 +17163,49 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             (!in_array($unit, ['conf', 'pz']) && $familyOtherStock >= 0.5) ||
             (in_array($unit, ['conf', 'pz']) && $familyOtherStock >= 1.0)
         );
-        if (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isUrgentStaple) {
-            $urgency = $isTopStaple ? 'critical' : 'high';
-            $reasons[] = 'near_empty:' . round($pctLeft);
-            $score += $isTopStaple ? 100 : 80;
+        // Family stock vs typical purchase (eggs: 3 left of a 10-pack → 30%).
+        $familyStockQty = ($sNameLow !== '' && isset($stockByShoppingName[$sNameLow]))
+            ? (float)$stockByShoppingName[$sNameLow]
+            : $qty;
+        $pctOfPurchase = $refQty > 0
+            ? min(200.0, ($familyStockQty / $refQty) * 100.0)
+            : $pctLeft;
+
+        // High-use restock (explicit): ≤25% of typical purchase OR empty within plan days.
+        $isHighUse = $isFrequent || $isUrgentStaple;
+        $highUseRestock = smartHighUseNeedsList(
+            $isHighUse && !$familyCovered,
+            $pctOfPurchase,
+            $qty,
+            (float)$daysLeft,
+            (float)$dailyRate,
+            (int)$planDays
+        );
+        if (!empty($highUseRestock['needed'])) {
+            $daysLeftDisplay = (int)round($daysLeft);
+            if ($pctOfPurchase <= 10.0 || ($daysLeftDisplay <= 3 && $isTopStaple)) {
+                $urgency = $isTopStaple ? 'critical' : 'high';
+                $score += $isTopStaple ? 100 : 80;
+            } elseif (!empty($highUseRestock['by_pct']) || $daysLeftDisplay <= 7) {
+                $urgency = ($isUrgentStaple || $isTopStaple) ? 'high' : 'medium';
+                $score += 70;
+            } else {
+                $urgency = 'medium';
+                $score += 45;
+            }
+            if (!empty($highUseRestock['by_pct'])) {
+                $reasons[] = 'near_empty:' . (int)round($pctOfPurchase);
+            }
+            if (!empty($highUseRestock['by_days'])) {
+                $reasons[] = 'ends_in:' . $daysLeftDisplay;
+            }
+            if ($isUrgentStaple || $isTopStaple) {
+                $reasons[] = 'frequent_use:' . max(1, (int)round($usesPerMonth));
+            }
         } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isRegular) {
             $urgency = 'medium';
             $reasons[] = 'near_empty:' . round($pctLeft);
             $score += 50;
-        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isUrgentStaple) {
-            if ($dailyRate > 0 && $daysLeft <= 5) {
-                $urgency = 'high';
-                $reasons[] = 'ends_in:' . round($daysLeft);
-                $score += 75;
-            } elseif ($dailyRate > 0 && $daysLeft <= 10 && $isRecent) {
-                $urgency = 'medium';
-                $reasons[] = 'ends_in:' . round($daysLeft);
-                $score += 50;
-            } elseif ($isRecent) {
-                $urgency = 'low';
-                $reasons[] = 'low_stock:' . round($pctLeft);
-                $score += 30;
-            }
-        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isRegular && $isRecent) {
-            $urgency = 'low';
-            $reasons[] = 'low_stock:' . round($pctLeft);
-            $score += 25;
         } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 25
             && ($useCount >= 1 || $buyCount >= 1) && $urgency === 'none') {
             // Catch-all for "almost finished" products that never became staples in the
@@ -17198,7 +17385,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // The check is gated on a fresh-produce category, so a jar of dried
         // oregano named after a plant and frozen/canned forms (excluded by
         // seasonalIsPreserved) keep being suggested all year.
-        if (seasonalShoppingItemOutOfSeason((string)$p['name'], (string)($p['category'] ?? ''))) {
+        if (seasonalShoppingItemOutOfSeason((string)$p['name'], (string)($p['category'] ?? ''))
+            || seasonalIsDismissed($db, (string)$p['name'])
+            || seasonalIsDismissed($db, (string)($p['shopping_name'] ?? ''))) {
             $skippedOutOfSeason[] = (string)$p['name'];
             continue;
         }
@@ -17233,9 +17422,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Is already on Bring? check both product name and generic shopping name
         $onBring = _productOnBring($p['name'], $bringItems, $shoppingName);
 
-        // Blocklisted after spesa — never show in predictions until TTL expires.
+        // Blocklisted after spesa — hide only when stock still covers the habit.
+        // High-use staples that are empty / about to run out must reappear.
         if (bringIsPurchasedBlocked($db, $p['name'], $shoppingName)) {
-            continue;
+            if (!smartShoppingUrgencyOverridesBlock($urgency, $qty, (float)$daysLeft, $isUrgentStaple)) {
+                continue;
+            }
+            bringClearPurchasedNames($db, [$p['name'], $shoppingName]);
         }
 
         // --- Suggested purchase quantity (edible horizon for perishables) ---
@@ -17429,7 +17622,8 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'current_qty' => round($qty, 1),
             'default_qty' => $defQty,
             'package_unit' => $p['package_unit'] ?: '',
-            'pct_left' => round($pctLeft),
+            // Family stock vs typical purchase (drives the ≤25% high-use rule in sync).
+            'pct_left' => round($pctOfPurchase),
             'use_count' => $useCount,
             'buy_count' => $buyCount,
             'avg_buy_qty' => round(smartAvgPurchaseQty($totalBought, $buyCount), 1),
@@ -17887,9 +18081,8 @@ function internalShoppingPruneCovered(PDO $db): array {
             $removed++;
         }
     }
-    if ($removed > 0) {
-        @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
-    }
+    // Do not invalidate smart_shopping_cache here: prune only touches shopping_list
+    // rows. Unlinking mid-cron made internalShoppingAutoAddCritical see no_cache.
     return ['removed' => $removed];
 }
 
@@ -17965,10 +18158,7 @@ function internalShoppingDedupeGenerics(PDO $db): array {
         }
     }
 
-    if ($removed > 0) {
-        @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
-    }
-
+    // Same as prune: list-only hygiene must not wipe the cache the cron just wrote.
     return ['removed' => $removed, 'merged' => $merged];
 }
 
@@ -18357,6 +18547,13 @@ function shoppingRemoveInternal(PDO $db, array $input): void {
             bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName), true);
         } else {
             bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName), false);
+        }
+        // Out-of-season dismiss: stay off the list until the next peak month.
+        if (!empty($input['seasonal_dismiss'])) {
+            seasonalMarkDismissed($db, $name);
+            if ($rawName !== '' && strcasecmp($rawName, $name) !== 0) {
+                seasonalMarkDismissed($db, $rawName);
+            }
         }
     }
 

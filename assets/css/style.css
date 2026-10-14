@@ -1525,13 +1525,14 @@ body.server-offline .bottom-nav {
     white-space: nowrap;
 }
 
-/* Action buttons inside a dashboard row: compact, 2-3 per line, never a stack. */
+/* Action buttons inside a dashboard row: tappable, 2-3 per line, never a stack. */
 .alert-item-badges .btn-banner,
 .alert-item-badges .btn-alert-extend {
     flex: 0 1 auto;
     min-width: 0;
-    padding: 4px 8px;
-    font-size: 0.72rem;
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.82rem;
     line-height: 1.2;
 }
 
@@ -1900,12 +1901,12 @@ body.server-offline .bottom-nav {
 }
 
 .item-detail-action {
-    min-height: var(--es-btn-height);
+    min-height: var(--es-btn-height-lg);
     border: none;
     border-radius: var(--es-radius-card);
     font-family: var(--es-font);
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-size: 0.95rem;
+    font-weight: 700;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1923,7 +1924,7 @@ body.server-offline .bottom-nav {
 }
 
 .item-detail-action-icon {
-    font-size: 1.15rem;
+    font-size: 1.35rem;
     line-height: 1;
 }
 
@@ -4309,6 +4310,14 @@ body:has(#page-scan.active) .app-content {
     color: var(--text-muted, #64748b);
     line-height: 1.25;
     margin-top: 2px;
+}
+.shop-row-reason {
+    font-size: 0.78rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.25;
+    margin-top: 2px;
+    font-style: italic;
+    opacity: 0.92;
 }
 
 .shop-row-title-name {
@@ -8927,8 +8936,9 @@ body.cooking-mode-active .app-header {
 .stale-actions .btn-banner {
     flex: 0 0 auto;
     min-width: 0;
-    padding: 4px 8px;
-    font-size: 0.72rem;
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.82rem;
     line-height: 1.2;
 }
 
@@ -8968,19 +8978,34 @@ body.cooking-mode-active .app-header {
     border-top: 1px solid rgba(6, 95, 70, 0.12);
     font-size: 0.9rem;
 }
+.seasonal-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+/* Why the row is suggested: habits + pantry, one short line. */
+.seasonal-reason {
+    font-size: 0.75rem;
+    line-height: 1.25;
+    color: #047857;
+    opacity: 0.9;
+}
 .seasonal-row .btn-banner {
     flex: 0 0 auto;
     min-width: 0;
-    padding: 4px 8px;
-    font-size: 0.72rem;
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
     line-height: 1.2;
 }
 .seasonal-remove-all {
     margin-top: 6px;
     width: 100%;
     min-width: 0 !important;
-    padding: 4px 8px !important;
-    font-size: 0.72rem !important;
+    min-height: 30px;
+    padding: 6px 10px !important;
+    font-size: 0.8rem !important;
 }
 .seasonal-bought {
     font-size: 0.75rem;
@@ -10453,21 +10478,6 @@ body.cooking-mode-active .app-header {
 .banner-expired-danger .alert-banner-title {
     color: #7f1d1d;
 }
-.banner-safety-tip {
-    display: inline-block;
-    font-size: 0.82em;
-    margin-top: 1px;
-}
-.banner-safety-danger {
-    color: #b91c1c;
-    font-weight: 600;
-}
-.banner-safety-warning {
-    color: #92400e;
-}
-.banner-safety-ok {
-    color: #166534;
-}
 /* Product + brand on the banner title, one line */
 .banner-brand {
     font-size: 0.9em;
@@ -10492,6 +10502,40 @@ body.cooking-mode-active .app-header {
     font-weight: 600;
     line-height: 1.35;
 }
+/* ── Safety verdict badges ───────────────────────────────────────────────────
+   One word + emoji on the row (Va bene / Controlla / Non mangiare / Buttalo);
+   the long advice lives in the title tooltip, never as a paragraph. Declared
+   after .banner-verdict / .alert-item-verdict, which survive as the base. */
+.safety-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.safety-pill-ok {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+}
+.safety-pill-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+}
+.safety-pill-danger {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+}
+[data-theme="dark"] .safety-pill-ok      { background: rgba(22, 101, 52, 0.28);  color: #86efac; border-color: rgba(134, 239, 172, 0.45); }
+[data-theme="dark"] .safety-pill-warning { background: rgba(146, 64, 14, 0.28);  color: #fdba74; border-color: rgba(253, 186, 116, 0.45); }
+[data-theme="dark"] .safety-pill-danger  { background: rgba(153, 27, 27, 0.28);  color: #fca5a5; border-color: rgba(252, 165, 165, 0.45); }
 .btn-banner-throw-primary {
     background: #dc2626;
     color: #fff;
@@ -11078,9 +11122,6 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .alert-banner-title  { color: #e2e8f0; }
 [data-theme="dark"] .alert-banner-detail { color: #94a3b8; }
 [data-theme="dark"] .alert-banner-close  { color: #94a3b8; background: rgba(255,255,255,0.06); }
-[data-theme="dark"] .banner-safety-warning { color: #fdba74; }
-[data-theme="dark"] .banner-safety-ok      { color: #86efac; }
-[data-theme="dark"] .banner-safety-danger  { color: #fca5a5; }
 
 /* ── Banner action buttons ── */
 [data-theme="dark"] .btn-banner-ok           { background: #0f2a1a; color: #86efac; }
