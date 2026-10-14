@@ -44,7 +44,7 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 | OPEN-PRICES | Open Prices / OFF price fallback | **Shipped 1.11.4** (`PRICE_SOURCE`). |
 | UNDO-UI | Undo after accidental delete | **Partial 1.11.4** (delete toast undo); use-all still slide-confirm. |
 | RECIPE-SCRAP | Reuse tips for peels/cores | **Shipped 1.11.3** (opt-in zerowaste tips). |
-| SEASONAL-UX | Seasonal review dismiss sticks but dashboard chip stale | Same refresh pattern as UI-REFRESH. |
+| SEASONAL-UX | Seasonal review: dismiss + coherent suggestions | **Shipped 1.11.12** — removal persisted until the next peak (`seasonal_dismiss`), suggestions scored on purchases/consumption with a stated reason. Remaining: stale dashboard chip (same refresh pattern as UI-REFRESH). |
 | SPEND-MODE | Spesa session list vs server reconciliation after crash | Persist session id; resume partial trip. |
 | FORK-PR | Reconcile community PRs (#234 reconciliation, #235 i18n) | Branches `fork-recon`, `fork-i18n` exist locally — rebase on develop, run test suite, merge or close with comment. |
 
@@ -59,3 +59,5 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 ## Done recently (context)
 
 See **[1.11.3]**–**[1.11.5]** in `CHANGELOG.md`: shopping pack-equiv restock + HA expiry parity, Bring hard-off when internal, ntfy/Telegram, Open Prices, Web Push, settings checklist “da decidere”, UI refresh/undo/torch.
+
+See **[1.11.12]** in `CHANGELOG.md`: one-word safety badges, out-of-season dismiss that sticks, habit-scored seasonal suggestions with a stated reason, Bring! wording hidden when the internal list is active, bigger dashboard/item action buttons, i18n gaps closed.

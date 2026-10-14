@@ -155,11 +155,27 @@ function evershelfShoppingRowStillNeeded(
     if ($si === null || !evershelfSmartItemIsStillNeeded($db, $si)) {
         return false;
     }
-    // A sibling variant back in stock means the whole generic family is covered.
+    // Sibling stock only drops the row when it actually covers the planning need.
+    // A few leftover eggs must NOT yank "Uova" off the list while days_left is short.
     if ($familyStockQty !== null) {
         $generic = computeShoppingName($name !== '' ? $name : $rawName);
-        if ($generic !== '' && $familyStockQty($generic) > 0.001) {
-            return false;
+        if ($generic !== '') {
+            $famQty = (float)$familyStockQty($generic);
+            if ($famQty > 0.001) {
+                $probe = $si;
+                $probe['current_qty'] = $famQty;
+                $probe['quantity'] = $famQty;
+                if (smartItemStockCoversCacheNeed($probe)) {
+                    return false;
+                }
+                $need = (float)($si['period_usage'] ?? 0);
+                $daysLeft = $si['days_left'] ?? null;
+                // Depleted-path safety net: cache said empty, no consumption window,
+                // but the family is back on the shelf → row is obsolete.
+                if ($need <= 0.001 && ($daysLeft === null || !is_numeric($daysLeft) || (float)$daysLeft > 14.0)) {
+                    return false;
+                }
+            }
         }
     }
     return true;

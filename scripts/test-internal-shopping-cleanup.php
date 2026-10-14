@@ -146,5 +146,15 @@ $index2 = evershelfSmartItemsIndex([
 $needed = evershelfShoppingRowStillNeeded($db, $index2, 'Burro', 'Burro', static fn(string $g): float => 3.0);
 assert_true(!$needed, 'shared predicate: family in stock ⇒ row no longer needed');
 
+// Near-empty staple: a few leftovers must NOT yank the row off the list.
+$indexEggs = evershelfSmartItemsIndex([[
+    'name' => 'Uova', 'shopping_name' => 'Uova', 'urgency' => 'medium',
+    'current_qty' => 3, 'period_usage' => 7, 'days_left' => 13, 'edible_days' => 30,
+]]);
+$eggsNeeded = evershelfShoppingRowStillNeeded(
+    $db, $indexEggs, 'Uova', 'Uova', static fn(string $g): float => 3.0
+);
+assert_true($eggsNeeded, 'shared predicate: 3 leftover eggs still need a restock row');
+
 echo $fail === 0 ? "\nAll internal-shopping cleanup tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

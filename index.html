@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261010h">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261010h">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261010h">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261014a">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261014a">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261014a">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261010h"></script>
-    <script src="assets/js/core/auth.js?v=20261010h"></script>
+    <script src="assets/js/core/dom.js?v=20261014a"></script>
+    <script src="assets/js/core/auth.js?v=20261014a"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261010h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261014a';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261010h';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261014a';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261010h"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261014a"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -104,7 +104,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.11</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.12</span>
             </span>
         </div>
 
@@ -162,7 +162,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.11</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.12</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -430,7 +430,7 @@
             <div class="scan-search-sheet" id="scan-search-sheet" style="display:none" hidden>
                 <div class="scan-search-sheet-head">
                     <span data-i18n="scan.tab_name">Nome</span>
-                    <button type="button" class="scan-search-close" onclick="closeScanNameSearch()" aria-label="Close">✕</button>
+                    <button type="button" class="scan-search-close" onclick="closeScanNameSearch()" aria-label="Close" data-i18n-aria="btn.close">✕</button>
                 </div>
                 <div class="barcode-input-row quick-name-entry">
                     <input type="text" id="quick-product-name" class="form-input"
@@ -469,11 +469,11 @@
         <div class="inventory-status-bar" id="action-inventory-status" style="display:none"></div>
         <div id="action-related-stock" style="display:none"></div>
         <div class="action-buttons" id="action-buttons-container">
-            <button class="btn btn-huge btn-success" onclick="showAddForm()">
+            <button type="button" class="btn btn-huge btn-success" id="btn-action-add" onclick="showAddForm()">
                 <span class="btn-icon">📥</span>
                 <span class="btn-text"><span data-i18n="action.add_btn">AGGIUNGI</span><br><small data-i18n="action.add_sub">in dispensa/frigo</small></span>
             </button>
-            <button class="btn btn-huge btn-danger" onclick="showUseForm()">
+            <button type="button" class="btn btn-huge btn-danger" id="btn-action-use" onclick="showUseForm()">
                 <span class="btn-icon">📤</span>
                 <span class="btn-text"><span data-i18n="action.use_btn">USA / CONSUMA</span><br><small data-i18n="action.use_sub">dalla dispensa/frigo</small></span>
             </button>
@@ -2762,6 +2762,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261010h"></script>
+<script src="assets/js/app.js?v=20261014a"></script>
 </body>
 </html>
