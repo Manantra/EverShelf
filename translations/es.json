@@ -1866,6 +1866,7 @@
   },
   "error": {
     "generic": "Error",
+    "product_id_required": "Producto no guardado: vuelve a añadirlo",
     "network": "Error de red",
     "no_api_key": "Configura la clave API en los ajustes",
     "loading": "Error al cargar el producto",

@@ -1866,6 +1866,7 @@
   },
   "error": {
     "generic": "Error",
+    "product_id_required": "Product not saved: try adding it again",
     "network": "Network error",
     "no_api_key": "Configure the API key in settings",
     "no_recipe_engine": "Configure Gemini or Mealie in recipe settings",

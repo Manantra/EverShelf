@@ -1866,6 +1866,7 @@
   },
   "error": {
     "generic": "Erreur",
+    "product_id_required": "Produit non enregistré : réessayez de l'ajouter",
     "network": "Erreur réseau",
     "no_api_key": "Configurez la clé API dans les paramètres",
     "loading": "Erreur de chargement du produit",

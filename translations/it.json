@@ -1866,6 +1866,7 @@
   },
   "error": {
     "generic": "Errore",
+    "product_id_required": "Prodotto non salvato: riprova ad aggiungerlo",
     "network": "Errore di rete",
     "no_api_key": "Configura la chiave API nelle impostazioni",
     "no_recipe_engine": "Configura Gemini o Mealie nelle impostazioni ricette",

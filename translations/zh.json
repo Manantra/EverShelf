@@ -1866,6 +1866,7 @@
   },
   "error": {
     "generic": "出错了",
+    "product_id_required": "商品未保存：请重新添加",
     "network": "网络错误",
     "no_api_key": "请在设置中配置 API 密钥",
     "no_recipe_engine": "请在食谱设置中配置 Gemini 或 Mealie",
