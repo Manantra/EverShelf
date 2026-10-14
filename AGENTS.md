@@ -135,7 +135,10 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 - **Commits**: Conventional-ish prefixes seen in history: `feat:`, `fix:`,
   `release:`, `merge:`. Work on **`develop`**; CI auto-merges `develop → main`.
 - **Assets cache-busting**: when you edit `app.js`/`style.css`, bump the `?v=`
-  query in `index.html` and `sw.js` `CACHE` name.
+  query in `index.html` and the `sw.js` `CACHE` name (it carries the version *and*
+  the stamp letter, e.g. `evershelf-v1.11.13b`). `scripts/bump-version.sh` does both
+  and, inside the same day, continues the stamp letter (`20261014a` → `20261014b`)
+  instead of reusing it — a repeated `<today>a` leaves the browser on the old CSS.
 
 ## Commands that matter
 
