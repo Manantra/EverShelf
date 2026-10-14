@@ -51,6 +51,7 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 ## P4 — housekeeping
 
 - README version badge is now rewritten by `scripts/bump-version.sh` (it had drifted to 1.11.6); its “What’s new” prose line stays manual, so update it with every release. A CI check that fails on version drift is still open.
+- **Release notes carry the previous version.** In `create-release` (`.github/workflows/ci.yml`) the `awk` range ends *at* the next `## [` heading and the following `grep -v` only strips that line, so every release body also shows the older sections (v1.11.12 shipped the 1.11.11 notes; the v1.11.12 notes were fixed by hand with `gh release edit`). One-line fix: `awk '/^## \[VER\]/{f=1;print;next} f && /^## /{exit} f'`. Workflow files need a `workflow`-scoped PAT to push (same constraint as `todo/0001-ci-*.patch`).
 - Root `TODO.md` is Italian scratch — point to this file for backlog; keep TODO for session checkboxes only.
 - **Security:** rotate any PAT pasted in chat; never commit `.env`.
 - Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits — run `bash scripts/gen-code-index.sh` (CI INDEX job needs a workflow-scoped PAT; see `todo/CI-INDEX-NOTE.md`).
