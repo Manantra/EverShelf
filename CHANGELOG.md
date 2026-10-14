@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.14] - 2026-10-14
+
+### Fixes
+- **An AI-identified product could not be added to the pantry — the answer was "Product ID required"** (issue #282). The insert is keyed by `product_id`, and the add form could be reached with a draft that had no catalog row behind it. `submitAdd()` now materialises the row first (`_ensureAddProductRow()` → `product_save` with `name_user_set`, so the title the user confirmed is the stored one) and only then posts `inventory_add`; a draft with no title at all is refused with a translated message instead of a 400.
+- The two flows that accepted a bare `success` without an id before opening the add form (`createQuickProduct()`, `saveAIProductDirect()`) now require a real row id; the `barcode_already_used` owner branch still resolves the stored row first.
+- Backend errors are translatable: `addToInventory` / `useFromInventory` answer a stable `error_key` (`error.product_id_required`) and log `api_inventory_add_missing_product_id` / `api_inventory_use_missing_product_id`; the client resolves the key through `_apiErrorText()` instead of printing the raw English string. New key in all six locales.
+- Guard test: `scripts/test-inventory-add-guard.php`.
+
 ## [1.11.13] - 2026-10-14
 
 ### Recipes

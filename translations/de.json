@@ -1866,6 +1866,7 @@
   },
   "error": {
     "generic": "Fehler",
+    "product_id_required": "Produkt nicht gespeichert: bitte erneut hinzufügen",
     "network": "Netzwerkfehler",
     "no_api_key": "API-Schluessel in den Einstellungen konfigurieren",
     "no_recipe_engine": "Gemini oder Mealie in den Rezept-Einstellungen konfigurieren",

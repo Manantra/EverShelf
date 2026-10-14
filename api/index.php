@@ -4821,9 +4821,19 @@ function addToInventory(PDO $db): void {
     $unit = $input['unit'] ?? null;
     
     if (!$productId) {
-        EverLog::warn('addToInventory: product_id missing (400)');
+        // The client must be able to translate this: the raw English string used
+        // to reach the UI as-is ("Product ID required", issue #282). `error_key`
+        // is the stable machine value, `error` stays for older clients.
+        EverLog::warn('addToInventory: product_id missing (400)', [
+            'event'     => 'api_inventory_add_missing_product_id',
+            'error_key' => 'error.product_id_required',
+        ]);
         http_response_code(400);
-        echo json_encode(['error' => 'Product ID required']);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Product ID required',
+            'error_key' => 'error.product_id_required',
+        ]);
         return;
     }
 
@@ -5411,9 +5421,17 @@ function useFromInventory(PDO $db): void {
     $notes = $input['notes'] ?? '';
     
     if (!$productId) {
-        EverLog::warn('useFromInventory: product_id missing (400)');
+        // Same contract as addToInventory: stable key, translated client-side.
+        EverLog::warn('useFromInventory: product_id missing (400)', [
+            'event'     => 'api_inventory_use_missing_product_id',
+            'error_key' => 'error.product_id_required',
+        ]);
         http_response_code(400);
-        echo json_encode(['error' => 'Product ID required']);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Product ID required',
+            'error_key' => 'error.product_id_required',
+        ]);
         return;
     }
 

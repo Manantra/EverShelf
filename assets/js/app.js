@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261014b'; // bump when translations change
+const _I18N_VERSION = '20261014c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11339,7 +11339,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261014b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261014c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11349,7 +11349,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261014b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261014c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -12500,9 +12500,12 @@ async function createQuickProduct(name) {
             default_quantity: 1,
         });
         
-        if (result.success || result.id) {
+        // Only a real id may reach the add form: `success` alone is not enough
+        // for an insert keyed by product_id (issue #282).
+        const newId = result?.id || result?.existing_id;
+        if (newId) {
             currentProduct = {
-                id: result.id,
+                id: newId,
                 name: name,
                 brand: '',
                 category: category,
@@ -12536,7 +12539,7 @@ async function createQuickProduct(name) {
             showProductAction();
         } else {
             showLoading(false);
-            showToast(result.error || t('error.save'), 'error');
+            showToast(_apiErrorText(result) || t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -14509,6 +14512,69 @@ function _confirmRecentDuplicateAdd(recent, productName, addQty, unit, defQty, p
     return confirm(msg);
 }
 
+/**
+ * The pantry insert is keyed by `product_id`: the API answers 400 without it.
+ * An AI-identified (or otherwise drafted) product can reach the add form before a
+ * catalog row exists — that used to end in a raw, untranslatable
+ * "Product ID required" toast (issue #282). The user has already confirmed a name
+ * here, so the row is what we owe them: create it and keep going.
+ *
+ * @returns {Promise<boolean>} true when `currentProduct.id` is usable.
+ */
+async function _ensureAddProductRow() {
+    if (currentProduct?.id) return true;
+
+    // Title and brand are editable on the add form: honour what is on screen.
+    const nameInput = document.getElementById('add-product-name');
+    const brandInput = document.getElementById('add-product-brand');
+    const editing = (el) => el && el.style.display !== 'none';
+    const name = String((editing(nameInput) ? nameInput.value : '') || currentProduct?.name || '').trim();
+    const brand = String((editing(brandInput) ? brandInput.value : '') || currentProduct?.brand || '').trim();
+    if (!name) return false;
+
+    const category = mapToLocalCategory(currentProduct?.category || '', name, brand);
+    try {
+        const saved = await api('product_save', {}, 'POST', {
+            barcode: currentProduct?.barcode || null,
+            name,
+            brand,
+            category,
+            image_url: currentProduct?.image_url || '',
+            unit: currentProduct?.unit || 'pz',
+            default_quantity: currentProduct?.default_quantity ?? 1,
+            package_unit: currentProduct?.package_unit || '',
+            notes: currentProduct?.notes || '',
+            // The user confirmed this title on the add screen: a later catalog hit
+            // must not rename it (mergeIncomingProductFields honours the flag).
+            name_user_set: 1,
+        });
+        const id = saved?.id || saved?.existing_id;
+        if (!id) {
+            console.error('[add] product_save returned no id', saved);
+            return false;
+        }
+        currentProduct = Object.assign({}, currentProduct, {
+            id,
+            name: saved?.name || name,
+            brand,
+            category,
+        });
+        _snapshotCatalogTitle();
+        _renderAddProductPreview();
+        return true;
+    } catch (err) {
+        console.error('[add] product_save failed', err);
+        return false;
+    }
+}
+
+/** Backend error → localized text. `error_key` is the stable value PHP sends. */
+function _apiErrorText(data) {
+    const key = data?.error_key;
+    if (key === 'error.product_id_required') return t('error.product_id_required');
+    return data?.error || t('error.generic');
+}
+
 async function submitAdd(e) {
     e.preventDefault();
     clearAddFormIdleCountdown();
@@ -14521,6 +14587,18 @@ async function submitAdd(e) {
         showLoading(false);
         if (!currentProduct?.id) {
             showToast(t('error.generic'), 'error');
+            return;
+        }
+    }
+
+    // Any other draft (AI-identified without a catalog row yet) is materialised
+    // here instead of being posted without a product_id.
+    if (!currentProduct?.id) {
+        showLoading(true);
+        const ready = await _ensureAddProductRow();
+        showLoading(false);
+        if (!ready) {
+            showToast(t('product.name_required'), 'error');
             return;
         }
     }
@@ -14681,7 +14759,7 @@ async function submitAdd(e) {
                 window._addExtraBatches = [];
             }
         } else {
-            showToast(result.error || t('error.generic'), 'error');
+            showToast(_apiErrorText(result), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -16724,7 +16802,24 @@ async function saveAIProductDirect() {
             default_quantity: 1,
         });
 
-        if (result.success || result.id) {
+        // `barcode_already_used` carries the owning row: use the stored fields.
+        if (result?.error === 'barcode_already_used' && result.existing_id) {
+            const full = await api('product_get', { id: result.existing_id }).catch(() => null);
+            if (full?.product) {
+                currentProduct = full.product;
+                showLoading(false);
+                showToast(t('scan.ai_match_merged_existing'), 'info');
+                showProductAction();
+            } else {
+                showLoading(false);
+                showToast(t('error.save'), 'error');
+            }
+            return;
+        }
+
+        // A save is only usable when it carries the new row id: an id-less
+        // "success" must never be handed to the add form (issue #282).
+        if (result?.id) {
             currentProduct = {
                 id: result.id,
                 name: id.name,
@@ -16736,20 +16831,9 @@ async function saveAIProductDirect() {
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
             showProductAction();
-        } else if (result.error === 'barcode_already_used' && result.existing_id) {
-            const full = await api('product_get', { id: result.existing_id }).catch(() => null);
-            if (full?.product) {
-                currentProduct = full.product;
-                showLoading(false);
-                showToast(t('scan.ai_match_merged_existing'), 'info');
-                showProductAction();
-            } else {
-                showLoading(false);
-                showToast(t('error.save'), 'error');
-            }
         } else {
             showLoading(false);
-            showToast(result.error || t('error.save'), 'error');
+            showToast(_apiErrorText(result) || t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
