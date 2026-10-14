@@ -1,0 +1,116 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# .clineignore — EverShelf / Dispensa
+#
+# Goal: keep Cline's context limited to *source code, docs, tests and
+# translation files*. Everything listed below is generated, binary, runtime
+# state, third-party code or a local secret: reading it only burns tokens.
+#
+# Syntax: gitignore-compatible (the `ignore` matcher Cline uses).
+#   `pattern/`  → directory, matched at any depth
+#   `!pattern`  → re-include something excluded above
+#   NOTE: a file cannot be re-included if its *parent directory* is excluded,
+#         that is why runtime folders are written as `data/**` and not `data/`.
+#
+# If a task genuinely needs a file listed here, ask the user before changing
+# this file — do not silently edit it.
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ── Version control internals ────────────────────────────────────────────────
+.git/
+
+# ── Dependencies (third-party code, never hand-edited) ───────────────────────
+node_modules/
+bower_components/
+vendor/
+
+# ── Vendored browser libs: Tesseract, Transformers.js, Quagga, ZBar (~36 MB) ─
+assets/vendor/
+
+# ── Build output / minified artefacts (regenerate with `npm run build`) ──────
+dist/
+build/
+out/
+*.min.js
+*.min.css
+*.tsbuildinfo
+**/app/build/
+**/.gradle/
+**/gradle/wrapper/
+gradlew
+gradlew.bat
+
+# ── Runtime state, caches, database and local backups ────────────────────────
+# `data/**` (not `data/`) is what keeps the re-inclusion below possible, and it
+# also covers nested folders such as data/mealie/ (cleartext credentials).
+# data/seasonal_produce_it.json is SHIPPED SOURCE DATA used by the seasonal
+# feature and by scripts/test-seasonal-match.php, so it must stay readable.
+data/**
+!data/seasonal_produce_it.json
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.bak
+*.orig
+*.rej
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Secrets and local machine config (never read, never commit) ──────────────
+.env
+.env.*
+!.env.example
+ca.crt
+*.crt
+*.pem
+*.key
+*.jks
+*.keystore
+keystore.properties
+local.properties
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Binaries / media (never useful as text) ──────────────────────────────────
+*.apk
+*.aab
+*.jar
+*.dex
+*.class
+*.wasm
+*.onnx
+*.bin
+*.zip
+*.gz
+*.tar
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.bmp
+*.mp4
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# ── Generated asset dumps and scratch folders ────────────────────────────────
+assets/img/
+screenshots/
+releases/
+todo/screenshots/
+**/__pycache__/
+*.pyc
+*.map
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml

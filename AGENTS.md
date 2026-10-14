@@ -230,6 +230,9 @@ npm run build
 - `docs/CODEBASE-MAP.md` — deep architecture, DB schema, data files, action catalog.
 - `docs/OPTIMIZATION-BACKLOG.md` — prioritized bugs, perf, CI, and feature ideas.
 - `docs/ARCHITECTURE.md`, `docs/CORPORATE-UI.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+- `.clinerules` — the short digest of this file, loaded automatically by Cline.
+- `.clineignore` — hides generated/binary/runtime/vendor files from the agent's
+  context (gitignore syntax). Update it when a new generated folder appears.
 
 > Audit / review notes are **internal working documents**. They are kept in the
 > git-ignored `todo/` folder at the repo root and are intentionally never pushed:
