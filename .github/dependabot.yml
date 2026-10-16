@@ -34,6 +34,13 @@ updates:
   # Keep ignores in sync with evershelf-*/app/build.gradle.kts comments:
   # Kotlin 2.4 + AGP 8.5.2 + compileSdk 35 cannot take core-ktx ≥1.16,
   # Health Connect 1.2.x, or Gradle 9 / AGP 9 without a coordinated upgrade.
+  #
+  # Verified 2026-10-16 (`android-deps-check.yml` builds a debug APK on demand):
+  # Gradle 9.8.0 *does* assemble the Health Bridge with AGP 8.5.2 — deprecation
+  # warnings only, no failure. It still stays ignored on purpose: the release
+  # workflow pins Gradle 8.14.4 via setup-gradle, so a 9.x wrapper would make a
+  # developer's build differ from the one CI ships. The whole set (AGP 9 +
+  # compileSdk 37 + Kotlin + wrapper) moves together, in one branch.
   - package-ecosystem: "gradle"
     directory: "/evershelf-kiosk"
     schedule:
@@ -59,6 +66,10 @@ updates:
       - dependency-name: "gradle"
         versions: [">=9.0.0"]
       - dependency-name: "org.gradle:gradle"
+        versions: [">=9.0.0"]
+      # The wrapper is a *different* dependency name for Dependabot, so the two
+      # entries above never matched it and PR #277 kept coming back.
+      - dependency-name: "gradle-wrapper"
         versions: [">=9.0.0"]
 
   - package-ecosystem: "gradle"
@@ -89,4 +100,8 @@ updates:
       - dependency-name: "gradle"
         versions: [">=9.0.0"]
       - dependency-name: "org.gradle:gradle"
+        versions: [">=9.0.0"]
+      # The wrapper is a *different* dependency name for Dependabot, so the two
+      # entries above never matched it and PR #277 kept coming back.
+      - dependency-name: "gradle-wrapper"
         versions: [">=9.0.0"]
