@@ -2117,6 +2117,10 @@ function mapToLocalCategory(ofCategory, productName, productBrand = '') {
     if (/dairi|dairy|lait|cheese|fromage|yoghurt|milk|latticin|latte\b|egg\b|uova\b|uovo\b|poultry-egg/.test(cat)) return 'latticini';
     if (/meat|viande|carne|sausage|salum|prosciutt/.test(cat)) return 'carne';
     if (/fish|poisson|pesce|seafood|tuna|tonno|salmone/.test(cat)) return 'pesce';
+    // Preserves/cans FIRST: an OFF tag such as "canned-tomatoes" also says "tomato",
+    // and the vegetable line below used to swallow it — a jar of passata was stored as
+    // fresh verdura.
+    if (/preserve|jam|marmellat|miele|honey|canned|pelati|passata/.test(cat)) return 'conserve';
     if (/fruit|frutta|juice|succo|apple|banana/.test(cat)) return 'frutta';
     if (/salad|insalat/.test(cat)) {
         return _isPreparedSaladName(productName, productBrand) ? 'pasta' : 'verdura';
@@ -2127,7 +2131,6 @@ function mapToLocalCategory(ofCategory, productName, productBrand = '') {
     if (/frozen|surgelé|surgel|gelat/.test(cat)) return 'surgelati';
     if (/sauce|condiment|oil|olio|vinegar|aceto|mayo|ketchup|spice|salt|sugar|zuccher/.test(cat)) return 'condimenti';
     if (/snack|chip|crisp|chocolate|cioccolat|candy|biscuit|cookie|wafer|merendine|patatine/.test(cat)) return 'snack';
-    if (/preserve|jam|marmellat|miele|honey|canned|pelati|passata/.test(cat)) return 'conserve';
     if (/cereal|muesli|granola|oat|fiocchi/.test(cat)) return 'cereali';
     if (/hygiene|soap|shampoo|igien|dentifricio|deodorant/.test(cat)) return 'igiene';
     if (/clean|detergent|pulizia|detersiv/.test(cat)) return 'pulizia';
@@ -2172,19 +2175,23 @@ function guessCategoryFromName(name, brand = '') {
     // Latticini (before bevande to avoid latte→bevande)
     if (/latte\b|yogurt|y[o]?gurt|yaourt|yougurt|yoghurt|formaggio|mozzarella|burro\b|panna\b|ricott|mascarpone|gorgonzola|parmigiano|grana\b|uova\b|uovo\b|egg\b|burrata|scamorza|provolone|pecorino|fontina|taleggio|stracchino|crescenza|brie\b|camembert|emmental|asiago|feta\b|provola|caciotta|caprino|philadelphia|skyr|kefir|labneh/.test(n)) return 'latticini';
     // Conserve — controllo tonno\b PRIMA di condimenti (che ha olio\b)
-    if (/passata|pelati|pomodoro\b|pomodori|pomodorini|ciliegino|sugo\b|polpa di pomod|marmellata|miele\b|zagara|legumi|ceci\b|fagioli\b|lenticchie|olive\b|tonno\b|sgombro in scatola|concentrato|brodo\b|dado\b|besciamella|datterini|passato di/.test(n)) return 'conserve';
+    // Conserve — PREPARATIONS of tomato only. A bare "Pomodoro" / "Pomodorini" is the
+    // fresh vegetable picked below ("verdura"), not a jar: classifying it as a conserve
+    // gave the loose tomato the unit and the weight of a tin (grams, 400 g) and made the
+    // pantry's tin of "Pomodoro" look like the same article.
+    if (/passata|pelati|sugo\b|sughi\b|polpa di pomod|marmellata|miele\b|zagara|legumi|ceci\b|fagioli\b|lenticchie|olive\b|tonno\b|sgombro in scatola|concentrato|brodo\b|dado\b|besciamella|passato di/.test(n)) return 'conserve';
     // Condimenti (include spezie, farine, zucchero, aromi, lieviti)
     if (/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina\b|maionese|ketchup|senape|salsa\b|paprika|curry\b|cannella|noce moscata|origano|rosmarino|timo\b|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido\b|maizena|semola|pesto\b|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco|aroma\b|aromi\b|arome\b|estratto.*vaniglia|estratto.*limone|polenta\b|semolino\b|cacao amaro|cacao.*polvere|purea|pure\b|pur[ée]e/.test(n)) return 'condimenti';
     // Bevande (after latticini to avoid latte conflict)
-    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè]\b|kaffee|kafè|t[eè]\b|tea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/.test(n)) return 'bevande';
+    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè]\b|kaffee|kafè|\bt[eè]\b|\btea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/.test(n)) return 'bevande';
     // Carne (include salumi)
     if (/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/.test(n)) return 'carne';
     // Pesce
     if (/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|\borata\b|sardine|\btrota\b|dentice|seppia|\bpolpo\b|filetto.*pesce|pesce.*filetto/.test(n)) return 'pesce';
-    // Frutta
-    if (/mela\b|mele\b|banana|arancia|pera\b|fragola|uva\b|kiwi\b|limone|frutta\b|mandarino|clementina|pompelmo|avocado|mango\b|ananas|melone|anguria|susina|prugna|ciliegia|albicocca|pesca\b|nettarina|fico\b|melograno|papaya|maracuja|cocco\b|dattero|lampone|mirtillo|ribes|more\b/.test(n)) return 'frutta';
+    // Frutta — same stems as guessCategoryFromNamePHP(): the twins must agree.
+    if (/\bmel[ae]\b|\bper[ae]\b|banan|aranc|mandarin|clementin|pompelm|limon|kiwi|mango|ananas|melon|anguri|nettarin|albicocc|pesc[ah]\b|prugn|susin|fic[oh]\b|melogran|papaya|maracuj|cocch|datter[oi]\b|lampon|mirtill|ribes|\buva\b|fragol|frutt/.test(n)) return 'frutta';
     // Verdura
-    if (/insalata|zucchina|zucchine|pomodor|cipoll\w*|carota|spinaci|rucola|peperoni|melanzane|broccoli|patata|finocchio|sedano|porro|scalogno|cavolo|cavolfiore|asparagi|funghi|courgette|lattuga|bietola|radicchio|carciofo|fagiolini|piselli|mais\b|zucca\b|aglio\b|cetriolo|rapa\b|barbabietola|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
+    if (/insalat|zucchin|pomodor|datterin|ciliegin|cipoll|carot|spinaci|rucol|peperon|melanzan|broccol|patat[ae]\b|finocch|sedano|porro|scalogn|cavol|cavolfior|asparag|funghi|courgette|lattuga|bietol|radicchi|carciof|fagiolin|pisell|mais\b|zucca\b|aglio\b|cetriol|rapa\b|barbabietol|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
     // Surgelati
     if (/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato|potato wedge|potato.*wedge/.test(n)) return 'surgelati';
     // Snack & Dolci
@@ -2414,9 +2421,9 @@ function detectUnitAndQuantity(quantityInfo) {
 function isSoldByPiece(name, category) {
     const n = (name || '').toLowerCase();
     if (!n) return false;
-    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/.test(n)) return false;
+    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio/.test(n)) return false;
     if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/.test(n)) return true;
-    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol/.test(n)) return true;
+    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol|pomodor/.test(n)) return true;
     return false;
 }
 
@@ -2448,9 +2455,12 @@ function suggestCategoryUnitQty(category, name) {
         'igiene': { unit: 'pz', qty: 1 },
         'pulizia': { unit: 'pz', qty: 1 },
     };
-    // Classic piece items (not typically weighed by this household)
+    // Classic piece items (not typically weighed by this household). Tomatoes belong
+    // here: reading "2" as 2 g is how a pantry row of 2 g was born, invisible at once.
+    // Their preparations (pelati, passata, sugo, secchi) are jars, never pieces.
     const n = (name || '').toLowerCase();
-    if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|limone|limoni|lime\b|kiwi|mango\b|cipoll|aglio\b|peperone\b|peperoni\b|uova?\b/.test(n)) {
+    const isPreparation = /\b(pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio)/.test(n);
+    if (!isPreparation && /avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|limone|limoni|lime\b|kiwi|mango\b|cipoll|aglio\b|peperone\b|peperoni\b|pomodor|uova?\b/.test(n)) {
         return { unit: 'pz', qty: 1 };
     }
     return catDefaults[category] || { unit: 'pz', qty: 1 };
@@ -3620,19 +3630,110 @@ async function _fetchAiMatchCandidates(aiProduct) {
     try {
         const res = await api('ai_product_suggest', {}, 'POST', { q, brand: aiProduct?.brand || '', limit: 5 });
         if (!res?.success) return { in_stock: [], finished: [], catalog: [] };
-        return res;
+        return {
+            in_stock: _aiMatchKeepSameNature(res.in_stock, q, aiProduct?.category || ''),
+            finished: _aiMatchKeepSameNature(res.finished, q, aiProduct?.category || ''),
+            catalog:  _aiMatchKeepSameNature(res.catalog, q, aiProduct?.category || ''),
+        };
     } catch (_) {
         return { in_stock: [], finished: [], catalog: [] };
     }
+}
+
+/**
+ * Drop the candidates that are not the same *nature* of product as the one the camera
+ * read:
+ *
+ *   * a fresh "Pomodoro" must never be offered as the "Passata di pomodoro" jar in the
+ *     pantry (nor the other way round) — the user taps the first plausible row, so a
+ *     preparation listed as a substitute is how a vegetable gets recorded as a sauce,
+ *   * a loose vegetable is never the pantry's tin/conserve that shares its name: the
+ *     tin's category says what it is, and the loose one is pieces without a brand.
+ *
+ * The empty state says it honestly: no similar product, create a new one.
+ */
+function _aiMatchKeepSameNature(list, draftName, draftCategory = '') {
+    const draftProcessed = _aiNameLooksProcessed(draftName);
+    const draftProduce = _isProduceCategory(mapToLocalCategory(draftCategory, draftName));
+    return (Array.isArray(list) ? list : []).filter(item => {
+        const name = String(item?.name || '');
+        if (name === '') return true;
+        if (_aiNameLooksProcessed(name) !== draftProcessed) return false;
+        if (draftProduce) {
+            // Only a KNOWN, non-produce category disqualifies the row (same rule as
+            // productRowClashesWithLooseProduce() in the API): 'altro' means the app never
+            // classified it, and hiding it would take a row away from the user.
+            const candCat = mapToLocalCategory(item.category || '', name);
+            if (candCat !== 'altro' && !_isProduceCategory(candCat)) return false;
+        }
+        return true;
+    });
+}
+
+/** True for the two local categories that hold fresh, loose produce (frutta/verdura). */
+function _isProduceCategory(cat) {
+    const k = String(cat || '').toLowerCase().trim();
+    return k === 'frutta' || k === 'verdura';
+}
+
+/**
+ * Unit the AI suggested, kept only when the app can store it (pz/g/ml/kg/l/conf).
+ * Fresh produce counted by piece stays pieces whatever the model read: the pantry counts
+ * "2 pomodori", it does not weigh them.
+ */
+function _aiSuggestedUnit(unit, name, category = '') {
+    const u = String(unit || '').toLowerCase().trim();
+    if (!['g', 'ml', 'kg', 'l', 'pz', 'conf'].includes(u)) return '';
+    if (u !== 'pz' && _isSoldByPieceProductName(name || '', category)) return 'pz';
+    return u;
+}
+
+/** Plausible purchase amount the AI suggested (0 = nothing usable). */
+function _aiSuggestedQuantity(qty) {
+    const q = parseFloat(qty);
+    if (!isFinite(q) || q <= 0 || q > 100000) return 0;
+    return Math.round(q * 1000) / 1000;
+}
+
+/**
+ * The fields product_save stores for an AI reading. For a pack (`conf`) the app keeps the
+ * PACK SIZE on the label in default_quantity/package_unit; for g/ml/pz they are the amount
+ * the add form starts from (2 pieces, 500 g…). Nothing usable → one piece, the old default.
+ */
+function _aiStorageFields(draft) {
+    const aiUnit = String(draft?.unit || '').toLowerCase().trim();
+    const unit = _aiSuggestedUnit(draft?.unit, draft?.name, draft?.category);
+    const qty = _aiSuggestedQuantity(draft?.quantity);
+    if (unit === 'conf') {
+        const m = String(draft?.package_size || '').match(/(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l|lt)\b/i);
+        if (m) {
+            const n = parseFloat(String(m[1]).replace(',', '.'));
+            const u = String(m[2]).toLowerCase();
+            if (isFinite(n) && n > 0) {
+                return { unit: 'conf', default_quantity: n, package_unit: u === 'lt' ? 'l' : u };
+            }
+        }
+        return { unit: 'conf', default_quantity: 1, package_unit: '' };
+    }
+    if (unit === 'pz' && ['g', 'ml', 'kg', 'l'].includes(aiUnit)) {
+        // The model read a weight off the label, not the count: a tomato has no "500
+        // pieces", so the add form starts from one piece and the user says how many.
+        return { unit: 'pz', default_quantity: 1, package_unit: '' };
+    }
+    return { unit: unit || 'pz', default_quantity: qty > 0 ? qty : 1, package_unit: '' };
 }
 
 function _normalizeAiMatchName(name) {
     return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/** Processed / flavored foods — must not match plain produce of the same fruit. */
+/**
+ * Processed / flavored foods — must not match plain produce of the same fruit, and
+ * must not be offered as a substitute for it (see _aiMatchKeepSameNature()).
+ * Stems on purpose ("pelat" covers "pelati"), so no trailing word boundary.
+ */
 function _aiNameLooksProcessed(name) {
-    return /\b(confettura|marmellata|yogurt|yoghurt|succo|spremuta|nettare|gelato|crema|torta|biscott|salsa|sugo|passata|sciroppo|essiccat|candit|integrale|snack|barretta|budino|mousse|drink|bevanda)\b/i.test(name || '');
+    return /\b(confettur|marmellat|yogurt|yoghurt|succo|spremut|nettare|gelato|crema|torta|biscott|salsa|sugo|passat|pelat|polpa|concentrat|sottaceto|sottoli|sciropp|essiccat|secc|candit|snack|barrett|budino|mousse|drink|bevand)/i.test(name || '');
 }
 
 function _aiSignificantTokens(name) {
@@ -3704,20 +3805,22 @@ async function _openAiSavedProduct(saveResult, draft, { showMergedToast = false 
 
     // Absolute rule: the AI label the user confirmed must never be replaced by a catalog title.
     if (draftName) {
+        const storage = _aiStorageFields({ ...draft, name: draftName, category: draftCategory });
         await api('product_save', {}, 'POST', {
             id: productId,
             name: draftName,
             brand: draftBrand,
             category: draftCategory,
             name_user_set: 1,
-            unit: 'pz',
-            default_quantity: 1,
-            package_unit: '',
+            unit: storage.unit,
+            default_quantity: storage.default_quantity,
+            package_unit: storage.package_unit,
             notes: '',
             image_url: '',
         }).catch(() => null);
     }
 
+    const storage = _aiStorageFields({ ...draft, name: draftName, category: draftCategory });
     const full = await api('product_get', { id: productId }).catch(() => null);
     currentProduct = full?.product || {
         id: productId,
@@ -3726,9 +3829,9 @@ async function _openAiSavedProduct(saveResult, draft, { showMergedToast = false 
         brand: draftBrand,
         category: draftCategory,
         image_url: '',
-        unit: 'pz',
-        default_quantity: 1,
-        package_unit: '',
+        unit: storage.unit,
+        default_quantity: storage.default_quantity,
+        package_unit: storage.package_unit,
         _confCount: 0,
         weight_info: '',
     };
@@ -3770,6 +3873,8 @@ async function _confirmAiDetectedProduct() {
     showLoading(true);
     try {
         const localCategory = mapToLocalCategory(p.category || '', aiName, p.brand || '');
+        // The AI's plausible unit/amount travel with the save (see _aiStorageFields()).
+        const storage = _aiStorageFields({ ...p, name: aiName, category: localCategory });
 
         // NEVER auto-switch to a different catalog product (Confettura, Anguria Perla Nera, …).
         // The green button means: keep EXACTLY this AI name. Similar items stay in the list below.
@@ -3779,9 +3884,9 @@ async function _confirmAiDetectedProduct() {
             brand: p.brand || '',
             category: localCategory,
             image_url: '',
-            unit: 'pz',
-            default_quantity: 1,
-            package_unit: '',
+            unit: storage.unit,
+            default_quantity: storage.default_quantity,
+            package_unit: storage.package_unit,
             notes: '',
             name_user_set: 1,
         });
@@ -3914,6 +4019,12 @@ async function _tryGeminiVisualBarcode() {
                 name: p.name || t('product.not_recognized'),
                 brand: p.brand || '',
                 category,
+                // The AI also says HOW this product is counted (pieces, grams, packs) and
+                // how much one purchase is: keep it, so the add form opens on the plausible
+                // amount instead of a generic default the user has to fix every time.
+                unit: p.unit || '',
+                quantity: p.quantity || 0,
+                package_size: p.package_size || '',
             };
             const matchRes = await _fetchAiMatchCandidates(_aiDetectedProductDraft);
             if (myGen !== _aiVisualGen) {
@@ -14291,20 +14402,44 @@ function onAddUnitChange() {
     if (unit === 'pz' && currentQty > 100) qtyInput.value = 1;
     if (unit === 'conf' && currentQty > 10) qtyInput.value = 1;
 
+    // A unit switch must never leave a quantity the pantry would refuse: "2" typed for
+    // pieces becomes 20 g the moment the unit turns to grams, never a 2 g row that the
+    // list would hide as finished.
+    const floor = _addMinQtyForUnit(unit);
+    if ((parseFloat(qtyInput.value) || 0) < floor) qtyInput.value = floor;
+
     // Show/hide scale read button based on new unit
     updateScaleReadButtons();
     setQtyInputUnitLabel('add-quantity', unit, true);
+}
+
+/**
+ * Smallest quantity the pantry can be *created* with, per unit. Mirrors
+ * inventoryMinAddQuantity() in api/index.php (the server refuses the same values):
+ * a row below the floor is hidden by the "finished" filter the moment it is written,
+ * which is how "2 pieces of tomato" became an invisible 2 g. `pz`/`conf` keep the
+ * floor the add form always had (1 piece, ¼ pack).
+ */
+const _ADD_MIN_QTY_BY_UNIT = { g: 20, ml: 20, kg: 0.02, l: 0.02, lt: 0.02, pz: 1, conf: 0.25 };
+
+function _addMinQtyForUnit(unit) {
+    const u = String(unit || '').toLowerCase();
+    return Object.prototype.hasOwnProperty.call(_ADD_MIN_QTY_BY_UNIT, u) ? _ADD_MIN_QTY_BY_UNIT[u] : 0.25;
+}
+
+/** Label of a unit for the user: translations where they exist, the symbol otherwise. */
+function _addUnitLabel(unit) {
+    if (unit === 'pz') return t('units.pz');
+    if (unit === 'conf') return t('units.conf');
+    return String(unit || '');
 }
 
 function updateAddQtyStep() {
     const qtyInput = document.getElementById('add-quantity');
     const unit = document.getElementById('add-unit').value;
     qtyInput.step = 'any';
-    if (unit === 'g' || unit === 'ml') {
-        qtyInput.min = '1';
-    } else {
-        qtyInput.min = '1';
-    }
+    // The − / + buttons clamp to `min` (adjustAddQty), so the floor is enforced here too.
+    qtyInput.min = String(_addMinQtyForUnit(unit));
     setQtyInputUnitLabel('add-quantity', unit, true);
 }
 
@@ -14574,6 +14709,7 @@ async function _ensureAddProductRow() {
 function _apiErrorText(data) {
     const key = data?.error_key;
     if (key === 'error.product_id_required') return t('error.product_id_required');
+    if (key === 'error.quantity_below_min') return t('error.quantity_below_min', data?.error_args || {});
     return data?.error || t('error.generic');
 }
 
@@ -14622,6 +14758,18 @@ async function submitAdd(e) {
     const pkgUnit = selectedUnit === 'conf' ? (document.getElementById('add-conf-unit')?.value || null) : null;
     const pkgSize = selectedUnit === 'conf' ? (parseFloat(document.getElementById('add-conf-size')?.value) || null) : null;
     const unitForAdd = selectedUnit !== productUnit ? selectedUnit : productUnit;
+
+    // Below the floor the row would be born "finished": isInventoryDepleted() hides it
+    // from the pantry list the moment it is written, so the household sees the product
+    // it just added disappear (the reported "2 g instead of 2 pieces" tomatoes). Refused
+    // here for an immediate, translated message; the API refuses it too.
+    const minAdd = _addMinQtyForUnit(unitForAdd);
+    if (addQty < minAdd) {
+        showToast(t('error.quantity_below_min', { min: minAdd, unit: _addUnitLabel(unitForAdd) }), 'error');
+        document.getElementById('add-quantity')?.focus();
+        startAddFormIdleCountdown();
+        return;
+    }
 
     // A scanned label is often wrong: save the corrected title/brand first, so the
     // pantry entry and every message after it carry the name the user confirmed.
@@ -16796,12 +16944,16 @@ async function saveAIProductDirect() {
 
     showLoading(true);
     try {
+        const cat = mapToLocalCategory(id.category || '', id.name || '', id.brand || '');
+        // The AI also said how this product is counted and how much one purchase is.
+        const storage = _aiStorageFields({ ...id, name: id.name, category: cat });
         const result = await api('product_save', {}, 'POST', {
             name: id.name,
             brand: id.brand || '',
-            category: mapToLocalCategory(id.category || '', id.name || '', id.brand || ''),
-            unit: 'pz',
-            default_quantity: 1,
+            category: cat,
+            unit: storage.unit,
+            default_quantity: storage.default_quantity,
+            package_unit: storage.package_unit,
         });
 
         // `barcode_already_used` carries the owning row: use the stored fields.
@@ -16826,9 +16978,10 @@ async function saveAIProductDirect() {
                 id: result.id,
                 name: id.name,
                 brand: id.brand || '',
-                category: mapToLocalCategory(id.category || '', id.name || '', id.brand || ''),
-                unit: 'pz',
-                default_quantity: 1,
+                category: cat,
+                unit: storage.unit,
+                default_quantity: storage.default_quantity,
+                package_unit: storage.package_unit,
             };
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
@@ -17240,11 +17393,12 @@ function _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit) {
     return 0;
 }
 
-/** Mirror PHP isSoldByPieceProduct — fruit/veg sold as pieces, not grams. */
+/** Mirror PHP isSoldByPieceProduct — fruit/veg sold as pieces, not grams.
+ *  Keep the two lists identical: the PHP one decides the stored unit, this one the UI. */
 function _isSoldByPieceProductName(name, category = '') {
     const n = String(name || '').toLowerCase().trim();
     if (!n) return false;
-    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/i.test(n)) {
+    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio/i.test(n)) {
         return false;
     }
     if (/\b(miele|formaggio|yogurt|succo|nettare|confettur|marmellat|crema|salsa|pesto|olio|aceto|pasta|riso)\b/i.test(n)) {
@@ -17253,7 +17407,7 @@ function _isSoldByPieceProductName(name, category = '') {
     if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/i.test(n)) {
         return true;
     }
-    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol/i.test(n)) {
+    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol|pomodor/i.test(n)) {
         return true;
     }
     return false;

@@ -2818,20 +2818,17 @@ function haInventorySensor(PDO $db): void {
                 }
             }
             if (!empty($shopNames)) {
-                $listHash = _shoppingListHash($shopNames, $country, $priceCurrency);
-                $cached = _loadCanonicalShoppingTotal($listHash);
-                if ($cached !== null) {
-                    $shoppingTotal = round((float)($cached['total'] ?? 0), 2);
-                } else {
-                    $computed = _computeAllShoppingPrices(
-                        array_map(static fn($n) => ['name' => $n], $shopNames),
-                        $country,
-                        $priceCurrency,
-                        'it',
-                        false
-                    );
-                    $shoppingTotal = round((float)($computed['total'] ?? 0), 2);
-                }
+                // ONE basket: the same function the app and the kiosk call, so the sensor
+                // shows the number the household sees in the app (the old names-only cache
+                // lookup used a different key and priced a different basket).
+                $computed = _computeAllShoppingPrices(
+                    array_map(static fn($n) => ['name' => $n], $shopNames),
+                    $country,
+                    $priceCurrency,
+                    'it',
+                    false
+                );
+                $shoppingTotal = round((float)($computed['total'] ?? 0), 2);
             }
         }
 
@@ -4537,6 +4534,123 @@ function searchInventoryProducts(PDO $db): void {
 }
 
 /**
+ * Words of a catalog name, lowercased and reduced to their stem, for the candidate
+ * ranking below: "Pomodoro" and "Pomodori" must collapse to the same token, while
+ * "Passata di pomodoro" must expose the extra word it carries.
+ *
+ * @return list<string>
+ */
+function aiProductNameTokens(string $name): array {
+    $roots = [];
+    foreach (evershelfSignificantTokens($name) as $token) {
+        $root = (string)preg_replace('/[aeiouàèéìòù]$/u', '', (string)$token);
+        $roots[] = $root !== '' ? $root : (string)$token;
+    }
+    return array_values(array_unique($roots));
+}
+
+/**
+ * How well a catalog name answers the name the AI just read: 100 = the same name,
+ * 90 = the same words (another number, another order), then it drops by 20 per word
+ * that does not line up — the candidate's own extras plus the query's words it loses.
+ *
+ * "Passata di pomodoro" merely CONTAINS the word "pomodoro": it is a preparation of a
+ * different article, so it must not lead the list of candidates the user taps.
+ */
+function aiProductNameRelevance(string $query, string $name): int {
+    $nq = trim((string)preg_replace('/\s+/u', ' ', normalizeProductName($query)));
+    $nn = trim((string)preg_replace('/\s+/u', ' ', normalizeProductName($name)));
+    if ($nq === '' || $nn === '') {
+        return 0;
+    }
+    if ($nq === $nn) {
+        return 100;
+    }
+    $qTokens = aiProductNameTokens($nq);
+    $nTokens = aiProductNameTokens($nn);
+    if (!$qTokens || !$nTokens) {
+        return 20; // filler words only: better than a substring coincidence, worse than a match
+    }
+    $extra   = array_values(array_diff($nTokens, $qTokens));
+    $missing = array_values(array_diff($qTokens, $nTokens));
+    if (!$extra && !$missing) {
+        return 90;
+    }
+    // The candidate OPENS with the query ("Pomodoro ciliegino" for "Pomodoro"): a nearer
+    // article than one carrying the word in the middle — "Passata di pomodoro" starts
+    // with another word, because it is a preparation of a different article.
+    if (!$missing && $nTokens[0] === $qTokens[0]) {
+        return max(30, 75 - 10 * count($extra));
+    }
+    return max(0, 60 - 20 * (count($extra) + count($missing)));
+}
+
+/**
+ * Re-rank one candidate list so the best answer leads, and cut it back to the requested
+ * size. The SQL order stays as the tie-breaker through `$tieBreak` (more stock / more
+ * history first), then the alphabet.
+ *
+ * @param array<int,array<string,mixed>> $rows
+ * @param callable|null                  $tieBreak fn(array $row): float|int|string
+ * @return array<int,array<string,mixed>>
+ */
+function aiProductSuggestRank(array $rows, string $query, int $limit, ?callable $tieBreak = null): array {
+    if (count($rows) > 1) {
+        usort($rows, static function (array $a, array $b) use ($query, $tieBreak): int {
+            $byScore = aiProductNameRelevance($query, (string)($b['name'] ?? ''))
+                <=> aiProductNameRelevance($query, (string)($a['name'] ?? ''));
+            if ($byScore !== 0) {
+                return $byScore;
+            }
+            if ($tieBreak !== null) {
+                $byTie = $tieBreak($b) <=> $tieBreak($a);
+                if ($byTie !== 0) {
+                    return $byTie;
+                }
+            }
+            return strcmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+        });
+    }
+    return array_slice($rows, 0, $limit);
+}
+
+/**
+ * Pantry unit the AI suggested, kept only when the app can actually store it.
+ *
+ * The model answers in prose ("2 tomatoes", "pieces", "confezione"): anything the pantry
+ * cannot store becomes an empty string, and the caller falls back to its own default.
+ * A wrong unit is worse than no unit: it decides grams vs pieces for the whole article.
+ */
+function aiNormalizePantryUnit(mixed $unit): string {
+    $u = mb_strtolower(trim((string)$unit));
+    $aliases = [
+        'gr' => 'g', 'gram' => 'g', 'grams' => 'g', 'grammi' => 'g', 'grammo' => 'g',
+        'kilogram' => 'kg', 'kilograms' => 'kg', 'chilo' => 'kg', 'chili' => 'kg',
+        'litre' => 'l', 'liter' => 'l', 'litri' => 'l', 'lt' => 'l',
+        'millilitre' => 'ml', 'millilitri' => 'ml',
+        'pezzo' => 'pz', 'pezzi' => 'pz', 'piece' => 'pz', 'pieces' => 'pz', 'nr' => 'pz', 'n' => 'pz',
+        'confezione' => 'conf', 'confezioni' => 'conf', 'pack' => 'conf', 'packs' => 'conf',
+        'packet' => 'conf', 'bottle' => 'conf', 'jar' => 'conf', 'bag' => 'conf',
+    ];
+    if (isset($aliases[$u])) {
+        return $aliases[$u];
+    }
+    return in_array($u, ['g', 'ml', 'kg', 'l', 'pz', 'conf'], true) ? $u : '';
+}
+
+/** Plausible purchase quantity the AI suggested (0 = it said nothing usable). */
+function aiNormalizePantryQuantity(mixed $qty): float {
+    if (!is_numeric($qty)) {
+        return 0.0;
+    }
+    $q = (float)$qty;
+    if (!is_finite($q) || $q <= 0 || $q > 100000) {
+        return 0.0;
+    }
+    return round($q, 3);
+}
+
+/**
  * AI identification helper: in-stock, finished (zero qty), and catalog matches by name.
  */
 function aiProductSuggest(PDO $db): void {
@@ -4564,6 +4678,9 @@ function aiProductSuggest(PDO $db): void {
             WHEN lower(p.name) LIKE ? THEN 1
             ELSE 2
         END";
+    // Look a little wider than the answer: the score below may re-order the list, so a
+    // good match that the SQL LIKE put second must still be in the window.
+    $scanLimit = max($limit * 4, 20);
 
     $inStockStmt = $db->prepare("
         SELECT
@@ -4577,7 +4694,7 @@ function aiProductSuggest(PDO $db): void {
           AND (p.name LIKE ? OR p.brand LIKE ?)
         GROUP BY p.id
         ORDER BY {$orderCase}, total_qty DESC, p.name ASC
-        LIMIT {$limit}
+        LIMIT {$scanLimit}
     ");
     $inStockStmt->execute([$like, $like, $exact, $prefix]);
     $inStock = $inStockStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -4598,7 +4715,7 @@ function aiProductSuggest(PDO $db): void {
         GROUP BY p.id
         HAVING stock_qty <= 0.001 AND total_in > 0
         ORDER BY {$orderCase}, (total_in - total_out) DESC, p.name ASC
-        LIMIT {$limit}
+        LIMIT {$scanLimit}
     ");
     $finishedStmt->execute([$like, $like, $exact, $prefix]);
     $finishedRows = $finishedStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -4641,7 +4758,7 @@ function aiProductSuggest(PDO $db): void {
     if ($excludePlaceholders) {
         $catalogSql .= " AND p.id NOT IN ({$excludePlaceholders})";
     }
-    $catalogSql .= " ORDER BY {$orderCase}, p.name ASC LIMIT {$limit}";
+    $catalogSql .= " ORDER BY {$orderCase}, p.name ASC LIMIT {$scanLimit}";
     $catalogStmt = $db->prepare($catalogSql);
     $catalogParams = [$like, $like];
     if ($excludeIds) {
@@ -4651,6 +4768,12 @@ function aiProductSuggest(PDO $db): void {
     $catalogParams[] = $prefix;
     $catalogStmt->execute($catalogParams);
     $catalog = $catalogStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // The best answer to what the camera read leads each section; the previous
+    // ordering (most stock, most history, alphabet) stays as the tie-breaker.
+    $inStock  = aiProductSuggestRank($inStock, $q, $limit, fn(array $r): float => (float)($r['total_qty'] ?? 0));
+    $finished = aiProductSuggestRank($finished, $q, $limit, fn(array $r): float => (float)($r['expected_qty'] ?? 0));
+    $catalog  = aiProductSuggestRank($catalog, $q, $limit);
 
     echo json_encode([
         'success' => true,
@@ -4863,6 +4986,35 @@ function addToInventory(PDO $db): void {
         echo json_encode(['error' => 'Invalid location']);
         return;
     }
+
+    // Minimum stock: an "add" of 2 g (or 2 pieces read as grams) is a typo, and the
+    // pantry would hide the row immediately (isInventoryDepleted()). Refused here,
+    // logged with a greppable key, and the client shows the translated error_key.
+    // The unit being written is the one sent with the add, else the product's own.
+    $prodUnitStmt = $db->prepare('SELECT unit FROM products WHERE id = ?');
+    $prodUnitStmt->execute([$productId]);
+    $productUnit = (string)($prodUnitStmt->fetchColumn() ?: 'pz');
+    $effectiveUnit = $unit !== null && $unit !== '' ? (string)$unit : $productUnit;
+    $minAdd = inventoryMinAddQuantity($effectiveUnit);
+    if ($quantity < $minAdd) {
+        EverLog::warn('addToInventory: quantity below the minimum (400)', [
+            'event'      => 'api_inventory_add_below_minimum',
+            'product_id' => $productId,
+            'error_key'  => 'error.quantity_below_min',
+            'qty'        => $quantity,
+            'unit'       => $effectiveUnit,
+            'min'        => $minAdd,
+        ]);
+        http_response_code(400);
+        echo json_encode([
+            'success'    => false,
+            'error'      => 'Quantity below minimum',
+            'error_key'  => 'error.quantity_below_min',
+            'error_args' => ['min' => $minAdd, 'unit' => $effectiveUnit],
+        ]);
+        return;
+    }
+
     
     // If a different unit was specified, update the product's unit.
     // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
@@ -6155,6 +6307,33 @@ function productQtyThreshold(string $unit): float {
 }
 
 /**
+ * Smallest quantity a stock entry can be CREATED with, per unit.
+ *
+ * A write below this is not stock, it is a trace: isInventoryDepleted() hides it from
+ * the pantry the moment it lands, so the household sees the product it just added
+ * disappear (reported: "2 g instead of 2 pieces" of tomatoes, gone from the list).
+ * 20 g/ml — and the same amount written as kg/l — is the floor the user asked for,
+ * because a pantry row that claims less than that is a typo, not a purchase. Pieces
+ * and packs keep their own floor: ¼ piece is a legitimate pack a scale can still cut,
+ * but half a pack of anything is not an "add".
+ *
+ * Only NEW rows are guarded: a recipe may still leave 5 g of butter behind, and
+ * decrementing an existing row to a trace stays perfectly allowed.
+ */
+function inventoryMinAddQuantity(string $unit): float {
+    static $floors = [
+        'g'    => 20.0,
+        'ml'   => 20.0,
+        'kg'   => 0.02,
+        'l'    => 0.02,
+        'lt'   => 0.02,
+        'conf' => 0.25,
+        'pz'   => 1.0,
+    ];
+    return $floors[mb_strtolower(trim($unit))] ?? 0.25;
+}
+
+/**
  * Cookable-stock threshold for recipes.
  * Pieces/packs match the UI (¼ lettuce head = finished). Weight/volume allows
  * a bit more than a pure trace so e.g. 3–4 g butter can still cook.
@@ -6205,6 +6384,32 @@ function validProductCategories(): array {
         'bevande', 'condimenti', 'snack', 'conserve', 'cereali', 'igiene', 'pulizia', 'altro'];
 }
 
+/** The two categories that hold fresh, loose produce. */
+function isProduceCategory(string $category): bool {
+    return in_array(mb_strtolower(trim($category)), ['frutta', 'verdura'], true);
+}
+
+/**
+ * Does a catalog row belong to a DIFFERENT article than the loose produce being saved?
+ *
+ * Returns the row's normalized category when they clash, null when the row may be reused.
+ * The rule (shared by the duplicate finder and the consolidator, so the two can never
+ * drift): a fresh vegetable is not the pantry's tin of the same word — "Pomodoro" on the
+ * counter has no barcode and is counted in pieces, while the conserve row that shares the
+ * name carries a barcode, a pack weight and a brand. Merging the two is how a scanned
+ * tomato became a jar of passata, and how a loose vegetable ended up with a brand.
+ */
+function productRowClashesWithLooseProduce(string $name, array $row): ?string {
+    if (!isSoldByPieceProduct($name)) {
+        return null;
+    }
+    $rowCategory = sanitizeProductCategory((string)($row['category'] ?? ''), (string)($row['name'] ?? $name));
+    if ($rowCategory === 'altro' || isProduceCategory($rowCategory)) {
+        return null;
+    }
+    return $rowCategory;
+}
+
 function isOffLikeCategory(string $category): bool {
     $cat = mb_strtolower(trim($category));
     if ($cat === '' || $cat === 'altro') {
@@ -6233,10 +6438,20 @@ function guessCategoryFromNamePHP(string $name, string $brand = ''): string {
     if (preg_match('/\b(acqua|birra|vino|caff[eè]|t[eè]|succo|cola|spumante|bevanda)\b/u', $n)) {
         return 'bevande';
     }
-    if (preg_match('/\b(pomodor|insalat|verdur|carote?|zucchine?|melanzane?|patate?)\b/u', $n)) {
+    // Tomato preparations are conserve even though they say "pomodoro": "Passata di
+    // pomodoro" / "Sugo di pomodoro" / "Pomodori pelati" are jars, a bare "Pomodoro" is
+    // the vegetable (next branch). Checked FIRST, or the vegetable stems below win.
+    if (preg_match('/\b(pelat|passat|sug[oh]|polpa|concentrat)/u', $n)) {
+        return 'conserve';
+    }
+    // Fresh produce, stems on purpose and NO trailing word boundary: "pomodor" must cover
+    // pomodoro/pomodori/pomodorini — with a trailing \b the loose tomato fell through to
+    // 'altro', so the app stopped treating it as a vegetable at all.
+    if (preg_match('/\b(pomodor|datterin|ciliegin|insalat|verdur|carot|zucchin|melanzan|patat[ae]\b|cipoll|spinaci|rucol|peperon|broccol|finocch|sedan|porro|scalogn|carciof|asparag|fagiolin|pisell)/u', $n)) {
         return 'verdura';
     }
-    if (preg_match('/\b(mela|pera|banana|arancia|limone|frutta|fragol)\b/u', $n)) {
+    // Frutta — stems on purpose ("mel[ae]" covers mela/mele), same list as the JS twin.
+    if (preg_match('/\bmel[ae]\b|\bper[ae]\b|banan|aranc|mandarin|clementin|pompelm|limon|kiwi|mango|ananas|melon|anguri|nettarin|albicocc|pesc[ah]\b|prugn|susin|fic[oh]\b|melogran|papaya|maracuj|cocch|datter[oi]\b|lampon|mirtill|ribes|\buva\b|fragol|frutt/u', $n)) {
         return 'frutta';
     }
     if (preg_match('/\b(pollo|manzo|maiale|prosciutt|salame|carne|bresaola|wurstel)\b/u', $n)) {
@@ -6548,6 +6763,56 @@ function brandsCompatible(string $a, string $b): bool {
     return $na === $nb || $na === '' || $nb === '';
 }
 
+/**
+ * Catalog name trimmed down to its head word without the final vowel: the Italian
+ * number marker only. "Pomodoro" and "Pomodori" share the stem, "Passata di pomodoro"
+ * does not (it is a different article, not another number).
+ */
+function productNameStem(string $name): string {
+    $n = normalizeProductName($name);
+    $n = trim((string)preg_replace('/\s+/u', ' ', $n));
+    return $n === '' ? '' : (string)preg_replace('/[aeiouàèéìòù]$/u', '', $n);
+}
+
+/**
+ * True when two catalog names can be the SAME article, two spellings of one row.
+ *
+ * The duplicate finder uses it to reuse a row, the consolidator uses it to DELETE
+ * one — so it must never fire on a coincidence:
+ *
+ *   * equal after normalization → yes,
+ *   * the same name at another number ("Pomodoro" ↔ "Pomodori", "Uovo" ↔ "Uova",
+ *     "Biscotto" ↔ "Biscotti"): only the final vowel of the last word moves, which is
+ *     exactly the form the app writes itself (productKindSingularizeName()) → yes,
+ *   * `$allowHeadPrefix`: one name is the HEAD of the other at a word boundary
+ *     ("Piadina" ⊂ "Piadina Romagnola", the AI name reconciled with the OFF row).
+ *     Callers pass it only when at least one of the two rows carries a barcode: on two
+ *     free-text titles a shared substring proves nothing — "Pomodoro" sits inside
+ *     "Passata di pomodoro" and merging those two is how a fresh vegetable turned into
+ *     a jar of passata.
+ */
+function productNamesSameArticle(string $a, string $b, bool $allowHeadPrefix = false): bool {
+    $na = trim((string)preg_replace('/\s+/u', ' ', normalizeProductName($a)));
+    $nb = trim((string)preg_replace('/\s+/u', ' ', normalizeProductName($b)));
+    if ($na === '' || $nb === '') {
+        return false;
+    }
+    if ($na === $nb) {
+        return true;
+    }
+    // Below 4 characters the stem rule would compare noise ("Tè" / "Te").
+    if (mb_strlen($na) < 4 || mb_strlen($nb) < 4) {
+        return false;
+    }
+    if (productNameStem($na) === productNameStem($nb)) {
+        return true;
+    }
+    if (!$allowHeadPrefix) {
+        return false;
+    }
+    return str_starts_with($na, $nb . ' ') || str_starts_with($nb, $na . ' ');
+}
+
 function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $barcode, ?int $excludeId = null): ?int {
     if ($barcode !== null && trim($barcode) !== '') {
         $sql = "SELECT id FROM products WHERE barcode = ? AND barcode IS NOT NULL AND TRIM(barcode) != ''";
@@ -6570,7 +6835,33 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
         return null;
     }
 
-    $sql = "SELECT id, brand FROM products WHERE lower(trim(name)) = ?";
+    $targetBrand = normalizeProductBrand($brand);
+    $compatible = null;
+
+    // Loose produce is not the pantry's tin of the same word: the tomato on the counter
+    // ("Pomodoro", no barcode) must never reuse the conserve row that carries the same
+    // name — the row's category says what it really is (conserve/condimenti/...) and the
+    // household would find the vegetable wearing the tin's unit, weight and brand.
+    $looseProduce = isSoldByPieceProduct($name);
+    $reusable = static function (array $c) use ($looseProduce, $name): bool {
+        if (!$looseProduce) {
+            return true;
+        }
+        $clash = productRowClashesWithLooseProduce($name, $c);
+        if ($clash === null) {
+            return true;
+        }
+        EverLog::info('duplicate product reuse declined', [
+            'event'    => 'product_reuse_declined',
+            'name'     => $name,
+            'row'      => (string)($c['name'] ?? ''),
+            'category' => $clash,
+        ]);
+        return false;
+    };
+
+    // 1. The very same words.
+    $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) = ?";
     $params = [$nName];
     if ($excludeId) {
         $sql .= " AND id != ?";
@@ -6578,14 +6869,10 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
     }
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
-    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    if (!$candidates) {
-        return null;
-    }
-
-    $targetBrand = normalizeProductBrand($brand);
-    $compatible = null;
-    foreach ($candidates as $c) {
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+        if (!$reusable($c)) {
+            continue;
+        }
         $cBrand = normalizeProductBrand($c['brand'] ?? '');
         if ($cBrand === $targetBrand) {
             return (int)$c['id'];
@@ -6594,6 +6881,35 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
             $compatible = (int)$c['id'];
         }
     }
+
+    // 2. The same article written at another number ("Pomodoro" ↔ "Pomodori"): the AI
+    //    reads the label, the household typed the pantry, and they rarely agree on the
+    //    singular — reusing the row is what keeps one article out of two. Only the
+    //    number moves; a wider match would rename somebody else's row.
+    $stem = productNameStem($nName);
+    if (mb_strlen($stem) >= 3) {
+        $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) LIKE ?";
+        $params = [$stem . '%'];
+        if ($excludeId) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeId;
+        }
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            if (!productNamesSameArticle($name, (string)($c['name'] ?? '')) || !$reusable($c)) {
+                continue;
+            }
+            $cBrand = normalizeProductBrand($c['brand'] ?? '');
+            if ($cBrand === $targetBrand) {
+                return (int)$c['id'];
+            }
+            if ($compatible === null && brandsCompatible($brand, $c['brand'] ?? '')) {
+                $compatible = (int)$c['id'];
+            }
+        }
+    }
+
     return $compatible;
 }
 
@@ -6664,20 +6980,41 @@ function collectDuplicateProductIds(PDO $db, array $row): array {
     $seedId = (int)$row['id'];
     $ids = [$seedId];
     $barcode = normalizeProductBarcode($row['barcode'] ?? null);
+    $seedName = (string)($row['name'] ?? '');
 
     if ($barcode !== null) {
-        $stmt = $db->prepare("SELECT id FROM products WHERE barcode = ? AND id != ?");
+        $stmt = $db->prepare("SELECT id, name, category FROM products WHERE barcode = ? AND id != ?");
         $stmt->execute([$barcode, $seedId]);
-        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $id) {
-            $ids[] = (int)$id;
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $clash = productRowClashesWithLooseProduce($seedName, $c);
+            if ($clash !== null) {
+                EverLog::info('duplicate product kept apart', [
+                    'event'    => 'product_merge_declined',
+                    'name'     => $seedName,
+                    'other'    => (string)$c['name'],
+                    'category' => $clash,
+                ]);
+                continue;
+            }
+            $ids[] = (int)$c['id'];
         }
     }
 
-    $nName = normalizeProductName((string)($row['name'] ?? ''));
+    $nName = normalizeProductName($seedName);
     if ($nName !== '') {
-        $stmt = $db->prepare("SELECT id, brand FROM products WHERE lower(trim(name)) = ? AND id != ?");
+        $stmt = $db->prepare("SELECT id, name, brand, category FROM products WHERE lower(trim(name)) = ? AND id != ?");
         $stmt->execute([$nName, $seedId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $clash = productRowClashesWithLooseProduce($seedName, $c);
+            if ($clash !== null) {
+                EverLog::info('duplicate product kept apart', [
+                    'event'    => 'product_merge_declined',
+                    'name'     => $seedName,
+                    'other'    => (string)$c['name'],
+                    'category' => $clash,
+                ]);
+                continue;
+            }
             if (brandsCompatible($row['brand'] ?? '', $c['brand'] ?? '')) {
                 $ids[] = (int)$c['id'];
             }
@@ -6686,7 +7023,7 @@ function collectDuplicateProductIds(PDO $db, array $row): array {
 
     // Similar names when at least one row has a barcode (e.g. AI "Piadina" + OFF full name).
     if ($nName !== '' && mb_strlen($nName) >= 4) {
-        $stmt = $db->prepare('SELECT id, name, brand, barcode FROM products WHERE id != ?');
+        $stmt = $db->prepare('SELECT id, name, brand, barcode, category FROM products WHERE id != ?');
         $stmt->execute([$seedId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $other) {
             if (!brandsCompatible($row['brand'] ?? '', $other['brand'] ?? '')) {
@@ -6700,12 +7037,34 @@ function collectDuplicateProductIds(PDO $db, array $row): array {
             if ($barcode !== null && $otherBarcode !== null && $barcode !== $otherBarcode) {
                 continue;
             }
-            $overlap = str_contains($nName, $otherName) || str_contains($otherName, $nName);
-            if (!$overlap) {
+            // The loose rule (one name is the HEAD of the other, "Piadina" ⊂ "Piadina
+            // Romagnola") may only fire when at least one of the two rows carries a
+            // barcode, and even then only on a word boundary. Two free-text titles that
+            // merely share a substring are different articles: "Pomodoro" is contained in
+            // "Passata di pomodoro", and this merge is how a scanned vegetable became a
+            // jar of passata (the row the user had just created was the one deleted).
+            $sameArticle = productNamesSameArticle($nName, $otherName, $barcode !== null || $otherBarcode !== null);
+            if ($sameArticle) {
+                $clash = productRowClashesWithLooseProduce($seedName, $other);
+                if ($clash !== null) {
+                    EverLog::info('duplicate product kept apart', [
+                        'event'    => 'product_merge_declined',
+                        'name'     => $seedName,
+                        'other'    => (string)$other['name'],
+                        'category' => $clash,
+                    ]);
+                    continue;
+                }
+                $ids[] = (int)$other['id'];
                 continue;
             }
-            if ($barcode === null || $otherBarcode === null) {
-                $ids[] = (int)$other['id'];
+            if (str_contains($nName, $otherName) || str_contains($otherName, $nName)) {
+                EverLog::info('duplicate product kept apart', [
+                    'event'    => 'product_merge_declined',
+                    'name'     => (string)($row['name'] ?? $nName),
+                    'other'    => (string)($other['name'] ?? $otherName),
+                    'barcodes' => [$barcode, $otherBarcode],
+                ]);
             }
         }
     }
@@ -8028,6 +8387,12 @@ function _spendSaveHistory(array $hist): void {
 /**
  * Store one optional "how much you spent" event for the current spesa session.
  * Input: { amount: number, currency: string }
+ *
+ * Append-only on purpose: the popup appears at the START of every spesa session, one
+ * amount per session, and the ledger keeps no other trace of it. Every write therefore
+ * logs the amount and the resulting month total, because the panel can only show the
+ * sum: "the month jumped from €80 to €166" is unanswerable without this line
+ * (grep -i "spend recorded" logs/evershelf_*.log).
  */
 function spendAdd(): void {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -8036,6 +8401,7 @@ function spendAdd(): void {
     if ($currency === '') $currency = '€';
 
     if ($amount <= 0.0001) {
+        EverLog::warn('spend ignored: no amount', ['event' => 'api_spend_add_ignored', 'amount' => $amount]);
         echo json_encode(['success' => true, 'ignored' => true]);
         return;
     }
@@ -8046,6 +8412,21 @@ function spendAdd(): void {
     _spendSaveHistory($hist);
 
     $month = date('Y-m', $ts);
+    $monthTotal = 0.0;
+    foreach ($hist as $e) {
+        if (date('Y-m', (int)($e['ts'] ?? 0)) === $month) {
+            $monthTotal += (float)($e['amount'] ?? 0);
+        }
+    }
+    EverLog::info('spend recorded', [
+        'event'       => 'api_spend_add',
+        'amount'      => round($amount, 2),
+        'currency'    => $currency,
+        'month'       => $month,
+        'month_total' => round($monthTotal, 2),
+        'entries'     => count($hist),
+    ]);
+
     echo json_encode(['success' => true, 'month' => $month, 'currency_symbol' => $currency, 'amount' => round($amount, 2)]);
 }
 
@@ -12620,6 +13001,9 @@ function geminiIdentifyProduct(): void {
   "name": "{$p['name']}",
   "brand": "{$p['brand']}",
   "category": "{$p['category']}",
+  "unit": "{$p['unit']}",
+  "quantity": "{$p['quantity']}",
+  "package_size": "{$p['package_size']}",
   "search_terms": "{$p['search_terms']}",
   "confidence": "{$p['confidence']}",
   "description": "{$p['description']}"
@@ -12672,6 +13056,13 @@ PROMPT;
     // Step 2: Search Open Food Facts by product name to find a matching barcode
     $searchTerms = $identified['search_terms'] ?? $identified['name'];
     $offProducts = searchOpenFoodFacts($searchTerms, $identified['name'], $identified['brand'] ?? '', $lang);
+
+    // The plausible unit/amount the model read off the photo, normalized: the add form
+    // opens on the AI's answer (pieces for two tomatoes, grams for cut cheese, one pack
+    // for a jar) instead of a generic default the user has to fix every time.
+    $identified['unit']         = aiNormalizePantryUnit($identified['unit'] ?? '');
+    $identified['quantity']     = aiNormalizePantryQuantity($identified['quantity'] ?? 0);
+    $identified['package_size'] = trim((string)($identified['package_size'] ?? ''));
 
     echo json_encode([
         'success' => true,
@@ -19803,13 +20194,20 @@ function geminiBarcodeVisual(): void {
             'parts' => [
                 ['text' => "Identify the grocery product shown in this image. {$langNote}\n" .
                            "Respond with ONLY valid JSON (no markdown, no backticks):\n" .
-                           "{\"name\":\"...\",\"brand\":\"...\",\"category\":\"...\"}\n" .
+                           "{\"name\":\"...\",\"brand\":\"...\",\"category\":\"...\",\"unit\":\"...\",\"quantity\":0,\"package_size\":\"...\"}\n" .
                            "- name: the product name as printed on the pack (specific, NOT a category tab like " .
                            "\"Snacks & sweets\" / \"Vegetables\" / \"Dairy\" / \"Meat\")\n" .
                            "- brand: the brand/manufacturer, or empty string if not visible\n" .
                            "- category: one of: latticini, pasta, bevande, snack, carne, pesce, " .
                            "frutta, verdura, surgelati, condimenti, conserve, cereali, pane, " .
                            "igiene, pulizia, altro\n" .
+                           "- unit: how a pantry counts ONE purchase of this product, exactly one of: " .
+                           "pz (countable pieces: 2 tomatoes, 1 melon), g (weighed: cheese at the counter), " .
+                           "ml (poured liquids), conf (sealed pack: jar, bag, bottle)\n" .
+                           "- quantity: the plausible amount for that purchase (2 for two tomatoes, " .
+                           "500 for 500 g of cheese, 1 for a jar)\n" .
+                           "- package_size: the weight/volume printed on the pack (\"500 g\", \"1 l\"), " .
+                           "or an empty string when it is not a pack\n" .
                            "If you cannot identify the product at all, respond with: {\"unknown\":true}"],
                 ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $imageBase64]],
             ],
@@ -19846,6 +20244,11 @@ function geminiBarcodeVisual(): void {
             'name'          => $data['name']     ?? '',
             'brand'         => $data['brand']    ?? '',
             'category'      => $data['category'] ?? '',
+            // Plausible unit/amount the model read off the photo (0/'' when it did not
+            // say anything usable): the add form opens on it instead of a generic default.
+            'unit'          => aiNormalizePantryUnit($data['unit'] ?? ''),
+            'quantity'      => aiNormalizePantryQuantity($data['quantity'] ?? 0),
+            'package_size'  => trim((string)($data['package_size'] ?? '')),
             'image_url'     => '',
             'quantity_info' => '',
             'nutriscore'    => '',
@@ -19982,15 +20385,14 @@ function _shoppingPriceMaxAgeSeconds(): int {
     return max(7 * 86400, $months * 30 * 86400);
 }
 
-function _shoppingListHash(array $names, string $country, string $currency): string {
-    $sorted = array_values(array_unique(array_map(
-        static fn($n) => mb_strtolower(trim((string)$n)),
-        array_filter($names, static fn($n) => trim((string)$n) !== '')
-    )));
-    sort($sorted);
-    return md5(json_encode($sorted, JSON_UNESCAPED_UNICODE) . '|' . mb_strtolower(trim($country)) . '|' . mb_strtolower(trim($currency)));
-}
-
+/**
+ * Key of a priced basket: name + quantity + unit (the items that were really priced).
+ *
+ * There used to be a second, names-only hash for the Home Assistant sensor. Two keys for
+ * one list meant two cache entries for one number, and the coarse one priced a different
+ * basket (every line at "1 conf"): the app and the sensor disagreed about the same list.
+ * One key now, and it always describes what was priced.
+ */
 function _shoppingListPriceHash(array $items, string $country, string $currency): string {
     $key = array_map(static fn($i) => [
         mb_strtolower(trim($i['name'] ?? '')),
@@ -20001,21 +20403,55 @@ function _shoppingListPriceHash(array $items, string $country, string $currency)
     return md5(json_encode($key, JSON_UNESCAPED_UNICODE) . '|' . mb_strtolower(trim($country)) . '|' . mb_strtolower(trim($currency)));
 }
 
+/**
+ * The canonical total of ONE basket, keyed by that basket's hash.
+ *
+ * The file used to hold a single `_canonical` slot, so the two producers (the app with
+ * the smart quantities, the Home Assistant sensor without them) evicted each other on
+ * every call: each request recomputed everything, and the value the household saw
+ * depended on who asked last. Entries are kept per hash, newest first, and pruned.
+ */
 function _loadCanonicalShoppingTotal(string $listHash): ?array {
     $path = __DIR__ . '/../data/shopping_total_cache.json';
     if (!file_exists($path)) return null;
     $tc = json_decode(file_get_contents($path), true) ?? [];
-    $entry = $tc['_canonical'] ?? null;
-    if (!$entry || ($entry['list_hash'] ?? '') !== $listHash) return null;
+    $entries = $tc['totals'] ?? [];
+    // Legacy single-slot file (pre-1.12): read it once, so the first request after the
+    // upgrade still wins from the cache instead of recomputing the whole list.
+    if (!isset($entries[$listHash]) && isset($tc['_canonical'])) {
+        $legacy = $tc['_canonical'];
+        if (($legacy['list_hash'] ?? '') === $listHash) {
+            $entries[$listHash] = $legacy;
+        }
+    }
+    $entry = $entries[$listHash] ?? null;
+    if (!is_array($entry)) return null;
     if (time() - (int)($entry['ts'] ?? 0) >= _shoppingPriceMaxAgeSeconds()) return null;
     $result = $entry['result'] ?? null;
     return is_array($result) ? $result : null;
 }
 
+/** Max priced baskets kept on disk (the current list + a couple of variants). */
+const SHOPPING_TOTAL_CACHE_MAX = 4;
+
+/**
+ * Keep the newest $max baskets, newest first. Pure, so the cache shape is testable.
+ *
+ * @param array<string,array{ts:int,result:array}> $entries
+ * @return array<string,array{ts:int,result:array}>
+ */
+function _pruneShoppingTotalEntries(array $entries, int $max = SHOPPING_TOTAL_CACHE_MAX): array {
+    uasort($entries, static fn($a, $b) => (int)($b['ts'] ?? 0) <=> (int)($a['ts'] ?? 0));
+    return array_slice($entries, 0, max(1, $max), true);
+}
+
 function _saveCanonicalShoppingTotal(string $listHash, array $result): void {
     $path = __DIR__ . '/../data/shopping_total_cache.json';
     $tc = file_exists($path) ? (json_decode(file_get_contents($path), true) ?? []) : [];
-    $tc['_canonical'] = ['ts' => time(), 'list_hash' => $listHash, 'result' => $result];
+    $entries = is_array($tc['totals'] ?? null) ? $tc['totals'] : [];
+    unset($tc['_canonical']); // the single slot of the previous shape is gone
+    $entries[$listHash] = ['ts' => time(), 'result' => $result];
+    $tc['totals'] = _pruneShoppingTotalEntries($entries);
     file_put_contents($path, json_encode($tc, JSON_UNESCAPED_UNICODE), LOCK_EX);
 }
 
@@ -20057,11 +20493,19 @@ function _capQtyForShoppingPrice(float $qty, string $unit, float $defQty, string
     return shoppingCapPriceQty($qty, $unit, $defQty, $pkgUnit);
 }
 
+
 /**
- * Resolve qty/unit/defQty for price estimation from smart-shopping suggestions.
- * Each shopping-list line is priced as ONE typical retail purchase — not 14-day restock stock.
+ * Name → the item that gets priced, SERVER knowledge first.
+ *
+ * The smart cache (data/smart_shopping_cache.json) is the one place that knows how much
+ * of this list has to be bought, and it is not available to every caller: the dashboard
+ * and the screensaver ask for a total while the smart suggestions are not loaded, and
+ * pricing "1 conf" for every line produced a different basket — and therefore a
+ * different "Spesa stimata" — from the one the Home Assistant sensor and the shopping
+ * page showed for the same list. The caller's own quantity is now only the fallback for
+ * an item the smart cache does not know at all.
  */
-function _resolveShoppingPriceItem(string $name, array $smartItems): array {
+function _resolveShoppingPriceItem(string $name, array $smartItems, array $clientItem = []): array {
     $si = _matchSmartShoppingItem($name, $smartItems);
     if ($si) {
         $unit    = trim($si['unit'] ?? 'conf');
@@ -20114,6 +20558,23 @@ function _resolveShoppingPriceItem(string $name, array $smartItems): array {
         }
     }
 
+    // The smart cache knows nothing about this item: trust the quantity the caller sent
+    // (it comes from the very same list, just resolved on the client side).
+    $clientQty  = (float)($clientItem['quantity'] ?? 0);
+    $clientUnit = strtolower(trim((string)($clientItem['unit'] ?? '')));
+    if ($clientQty > 0 && $clientUnit !== '') {
+        $defQty  = (float)($clientItem['default_quantity'] ?? $si['default_qty'] ?? 0);
+        $pkgUnit = trim((string)($clientItem['package_unit'] ?? $si['package_unit'] ?? ''));
+        $capped  = shoppingCapPriceQty($clientQty, $clientUnit, $defQty, $pkgUnit);
+        return [
+            'name'             => $name,
+            'quantity'         => $capped['quantity'],
+            'unit'             => $capped['unit'],
+            'default_quantity' => $defQty,
+            'package_unit'     => $pkgUnit,
+        ];
+    }
+
     return [
         'name'             => $name,
         'quantity'         => 1,
@@ -20123,30 +20584,16 @@ function _resolveShoppingPriceItem(string $name, array $smartItems): array {
     ];
 }
 
+/**
+ * The priced basket of a list: ONE result for every caller (app on any page, kiosk,
+ * Home Assistant), whatever each of them happened to know at request time.
+ */
 function _shoppingListPriceItems(array $clientItems, array $smartItems = []): array {
     $items = [];
     foreach ($clientItems as $ci) {
         $name = trim($ci['name'] ?? '');
         if ($name === '') continue;
-
-        $clientQty = (float)($ci['quantity'] ?? 0);
-        $clientUnit = strtolower(trim($ci['unit'] ?? ''));
-        if ($clientQty > 0 && $clientUnit !== '') {
-            $si = _matchSmartShoppingItem($name, $smartItems);
-            $defQty = (float)($ci['default_quantity'] ?? $si['default_qty'] ?? 0);
-            $pkgUnit = trim($ci['package_unit'] ?? $si['package_unit'] ?? '');
-            $capped = shoppingCapPriceQty($clientQty, $clientUnit, $defQty, $pkgUnit);
-            $items[] = [
-                'name'             => $name,
-                'quantity'         => $capped['quantity'],
-                'unit'             => $capped['unit'],
-                'default_quantity' => $defQty,
-                'package_unit'     => $pkgUnit,
-            ];
-            continue;
-        }
-
-        $items[] = _resolveShoppingPriceItem($name, $smartItems);
+        $items[] = _resolveShoppingPriceItem($name, $smartItems, $ci);
     }
     return $items;
 }

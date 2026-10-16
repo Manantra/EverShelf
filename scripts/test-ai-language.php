@@ -36,14 +36,14 @@ $keys      = null;
 foreach ($locales as $lang) {
     $set              = evershelfIdentifyPromptFragments($lang);
     $fragments[$lang] = $set;
-    assert_true(count($set) === 9, "{$lang}: nine prompt fragments");
+    assert_true(count($set) === 12, "{$lang}: twelve prompt fragments");
     if ($keys === null) {
         $keys = array_keys($set);
     }
     assert_true(array_keys($set) === $keys, "{$lang}: same fragment keys as the other locales");
 }
 assert_true(
-    $keys === ['intro', 'lang_rule', 'json_rule', 'name', 'brand', 'category', 'search_terms', 'confidence', 'description'],
+    $keys === ['intro', 'lang_rule', 'json_rule', 'name', 'brand', 'category', 'unit', 'quantity', 'package_size', 'search_terms', 'confidence', 'description'],
     'the fragment key set is the documented one'
 );
 foreach ($keys as $key) {

@@ -1910,6 +1910,7 @@
     "offline_cache_ready": "Offline — {n} items cached",
     "copy_failed": "Copy to clipboard failed",
     "invalid_quantity": "Invalid quantity",
+    "quantity_below_min": "Quantity too small: add at least {min} {unit} — below that the product would count as already finished.",
     "invalid_token": "🔒 Invalid or missing token"
   },
   "confirm": {

@@ -839,15 +839,18 @@ function getVacuumExpiryDaysPHP(int $baseDays): int {
 }
 
 /**
- * Fresh produce sold by piece (avocado, banana, onion…) — not by weight.
+ * Fresh produce sold by piece (avocado, banana, tomato…) — not by weight.
  * Weight on the label (e.g. "300 g") is informational only.
+ *
+ * Tomatoes count: a household adds two of them, and reading that "2" as grams is how
+ * a pantry row of 2 g was born — invisible the moment it was written.
  */
 function isSoldByPieceProduct(string $name, string $category = ''): bool {
     $n = mb_strtolower(trim($name));
     if ($n === '') {
         return false;
     }
-    if (preg_match('/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/i', $n)) {
+    if (preg_match('/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio/i', $n)) {
         return false;
     }
     // Avoid false positives: "miele di arancia", "formaggio … cipolla", juices, etc.
@@ -857,7 +860,7 @@ function isSoldByPieceProduct(string $name, string $category = ''): bool {
     if (preg_match('/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/i', $n)) {
         return true;
     }
-    if (preg_match('/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol/i', $n)) {
+    if (preg_match('/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol|pomodor/i', $n)) {
         return true;
     }
     return false;
