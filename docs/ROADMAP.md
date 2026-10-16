@@ -19,6 +19,9 @@ discussed, this page only keeps the overview honest.
 
 👉 The standing invitation (and the short list of what needs no code at all) is pinned in
 [#290 — Contributing to EverShelf](https://github.com/dadaloop82/EverShelf/issues/290).
+📋 The same items, with their **status / priority / type**, live on the
+[roadmap board](https://github.com/users/dadaloop82/projects/2) — useful to see what is
+already claimed before you start.
 
 Labels you will see: `good first issue` (small, self-contained, guided),
 `help wanted` (we want it and have no bandwidth), `roadmap` (agreed direction, maybe
