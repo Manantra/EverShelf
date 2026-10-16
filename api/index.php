@@ -6421,59 +6421,122 @@ function isOffLikeCategory(string $category): bool {
     return !in_array($cat, validProductCategories(), true);
 }
 
+/**
+ * A prepared salad ("Insalata di riso", "Insalata di pasta") is not leafy produce.
+ * Mirror of _isPreparedSaladName() in app.js — same patterns.
+ */
+function isPreparedSaladNamePHP(string $name, string $brand = ''): bool {
+    $n = mb_strtolower($name);
+    $b = mb_strtolower($brand);
+    if (preg_match('/insalata\s+di\s+(riso|pasta|farro|orzo|couscous|quinoa|bulgur|cereali|legumi)\b/u', $n)) {
+        return true;
+    }
+    if (preg_match('/\b(riso|pasta)\s+con\b/u', $n) && preg_match('/\binsalata\b/u', $n)) {
+        return true;
+    }
+    return preg_match('/\binsalata\b/u', $n) === 1 && preg_match('/\b(ponti|rio mare|orogel|findus|star)\b/u', $b) === 1;
+}
+
+/**
+ * Which local category a product name belongs to — the PHP twin of
+ * guessCategoryFromName() in app.js.
+ *
+ * These two are ONE vocabulary written twice: the browser uses it to pick the default
+ * unit and amount of a product the household typed, the server to store the category and
+ * to compare the nature of two rows. They must answer the same thing for EVERY product —
+ * a "Pomodoro" that is produce on one side and a conserve on the other is how a loose
+ * tomato ended up weighed in grams and merged with the pantry's tin.
+ *
+ * scripts/test-ai-product-match.php locks the agreement by running the app's own JS in
+ * node against this function over a probe list covering the whole grocery vocabulary:
+ * PORT EVERY CHANGE TO BOTH SIDES (same order, same patterns).
+ */
 function guessCategoryFromNamePHP(string $name, string $brand = ''): string {
     $n = mb_strtolower(trim($name));
     if ($n === '') {
         return 'altro';
     }
-    if (preg_match('/\b(yogurt|latte|formagg|burro|uova?|mozzarella|ricotta|grana|parmigiano)\b/u', $n)) {
-        return 'latticini';
-    }
-    if (preg_match('/\b(pasta|spaghetti|penne|rigatoni|riso\b|farro\b|orzo\b)\b/u', $n)) {
+    if (isPreparedSaladNamePHP($n, $brand)) {
         return 'pasta';
     }
-    if (preg_match('/\b(piadina|piadelle?|pane|focaccia|grissini|cracker|brioche|toast|pangratt)\b/u', $n)) {
+    // "Uno" only when it starts the name (Bahlsen biscuits, not the Italian word)
+    if (preg_match('/^uno\b/u', $n)) {
+        return 'snack';
+    }
+    // Known Italian brands → direct category (fast path before the generic regexes)
+    static $brandRx = [
+        ['/\b(baiocchi|macine|tarallucci|tegolini|pavesini|plasmon|loacker|manner|digestive|oreo|hanuta|ringo|abbracci|gocciole|pan di stelle|oro saiwa|kinder|ferrero rocher|raffaello|bounty|twix|snickers|pringles|fonzies|tuc\b|ritz\b|mulino bianco|gran cereale|gocciole|saiwa|togo|principe|oro ciok|kit ?kat)\b/u', 'snack'],
+        ['/\b(barilla|de cecco|garofalo|la molisana|rummo|voiello|divella|agnesi|buitoni)\b/u', 'pasta'],
+        ['/\b(galbani|granarolo|yomo|danone|muller|müller|pr[eé]sident|santa lucia|jocca|fiorfiore)\b/u', 'latticini'],
+        ['/\b(mutti|cirio)\b/u', 'conserve'],
+        ['/\b(san pellegrino|levissima|ferrarelle|lete|nestea|lipton|nescaf[eé]|lavazza|illy\b|kimbo|segafredo)\b/u', 'bevande'],
+    ];
+    foreach ($brandRx as [$rx, $cat]) {
+        if (preg_match($rx, $n)) {
+            return $cat;
+        }
+    }
+    // Pasta & rice
+    if (preg_match('/spaghetti|penne|fusilli|rigatoni|linguine|orecchiette|farfalle|pasta\b|riso\b|basmati|carnaroli|arborio|gnocchi|lasagne|tagliatelle|maccheroni|bucatini|pennette|sedani|tortiglioni|calamarata|spaghettini|vermicelli/u', $n)) {
+        return 'pasta';
+    }
+    // Bread & bakery
+    if (preg_match('/pane\b|bauletto|fette biscottate|grissini|cracker|toast|piadina|piadelle|focaccia|panini\b|sandwich|taralli|pancarr[eè]|baguette|ciabatta|rosetta|tramezzino|tortilla|pita\b|pangrattato|pane grattugiato|pan.*carr[eè]/u', $n)) {
         return 'pane';
     }
-    if (preg_match('/\b(acqua|birra|vino|caff[eè]|t[eè]|succo|cola|spumante|bevanda)\b/u', $n)) {
-        return 'bevande';
+    // Dairy (before beverages, or "latte" would be a drink)
+    if (preg_match('/latte\b|yogurt|y[o]?gurt|yaourt|yougurt|yoghurt|formaggio|mozzarella|burro\b|panna\b|ricott|mascarpone|gorgonzola|parmigiano|grana\b|uova\b|uovo\b|egg\b|burrata|scamorza|provolone|pecorino|fontina|taleggio|stracchino|crescenza|brie\b|camembert|emmental|asiago|feta\b|provola|caciotta|caprino|philadelphia|skyr|kefir|labneh/u', $n)) {
+        return 'latticini';
     }
-    // Tomato preparations are conserve even though they say "pomodoro": "Passata di
-    // pomodoro" / "Sugo di pomodoro" / "Pomodori pelati" are jars, a bare "Pomodoro" is
-    // the vegetable (next branch). Checked FIRST, or the vegetable stems below win.
-    if (preg_match('/\b(pelat|passat|sug[oh]|polpa|concentrat)/u', $n)) {
+    // Conserve — tomato PREPARATIONS first (a bare "Pomodoro" is the vegetable below)
+    if (preg_match('/passata|pelati|sugo\b|sughi\b|polpa di pomod|marmellata|miele\b|zagara|legumi|ceci\b|fagioli\b|lenticchie|olive\b|tonno\b|sgombro in scatola|concentrato|brodo\b|dado\b|besciamella|passato di/u', $n)) {
         return 'conserve';
     }
-    // Fresh produce, stems on purpose and NO trailing word boundary: "pomodor" must cover
-    // pomodoro/pomodori/pomodorini — with a trailing \b the loose tomato fell through to
-    // 'altro', so the app stopped treating it as a vegetable at all.
-    if (preg_match('/\b(pomodor|datterin|ciliegin|insalat|verdur|carot|zucchin|melanzan|patat[ae]\b|cipoll|spinaci|rucol|peperon|broccol|finocch|sedan|porro|scalogn|carciof|asparag|fagiolin|pisell)/u', $n)) {
-        return 'verdura';
+    // Condiments (spices, flours, sugar, flavourings, yeast)
+    if (preg_match('/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina\b|maionese|ketchup|senape|salsa\b|paprika|curry\b|cannella|noce moscata|origano|rosmarino|timo\b|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido\b|maizena|semola|pesto\b|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco|aroma\b|aromi\b|arome\b|estratto.*vaniglia|estratto.*limone|polenta\b|semolino\b|cacao amaro|cacao.*polvere|purea|pure\b|pur[ée]e/u', $n)) {
+        return 'condimenti';
     }
-    // Frutta — stems on purpose ("mel[ae]" covers mela/mele), same list as the JS twin.
+    // Beverages (after dairy). The accented alternatives close with a lookahead instead of
+    // \b: the JS \b is ASCII-only, so "caffè" never matched there while PCRE (unicode) did.
+    if (preg_match('/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè](?![a-z])|kaffee|kafè|\bt[eè](?![a-z])|\btea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/u', $n)) {
+        return 'bevande';
+    }
+    // Meat (including cold cuts)
+    if (preg_match('/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/u', $n)) {
+        return 'carne';
+    }
+    // Fish
+    if (preg_match('/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|\borata\b|sardine|\btrota\b|dentice|seppia|\bpolpo\b|filetto.*pesce|pesce.*filetto/u', $n)) {
+        return 'pesce';
+    }
+    // Fruit — stems, same list as the JS twin
     if (preg_match('/\bmel[ae]\b|\bper[ae]\b|banan|aranc|mandarin|clementin|pompelm|limon|kiwi|mango|ananas|melon|anguri|nettarin|albicocc|pesc[ah]\b|prugn|susin|fic[oh]\b|melogran|papaya|maracuj|cocch|datter[oi]\b|lampon|mirtill|ribes|\buva\b|fragol|frutt/u', $n)) {
         return 'frutta';
     }
-    if (preg_match('/\b(pollo|manzo|maiale|prosciutt|salame|carne|bresaola|wurstel)\b/u', $n)) {
-        return 'carne';
+    // Vegetables — stems on purpose and NO trailing \b ("pomodor" covers
+    // pomodoro/pomodori/pomodorini; with one, "Pomodoro" fell through to 'altro')
+    if (preg_match('/insalat|zucchin|pomodor|datterin|ciliegin|cipoll|carot|spinaci|rucol|peperon|melanzan|broccol|patat[ae]\b|finocch|sedano|porro|scalogn|cavol|cavolfior|asparag|funghi|courgette|lattuga|bietol|radicchi|carciof|fagiolin|pisell|mais\b|zucca\b|aglio\b|cetriol|rapa\b|barbabietol|cime di rapa|pak choi|bok choy|verza|cavolo nero/u', $n)) {
+        return 'verdura';
     }
-    if (preg_match('/\b(pesce|tonno|salmone|sardine|gamberi?|merluzz)\b/u', $n)) {
-        return 'pesce';
-    }
-    if (preg_match('/\b(gelat|surgel|frozen)\b/u', $n)) {
+    // Frozen
+    if (preg_match('/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato|potato wedge|potato.*wedge/u', $n)) {
         return 'surgelati';
     }
-    if (preg_match('/\b(olio|aceto|sale|pepe|salsa|ketchup|maionese|condiment)\b/u', $n)) {
-        return 'condimenti';
-    }
-    if (preg_match('/\b(biscott|cioccolat|snack|patatine|merendine|wafer|nutella)\b/u', $n)) {
+    // Snacks & sweets
+    if (preg_match('/biscott|cioccolat|nutella|merendine\b|merendina|patatine|caramelle|wafer|cialda|cialdine|sfornatini|torta\b|pandoro|panettone|colomba|cornetto|brioche|croissant|dolc|dessert|tiramis[uù]|cantucci|amaretti|savoiardi|pralin|confetti dolci|chicchi.*cacao|cacao.*chicchi|risofrolle|sfogliatine|ossi di morto|canestrelli|snack/u', $n)) {
         return 'snack';
     }
-    if (preg_match('/\b(pelati|passata|marmellat|conserve|tonno\s+in\s+scatola)\b/u', $n)) {
-        return 'conserve';
-    }
-    if (preg_match('/\b(cereali|muesli|corn\s*flakes|fiocchi)\b/u', $n)) {
+    // Cereals
+    if (preg_match('/cereali|muesli|fiocchi|granola|porridge|avena|mix energia|misto cereal|farro\b|orzo\b|quinoa/u', $n)) {
         return 'cereali';
+    }
+    // Personal care
+    if (preg_match('/sapone|shampoo|dentifricio|deodorante|carta igienica|fazzoletti|cotton fioc|assorbente|rasoio|schiuma da barba|gel doccia|balsamo\b|lozione/u', $n)) {
+        return 'igiene';
+    }
+    // Household cleaning
+    if (preg_match('/detersivo|pulito|sgrassatore|candeggina|ammorbidente|anticalcare|bucato|piatti\b|lavatrice|lavastoviglie|detergente/u', $n)) {
+        return 'pulizia';
     }
     return 'altro';
 }
@@ -6810,7 +6873,18 @@ function productNamesSameArticle(string $a, string $b, bool $allowHeadPrefix = f
     if (!$allowHeadPrefix) {
         return false;
     }
-    return str_starts_with($na, $nb . ' ') || str_starts_with($nb, $na . ' ');
+    if (!str_starts_with($na, $nb . ' ') && !str_starts_with($nb, $na . ' ')) {
+        return false;
+    }
+    // …but not when the extra words name a DIFFERENT product. The curated dictionary is
+    // the arbiter: a variety keeps the generic of its head ("Riso" / "Riso basmati" →
+    // Riso, "Piadina" / "Piadina Romagnola" → Piadina), a derived product does not
+    // ("Latte" vs "Latte di mandorla", "Farina" vs "Farina di riso", "Pasta" vs
+    // "Pasta fresca"). Two rows that the shopping list itself would buy as different
+    // generics are never one article.
+    $kindA = (string)(productKindFromDictionary($a)['kind'] ?? '');
+    $kindB = (string)(productKindFromDictionary($b)['kind'] ?? '');
+    return !($kindA !== '' && $kindB !== '' && $kindA !== $kindB);
 }
 
 function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $barcode, ?int $excludeId = null): ?int {

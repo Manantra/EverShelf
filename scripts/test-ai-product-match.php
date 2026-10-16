@@ -86,6 +86,15 @@ assert_true(productNamesSameArticle('Piadina', 'Piadina Romagnola', true), 'AI "
 assert_true(!productNamesSameArticle('Pomodoro', 'Passata di pomodoro', true), 'a contained word never merges, barcode or not');
 assert_true(!productNamesSameArticle('Tè', 'Te'), 'names under 4 characters never merge on the stem');
 
+// A head-prefix match is a VARIETY, never a derived product: the curated dictionary
+// (the same one the shopping list buys with) decides, for every product, not just produce.
+assert_true(!productNamesSameArticle('Latte', 'Latte di mandorla', true), 'milk is not almond milk');
+assert_true(!productNamesSameArticle('Farina', 'Farina di riso', true), 'flour is not rice flour');
+assert_true(!productNamesSameArticle('Pasta', 'Pasta fresca', true), 'dry pasta is not fresh pasta');
+assert_true(!productNamesSameArticle('Pomodoro', 'Pomodori pelati', true), 'a tomato is not a peeled tomato');
+assert_true(productNamesSameArticle('Yogurt', 'Yogurt greco', true), 'a greek yogurt is the yogurt family');
+assert_true(productNamesSameArticle('Cracker', 'Cracker integrali', true), 'a wholemeal cracker is a cracker');
+
 // ── The consolidator (which DELETES a row) uses the safe rule ───────────────
 $collect = slice_from($api, 'function collectDuplicateProductIds(PDO $db, array $row): array {', 3500);
 assert_true($collect !== '', 'api: collectDuplicateProductIds() exists');
@@ -197,9 +206,22 @@ assert_same('pasta', guessCategoryFromNamePHP('Insalata di riso'), 'php: a rice 
 $guessSource = slice_function($js, 'function guessCategoryFromName(name, brand = \'\') {');
 $saladSource = slice_function($js, 'function _isPreparedSaladName(name, brand = \'\') {');
 assert_true($guessSource !== '' && $saladSource !== '', 'app.js: the name → category guesser is extractable');
-$probes = ['Pomodoro', 'Pomodori', 'Pomodorini ciliegino', 'Datterini', 'Passata di pomodoro',
-           'Pomodori pelati', 'Sugo di pomodoro', 'Insalata', 'Insalata mista', 'Carote', 'Carote novelle',
-           'Zucchine', 'Mele', 'Patatine'];
+// The twins must answer the same thing for EVERY product, not just tomatoes: the probe
+// list covers the whole grocery vocabulary (produce, preparations, dairy, drinks, pantry,
+// snacks, household), and the app's own JS decides one side of the comparison.
+$probes = [
+    'Pomodoro', 'Pomodori', 'Pomodorini', 'Pomodorini ciliegino', 'Datterini', 'Carote', 'Carote novelle',
+    'Zucchine', 'Melanzane', 'Peperoni', 'Cipolle', 'Patate', 'Insalata', 'Rucola', 'Spinaci', 'Pere', 'Mele',
+    'Banane', 'Arance', 'Limoni', 'Kiwi', 'Melone', 'Anguria', 'Uva', 'Fragole', 'Funghi', 'Finocchi', 'Sedano',
+    'Passata di pomodoro', 'Pomodori pelati', 'Sugo di pomodoro', 'Polpa di pomodoro', 'Concentrato di pomodoro',
+    'Marmellata di albicocche', 'Miele', 'Ceci', 'Fagioli', 'Lenticchie', 'Olive', 'Tonno in scatola', 'Sottaceti',
+    'Latte', 'Latte di mandorla', 'Yogurt bianco', 'Yogurt greco', 'Formaggio', 'Mozzarella', 'Burro',
+    'Panna da cucina', 'Acqua', 'Acqua frizzante', 'Succo di mela', 'Vino rosso', 'Caffè', 'Tè', 'Tè al limone',
+    'Limonata', 'Pasta', 'Pasta fresca', 'Riso', 'Riso basmati', 'Farina', 'Farina di riso', 'Farina 00',
+    'Olio di semi', 'Olio extra vergine di oliva', 'Aceto balsamico', 'Sale', 'Zucchero', 'Zucchero di canna',
+    'Biscotti', 'Fette biscottate', 'Pane', 'Grissini', 'Cracker', 'Pangrattato', 'Detersivo piatti', 'Shampoo',
+    'Dentifricio', 'Sapone', 'Carta igienica', 'Insalata di riso', 'Patatine',
+];
 $guessProbe = "\nconsole.log(JSON.stringify(" . json_encode($probes) . ".map(n => guessCategoryFromName(n))));";
 $jsGuesses = json_decode(js_eval($saladSource . "\n" . $guessSource, $guessProbe), true);
 if (!is_array($jsGuesses)) {

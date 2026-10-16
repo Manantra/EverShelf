@@ -2183,7 +2183,7 @@ function guessCategoryFromName(name, brand = '') {
     // Condimenti (include spezie, farine, zucchero, aromi, lieviti)
     if (/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina\b|maionese|ketchup|senape|salsa\b|paprika|curry\b|cannella|noce moscata|origano|rosmarino|timo\b|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido\b|maizena|semola|pesto\b|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco|aroma\b|aromi\b|arome\b|estratto.*vaniglia|estratto.*limone|polenta\b|semolino\b|cacao amaro|cacao.*polvere|purea|pure\b|pur[ée]e/.test(n)) return 'condimenti';
     // Bevande (after latticini to avoid latte conflict)
-    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè]\b|kaffee|kafè|\bt[eè]\b|\btea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/.test(n)) return 'bevande';
+    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè](?![a-z])|kaffee|kafè|\bt[eè](?![a-z])|\btea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/.test(n)) return 'bevande';
     // Carne (include salumi)
     if (/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/.test(n)) return 'carne';
     // Pesce
