@@ -167,6 +167,8 @@ php scripts/test-product-number.php     # singular title in the catalog, plural 
 php scripts/test-product-rename.php     # a scanned title/brand can be corrected, and a rescan cannot undo it
 php scripts/test-inventory-add-guard.php # adding to the pantry always has a catalog id (no raw "Product ID required")
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
+php scripts/test-support-monetization.php # optional support: the 2 answers, donation link, parked banner slots, all 6 locales
+php scripts/test-qr-encoder.php         # the server-side QR encoder (frozen vectors + format/version information)
 php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health checks ↔ locales, no icon left blinking
 php scripts/test-recipe-archive.php     # archive: content_hash dedup, many libero/day, scheduled slots still unique
 
@@ -222,6 +224,7 @@ npm run build
 | Emoji-before-translated-label bug | `iconLabel()` / `_stripLeadingEmoji()`; guard test `scripts/test-i18n-icons.php` |
 | HTML printed as text (screensaver fact, alert banner, chooser modal) | `formatQuantity()` returns `<span class="conf-size-info">`; text-only callers use `_formatQtyPlain()` / `stripHtml()`; guard test `scripts/test-html-in-text.php` |
 | Splash / boot rail | `#app-preloader` in `index.html` + `_preloaderStage()` / `_PRELOADER_STAGE_KEYS` / `_PRELOADER_STAGE_OF_CHECK` in `app.js` (grey → blink → coloured aura; `is-pending|is-active|is-done|is-warn|is-error`), version chip `#preloader-version`; guard test `scripts/test-preloader-stages.php` |
+| Optional support (donations only — **no ads**) | `api/lib/support.php` (decision, payload, donation link, disclosed costs), `api/lib/qr.php` (ISO QR encoder → `?action=support_qr`), `assets/js/core/support.js` (dialog, donation panel; `_renderAdSlots()` is a parked no-op), `.env` keys `SUPPORT_*` — the banner slots and the `ADS_*` / `SUPPORT_BANNERS_AVAILABLE` keys are **commented out on purpose**; guard tests `scripts/test-support-monetization.php`, `scripts/test-qr-encoder.php`, doc `docs/wiki/Support-and-ads.md` |
 | PWA service worker | `sw.js` |
 
 ## Anti-patterns to avoid (already present — do not copy)
@@ -234,7 +237,9 @@ npm run build
 ## See also
 
 - `docs/CODEBASE-MAP.md` — deep architecture, DB schema, data files, action catalog.
-- `docs/OPTIMIZATION-BACKLOG.md` — prioritized bugs, perf, CI, and feature ideas.
+- `docs/ROADMAP.md` — the product-facing roadmap: what is next, the effort involved, and
+  which issues are open for grabs (the pinned #290 is the community entry point).
+- `docs/OPTIMIZATION-BACKLOG.md` — prioritized bugs, perf, CI, and technical debt.
 - `docs/ARCHITECTURE.md`, `docs/CORPORATE-UI.md`, `SECURITY.md`, `CONTRIBUTING.md`.
 - `.clinerules` — the short digest of this file, loaded automatically by Cline.
 - `.clineignore` — hides generated/binary/runtime/vendor files from the agent's

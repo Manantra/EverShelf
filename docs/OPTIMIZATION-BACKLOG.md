@@ -4,6 +4,10 @@
 > schedule. A fuller local copy with session notes may live in git-ignored `todo/`.
 > Free-feature ideas from `todo/IDEAS-2026-10-05-free-services.md` are referenced
 > where they overlap — do not duplicate that catalog here.
+>
+> **The product-facing view lives in [`ROADMAP.md`](ROADMAP.md)** (what is next, the
+> effort involved, and which issues are open for grabs). This file is the engineering
+> side: correctness, performance, CI and technical debt.
 
 ## P0 — user-visible correctness
 

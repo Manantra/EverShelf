@@ -25,8 +25,10 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | [MCP](MCP) | Model Context Protocol server for AI agents |
 | [Android Kiosk](Android-Kiosk) | Tablet kiosk app setup and usage |
 | [Scale Gateway](Scale-Gateway) | BLE smart scale integration |
+| [Support and ads](Support-and-ads) | Optional donations — and why the ad slots stay parked (never a paywall) |
 | [Translations](Translations) | Adding and editing language files |
-| [Contributing](Contributing) | Development workflow and PR process |
+| [Contributing](Contributing) | Development workflow, PR process, and how to pick a task |
+| [Roadmap](https://github.com/dadaloop82/EverShelf/blob/develop/docs/ROADMAP.md) | What is next, with an effort tag, and what is open for grabs (also the docs folder) |
 | [FAQ & Troubleshooting](FAQ) | Common issues and solutions |
 
 ---
