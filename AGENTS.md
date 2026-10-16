@@ -151,6 +151,11 @@ find api -name '*.php' -exec php -l {} \;
 node -c assets/js/app.js && node -c sw.js
 for f in mcp-server/src/*.js; do node --check "$f"; done
 
+# Android dependency check (build-only, debug APK, no secrets, nothing published).
+# It runs on pull requests touching either Android project; dispatch it by hand to
+# test a dependency bump on a branch before it reaches main:
+#   gh workflow run android-deps-check.yml --ref <branch>
+
 # PHP regression tests — local-only until the CI patch lands (see the note at
 # the end of this file), so run them yourself before pushing
 php scripts/test-shopping-guards.php

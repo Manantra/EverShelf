@@ -32,7 +32,7 @@
 
 | ID | Area | Problem | Direction |
 |----|------|---------|-----------|
-| DEPS-PIN | Gradle | Dependabot reopened AGP 9 / core-ktx 1.19 / HC 1.2 — builds break until coordinated upgrade. | `.github/dependabot.yml` ignores widened; plan one branch: AGP 9 + compileSdk 37 + Kotlin 2.4 together. |
+| DEPS-PIN | Gradle | Dependabot reopened AGP 9 / core-ktx 1.19 / HC 1.2 / gradle-wrapper 9.8.0 — the androidx bumps really did break the builds (PRs #257-#259 needed #263-#265 to undo them), while the Gradle 9 wrapper turned out **not** to break anything. | Guard rails landed 2026-10-16: `.github/workflows/android-deps-check.yml` compiles a **debug** APK for both Android projects on pull requests (no secrets, nothing published), `dependabot.yml` now ignores `gradle-wrapper` too (that name is why PR #277 kept reopening), and `gradle-wrapper` was verified against Gradle 9.8.0 + AGP 8.5.2: `BUILD SUCCESSFUL`, deprecation warnings only. It still stays on 8.14.4 because the release workflow pins that version via setup-gradle — a 9.x wrapper would make dev builds differ from the shipped one. Remaining: one branch with AGP 9 + compileSdk 37 + Kotlin + wrapper, changed together. |
 | KIOSK-OTA | Release | OTA commit on main can race auto-merge. | Soft-fail already; document manual `workflow_dispatch` after merge. |
 | HEALTH-VER | Health Bridge | Version skew between app and server feature flags. | Settings health tab shows bridge semver + compatibility matrix. |
 
