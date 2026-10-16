@@ -30,11 +30,18 @@ android {
 
     signingConfigs {
         create("project") {
+            // Paths in keystore.properties are relative to the project root
+            // (evershelf-health-bridge/), not the :app module — hence rootProject.file().
+            // With file(storePath) a relative "storeFile=evershelf.jks" resolves to
+            // app/evershelf.jks and CI dies in :app:validateSigningRelease (the kiosk
+            // fixed exactly this; this file had been left behind).
             val storePath = signingValue("storeFile", "HEALTH_STORE_FILE")
                 ?: if (rootProject.file("evershelf.jks").exists()) "evershelf.jks" else null
             val storePass = signingValue("storePassword", "HEALTH_STORE_PASSWORD")
             if (storePath != null && storePass != null) {
-                storeFile = file(storePath)
+                // rootProject.file() accepts absolute CI paths and relative
+                // keystore.properties paths from the project root.
+                storeFile = rootProject.file(storePath)
                 storePassword = storePass
                 keyAlias = signingValue("keyAlias", "HEALTH_KEY_ALIAS")
                 keyPassword = signingValue("keyPassword", "HEALTH_KEY_PASSWORD")
