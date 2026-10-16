@@ -6,9 +6,11 @@ name: Android dependency check
 # and they *publish* (keystore secrets, release tag, OTA commit). So until now a
 # dependency bump reached main completely unverified — which is exactly how the
 # androidx / AGP bumps of October 2026 broke both builds and had to be undone with
-# follow-up commits. This job compiles a **debug** APK instead: no secrets, no
-# signing material, nothing published anywhere. A pull request that touches either
-# project gets an answer before it is merged.
+# follow-up commits. This job assembles a **release** APK instead, with a throwaway
+# keystore that belongs to nobody: no secrets, no release, nothing published. It runs
+# `assembleRelease` (not debug) on purpose — the signing path is where a release build
+# dies alone (`:app:validateSigningRelease`), which is how the Health Bridge shipped a
+# broken signed build unnoticed.
 #
 # The asymmetry between the two legs is deliberate:
 #   * the kiosk has **no** Gradle wrapper (its CI uses the pinned Gradle) → `gradle`
@@ -75,15 +77,35 @@ jobs:
           echo "--- plugin versions ---"
           grep -n 'com.android.application\|org.jetbrains.kotlin.android' build.gradle.kts
 
-      - name: Assemble debug APK
+      - name: Throwaway signing material (release path needs a keystore)
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          # Mirrors what the release workflows do (keystore.properties in the project
+          # root, `storeFile` relative), with a key that belongs to nobody: the APK is
+          # thrown away, and this is what catches a broken signing path — the failure
+          # mode that only appears in :app:validateSigningRelease, never in a debug build.
+          keytool -genkeypair -v \
+            -keystore evershelf.jks \
+            -storepass verify -alias verify -keypass verify \
+            -keyalg RSA -keysize 2048 -validity 3 \
+            -dname "CN=EverShelf CI verify,O=EverShelf,C=IT"
+          {
+            echo "storeFile=evershelf.jks"
+            echo "storePassword=verify"
+            echo "keyAlias=verify"
+            echo "keyPassword=verify"
+          } > keystore.properties
+
+      - name: Assemble release APK (throwaway signature, nothing published)
         working-directory: ${{ matrix.dir }}
         run: |
           set -euo pipefail
           if [ '${{ matrix.wrapper }}' = 'true' ] && [ -x gradlew ]; then
             echo "Building with the project wrapper (what a developer uses locally)"
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleRelease --no-daemon --stacktrace
           else
             echo "Building with the Gradle on PATH (as the release workflow does)"
-            gradle assembleDebug --no-daemon --stacktrace
+            gradle assembleRelease --no-daemon --stacktrace
           fi
           find . -name '*.apk' -print
