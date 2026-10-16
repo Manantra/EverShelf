@@ -335,6 +335,18 @@ assert_true(str_contains($api, 'shopping_spend.json'),
 assert_true(preg_match('/\$dt->modify\("-\\{\$i\} months"\)/', $api) === 1,
     'getSpendStats() rolls the last 6 months up');
 
+// The ledger is append-only and no surface can correct an entry, so every recorded
+// amount must leave a trace: "the month jumped from €81 to €166" is only answerable
+// from the log line (amount + resulting month total).
+$spendAdd = ($p = strpos($api, 'function spendAdd(): void {')) === false ? '' : substr($api, $p, 2200);
+assert_true($spendAdd !== '', 'api/index.php exposes spendAdd()');
+assert_true(str_contains($spendAdd, "'event'       => 'api_spend_add'"),
+    'spendAdd() logs every recorded amount with a greppable event key');
+assert_true(str_contains($spendAdd, "'month_total' => round(\$monthTotal, 2)"),
+    'the log line carries the month total the panel will show');
+assert_true(str_contains($spendAdd, "'event' => 'api_spend_add_ignored'"),
+    'an amount of zero is logged too, so a lost entry is not silent');
+
 if ($fail === 0) {
     echo "\nAll dashboard-panel tests passed.\n";
 }

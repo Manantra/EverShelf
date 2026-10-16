@@ -1910,6 +1910,7 @@
     "offline_cache_ready": "离线模式——已缓存 {n} 项商品",
     "copy_failed": "复制到剪贴板失败",
     "invalid_quantity": "数量无效",
+    "quantity_below_min": "数量太小：请至少添加 {min} {unit}——低于该值商品会被视为已用完。",
     "invalid_token": "🔒 令牌无效或缺失"
   },
   "confirm": {

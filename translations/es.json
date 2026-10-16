@@ -1909,6 +1909,7 @@
     "offline_cache_ready": "Offline — {n} productos en caché",
     "copy_failed": "Error al copiar al portapapeles",
     "invalid_quantity": "Cantidad no válida",
+    "quantity_below_min": "Cantidad demasiado pequeña: añade al menos {min} {unit} — por debajo, el producto se consideraría ya terminado.",
     "no_recipe_engine": "Configure Gemini or Mealie in recipe settings",
     "invalid_token": "🔒 Token no válido o ausente"
   },

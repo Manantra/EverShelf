@@ -1910,6 +1910,7 @@
     "offline_cache_ready": "Offline — {n} Produkte im Cache",
     "copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen",
     "invalid_quantity": "Ungültige Menge",
+    "quantity_below_min": "Menge zu klein: mindestens {min} {unit} hinzufügen — darunter gilt das Produkt als bereits aufgebraucht.",
     "invalid_token": "🔒 Ungültiges oder fehlendes Token"
   },
   "confirm": {
