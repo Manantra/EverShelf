@@ -53,8 +53,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          # Kotlin 2.4 wants >= 8.14.4; keep in sync with gradle-wrapper.properties.
-          gradle-version: '8.14.4'
+          # Kotlin 2.4 wants >= 8.14.4; stays in sync with gradle-wrapper.properties (8.14.x).
+          gradle-version: '8.14.6'
 
       - name: Debug keystore (AGP needs one when keystore.properties is absent)
         run: |
