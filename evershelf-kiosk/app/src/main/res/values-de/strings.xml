@@ -190,4 +190,15 @@ Behalten oder neu konfigurieren?</string>
     <string name="setup_pairing_status_ok">✅ Gekoppelt — weiter</string>
     <string name="setup_pairing_status_working">Kopplung…</string>
     <string name="setup_pairing_required_toast">Gültigen Kopplungscode eingeben</string>
+
+    <!-- Optionale Unterstützung: dieselben vier Antworten wie im Webdialog. Nichts
+         davon ändert, was die App kann. -->
+    <string name="setup_support_title">Das Projekt unterstützen (optional)</string>
+    <string name="setup_support_desc">EverShelf ist kostenlos und bleibt es — und es enthält keinerlei Werbung. Es gibt aber laufende Kosten: wenn du magst, hilf mit. Keine der beiden Antworten ändert, was die App kann.</string>
+    <string name="setup_support_donate">💙 Mit PayPal spenden</string>
+    <string name="setup_support_ads">📺 Banner eingeschaltet lassen</string>
+    <string name="setup_support_both">🤝 Beides</string>
+    <string name="setup_support_later">⏳ Erst einmal nichts</string>
+    <string name="setup_support_qr_hint">Scanne den Code mit dem Handy, um die Spendenseite zu öffnen.</string>
+    <string name="setup_support_qr_desc">QR-Code für die Spende</string>
 </resources>

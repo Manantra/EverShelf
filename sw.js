@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.11.14c';
+const CACHE = 'evershelf-v1.12.0a';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -22,6 +22,7 @@ const SHELL = [
     BASE + 'assets/js/app.js',
     BASE + 'assets/js/core/auth.js',
     BASE + 'assets/js/core/dom.js',
+    BASE + 'assets/js/core/support.js',
     // Barcode decoding must work offline too.
     BASE + 'assets/vendor/quagga/quagga.min.js',
     BASE + 'assets/vendor/zbar/index.js',

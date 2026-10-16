@@ -38,3 +38,5 @@ require_once __DIR__ . '/lib/telegram.php';
 require_once __DIR__ . '/lib/healthcheck.php';
 require_once __DIR__ . '/lib/open_prices.php';
 require_once __DIR__ . '/lib/webpush.php';
+// Support layer: the optional donation/banner question (see api/lib/support.php).
+require_once __DIR__ . '/lib/support.php';

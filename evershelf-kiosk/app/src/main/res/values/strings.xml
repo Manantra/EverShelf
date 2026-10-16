@@ -260,4 +260,19 @@ Keep them, or reconfigure from scratch?</string>
     <string name="setup_pairing_status_ok">✅ Paired — you can continue</string>
     <string name="setup_pairing_status_working">Pairing…</string>
     <string name="setup_pairing_required_toast">Enter a valid pairing code to continue</string>
+
+    <!-- Optional support: the same two answers the web dialog offers (donate /
+         nothing for now). Nothing here changes what the app can do, and
+         ?action=support_qr is public because this wizard runs before pairing. -->
+    <string name="setup_support_title">Support the project (optional)</string>
+    <string name="setup_support_desc">EverShelf is free and stays free — and it carries no advertising at all. It does have running costs, so you can help if you want: neither answer below changes what the app can do.</string>
+    <string name="setup_support_donate">💙 Donate with PayPal</string>
+    <!-- PARKED (not used — EverShelf does not run ads): the two banner answers. The
+         strings and their radio buttons stay, commented, in activity_setup.xml, so
+         re-enabling the feature costs no new copy. See docs/wiki/Support-and-ads.md. -->
+    <string name="setup_support_ads">📺 Keep the banners</string>
+    <string name="setup_support_both">🤝 Both</string>
+    <string name="setup_support_later">⏳ Nothing for now</string>
+    <string name="setup_support_qr_hint">Scan this code with your phone to open the donation page.</string>
+    <string name="setup_support_qr_desc">Donation QR code</string>
 </resources>

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -16,7 +17,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -127,6 +131,12 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var setupSwitchMealPlan:    SwitchMaterial
     private lateinit var setupSwitchZeroWaste:   SwitchMaterial
 
+    /** Optional support card: the donation answer plus the QR it shows. */
+    private lateinit var setupSupportGroup:  RadioGroup
+    private lateinit var setupSupportQrCard: LinearLayout
+    private lateinit var setupSupportQr:     ImageView
+    private var supportQrLoaded = false
+
     // Gemini + Bring steps
     private lateinit var setupGeminiKeyEdit:     EditText
     private lateinit var setupBringEmailEdit:    EditText
@@ -155,6 +165,9 @@ class SetupActivity : AppCompatActivity() {
         private const val KEY_GEMINI_KEY      = "gemini_api_key"
         private const val KEY_BRING_EMAIL     = "bring_email"
         private const val KEY_BRING_PASSWORD  = "bring_password"
+        /** Optional support answer — the same four values the web dialog offers. */
+        private const val KEY_SUPPORT_MODE    = "support_mode"
+        private const val KEY_SUPPORT_DECIDED = "support_decided"
         /** API token obtained via pairing — required for save_settings when the server has API_TOKEN. */
         private const val KEY_API_TOKEN       = "api_token"
         private const val PERMISSION_REQUEST_CODE = 2004
@@ -295,6 +308,20 @@ class SetupActivity : AppCompatActivity() {
         setupSwitchPrices.isChecked      = if (prefs.contains(KEY_PRICE_ENABLED)) prefs.getBoolean(KEY_PRICE_ENABLED, false) else false
         setupSwitchMealPlan.isChecked    = if (prefs.contains(KEY_MEAL_PLAN))    prefs.getBoolean(KEY_MEAL_PLAN,    false) else false
         setupSwitchZeroWaste.isChecked   = if (prefs.contains(KEY_ZEROWASTE_TIPS)) prefs.getBoolean(KEY_ZEROWASTE_TIPS, false) else false
+
+        // Support card (optional — the app is complete either way). The choice is
+        // only written to the server when the wizard finishes, so coming back to
+        // this screen never changes anything by itself. Two answers only: the
+        // banners are parked, and a stored "ads"/"both" from an older install falls
+        // back to "later".
+        setupSupportGroup  = findViewById(R.id.setupSupportGroup)
+        setupSupportQrCard = findViewById(R.id.setupSupportQrCard)
+        setupSupportQr     = findViewById(R.id.setupSupportQr)
+        when (prefs.getString(KEY_SUPPORT_MODE, "")) {
+            "donate" -> setupSupportGroup.check(R.id.setupSupportDonate)
+            else     -> setupSupportGroup.check(R.id.setupSupportLater)
+        }
+        setupSupportGroup.setOnCheckedChangeListener { _, _ -> updateSupportQr() }
 
         // Done step
         summaryText = findViewById(R.id.setupSummaryText)
@@ -458,9 +485,13 @@ class SetupActivity : AppCompatActivity() {
                 .putBoolean(KEY_PRICE_ENABLED,  setupSwitchPrices.isChecked)
                 .putBoolean(KEY_MEAL_PLAN,      setupSwitchMealPlan.isChecked)
                 .putBoolean(KEY_ZEROWASTE_TIPS, setupSwitchZeroWaste.isChecked)
+                .putString(KEY_SUPPORT_MODE,    selectedSupportMode())
                 .apply()
             showStep(7)
         }
+
+        // ── Support card ─────────────────────────────────────────────────────
+        updateSupportQr()
 
         // ── Gemini step ───────────────────────────────────────────────────
         findViewById<MaterialButton>(R.id.btnGeminiBack).setOnClickListener { showStep(6) }
@@ -484,6 +515,52 @@ class SetupActivity : AppCompatActivity() {
 
         // ── Done ──────────────────────────────────────────────────────────
         findViewById<MaterialButton>(R.id.btnLaunch).setOnClickListener { finishSetup() }
+    }
+
+    // ── Support card ──────────────────────────────────────────────────────
+
+    /** The support answer selected in the wizard: the donation, or nothing for now. */
+    private fun selectedSupportMode(): String =
+        if (setupSupportGroup.checkedRadioButtonId == R.id.setupSupportDonate) "donate" else "later"
+
+    /**
+     * Show the donation QR when the answer is the donation, and load it once from the
+     * server. `?action=support_qr` is public on purpose: this wizard runs *before*
+     * pairing, so it has no API token to present. A QR that cannot be fetched
+     * (donations not configured on the server) simply stays hidden.
+     *
+     * The banners are parked, so "both" no longer exists: "donate" is the only
+     * answer that shows the code (see the commented radio buttons in
+     * activity_setup.xml).
+     */
+    private fun updateSupportQr() {
+        val needsQr = setupSupportGroup.checkedRadioButtonId == R.id.setupSupportDonate
+        // PARKED: … || setupSupportGroup.checkedRadioButtonId == R.id.setupSupportBoth
+        setupSupportQrCard.visibility = if (needsQr) View.VISIBLE else View.GONE
+        if (!needsQr || supportQrLoaded) return
+        val base = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
+        if (base.isEmpty()) return
+        supportQrLoaded = true
+        Thread {
+            try {
+                val conn = openConn("$base/api/index.php?action=support_qr&format=png&scale=5")
+                if (conn == null) {
+                    supportQrLoaded = false
+                    return@Thread
+                }
+                val bitmap = if (conn.responseCode in 200..299) {
+                    BitmapFactory.decodeStream(conn.inputStream)
+                } else null
+                conn.disconnect()
+                if (bitmap == null) {
+                    supportQrLoaded = false
+                    return@Thread
+                }
+                runOnUiThread { setupSupportQr.setImageBitmap(bitmap) }
+            } catch (_: Exception) {
+                supportQrLoaded = false
+            }
+        }.start()
     }
 
     // ── Language selection ────────────────────────────────────────────────
@@ -890,11 +967,14 @@ class SetupActivity : AppCompatActivity() {
                             .remove(KEY_SCREENSAVER).remove(KEY_PRICE_ENABLED)
                             .remove(KEY_MEAL_PLAN).remove(KEY_ZEROWASTE_TIPS)
                             .remove(KEY_GEMINI_KEY).remove(KEY_BRING_EMAIL).remove(KEY_BRING_PASSWORD)
+                            .remove(KEY_SUPPORT_MODE)
                             .apply()
                         setupSwitchScreensaver.isChecked = false
                         setupSwitchPrices.isChecked = false
                         setupSwitchMealPlan.isChecked = false
                         setupSwitchZeroWaste.isChecked = false
+                        // Back to the default answer (nothing for now) until the user picks.
+                        setupSupportGroup.check(R.id.setupSupportLater)
                         setupGeminiKeyEdit.setText("")
                         setupBringEmailEdit.setText("")
                         setupBringPasswordEdit.setText("")
@@ -929,6 +1009,32 @@ class SetupActivity : AppCompatActivity() {
         setupSwitchPrices.isChecked = prefs.getBoolean(KEY_PRICE_ENABLED, false)
         setupSwitchMealPlan.isChecked = prefs.getBoolean(KEY_MEAL_PLAN, false)
         setupSwitchZeroWaste.isChecked = prefs.getBoolean(KEY_ZEROWASTE_TIPS, false)
+        val supportMode = s.optJSONObject("support")?.optString("mode") ?: ""
+        if (supportMode.isNotEmpty()) {
+            prefs.edit().putString(KEY_SUPPORT_MODE, supportMode).apply()
+            when (supportMode) {
+                "donate" -> setupSupportGroup.check(R.id.setupSupportDonate)
+                // A stored "ads"/"both" from an older install reads as "later".
+                else     -> setupSupportGroup.check(R.id.setupSupportLater)
+            }
+        }
+        // PARKED (not used — EverShelf does not run ads): this used to grey the two
+        // banner answers out when the owner kept `SUPPORT_BANNERS_AVAILABLE` off. The
+        // banner radio buttons are commented out of activity_setup.xml and the payload
+        // no longer carries `banners_available`, so there is nothing to disable.
+        //
+        // val bannersAvailable = s.optJSONObject("support")?.optBoolean("banners_available", false) == true
+        // for (id in listOf(R.id.setupSupportAds, R.id.setupSupportBoth)) {
+        //     val radio = findViewById<RadioButton>(id)
+        //     radio.isEnabled = bannersAvailable
+        //     radio.alpha = if (bannersAvailable) 1f else 0.5f
+        // }
+        // if (!bannersAvailable) {
+        //     val checked = setupSupportGroup.checkedRadioButtonId
+        //     if (checked == R.id.setupSupportAds || checked == R.id.setupSupportBoth) {
+        //         setupSupportGroup.check(R.id.setupSupportLater)
+        //     }
+        // }
         val email = s.optString("bring_email", "")
         if (email.isNotEmpty()) {
             prefs.edit().putString(KEY_BRING_EMAIL, email).apply()
@@ -1430,6 +1536,7 @@ class SetupActivity : AppCompatActivity() {
         val priceEnabled  = prefs.getBoolean(KEY_PRICE_ENABLED,  false)
         val mealPlan      = prefs.getBoolean(KEY_MEAL_PLAN,      false)
         val zeroWaste     = prefs.getBoolean(KEY_ZEROWASTE_TIPS, false)
+        val supportMode   = prefs.getString(KEY_SUPPORT_MODE, "") ?: ""
         val apiToken      = prefs.getString(KEY_API_TOKEN, "") ?: ""
         Toast.makeText(this, getString(R.string.setup_saving), Toast.LENGTH_SHORT).show()
         Thread {
@@ -1444,6 +1551,12 @@ class SetupActivity : AppCompatActivity() {
                     put("price_enabled", priceEnabled)
                     put("meal_plan_enabled", mealPlan)
                     put("zerowaste_tips_enabled", zeroWaste)
+                    // The support answer travels with the rest: the web dialog only
+                    // appears while the server has no answer for this household.
+                    if (supportMode.isNotEmpty()) {
+                        put(KEY_SUPPORT_MODE, supportMode)
+                        put(KEY_SUPPORT_DECIDED, true)
+                    }
                     if (hasScale) {
                         val lanIp = getDeviceLanIp() ?: "127.0.0.1"
                         put("scale_enabled", true)

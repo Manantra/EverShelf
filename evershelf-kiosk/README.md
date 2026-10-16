@@ -44,7 +44,7 @@ Pairs with the EverShelf web app **Corporate UI** (v1.7.57+) and later fixes (sh
 3. **Server URL** — manual URL or LAN auto-discovery; Test uses public `ping`
 4. **Pairing** — where to find the code + enter it once; token is handed to the WebView
 5. **Smart Scale** — optional BLE scale (power-on → scan with retries → confirm weight)
-6. **Features** — screensaver, prices, meal-plan, zero-waste (explained; written to the server)
+6. **Features** — screensaver, prices, meal-plan, zero-waste (explained; written to the server), plus the optional support answer (donate with PayPal / nothing for now) with its donation QR — see `docs/wiki/Support-and-ads.md`
 7. **Gemini AI** — optional key + “what it unlocks” card
 8. **Bring!** — optional account + “what it does” card
 9. **Done** — summary and launch full-screen kiosk

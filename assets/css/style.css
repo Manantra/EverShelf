@@ -11543,4 +11543,346 @@ body.offline-mode #smart-shopping {
     margin-top: 14px;
 }
 
+/* ===== SUPPORT DIALOG (donation) ============================================
+   The one-off donation/banner question (assets/js/core/support.js) and the two
+   slots it can switch on. The dialog is deliberately quiet: a short paragraph,
+   the real costs, four cards. No countdown, no full-screen orange. */
+.support-dialog {
+    position: relative;
+    max-width: 620px;
+    width: calc(100vw - 32px);
+    padding: 26px 24px 18px;
+}
+.support-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 8px;
+    cursor: pointer;
+}
+.support-close:hover { color: var(--text); }
+.support-hero { text-align: center; }
+.support-logo { width: 44px; height: 44px; }
+.support-hero h2 {
+    margin: 8px 0 6px;
+    font-size: 1.2rem;
+    line-height: 1.3;
+}
+.support-hero p {
+    margin: 0 auto;
+    max-width: 480px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+.support-costs {
+    margin-top: 16px;
+    background: var(--bg, #f8fafc);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+.support-costs-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.support-costs-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.support-costs-list li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.88rem;
+}
+.support-cost-amount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.support-cost-amount em {
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+.support-costs-total {
+    margin: 10px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.support-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+    margin: 18px 0 4px;
+}
+.support-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    text-align: left;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    cursor: pointer;
+    min-width: 0;
+    transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
+}
+.support-option:hover { border-color: var(--primary-light, var(--primary)); transform: translateY(-1px); }
+/* Selected: filled green, white text. A border-only highlight left the label
+   unreadable next to the "already on" badge, so the state is unmistakable. */
+.support-option.is-active {
+    background: var(--success);
+    border-color: var(--success);
+    transform: none;
+}
+.support-option.is-active:hover { border-color: var(--success); }
+.support-option.is-active .support-option-title { color: #ffffff; }
+.support-option.is-active .support-option-desc { color: rgba(255, 255, 255, 0.9); }
+.support-option.is-active .support-option-check { opacity: 1; color: #ffffff; }
+.support-option.is-active .support-option-chip {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.22);
+}
+/* Answers the owner has switched off (the banners, for now): greyed out and not
+   clickable, with a "not available" badge instead of a promise. */
+.support-option.is-disabled,
+.support-option:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    filter: grayscale(0.4);
+    background: color-mix(in srgb, var(--text-muted) 7%, var(--bg-card));
+    border-color: var(--border);
+    transform: none;
+}
+.support-option.is-disabled:hover,
+.support-option:disabled:hover {
+    border-color: var(--border);
+    transform: none;
+}
+.support-option.is-disabled .support-option-title { color: var(--text-light); }
+.support-option-chip.is-muted {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+}
+.support-option-icon { font-size: 1.5rem; line-height: 1; flex: 0 0 auto; }
+.support-option-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.support-option-title {
+    font-weight: 700;
+    font-size: 0.92rem;
+    overflow-wrap: anywhere;
+}
+.support-option-desc { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); }
+.support-option-chip {
+    /* Under the text, on its own line: beside the label it stole the width the
+       title needed. */
+    align-self: flex-start;
+    margin-top: 5px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    border-radius: 999px;
+    padding: 3px 8px;
+}
+.support-option-check {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    font-weight: 800;
+    color: var(--primary);
+    opacity: 0;
+}
+.support-option.is-active .support-option-check { opacity: 1; }
+.support-options-inline { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: 12px 0 0; }
+.support-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.support-footnote {
+    margin: 16px 0 0;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* ── Donation panel: amount chips + QR ── */
+.support-donate {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+.support-donate-head { display: flex; gap: 12px; align-items: flex-start; }
+.support-donate-icon { font-size: 1.5rem; line-height: 1; }
+.support-amounts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 0;
+}
+.support-amounts-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.support-amount {
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+}
+.support-amount:hover { border-color: var(--primary-light, var(--primary)); }
+.support-amount.is-active {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+}
+.support-qr-block {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    margin-top: 14px;
+}
+.support-qr-frame {
+    line-height: 0;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+}
+.support-qr-frame img { display: block; width: 240px; height: 240px; }
+.support-qr-side {
+    flex: 1 1 200px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.support-donate-url {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    word-break: break-all;
+    color: var(--text-muted);
+}
+.support-qr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── Thank-you view: the answer includes donating ── */
+/* The four cards step aside and the thanks sit *under* the QR code, where the eye
+   lands right after scanning: a warm line, then a discreet way to change your mind. */
+.support-thanks { text-align: center; margin: 20px 0 2px; }
+.support-thanks-icon { display: block; font-size: 2rem; line-height: 1; }
+.support-thanks h3 {
+    margin: 6px 0 6px;
+    font-size: 1.15rem;
+    color: var(--success);
+}
+.support-thanks p {
+    margin: 0 auto;
+    max-width: 480px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+.support-change { text-align: center; margin-top: 4px; }
+.support-change-btn {
+    border: none;
+    background: none;
+    padding: 6px 8px;
+    font: inherit;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-decoration: underline;
+    cursor: pointer;
+}
+.support-change-btn:hover { color: var(--text); }
+.support-donate.is-focused {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.support-donate.is-focused .support-qr-block {
+    flex-direction: column;
+    align-items: center;
+}
+.support-donate.is-focused .support-qr-side {
+    flex: 0 0 auto;
+    align-items: center;
+    text-align: center;
+}
+.support-donate.is-focused .support-qr-frame img { width: 260px; height: 260px; }
+.support-donate.is-focused .support-qr-actions { justify-content: center; }
+
+/* ── PARKED: banner slots (dashboard + screensaver) ──────────────────────────
+   EverShelf does not run ads: the two slots are commented out in index.html and
+   `_renderAdSlots()` is a no-op. The rules stay here, commented, next to the
+   checklist in docs/wiki/Support-and-ads.md ("Banner slots (parked)").
+
+.ad-slot { margin-top: 18px; }
+.house-ad {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1.5px dashed color-mix(in srgb, var(--primary) 40%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--primary) 6%, var(--bg-card));
+}
+.house-ad-logo { width: 32px; height: 32px; flex-shrink: 0; }
+.house-ad-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.house-ad-text strong { font-size: 0.92rem; }
+.house-ad-text span { font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); }
+.house-ad .btn { white-space: nowrap; }
+
+.screensaver-ad {
+    max-width: 90vw;
+    text-align: center;
+}
+.house-ad-screensaver {
+    border-style: solid;
+    border-color: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.06);
+}
+.house-ad-screensaver .house-ad-text strong { color: rgba(255,255,255,0.85); }
+.house-ad-screensaver .house-ad-text span { color: rgba(255,255,255,0.5); }
+*/
+
+@media (max-width: 560px) {
+    .support-dialog { padding: 22px 16px 14px; }
+    .support-options { grid-template-columns: 1fr; }
+    .support-hero h2 { font-size: 1.08rem; }
+    /* PARKED with the slots: .house-ad { flex-wrap: wrap; } .house-ad .btn { width: 100%; } */
+    .support-qr-frame img { width: 210px; height: 210px; }
+}
+
 /* Corporate UI: see assets/css/corporate.css */
