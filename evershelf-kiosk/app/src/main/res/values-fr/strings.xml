@@ -190,4 +190,14 @@ Les conserver ou tout reconfigurer ?</string>
     <string name="setup_pairing_status_ok">✅ Associé — continuez</string>
     <string name="setup_pairing_status_working">Association…</string>
     <string name="setup_pairing_required_toast">Saisissez un code d\'association valide</string>
+
+    <!-- Soutien facultatif : les quatre mêmes réponses que dans la fenêtre web. -->
+    <string name="setup_support_title">Soutenir le projet (facultatif)</string>
+    <string name="setup_support_desc">EverShelf est gratuit et le reste — et il ne contient aucune publicité. Il y a quand même des frais : si tu veux, tu peux aider. Aucune des deux réponses ne change ce que l\'app sait faire.</string>
+    <string name="setup_support_donate">💙 Donner avec PayPal</string>
+    <string name="setup_support_ads">📺 Garder les bannières</string>
+    <string name="setup_support_both">🤝 Les deux</string>
+    <string name="setup_support_later">⏳ Rien pour l\'instant</string>
+    <string name="setup_support_qr_hint">Scanne ce code avec ton téléphone pour ouvrir la page de don.</string>
+    <string name="setup_support_qr_desc">Code QR pour le don</string>
 </resources>

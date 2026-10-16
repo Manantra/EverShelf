@@ -59,3 +59,12 @@ RewriteRule ^api/(.*)$ api/index.php?action=$1&%{QUERY_STRING} [L,QSA]
     Header set Pragma "no-cache"
     Header set Expires "0"
 </FilesMatch>
+
+# The shell as well: a stale index.html keeps pointing at the *previous* asset
+# stamp, so a deployment could serve an old page next to the new modules (or miss
+# a module the new page adds). The service worker still provides the offline shell.
+<FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</FilesMatch>

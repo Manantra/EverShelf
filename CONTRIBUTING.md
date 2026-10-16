@@ -2,6 +2,31 @@
 
 Thank you for your interest in contributing! This guide will help you get started.
 
+## 🙌 Ways to help (you do not have to write code)
+
+EverShelf is a one-person project with real users; the bottleneck is hands, not ideas.
+Any of these is a genuine contribution, and none of them requires the full setup:
+
+| Help with | What it takes |
+|---|---|
+| **Translating** | one JSON file, no code, no install — see [#93](https://github.com/dadaloop82/EverShelf/issues/93) |
+| **Bug reports** | a clear reproduction (version, steps, expected vs actual) — the issue form asks for exactly that |
+| **Testing a PR** | check out a branch, click through the feature, say what you saw — that is the review nobody else can give |
+| **Docs & FAQ** | fix a confusing sentence, add a screenshot, record the walkthrough video ([#69](https://github.com/dadaloop82/EverShelf/issues/69)) |
+| **Design / UX feedback** | propose a flow, argue about a button, mock a screen — open a Discussion |
+| **Code** | pick a task from the [roadmap](../docs/ROADMAP.md); `good first issue` ones are meant for a first PR |
+| **Spread the word** | a star, a post, or a link to someone with a pantry to sort out |
+
+### Where to start
+
+1. Read the [roadmap](../docs/ROADMAP.md) — it lists what is next, the rough effort,
+   and which issues are explicitly up for grabs.
+2. Issues labelled **`good first issue`** are small and self-contained; **`help wanted`**
+   means we want it and have no bandwidth.
+3. **Say “I'd like to work on this” in the issue first.** It takes a second and stops
+   two people from writing the same code.
+4. Stuck? Ask *in the issue*. Questions are not noise, they are how the design improves.
+
 ## 🚀 Getting Started
 
 1. **Fork** the repository

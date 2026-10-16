@@ -1,0 +1,55 @@
+name: 🌍 Translation / new language
+description: Help translate EverShelf — no coding required, one JSON file
+title: "[i18n] "
+labels: ["i18n", "good first issue", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The easiest way to contribute to EverShelf.** No install, no build step: each
+        language is one JSON file in `translations/`.
+
+        - **New language** — copy `translations/en.json` to `translations/<code>.json`
+          (ISO 639-1, e.g. `pt.json`), translate the **values** and keep the keys
+          unchanged. Then add the code to `SUPPORTED_LANGUAGES` in `assets/js/app.js`.
+        - **Improve an existing one** — open the matching file, fix what reads wrong.
+
+        Partial translations are welcome; they can be completed incrementally. Do not
+        add emoji inside strings (they would replace the HTML icons) and keep the
+        `<strong>` / `<li>` tags that are part of a value.
+
+        Check the “Call for Translators” issue (#93) to claim a language so nobody
+        duplicates the work.
+
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: Which language (name + ISO code)?
+      placeholder: "Portuguese (pt)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What are you doing?
+      options:
+        - Adding a new language
+        - Improving an existing translation
+        - Fixing a specific wrong/missing string
+    validations:
+      required: true
+
+  - type: input
+    id: file
+    attributes:
+      label: File
+      description: Which file are you (or should we be) working on?
+      placeholder: "translations/pt.json"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything the maintainer should know — e.g. a term you were unsure about.

@@ -42,7 +42,7 @@ fades in. Copy is localised (EN/IT/DE/FR/ES).
 | 3 | **Server URL** | EverShelf URL, LAN auto-discovery, connection test (`ping`) |
 | 4 | **Pairing** | Dedicated screen: where to find the code (Settings → Security) + enter it once; token is handed to the web app so the browser overlay does not ask again |
 | 5 | **Smart Scale** | Optional Bluetooth LE scale (power-on tip → scan → confirm a weight reading) |
-| 6 | **Features** | Four explained toggles: screensaver, prices, meal-plan, zero-waste (written to the server) |
+| 6 | **Features** | Four explained toggles (screensaver, prices, meal-plan, zero-waste) plus the optional support answer (donate / nothing for now, with the donation QR) — all written to the server |
 | 7 | **Gemini AI** | Optional AI key, with a “what Gemini unlocks” card |
 | 8 | **Bring!** | Optional Bring! account, with a “what Bring! does” card |
 | 9 | **Done** | Summary and launch the kiosk |

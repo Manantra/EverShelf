@@ -1,11 +1,20 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 🗺️ Roadmap — what's next (and what you can pick up)
+    url: https://github.com/dadaloop82/EverShelf/blob/develop/docs/ROADMAP.md
+    about: Features in the pipeline with a rough effort tag, and the issues open for grabs.
+  - name: 🌱 Good first issues — start here
+    url: https://github.com/dadaloop82/EverShelf/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22
+    about: Small, self-contained tasks meant for a first contribution. Comment to claim one.
+  - name: 🙌 Help wanted — no bandwidth, your turn
+    url: https://github.com/dadaloop82/EverShelf/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
+    about: Features we want but cannot get to. The design is in the issue.
   - name: 📖 Wiki & FAQ
     url: https://github.com/dadaloop82/EverShelf/wiki/FAQ
     about: Check the FAQ — your question may already be answered there.
-  - name: 💬 Discussions — Q&A
+  - name: 💬 Discussions — Q&A, ideas, show and tell
     url: https://github.com/dadaloop82/EverShelf/discussions
-    about: General questions, show-and-tell, ideas — use Discussions, not Issues.
+    about: General questions, "how do you use it?" and half-formed ideas — use Discussions, not Issues.
   - name: 🔒 Security Vulnerability
     url: mailto:evershelfproject@gmail.com
     about: Please report security vulnerabilities privately via email, not as a public issue.

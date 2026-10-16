@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261014c'; // bump when translations change
+const _I18N_VERSION = '20261016a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4788,6 +4788,8 @@ async function loadSettingsUI() {
     if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     const ssTimeout = document.getElementById('setting-screensaver-timeout');
     if (ssTimeout) ssTimeout.value = String(s.screensaver_timeout || 5);
+    // Support card: the answer the household gave, and the way back into the dialog.
+    if (typeof _renderSupportOptions === 'function') _renderSupportOptions();
     document.getElementById('setting-dietary').value = s.dietary || '';
     if (typeof loadHealthProfileIntoSettings === 'function') loadHealthProfileIntoSettings();
     const recipeSrcEl = document.getElementById('setting-recipe-source');
@@ -11339,7 +11341,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261014c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261016a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11349,7 +11351,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261014c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261016a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -26402,6 +26404,10 @@ function activateScreensaver() {
     _screensaverClockInterval = setInterval(updateScreensaverClock, 1000);
     updateScreensaverShopping();
     syncShoppingPriceTotal(false).then(() => updateScreensaverShopping());
+    // PARKED: the idle screen used to (re)render the banner slot here, because that
+    // is where an ad was actually seen. EverShelf does not run ads any more, so the
+    // call is gone — the slot div is commented out in index.html.
+    // if (typeof _renderAdSlots === 'function') _renderAdSlots();
     // Load data and start fact/nutrition rotation
     loadScreensaverData().then(() => {
         _startScreensaverRotation();
@@ -28545,6 +28551,9 @@ async function _finishSetup() {
     localStorage.removeItem('evershelf_setup_step');
     localStorage.removeItem('evershelf_setup_data');
     document.getElementById('setup-wizard').style.display = 'none';
+    // A fresh install just answered the setup questions: this is the moment for the
+    // support question, instead of stacking it on top of the wizard.
+    if (typeof _maybeShowSupportPrompt === 'function') _maybeShowSupportPrompt();
 
     // Refresh the checklist state so the card matches what was just saved.
     try { _serverSettings = (await api('get_settings')) || _serverSettings; } catch (e) {}
@@ -29095,6 +29104,11 @@ async function _initApp() {
         // Reuse the already-fetched serverSettings to avoid a second get_settings request
         _applySyncedSettings(serverSettings);
     }
+
+    // Support layer: the one-off donation dialog only opens while nothing was decided
+    // (it also waits for the first-run wizard to be out of the way — see
+    // core/support.js). The banner slots it used to render are parked: no ads.
+    _maybeShowSupportPrompt();
 
     // Migrate old session-based flags to time-based
     if (sessionStorage.getItem('_autoAddedCritical')) {

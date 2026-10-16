@@ -6,6 +6,12 @@ No framework, no runtime build step. Repo root = `/var/www/html/dispensa`.
 **Read `AGENTS.md` first** — it is the full working guide. This file is the short
 digest that always applies. Deep architecture: `docs/CODEBASE-MAP.md`.
 
+**Roadmap & community**: `docs/ROADMAP.md` is the product-facing plan (what is next, the
+effort involved, which issues are up for grabs; the pinned issue #290 is the community
+entry point). New feature work: a roadmap entry + an issue, never a code-only change.
+**Advertising is parked**: the banner slots are commented out and must stay that way —
+read `docs/wiki/Support-and-ads.md` before touching `SUPPORT_*` / `ADS_*`.
+
 ## 1. Never read the giant files in full
 
 | File | Size | How to navigate |

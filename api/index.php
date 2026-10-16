@@ -1150,6 +1150,12 @@ try {
             getServerSettings();
             break;
 
+        // GET support_qr — the donation link as a QR image. Public: the native
+        // kiosk wizard shows it before it can pair, so it never has a token.
+        case 'support_qr':
+            supportQrAction();
+            break;
+
         case 'pairing_code':
             // Authenticated only (router): show/renew the one-time code so a
             // paired device can hand it to a new phone/tablet/kiosk.
@@ -8620,6 +8626,10 @@ function getServerSettings(): void {
         'mealie_cache_count'          => count(mealieLoadCache()['recipes']),
         'mealie_cache_synced_at'      => mealieLoadCache()['synced_at'] ?: null,
         'recipe_shopping_mode'        => recipeShoppingMode(),
+        // Support layer: the donation link and the disclosed costs. One payload
+        // inside get_settings keeps the startup dialog to zero extra requests (see
+        // api/lib/support.php). The banner slots are parked and reported as off.
+        'support'                     => evershelfSupportPayload(),
     ]);
 }
 
@@ -8807,6 +8817,59 @@ function dbCleanup(?PDO $db = null): void {
     }
 }
 
+/**
+ * GET support_qr — the donation link (or one of its published amounts) as a QR
+ * image. SVG for browsers and Android WebViews, PNG for an Android ImageView.
+ *
+ * Public on purpose: the native kiosk wizard shows the QR *before* it can pair, so
+ * it never holds an API token. The content comes from .env only — `amount` must be
+ * one of the amounts the owner published — so this cannot be turned into a generic
+ * "render any payload" endpoint.
+ */
+function supportQrAction(): void {
+    require_once __DIR__ . '/lib/qr.php';
+
+    $url = evershelfSupportDonateUrl();
+    if ($url === '') {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'support_not_configured']);
+        return;
+    }
+    $amount = (float)($_GET['amount'] ?? 0);
+    if ($amount > 0 && in_array(round($amount, 2), evershelfSupportAmounts(), true)) {
+        $url = evershelfSupportDonateUrl($amount);
+    }
+
+    $scale  = max(1, min(20, (int)($_GET['scale'] ?? 6)));
+    $border = max(0, min(20, (int)($_GET['border'] ?? 4)));
+    $ecc    = strtoupper(trim((string)($_GET['ecc'] ?? 'M')));
+    $format = strtolower(trim((string)($_GET['format'] ?? 'svg')));
+
+    try {
+        if ($format === 'png') {
+            $png = evershelfQrPng($url, $scale, $border, $ecc);
+            if ($png === null) {
+                http_response_code(501);
+                echo json_encode(['success' => false, 'error' => 'png_unavailable']);
+                return;
+            }
+            header('Content-Type: image/png');
+            header('Content-Length: ' . strlen($png));
+            echo $png;
+            return;
+        }
+        $svg = evershelfQrSvg($url, $scale, $border, $ecc);
+    } catch (InvalidArgumentException $e) {
+        EverLog::warn('support QR payload too long', ['event' => 'support_qr_too_long', 'error' => $e->getMessage()]);
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'payload_too_long']);
+        return;
+    }
+
+    header('Content-Type: image/svg+xml; charset=utf-8');
+    echo $svg;
+}
+
 function saveSettings(): void {
     // Require API token if configured
     $requiredToken = evershelfEffectiveApiToken();
@@ -8898,6 +8961,20 @@ function saveSettings(): void {
         'notify_webhook_header' => 'NOTIFY_WEBHOOK_HEADER',
         // Cron watchdog ping URL (see api/lib/healthcheck.php)
         'notify_healthcheck_url' => 'NOTIFY_HEALTHCHECK_URL',
+        // Support layer (see api/lib/support.php): the two answers the dialog
+        // offers (donation / later) plus the donation link and the costs.
+        // PARKED (not used — EverShelf does not run ads): the banner provider and
+        // the AdSense ids. They were never writable from the UI anyway (owner
+        // configuration), so they simply have no mapping here any more:
+        //   'ads_provider'             => 'ADS_PROVIDER',
+        //   'adsense_client'           => 'ADSENSE_CLIENT',
+        //   'adsense_slot_app'         => 'ADSENSE_SLOT_APP',
+        //   'adsense_slot_screensaver' => 'ADSENSE_SLOT_SCREENSAVER',
+        'support_mode'          => 'SUPPORT_MODE',
+        'support_paypal_url'    => 'SUPPORT_PAYPAL_URL',
+        'support_paypal_currency' => 'SUPPORT_PAYPAL_CURRENCY',
+        'support_paypal_amounts'  => 'SUPPORT_PAYPAL_AMOUNTS',
+        'support_cost_currency'   => 'SUPPORT_COST_CURRENCY',
     ];
     // Boolean keys
     $boolMap = [
@@ -8931,6 +9008,9 @@ function saveSettings(): void {
         'notify_insecure_ssl' => 'NOTIFY_INSECURE_SSL',
         // Calendar (ICS expiry feed)
         'ics_enabled'   => 'ICS_ENABLED',
+        // Support layer: "later" still counts as answered, so the dialog respects
+        // the answer and only returns on its own schedule.
+        'support_decided' => 'SUPPORT_DECIDED',
     ];
     // Integer keys
     $intMap = [
@@ -8975,6 +9055,18 @@ function saveSettings(): void {
         }
         $envVars['AI_PROVIDER'] = $p;
     }
+    // Support layer: an unknown mode would leave the app in a state nobody can
+    // describe, so it is clamped to the two answers the dialog actually offers
+    // (anything else — including the parked banner answers — becomes "later").
+    if (array_key_exists('SUPPORT_MODE', $envVars)) {
+        $envVars['SUPPORT_MODE'] = evershelfSupportClampMode((string)$envVars['SUPPORT_MODE']);
+    }
+    // PARKED (not used — EverShelf does not run ads): the banner provider used to be
+    // clamped here too.
+    //   if (array_key_exists('ADS_PROVIDER', $envVars)) {
+    //       $provider = strtolower(trim((string)$envVars['ADS_PROVIDER']));
+    //       $envVars['ADS_PROVIDER'] = in_array($provider, evershelfSupportAdProviders(), true) ? $provider : 'house';
+    //   }
     foreach ($boolMap as $inKey => $envKey) {
         if (array_key_exists($inKey, $input)) {
             $envVars[$envKey] = $input[$inKey] ? 'true' : 'false';
@@ -9002,6 +9094,15 @@ function saveSettings(): void {
         } else {
             $envVars['CUSTOM_LOCATIONS'] = (string)$locs;
         }
+    }
+
+    // The support answer deserves one log line: with it the owner can see when the
+    // dialog was answered and with what, instead of guessing from .env.
+    if (array_key_exists('SUPPORT_MODE', $envVars) && array_key_exists('support_mode', $input)) {
+        EverLog::info('support decision', [
+            'event' => 'support_decision',
+            'mode'  => (string)$envVars['SUPPORT_MODE'],
+        ]);
     }
 
     // Write .env file (surgical merge — values sanitized, comments preserved)

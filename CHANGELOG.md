@@ -13,6 +13,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.12.0] - 2026-10-15
+
+### Optional support: a donation, or nothing for now
+- **The project can now be supported without becoming a paid product.** Once, at
+  startup, and only while nothing has been decided, the app opens a quiet dialog:
+  the real running costs (domain, server, developer account, AI credits), then two
+  answers — **💙 donate with PayPal** and **⏳ later**. Nothing is blocked, hidden or
+  degraded by the answer: it only decides whether the donation card is shown.
+  Closing the dialog with ✕ is not an answer; either choice is final until the
+  household changes it in **Settings → Info → ❤️ Support EverShelf** (no recurring
+  reminder, no countdown) — or with the **❤️ Support EverShelf** button right below
+  *Salva Configurazione*.
+- **No advertising anywhere in the app.** The banner slots (dashboard +
+  screensaver), the *keep the banners* / *both* answers and the whole provider
+  plumbing were built and then **parked**: the code stays in the tree commented out
+  (`api/lib/support.php`, `assets/js/core/support.js`, `assets/css/style.css`), the
+  two `[data-ad-slot]` divs are commented out of `index.html`, `_renderAdSlots()` is
+  a no-op kept only so a client cached in a kiosk WebView cannot throw, and the
+  dialog offers just the two answers above. "later" is the default, a stored
+  banner answer reads as "later", and the payload no longer carries a provider, an
+  AdSense id or any banner markup — so nothing can be shown by surprise. The
+  step-by-step re-enabling checklist, and the design as it was, live in
+  `docs/wiki/Support-and-ads.md`.
+- **Donations**: the dialog shows the PayPal link with a QR code to scan from a
+  phone. `SUPPORT_PAYPAL_URL` accepts a `paypal.me` handle, a legacy donation form
+  or a hosted donate button; the link adapts by itself where PayPal allows it
+  (`…/10EUR` on `paypal.me`, `?amount=10&currency_code=EUR` on the legacy form).
+  A hosted button (`?hosted_button_id=…`) **ignores** `amount=` — the page shows its
+  own presets and an editable field — so no amount buttons are offered there and the
+  dialog says the amount is chosen on PayPal, instead of promising a figure PayPal
+  never receives. Costs are disclosed line by line from `.env` (`SUPPORT_COST_*`)
+  with the monthly equivalent computed on the spot, so the numbers cannot drift from
+  reality. Walkthrough: `docs/wiki/Support-and-ads.md`.
+- **The QR is drawn by the server** — `api/index.php?action=support_qr`, byte-mode
+  encoder in **`api/lib/qr.php`** (ISO/IEC 18004, versions 1–40, all four EC levels,
+  automatic version and mask selection), SVG for browsers and PNG for the native
+  kiosk. No CDN and no external image service: it works on a LAN-only install. The
+  endpoint is public on purpose (the kiosk wizard shows the code *before* it can
+  pair, so it never holds a token) and can only render the published amounts, so it
+  cannot be turned into a generic QR renderer. Guard tests:
+  `scripts/test-qr-encoder.php` (17 frozen vectors, byte-identical to python-qrcode
+  for forced masks and verified with a real decoder) and
+  `scripts/test-support-monetization.php`.
+- **Kiosk wizard**: the *Features* step now carries the same two answers plus the
+  donation QR (fetched from `?action=support_qr&format=png`, shown only when the
+  answer is the donation; the two banner radio buttons stay commented out in
+  `activity_setup.xml`). The choice travels through `save_settings` with the other
+  feature flags, so the web dialog does not ask again on that server.
+- New state in `.env`: `SUPPORT_MODE`, `SUPPORT_DECIDED`, `SUPPORT_PAYPAL_*`,
+  `SUPPORT_COST_*` — all documented in `.env.example`. The parked keys
+  (`SUPPORT_BANNERS_AVAILABLE`, `ADS_PROVIDER`, `ADSENSE_*`, `ADS_CUSTOM_*`) stay
+  documented there too, commented, so bringing the slots back is a code change and
+  not a configuration one. `save_settings` accepts the answer (clamped to the two
+  modes) and has no banner mapping at all.
+- **Settings UI**: the chosen answer is now a filled green card with white text (a
+  border-only highlight left the label unreadable next to the “already on” badge,
+  which also stole the width the title needed — it now sits under the text), and
+  **❤️ Sostieni EverShelf** is a full-width button right below *Salva
+  Configurazione* that opens the very same dialog as “Apri la scelta completa”, so
+  the choice is one tap away from any settings tab.
+- **Choosing a donation turns the dialog into a thank-you**: the answer cards
+  step aside, a warm line appears, and the PayPal QR is now **large** (240 px, 260 px
+  in that view) so it scans from across the room. A discreet *“Change the choice”*
+  link brings the other answer back, so nothing is locked in without a way out.
+- Guard hardening: `scripts/test-support-monetization.php` checks the *shared*
+  script scope of `core/*.js` + `app.js` (a name declared twice across them is a
+  fatal SyntaxError that `node -c`, one file at a time, cannot see — how a
+  `let _supportDonateUrl` next to `function _supportDonateUrl()` once killed the
+  module), that every helper the module calls exists, that `index.html` uses a
+  single `?v=` stamp — and, since the slots were parked, that **no** banner field
+  travels in the payload, that the banner helpers are gone, that the two slot divs
+  live only inside HTML comments and that no live line renders a slot;
+  `index.html` itself is served `no-cache` now, so a stale shell can no longer point
+  at the previous asset stamp.
+- i18n: the `support.*` namespace in all six locales (the banner-only strings stay,
+  dormant, for the parked feature), and the new module lives in
+  `assets/js/core/support.js` (loaded like `core/auth.js`) so it stays out of the
+  29k-line `app.js`.
 ## [1.11.14] - 2026-10-14
 
 ### Fixes

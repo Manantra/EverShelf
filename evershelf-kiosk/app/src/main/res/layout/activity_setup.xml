@@ -346,6 +346,24 @@
                         android:text="@string/setup_zerowaste_toggle_hint"
                         android:textAppearance="@style/Text.EverShelf.Hint" />
                 </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_support_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/setup_support_desc" android:textAppearance="@style/Text.EverShelf.Hint" />
+                        <RadioGroup android:id="@+id/setupSupportGroup" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical">
+                            <RadioButton android:id="@+id/setupSupportDonate" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_support_donate" android:textColor="@color/text_primary" />
+                            <!-- PARKED (not used — EverShelf does not run ads): the two banner answers. Their
+                                 views and ids are kept commented so re-enabling them is a matter of uncommenting
+                                 here and in SetupActivity.kt (see docs/wiki/Support-and-ads.md).
+                            <RadioButton android:id="@+id/setupSupportAds" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_support_ads" android:textColor="@color/text_primary" />
+                            <RadioButton android:id="@+id/setupSupportBoth" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_support_both" android:textColor="@color/text_primary" />
+                            -->
+                            <RadioButton android:id="@+id/setupSupportLater" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="@string/setup_support_later" android:textColor="@color/text_primary" />
+                        </RadioGroup>
+                        <LinearLayout android:id="@+id/setupSupportQrCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="12dp" android:visibility="gone">
+                            <ImageView android:id="@+id/setupSupportQr" android:layout_width="140dp" android:layout_height="140dp" android:padding="6dp" android:background="#ffffff" android:contentDescription="@string/setup_support_qr_desc" />
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="@string/setup_support_qr_hint" android:textAppearance="@style/Text.EverShelf.Hint" />
+                        </LinearLayout>
+                    </LinearLayout>
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/tip_background" android:padding="14dp" android:layout_marginBottom="8dp">
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_features_server_note" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
                     </LinearLayout>

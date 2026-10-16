@@ -190,4 +190,14 @@
     <string name="setup_pairing_status_ok">✅ Vinculado — continúa</string>
     <string name="setup_pairing_status_working">Vinculando…</string>
     <string name="setup_pairing_required_toast">Introduce un código de vinculación válido</string>
+
+    <!-- Apoyo opcional: las mismas cuatro respuestas que en la ventana web. -->
+    <string name="setup_support_title">Apoyar el proyecto (opcional)</string>
+    <string name="setup_support_desc">EverShelf es gratis y lo seguirá siendo — y no tiene publicidad de ningún tipo. Pero tiene costes reales: si quieres, puedes ayudar. Ninguna de las dos opciones cambia lo que la app sabe hacer.</string>
+    <string name="setup_support_donate">💙 Donar con PayPal</string>
+    <string name="setup_support_ads">📺 Dejar los banners</string>
+    <string name="setup_support_both">🤝 Hago las dos cosas</string>
+    <string name="setup_support_later">⏳ Nada por ahora</string>
+    <string name="setup_support_qr_hint">Escanea este código con el móvil para abrir la página de donaciones.</string>
+    <string name="setup_support_qr_desc">Código QR para la donación</string>
 </resources>

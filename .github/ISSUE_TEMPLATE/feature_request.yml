@@ -2,12 +2,12 @@ name: Feature Request
 description: Suggest a new feature or improvement
 title: "[FEATURE] "
 labels: ["enhancement"]
-assignees: ["dadaloop82"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea! Check the [Roadmap](https://github.com/dadaloop82/EverShelf/blob/main/README.md#-roadmap) and [Discussions](https://github.com/dadaloop82/EverShelf/discussions) first — it may already be planned or discussed.
+        Thanks for the idea! Check the [Roadmap](https://github.com/dadaloop82/EverShelf/blob/develop/docs/ROADMAP.md) and [Discussions](https://github.com/dadaloop82/EverShelf/discussions) first — it may already be planned or discussed.
+        Ideas are welcome; so are hands. If you would like to build it yourself, say so and we will help you through the codebase.
 
   - type: dropdown
     id: category
@@ -66,3 +66,4 @@ body:
           required: true
         - label: I searched existing issues and discussions — this is not a duplicate
           required: true
+        - label: I would like to work on this myself (a maintainer will help you get started)

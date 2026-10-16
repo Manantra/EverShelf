@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#2d5016">
@@ -11,12 +12,17 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261014c">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261014c">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261014c">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261016a">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261016a">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261016a">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261014c"></script>
-    <script src="assets/js/core/auth.js?v=20261014c"></script>
+    <script src="assets/js/core/dom.js?v=20261016a"></script>
+    <script src="assets/js/core/auth.js?v=20261016a"></script>
+    <!-- Optional support layer: the one-off donation question (see
+         api/lib/support.php). Loaded before app.js so it can be kept out of that
+         file; it only defines functions there. Advertising is not part of it: the
+         banner slots are parked and commented out further down this file. -->
+    <script src="assets/js/core/support.js?v=20261016a"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +30,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261014c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261016a';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +39,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261014c';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261016a';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261014c"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261016a"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -104,7 +110,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.14</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.12.0</span>
             </span>
         </div>
 
@@ -162,7 +168,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.14</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.12.0</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -285,6 +291,13 @@
             <p class="alert-section-hint" data-i18n="dashboard.stale_hint">Priorità alle confezioni aperte ferme da più tempo — ricetta, usa, modifica o butta.</p>
             <div id="stale-list"></div>
         </div>
+
+        <!-- PARKED banner slot (dashboard) — EverShelf does not run ads, so the slot
+             is commented out and `_renderAdSlots()` in core/support.js is a no-op.
+             To bring it back, uncomment this div and follow the checklist in
+             docs/wiki/Support-and-ads.md ("Banner slots (parked)").
+        <div class="ad-slot" id="ad-slot-app" data-ad-slot="app" style="display:none"></div>
+        -->
 
     </section>
 
@@ -2519,12 +2532,30 @@
                         </div>
                     </div>
                 </div>
+                <!-- Optional support: donate / nothing for now. The two answers are
+                     rendered by _renderSupportOptionCards() from the same list as the
+                     startup dialog, so the two can never disagree. -->
+                <div class="settings-card" id="settings-support-card">
+                    <h4 data-i18n="support.card_title">❤️ Sostieni EverShelf</h4>
+                    <p class="settings-hint" data-i18n="support.card_hint">Il progetto è gratuito e senza pubblicità: qui decidi se fare una donazione una volta, o niente per ora.</p>
+                    <div class="support-options support-options-inline" id="settings-support-options"></div>
+                    <div class="support-card-actions">
+                        <button type="button" class="btn btn-secondary" onclick="openSupportModal(true)" data-i18n="support.card_open">Apri la scelta completa</button>
+                        <button type="button" class="btn btn-secondary" id="btn-support-donate" onclick="_supportOpenDonate()" data-i18n="support.card_donate">💙 Dona con PayPal</button>
+                    </div>
+                    <p class="settings-hint" id="settings-support-status"></p>
+                </div>
             </div>
         </div>
 
         <!-- Global save: applies to every section, so it stays below the panels. -->
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()" data-i18n="btn.save_config">💾 Salva Configurazione</button>
         <div id="settings-status" class="settings-status" style="display:none"></div>
+
+        <!-- Support shortcut: same dialog as the Info card, one tap from the bottom
+             of the page. The household should not have to hunt for it, and it must
+             stay outside .settings-panels so it is visible from every tab. -->
+        <button type="button" class="btn btn-large btn-secondary full-width mt-2" onclick="openSupportModal(true)" data-i18n="support.card_title">❤️ Sostieni EverShelf</button>
 
     </section>
 
@@ -2675,6 +2706,60 @@
     </div>
 </div>
 
+<!-- ===== SUPPORT: donate, or nothing for now (shown once, while undecided) =====
+     The two answers are built by _renderSupportOptionCards() in core/support.js from
+     evershelfSupportModes(), so the dialog and the Settings card can never drift
+     apart. Nothing here is a paywall: the app is complete either way, and there is no
+     advertising anywhere in it. -->
+<div class="modal-overlay" id="support-modal" style="display:none">
+    <div class="modal-content support-dialog" onclick="event.stopPropagation()">
+        <button class="support-close" onclick="closeSupportModal()" data-i18n-aria="btn.close" aria-label="Close">✕</button>
+        <div class="support-hero">
+            <img src="assets/img/logo/logo_icon.png" alt="" class="support-logo">
+            <h2 data-i18n="support.title">EverShelf è gratis — e resta gratis</h2>
+            <p data-i18n="support.intro">Nessun abbonamento e nessuna funzione bloccata: il codice è aperto e gira sul tuo server. Restano però dei costi vivi che pago ogni mese. Se ti va, puoi darmi una mano.</p>
+        </div>
+        <div class="support-costs" id="support-costs" style="display:none"></div>
+        <div class="support-options" id="support-options"></div>
+        <div class="support-donate" id="support-donate" style="display:none">
+            <div class="support-donate-head">
+                <span class="support-donate-icon">💙</span>
+                <div>
+                    <strong data-i18n="support.donate_title">Dona con PayPal</strong>
+                    <p class="settings-hint" data-i18n="support.donate_hint">Inquadra il codice con il telefono, oppure apri il link su questo dispositivo.</p>
+                </div>
+            </div>
+            <div class="support-amounts" id="support-amounts"></div>
+            <div class="support-qr-block">
+                <div class="support-qr-frame">
+                    <img id="support-qr" alt="" width="240" height="240">
+                </div>
+                <div class="support-qr-side">
+                    <code id="support-donate-url" class="support-donate-url"></code>
+                    <div class="support-qr-actions">
+                        <a id="support-donate-link" class="btn btn-accent" target="_blank" rel="noopener" data-i18n="support.donate_open">Apri PayPal</a>
+                        <button type="button" class="btn btn-secondary" onclick="_supportCopyLink()" data-i18n="support.donate_copy">Copia link</button>
+                    </div>
+                    <p class="settings-hint" id="support-donate-status"></p>
+                </div>
+            </div>
+        </div>
+        <!-- Thank-you view: shown as soon as the answer includes donating. It sits
+             *under* the code, where the eye lands right after scanning — the four
+             option cards step aside, so all that is left is the thanks and the way
+             to change the choice. -->
+        <div class="support-thanks" id="support-thanks" style="display:none">
+            <span class="support-thanks-icon">💙</span>
+            <h3 data-i18n="support.thanks_title">Grazie di cuore!</h3>
+            <p data-i18n="support.thanks_text">Il tuo contributo paga direttamente quello che tiene in piedi EverShelf: server, dominio e tempo di sviluppo. Grazie davvero.</p>
+        </div>
+        <div class="support-change" id="support-change" style="display:none">
+            <button type="button" class="support-change-btn" onclick="_supportRevealOptions()" data-i18n="support.change_choice">Cambia scelta</button>
+        </div>
+        <p class="support-footnote" data-i18n="support.footnote">EverShelf è software libero: puoi anche solo dire grazie aprendo una issue, o passare il link a chi ha una dispensa da sistemare.</p>
+    </div>
+</div>
+
 <!-- Toast notification -->
 <div class="toast" id="toast"></div>
 
@@ -2698,6 +2783,11 @@
         <!-- Nutrition pie charts panel (shown alternately with fact) -->
         <div id="screensaver-nutrition" class="screensaver-nutrition" style="display:none"></div>
         <div class="screensaver-fact" id="screensaver-fact"></div>
+        <!-- PARKED banner slot on the idle screen — the kiosk shows the screensaver for
+             hours, which is where an ad slot would have paid for the hosting. EverShelf
+             does not run ads, so it stays commented out.
+        <div class="screensaver-ad" id="ad-slot-screensaver" data-ad-slot="screensaver" style="display:none"></div>
+        -->
     </div>
     <div class="screensaver-shortcuts">
         <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" data-i18n-title="screensaver.recipe_btn" title="Recipes">
@@ -2762,6 +2852,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261014c"></script>
+<script src="assets/js/app.js?v=20261016a"></script>
 </body>
 </html>

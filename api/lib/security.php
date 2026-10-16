@@ -67,6 +67,11 @@ function evershelfPublicActions(): array {
         // read-only ICS_TOKEN (?token=…, hash_equals) and returns 403/404 otherwise.
         'calendar_ics',
         'telegram_webhook',
+        // support_qr: the donation link as a QR image. The native kiosk wizard
+        // shows it *before* it can pair, so it can never present a token; the
+        // rendered content comes from .env only (the amount must be one of the
+        // published ones), so it cannot be abused as a generic QR renderer.
+        'support_qr',
     ];
 }
 

@@ -236,4 +236,15 @@ Vuoi mantenerle o riconfigurare da zero?</string>
     <string name="setup_pairing_status_ok">✅ Associato — puoi continuare</string>
     <string name="setup_pairing_status_working">Associazione in corso…</string>
     <string name="setup_pairing_required_toast">Inserisci un codice di associazione valido per continuare</string>
+
+    <!-- Supporto facoltativo: le stesse quattro risposte della finestra web. Non
+         cambiano ciò che l'app sa fare. -->
+    <string name="setup_support_title">Sostieni il progetto (facoltativo)</string>
+    <string name="setup_support_desc">EverShelf è gratis e resta gratis — e non ha pubblicità di alcun tipo. Ha però costi vivi: se ti va puoi dare una mano. Nessuna delle due scelte cambia quello che l\'app sa fare.</string>
+    <string name="setup_support_donate">💙 Dona con PayPal</string>
+    <string name="setup_support_ads">📺 Lascia i banner</string>
+    <string name="setup_support_both">🤝 Faccio entrambi</string>
+    <string name="setup_support_later">⏳ Niente per ora</string>
+    <string name="setup_support_qr_hint">Inquadra il codice con il telefono per aprire la pagina delle donazioni.</string>
+    <string name="setup_support_qr_desc">Codice QR per la donazione</string>
 </resources>

@@ -2,6 +2,16 @@
 
 Contributions of all kinds are welcome — bug fixes, new features, translations, documentation improvements.
 
+> **Looking for something to do?** The [Roadmap](https://github.com/dadaloop82/EverShelf/blob/develop/docs/ROADMAP.md)
+> lists what is next, with a rough effort tag and the issues that are explicitly up for
+> grabs. Issues labelled **`good first issue`** are small and self-contained. Comment on
+> the issue before starting, so nobody duplicates the work — and ask questions there if
+> something is unclear.
+>
+> You do **not** have to write code to help: translations (one JSON file), bug
+> reproductions, testing a PR, docs, screenshots and UX feedback are all welcome. See
+> [CONTRIBUTING.md](https://github.com/dadaloop82/EverShelf/blob/develop/CONTRIBUTING.md#-ways-to-help-you-do-not-have-to-write-code).
+
 ---
 
 ## Getting Started
