@@ -1,26 +1,54 @@
 <?php
 /**
- * Italian produce seasonality (Northern/IT climate).
- * Data adapted from SeasonalItaly (MIT) — https://github.com/archetipico/SeasonalItaly
+ * Produce seasonality — per language.
+ *
+ * The catalog is DATA and it is localized like the vocabulary: one file per language,
+ * `data/seasonal_produce_<lang>.json`, and the app reads the one for the language the
+ * household chose (falling back to English, then to Italian, so a missing translation
+ * never leaves the feature empty). The month/region structure is identical in every
+ * file; only the produce names are translated.
+ *
+ * Adding a language = dropping the file. Nothing in this code knows a produce name.
  */
 
-function seasonalProducePath(): string {
-    return dirname(__DIR__) . '/../data/seasonal_produce_it.json';
+/** The catalog file for a language, resolved like the vocabulary (lang → en → it). */
+function seasonalProducePath(?string $lang = null): string {
+    $dir  = dirname(__DIR__) . '/../data/';
+    $lang = strtolower(trim((string)($lang ?? env('APP_LANG', 'it'))));
+    $lang = (string)preg_replace('/[^a-z]/', '', $lang);
+    foreach ([$lang, 'en', 'it'] as $candidate) {
+        if ($candidate !== '' && is_readable($dir . 'seasonal_produce_' . $candidate . '.json')) {
+            return $dir . 'seasonal_produce_' . $candidate . '.json';
+        }
+    }
+    return $dir . 'seasonal_produce_it.json';
 }
 
-function seasonalLoadCatalog(): array {
-    static $cache = null;
-    if ($cache !== null) {
-        return $cache;
+/** Languages that still need their own seasonal catalog (translators' checklist). */
+function seasonalMissingLocales(): array {
+    $dir = dirname(__DIR__) . '/../data/';
+    $missing = [];
+    foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $lang) {
+        if (!is_readable($dir . 'seasonal_produce_' . $lang . '.json')) {
+            $missing[] = $lang;
+        }
     }
-    $path = seasonalProducePath();
-    if (!is_readable($path)) {
-        $cache = ['items' => [], 'source' => ''];
-        return $cache;
+    return $missing;
+}
+
+function seasonalLoadCatalog(?string $lang = null): array {
+    static $cache = [];
+    $key = seasonalProducePath($lang);
+    if (isset($cache[$key])) {
+        return $cache[$key];
     }
-    $raw = json_decode((string)file_get_contents($path), true);
-    $cache = is_array($raw) ? $raw : ['items' => [], 'source' => ''];
-    return $cache;
+    if (!is_readable($key)) {
+        $cache[$key] = ['items' => [], 'source' => ''];
+        return $cache[$key];
+    }
+    $raw = json_decode((string)file_get_contents($key), true);
+    $cache[$key] = is_array($raw) ? $raw : ['items' => [], 'source' => ''];
+    return $cache[$key];
 }
 
 function seasonalNormalize(string $name): string {
