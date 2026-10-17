@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.14.0] - 2026-10-17
+
+### Product tags, and nothing disappears when a refresh fails
+- **Custom tags on the catalogue (#97).** Free-form labels ("senza glutine", "bio",
+  "bimbi") live in two relational tables (`product_tags`, `product_tag_links`), so
+  "which products carry X?" is an index lookup and renaming a tag is one row. The pills
+  sit on the inventory card and double as the filter bar above the list (AND across the
+  selected tags); the product form has a comma-separated field with autocomplete from
+  the tags already in use; `inventory_list` and `product_get` ship the labels with the
+  row, so the client needs no second round trip. The option is a normal setting
+  (`TAGS_ENABLED`, default on, toggle under Settings → product rules).
+- **A failed refresh no longer blanks the screen.** `inventory_list` answering with a
+  JSON error (a rate limit, a restart) used to replace the pantry with an empty list:
+  the payload is validated now and, when it is missing, what is on screen stays. The
+  shopping list keeps its content while refreshing, and both ignore an answer that
+  belongs to an older request (`_requestId`).
+- **The smart-shopping cache declares its schema.** A cache written before the
+  empty-stock rule existed is rebuilt instead of served, and Bring! never suggests a
+  product that is still in the pantry.
+
 ## [1.13.0] - 2026-10-16
 
 ### A scanned tomato is not a jar of passata — and the vocabulary is data

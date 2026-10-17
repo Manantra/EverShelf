@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261017a'; // bump when translations change
+const _I18N_VERSION = '20261017g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4223,7 +4223,7 @@ function _applySyncedSettings(serverSettings) {
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
-        'product_kind_prefix','auto_favorite_min_uses',
+        'product_kind_prefix','auto_favorite_min_uses','tags_enabled',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -4957,7 +4957,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
-            'product_kind_prefix','auto_favorite_min_uses',
+            'product_kind_prefix','auto_favorite_min_uses','tags_enabled',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -5654,6 +5654,8 @@ function _applyShoppingSettingsUI(s) {
 function _applyProductRuleSettingsUI(s) {
     const prefixEl = document.getElementById('setting-product-kind-prefix');
     if (prefixEl) prefixEl.checked = s.product_kind_prefix !== false;
+    const tagsEnabledEl = document.getElementById('setting-tags-enabled');
+    if (tagsEnabledEl) tagsEnabledEl.checked = s.tags_enabled !== false;
     const minUsesEl = document.getElementById('setting-auto-favorite-min-uses');
     if (minUsesEl) minUsesEl.value = s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3;
 }
@@ -5859,6 +5861,8 @@ async function saveSettings() {
     // Product rules: genre prefix in the title + automatic favourites
     const productKindPrefixEl = document.getElementById('setting-product-kind-prefix');
     if (productKindPrefixEl) s.product_kind_prefix = productKindPrefixEl.checked;
+    const tagsToggleEl = document.getElementById('setting-tags-enabled');
+    if (tagsToggleEl) s.tags_enabled = tagsToggleEl.checked;
     const autoFavMinEl = document.getElementById('setting-auto-favorite-min-uses');
     if (autoFavMinEl) s.auto_favorite_min_uses = parseInt(autoFavMinEl.value, 10) || 0;
     // OAuth fields
@@ -5948,6 +5952,7 @@ async function saveSettings() {
             shopping_auto_add_threshold: s.shopping_auto_add_threshold || 0,
             ...(s.shopping_remove_on_buy ? { shopping_remove_on_buy: s.shopping_remove_on_buy } : {}),
             product_kind_prefix:         s.product_kind_prefix !== false,
+            tags_enabled:                s.tags_enabled !== false,
             auto_favorite_min_uses:      s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3,
             dark_mode:                   s.dark_mode || 'auto',
             barcode_ai_fallback:          !!s.barcode_ai_fallback,
@@ -9593,8 +9598,82 @@ function isInventoryDepleted(item) {
 }
 
 /** Items shown in the inventory list (excludes depleted / trace leftovers). */
+/** Tags the user is filtering by (empty = no filter). AND: an item carries them all. */
+let _inventoryTagFilter = [];
+/** False when TAGS_ENABLED=false on the server: nothing tag-related is offered. */
+let _tagsEnabled = true;
+let _knownTags = [];
+
+/** Tags known to the instance: autocomplete for the product form. */
+async function _loadKnownTags() {
+    try {
+        const data = await api('tags_list');
+        _tagsEnabled = data?.enabled !== false;
+        const tagsGroup = document.getElementById('pf-tags-group');
+        if (tagsGroup) tagsGroup.hidden = !_tagsEnabled;
+        _knownTags = (data?.tags || []).map(x => x.name);
+        const dl = document.getElementById('product-tags-datalist');
+        if (dl) dl.innerHTML = _knownTags.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+    } catch (_e) { /* tags are optional: never block the boot */ }
+}
+
+/** Persist the comma-separated tag field of the product form. */
+async function _saveProductTags(productId, raw) {
+    if (!productId || !_tagsEnabled) return;
+    const tags = String(raw || '').split(',').map(x => x.trim()).filter(Boolean);
+    try {
+        const res = await api('product_tags_set', {}, 'POST', { product_id: productId, tags });
+        if (res?.success) {
+            if (currentProduct && Number(currentProduct.id) === Number(productId)) currentProduct.tags = res.tags || [];
+            _loadKnownTags();
+        }
+    } catch (_e) { /* the product is saved either way */ }
+}
+
+function toggleInventoryTagFilter(name) {
+    const key = String(name || '').toLowerCase();
+    if (!key) return;
+    const at = _inventoryTagFilter.findIndex(x => x.toLowerCase() === key);
+    if (at >= 0) _inventoryTagFilter.splice(at, 1);
+    else _inventoryTagFilter.push(String(name));
+    renderInventory(_allInventoryCache || currentInventory);
+}
+
+/** Rebuild the chip bar above the list from the tags actually in the pantry. */
+function _renderInventoryTagFilter() {
+    const el = document.getElementById('inventory-tag-filter');
+    if (!el) return;
+    const available = [];
+    const seen = new Set();
+    (_allInventoryCache || currentInventory || []).forEach(it => (it.tags || []).forEach(tg => {
+        const k = String(tg).toLowerCase();
+        if (!seen.has(k)) { seen.add(k); available.push(String(tg)); }
+    }));
+    available.sort((a, b) => a.localeCompare(b, _collationLocale()));
+    if (!available.length && !_inventoryTagFilter.length) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    el.hidden = false;
+    const active = new Set(_inventoryTagFilter.map(x => x.toLowerCase()));
+    el.innerHTML = available.map(tg => {
+        const on = active.has(tg.toLowerCase());
+        return `<button type="button" class="inv-tag-filter-chip${on ? ' is-active' : ''}" aria-pressed="${on}" onclick="toggleInventoryTagFilter('${escapeHtml(tg).replace(/'/g, '&#39;')}')">${escapeHtml(tg)}</button>`;
+    }).join('') + (active.size
+        ? `<button type="button" class="inv-tag-filter-clear" onclick="_inventoryTagFilter=[];renderInventory(_allInventoryCache||currentInventory)">${t('product_tags.filter_clear')}</button>`
+        : '');
+}
+
 function _inventoryVisibleItems(items) {
-    return (items || []).filter(i => !isInventoryDepleted(i));
+    let out = (items || []).filter(i => !isInventoryDepleted(i));
+    if (_inventoryTagFilter.length) {
+        out = out.filter(i => {
+            const names = (i.tags || []).map(x => String(x).toLowerCase());
+            return _inventoryTagFilter.every(tg => names.includes(String(tg).toLowerCase()));
+        });
+    }
+    return out;
 }
 
 function alertQtyDisplay(item) {
@@ -9806,6 +9885,10 @@ function renderInventoryItem(item, opts = {}) {
     const catIcon = CATEGORY_ICONS[catKey] || '📦';
     // Text only — image/icon on the left (or category header) already shows the food emoji once
     const catBadge = `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${escapeHtml(categoryText(catKey))}</span>`;
+    // Custom tags: small pills, and tapping one filters the pantry by it.
+    const tagPills = (Array.isArray(item.tags) && item.tags.length)
+        ? `<span class="inv-tag-list">${item.tags.map(tg => `<button type="button" class="inv-tag-pill" onclick="toggleInventoryTagFilter('${escapeHtml(String(tg)).replace(/'/g, '&#39;')}')">${escapeHtml(String(tg))}</button>`).join('')}</span>`
+        : '';
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
@@ -9844,7 +9927,7 @@ function renderInventoryItem(item, opts = {}) {
                 ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
                 <div class="inv-meta">
                     <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
-                    ${catBadge}
+                    ${catBadge}${tagPills}
                     ${expiryBadge}
                     ${openedBadge}
                     ${vacuumBadge}
@@ -10138,6 +10221,8 @@ function _playInventorySwipeDemo(container) {
 }
 
 function renderInventory(items, options = {}) {
+    if (!_knownTags.length) _loadKnownTags();
+    _renderInventoryTagFilter();
     const container = document.getElementById('inventory-list');
     const visible = _inventoryVisibleItems(items);
     if (visible.length === 0) {
@@ -11405,7 +11490,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11415,7 +11500,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261017g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -12631,6 +12716,8 @@ function startManualEntry(barcode = '') {
     stopScanner();
     // Reset form
     document.getElementById('pf-id').value = '';
+    const pfTagsNew = document.getElementById('pf-tags');
+    if (pfTagsNew) pfTagsNew.value = '';
     document.getElementById('pf-name').value = '';
     document.getElementById('pf-brand').value = '';
     document.getElementById('pf-category').value = '';
@@ -12907,6 +12994,9 @@ async function submitProduct(e) {
     try {
         const result = await api('product_save', {}, 'POST', productData);
         if (result.success) {
+            // Tags are catalogue data: save them right after the product, so a
+            // reused or merged row still receives the labels the user typed.
+            await _saveProductTags(result.id, document.getElementById('pf-tags')?.value || '');
             currentProduct = { ...productData, id: result.id };
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
@@ -13279,6 +13369,8 @@ function editProductFromAction() {
     document.getElementById('pf-barcode').value = currentProduct.barcode || '';
     document.getElementById('pf-image').value = '';
     document.getElementById('pf-notes').value = currentProduct.notes || '';
+    const pfTagsEdit = document.getElementById('pf-tags');
+    if (pfTagsEdit) pfTagsEdit.value = Array.isArray(currentProduct.tags) ? currentProduct.tags.join(', ') : '';
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
     document.getElementById('product-form-title').textContent = t('product.title_edit');

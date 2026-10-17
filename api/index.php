@@ -10,6 +10,7 @@
 
 // ── Core bootstrap (env, security, database, logger) ─────────────────────────
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/tags.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -935,6 +936,20 @@ try {
             break;
         case 'products_search':
             searchProducts($db);
+            break;
+
+        // ===== PRODUCT TAGS (#97) — off with TAGS_ENABLED=false =====
+        case 'tags_list':
+            listProductTags($db);
+            break;
+        case 'tag_save':
+            saveProductTag($db);
+            break;
+        case 'tag_delete':
+            deleteProductTag($db);
+            break;
+        case 'product_tags_set':
+            setProductTags($db);
             break;
         case 'inventory_search':
             searchInventoryProducts($db);
@@ -4452,6 +4467,9 @@ function getProduct(PDO $db): void {
             $product = $stmt->fetch();
         }
         EverLog::debug('getProduct');
+        if (tagsEnabled()) {
+            $product['tags'] = tagsForProduct($db, (int)$product['id']);
+        }
         echo json_encode(['success' => true, 'product' => $product]);
     } else {
         http_response_code(404);
@@ -4829,6 +4847,9 @@ function listInventory(PDO $db): void {
         'location' => $location ?: 'all',
         'include_depleted' => $includeDepleted,
     ]);
+    // Custom tags (#97) ride along with every row so the client can draw the
+    // pills without a second round trip.
+    tagsAttachToRows($db, $rows);
     echo json_encode(['inventory' => $rows]);
 }
 
@@ -8933,6 +8954,7 @@ function getServerSettings(): void {
         'shopping_remove_on_buy_set'  => shoppingRemoveOnBuyDecided(),
         // Product rules: genre prefix in the title + automatic favourites
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
+        'tags_enabled'                => tagsEnabled(),
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
         'auto_favorite_top_n'         => (int)env('AUTO_FAVORITE_TOP_N', '3'),
         'dark_mode'                   => env('DARK_MODE', 'auto'),
@@ -9380,6 +9402,7 @@ function saveSettings(): void {
         'gdrive_retention_days'           => 'GDRIVE_RETENTION_DAYS',
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
+        'tags_enabled'                   => 'TAGS_ENABLED',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
         'auto_favorite_top_n'            => 'AUTO_FAVORITE_TOP_N',
         // Home Assistant
@@ -21127,3 +21150,101 @@ function _formatPrice(float $amount, string $currency): string {
     return $sym . number_format($amount, 2, '.', '');
 }
 
+
+// ===== PRODUCT TAGS (#97) =====
+// Free-form labels on the catalogue. The option is a normal `.env` setting
+// (TAGS_ENABLED); when it is off the endpoints answer as if no tag existed, so
+// an older client cannot create rows the household cannot manage.
+
+/** GET tags_list — every tag with how many products carry it. */
+function listProductTags(PDO $db): void
+{
+    tagsEnsureTables($db);
+    if (!tagsEnabled()) {
+        echo json_encode(['success' => true, 'enabled' => false, 'tags' => []]);
+        return;
+    }
+    echo json_encode(['success' => true, 'enabled' => true, 'tags' => tagsAll($db)]);
+}
+
+/** POST tag_save — create or rename a tag. */
+function saveProductTag(PDO $db): void
+{
+    tagsEnsureTables($db);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    if (!tagsEnabled()) {
+        echo json_encode(['success' => false, 'error_key' => 'error.tags_disabled']);
+        return;
+    }
+    $id    = (int)($input['id'] ?? 0);
+    $name  = tagNameClean((string)($input['name'] ?? ''));
+    $color = substr((string)($input['color'] ?? ''), 0, 16);
+    if (tagNameKey($name) === '') {
+        echo json_encode(['success' => false, 'error_key' => 'error.tag_name_required']);
+        return;
+    }
+    if ($id > 0) {
+        if (!tagsUpdate($db, $id, $name, $color)) {
+            echo json_encode(['success' => false, 'error' => 'not_found']);
+            return;
+        }
+        EverLog::info('API product tag ' . $name . ' updated', ['event' => 'api_tag_save', 'tag_id' => $id]);
+        echo json_encode(['success' => true, 'tag' => ['id' => $id, 'name' => $name, 'color' => $color]]);
+        return;
+    }
+    $tag = tagsCreate($db, $name, $color);
+    if (!$tag) {
+        echo json_encode(['success' => false, 'error_key' => 'error.tag_name_required']);
+        return;
+    }
+    EverLog::info('API product tag ' . $tag['name'] . ' created', ['event' => 'api_tag_save', 'tag_id' => $tag['id']]);
+    echo json_encode(['success' => true, 'tag' => $tag]);
+}
+
+/** POST tag_delete — drop a tag; the products keep existing. */
+function deleteProductTag(PDO $db): void
+{
+    tagsEnsureTables($db);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    if (!tagsEnabled()) {
+        echo json_encode(['success' => false, 'error_key' => 'error.tags_disabled']);
+        return;
+    }
+    $id = (int)($input['id'] ?? 0);
+    if (!tagsDelete($db, $id)) {
+        echo json_encode(['success' => false, 'error' => 'not_found']);
+        return;
+    }
+    EverLog::info('API product tag deleted', ['event' => 'api_tag_delete', 'tag_id' => $id]);
+    echo json_encode(['success' => true]);
+}
+
+/** POST product_tags_set — replace the tags of one product. */
+function setProductTags(PDO $db): void
+{
+    tagsEnsureTables($db);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    if (!tagsEnabled()) {
+        echo json_encode(['success' => false, 'error_key' => 'error.tags_disabled']);
+        return;
+    }
+    $productId = (int)($input['product_id'] ?? 0);
+    if ($productId <= 0) {
+        echo json_encode(['success' => false, 'error_key' => 'error.product_id_required']);
+        return;
+    }
+    $names = $input['tags'] ?? [];
+    if (is_string($names)) {
+        $names = preg_split('/[,;]+/', $names) ?: [];
+    }
+    $stored = tagsSetForProduct($db, $productId, is_array($names) ? $names : []);
+    EverLog::info('API product tags set', [
+        'event'      => 'api_product_tags_set',
+        'product_id' => $productId,
+        'count'      => count($stored),
+    ]);
+    echo json_encode(['success' => true, 'tags' => $stored]);
+}

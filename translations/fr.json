@@ -1,4 +1,10 @@
 {
+  "product_tags": {
+    "form_label": "Étiquettes",
+    "placeholder": "sans gluten, bio, enfants…",
+    "form_hint": "Séparez les étiquettes par une virgule.",
+    "filter_clear": "Effacer les étiquettes"
+  },
   "app": {
     "name": "EverShelf",
     "loading": "Chargement..."
@@ -1358,6 +1364,8 @@
       "trip_complete_hint": "Sur la page Courses, « Courses terminées » vide toute la liste et bloque les réajouts auto jusqu’au prochain épuisement."
     },
     "product_rules": {
+      "tags_label": "Étiquettes personnalisées",
+      "tags_hint": "Libellés libres (« sans gluten », « bio », « enfants ») sur les cartes et pour filtrer le garde-manger.",
       "card_title": "🏷️ Noms et favoris automatiques",
       "card_hint": "Chaque article porte son genre devant le titre (ex. « Yogurt Fiori di latte »). Si le nom ne l'indique pas, l'application le déduit du dictionnaire interne et — seulement si nécessaire — demande un mot à l'IA, puis le met en cache pour les produits similaires. De plus, chaque titre commence toujours par une majuscule.",
       "kind_prefix_label": "Ajouter le genre au titre",
@@ -1865,6 +1873,8 @@
     "badge_better": "moins que la moy."
   },
   "error": {
+    "tags_disabled": "Les étiquettes sont désactivées dans les paramètres.",
+    "tag_name_required": "Saisissez un nom pour l'étiquette.",
     "generic": "Erreur",
     "product_id_required": "Produit non enregistré : réessayez de l'ajouter",
     "network": "Erreur réseau",
