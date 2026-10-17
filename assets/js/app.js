@@ -2144,65 +2144,12 @@ function mapToLocalCategory(ofCategory, productName, productBrand = '') {
 
 /** Prepared rice/pasta salads — not fresh leafy salad (verdura). */
 function _isPreparedSaladName(name, brand = '') {
-    const n = (name || '').toLowerCase();
-    const b = (brand || '').toLowerCase();
-    if (/insalata\s+di\s+(riso|pasta|farro|orzo|couscous|quinoa|bulgur|cereali|legumi)\b/.test(n)) return true;
-    if (/\b(riso|pasta)\s+con\b/.test(n) && /\binsalata\b/.test(n)) return true;
-    if (/\binsalata\b/.test(n) && /\b(ponti|rio mare|orogel|findus|star)\b/.test(b)) return true;
-    return false;
+    return vocabIsPreparedSalad(name, brand);
 }
 
 // Guess a local category purely from product name
 function guessCategoryFromName(name, brand = '') {
-    if (!name) return 'altro';
-    const n = name.toLowerCase();
-    if (_isPreparedSaladName(n, brand)) return 'pasta';
-    // ── Known Italian brand names → direct category (fast-path before regex)
-    // "Uno" only if it starts the name (Bahlsen biscuits, not the Italian word)
-    if (/^uno\b/.test(n)) return 'snack';
-    const _brandRx = [
-        [/\b(baiocchi|macine|tarallucci|tegolini|pavesini|plasmon|loacker|manner|digestive|oreo|hanuta|ringo|abbracci|gocciole|pan di stelle|oro saiwa|kinder|ferrero rocher|raffaello|bounty|twix|snickers|pringles|fonzies|tuc\b|ritz\b|mulino bianco|gran cereale|gocciole|saiwa|togo|principe|oro ciok|kit ?kat)\b/, 'snack'],
-        [/\b(barilla|de cecco|garofalo|la molisana|rummo|voiello|divella|agnesi|buitoni)\b/, 'pasta'],
-        [/\b(galbani|granarolo|yomo|danone|muller|müller|pr[eé]sident|santa lucia|jocca|fiorfiore)\b/, 'latticini'],
-        [/\b(mutti|cirio)\b/, 'conserve'],
-        [/\b(san pellegrino|levissima|ferrarelle|lete|nestea|lipton|nescaf[eé]|lavazza|illy\b|kimbo|segafredo)\b/, 'bevande'],
-    ];
-    for (const [rx, cat] of _brandRx) { if (rx.test(n)) return cat; }
-    // Pasta & Rice
-    if (/spaghetti|penne|fusilli|rigatoni|linguine|orecchiette|farfalle|pasta\b|riso\b|basmati|carnaroli|arborio|gnocchi|lasagne|tagliatelle|maccheroni|bucatini|pennette|sedani|tortiglioni|calamarata|spaghettini|vermicelli/.test(n)) return 'pasta';
-    // Pane & Forno
-    if (/pane\b|bauletto|fette biscottate|grissini|cracker|toast|piadina|piadelle|focaccia|panini\b|sandwich|taralli|pancarr[eè]|baguette|ciabatta|rosetta|tramezzino|tortilla|pita\b|pangrattato|pane grattugiato|pan.*carr[eè]/.test(n)) return 'pane';
-    // Latticini (before bevande to avoid latte→bevande)
-    if (/latte\b|yogurt|y[o]?gurt|yaourt|yougurt|yoghurt|formaggio|mozzarella|burro\b|panna\b|ricott|mascarpone|gorgonzola|parmigiano|grana\b|uova\b|uovo\b|egg\b|burrata|scamorza|provolone|pecorino|fontina|taleggio|stracchino|crescenza|brie\b|camembert|emmental|asiago|feta\b|provola|caciotta|caprino|philadelphia|skyr|kefir|labneh/.test(n)) return 'latticini';
-    // Conserve — controllo tonno\b PRIMA di condimenti (che ha olio\b)
-    // Conserve — PREPARATIONS of tomato only. A bare "Pomodoro" / "Pomodorini" is the
-    // fresh vegetable picked below ("verdura"), not a jar: classifying it as a conserve
-    // gave the loose tomato the unit and the weight of a tin (grams, 400 g) and made the
-    // pantry's tin of "Pomodoro" look like the same article.
-    if (/passata|pelati|sugo\b|sughi\b|polpa di pomod|marmellata|miele\b|zagara|legumi|ceci\b|fagioli\b|lenticchie|olive\b|tonno\b|sgombro in scatola|concentrato|brodo\b|dado\b|besciamella|passato di/.test(n)) return 'conserve';
-    // Condimenti (include spezie, farine, zucchero, aromi, lieviti)
-    if (/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina\b|maionese|ketchup|senape|salsa\b|paprika|curry\b|cannella|noce moscata|origano|rosmarino|timo\b|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido\b|maizena|semola|pesto\b|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco|aroma\b|aromi\b|arome\b|estratto.*vaniglia|estratto.*limone|polenta\b|semolino\b|cacao amaro|cacao.*polvere|purea|pure\b|pur[ée]e/.test(n)) return 'condimenti';
-    // Bevande (after latticini to avoid latte conflict)
-    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè](?![a-z])|kaffee|kafè|\bt[eè](?![a-z])|\btea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/.test(n)) return 'bevande';
-    // Carne (include salumi)
-    if (/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/.test(n)) return 'carne';
-    // Pesce
-    if (/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|\borata\b|sardine|\btrota\b|dentice|seppia|\bpolpo\b|filetto.*pesce|pesce.*filetto/.test(n)) return 'pesce';
-    // Frutta — same stems as guessCategoryFromNamePHP(): the twins must agree.
-    if (/\bmel[ae]\b|\bper[ae]\b|banan|aranc|mandarin|clementin|pompelm|limon|kiwi|mango|ananas|melon|anguri|nettarin|albicocc|pesc[ah]\b|prugn|susin|fic[oh]\b|melogran|papaya|maracuj|cocch|datter[oi]\b|lampon|mirtill|ribes|\buva\b|fragol|frutt/.test(n)) return 'frutta';
-    // Verdura
-    if (/insalat|zucchin|pomodor|datterin|ciliegin|cipoll|carot|spinaci|rucol|peperon|melanzan|broccol|patat[ae]\b|finocch|sedano|porro|scalogn|cavol|cavolfior|asparag|funghi|courgette|lattuga|bietol|radicchi|carciof|fagiolin|pisell|mais\b|zucca\b|aglio\b|cetriol|rapa\b|barbabietol|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
-    // Surgelati
-    if (/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato|potato wedge|potato.*wedge/.test(n)) return 'surgelati';
-    // Snack & Dolci
-    if (/biscott|cioccolat|nutella|merendine\b|merendina|patatine|caramelle|wafer|cialda|cialdine|sfornatini|torta\b|pandoro|panettone|colomba|cornetto|brioche|croissant|dolc|dessert|tiramis[uù]|cantucci|amaretti|savoiardi|pralin|confetti dolci|chicchi.*cacao|cacao.*chicchi|risofrolle|sfogliatine|ossi di morto|canestrelli|snack/.test(n)) return 'snack';
-    // Cereali
-    if (/cereali|muesli|fiocchi|granola|porridge|avena|mix energia|misto cereal|farro\b|orzo\b|quinoa/.test(n)) return 'cereali';
-    // Igiene personale
-    if (/sapone|shampoo|dentifricio|deodorante|carta igienica|fazzoletti|cotton fioc|assorbente|rasoio|schiuma da barba|gel doccia|balsamo\b|lozione/.test(n)) return 'igiene';
-    // Pulizia casa
-    if (/detersivo|pulito|sgrassatore|candeggina|ammorbidente|anticalcare|bucato|piatti\b|lavatrice|lavastoviglie|detergente/.test(n)) return 'pulizia';
-    return 'altro';
+    return vocabCategoryOfName(name, brand);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2419,12 +2366,7 @@ function detectUnitAndQuantity(quantityInfo) {
 
 /** Fresh produce sold by piece — label weight (e.g. "300 g") is informational only. */
 function isSoldByPiece(name, category) {
-    const n = (name || '').toLowerCase();
-    if (!n) return false;
-    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio/.test(n)) return false;
-    if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/.test(n)) return true;
-    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol|pomodor/.test(n)) return true;
-    return false;
+    return vocabIsPieceProduce(name);
 }
 
 /** Unit/qty for new products — prefer label weight / category defaults.
@@ -2455,12 +2397,8 @@ function suggestCategoryUnitQty(category, name) {
         'igiene': { unit: 'pz', qty: 1 },
         'pulizia': { unit: 'pz', qty: 1 },
     };
-    // Classic piece items (not typically weighed by this household). Tomatoes belong
-    // here: reading "2" as 2 g is how a pantry row of 2 g was born, invisible at once.
-    // Their preparations (pelati, passata, sugo, secchi) are jars, never pieces.
-    const n = (name || '').toLowerCase();
-    const isPreparation = /\b(pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio)/.test(n);
-    if (!isPreparation && /avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|limone|limoni|lime\b|kiwi|mango\b|cipoll|aglio\b|peperone\b|peperoni\b|pomodor|uova?\b/.test(n)) {
+    // The piece-default words live in the vocabulary (data), not here.
+    if (vocabIsClassicPiece(name || '')) {
         return { unit: 'pz', qty: 1 };
     }
     return catDefaults[category] || { unit: 'pz', qty: 1 };
@@ -3733,7 +3671,7 @@ function _normalizeAiMatchName(name) {
  * Stems on purpose ("pelat" covers "pelati"), so no trailing word boundary.
  */
 function _aiNameLooksProcessed(name) {
-    return /\b(confettur|marmellat|yogurt|yoghurt|succo|spremut|nettare|gelato|crema|torta|biscott|salsa|sugo|passat|pelat|polpa|concentrat|sottaceto|sottoli|sciropp|essiccat|secc|candit|snack|barrett|budino|mousse|drink|bevand)/i.test(name || '');
+    return vocabLooksProcessed(name);
 }
 
 function _aiSignificantTokens(name) {
@@ -17396,21 +17334,7 @@ function _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit) {
 /** Mirror PHP isSoldByPieceProduct — fruit/veg sold as pieces, not grams.
  *  Keep the two lists identical: the PHP one decides the stored unit, this one the UI. */
 function _isSoldByPieceProductName(name, category = '') {
-    const n = String(name || '').toLowerCase().trim();
-    if (!n) return false;
-    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat|passat|sugo|salsa|concentrat|polpa|secc|essiccat|sottaceto|sottolio/i.test(n)) {
-        return false;
-    }
-    if (/\b(miele|formaggio|yogurt|succo|nettare|confettur|marmellat|crema|salsa|pesto|olio|aceto|pasta|riso)\b/i.test(n)) {
-        return false;
-    }
-    if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/i.test(n)) {
-        return true;
-    }
-    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol|pomodor/i.test(n)) {
-        return true;
-    }
-    return false;
+    return vocabIsPieceProduce(name);
 }
 
 function _maxSuggestedPieces(planDays) {

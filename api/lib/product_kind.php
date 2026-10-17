@@ -26,7 +26,7 @@
 
 /** Stop words / filler adjectives dropped before looking a token up. */
 function evershelfShoppingStopWords(): array {
-    return ['di','del','della','dei','degli','delle','da','in','con','per','su', 'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo', 'parzialmente','scremato','uht','bio','light','freschi','fresca','fresco'];
+    return (array)(evershelfVocab()['stop_words'] ?? []);
 }
 
 /**
@@ -34,102 +34,7 @@ function evershelfShoppingStopWords(): array {
  * single-token lookup ("Panna da cucina" must not collapse to "Panna").
  */
 function evershelfShoppingPhraseMap(): array {
-    return [
-        // Breadcrumbs (MUST come before generic "pane")
-        'pangrattato'           => 'Pangrattato',
-        'pan grattato'          => 'Pangrattato',
-        'pane grattato'         => 'Pangrattato',
-        'pane grattugiato'      => 'Pangrattato',
-        'pan grattugiato'       => 'Pangrattato',
-        // Cooking cream (MUST come before generic "panna")
-        'panna da cucina'       => 'Panna da cucina',
-        'panna cucina'          => 'Panna da cucina',
-        'panna chef'            => 'Panna da cucina',
-        // Tea (must not collapse to "Limone" via token)
-        'tè al limone'          => 'Tè al limone',
-        'te al limone'          => 'Tè al limone',
-        'the al limone'         => 'Tè al limone',
-        'panna acida'           => 'Panna acida',
-        // Tomato preparations (MUST come before generic "pomodoro/pomodori")
-        'passata di pomodoro'   => 'Passata',
-        'passata pomodoro'      => 'Passata',
-        'piadina romagnola'     => 'Piadina',
-        'piadine romagnole'     => 'Piadina',
-        'sfogliata tradizionale'=> 'Piadina',
-        'polpa di pomodoro'     => 'Polpa di pomodoro',
-        'polpa pomodoro'        => 'Polpa di pomodoro',
-        'sugo al pomodoro'      => 'Sugo',
-        'sugo di pomodoro'      => 'Sugo',
-        'salsa di pomodoro'     => 'Sugo',
-        'pomodori pelati'       => 'Pelati',
-        'pomodoro pelato'       => 'Pelati',
-        'datterini pelati'      => 'Pelati',
-        'pelati'                => 'Pelati',
-        // Frozen / prep vegetables
-        'misto soffritto'       => 'Misto soffritto',
-        'misto per soffritto'   => 'Misto soffritto',
-        // Plant-based milks (MUST come before generic "latte")
-        'latte condensato'      => 'Latte condensato',
-        'latte evaporato'       => 'Latte condensato',
-        'latte di soia'         => 'Latte di soia',
-        'latte soia'            => 'Latte di soia',
-        'latte vegetale'        => 'Latte vegetale',
-        'latte di mandorla'     => 'Latte di mandorla',
-        'latte mandorla'        => 'Latte di mandorla',
-        'latte di avena'        => 'Latte di avena',
-        'latte avena'           => 'Latte di avena',
-        'latte di riso'         => 'Latte di riso',
-        'latte riso'            => 'Latte di riso',
-        'latte di cocco'        => 'Latte di cocco',
-        'latte cocco'           => 'Latte di cocco',
-        // Baked bakery — different from bread
-        'fette biscottate'      => 'Fette biscottate',
-        'pan di spagna'         => 'Pan di Spagna',
-        // Specific vinegars
-        'aceto balsamico'       => 'Aceto balsamico',
-        'glassa balsamico'      => 'Aceto balsamico',
-        'glassa balsamic'       => 'Aceto balsamico',
-        // Cold cuts — specific cuts
-        'prosciutto cotto'      => 'Prosciutto cotto',
-        // Flour subtypes (MUST come before generic "farina")
-        'farina di riso'        => 'Farina di riso',
-        'farina riso'           => 'Farina di riso',
-        'farina di mais'        => 'Farina di mais',
-        'farina mais'           => 'Farina di mais',
-        'farina integrale'      => 'Farina integrale',
-        'farina 00'             => 'Farina',
-        // Roux / sugar subtypes
-        'zucchero di canna'     => 'Zucchero di canna',
-        'zucchero canna'        => 'Zucchero di canna',
-        'zucchero velo'         => 'Zucchero a velo',
-        'zucchero a velo'       => 'Zucchero a velo',
-        // Fresh pasta
-        'pasta fresca'          => 'Pasta fresca',
-        // Broth / stock
-        'brodo vegetale'        => 'Brodo',
-        'brodo pollo'           => 'Brodo',
-        'brodo manzo'           => 'Brodo',
-        // Mixed vegetable purée / passato (MUST come before generic carote/patate)
-        'passato di verdure'    => 'Verdure',
-        'passato di patate'     => 'Verdure',
-        // Water
-        'acqua frizzante'       => 'Acqua',
-        'acqua gassata'         => 'Acqua',
-        'acqua minerale'        => 'Acqua',
-        // Aroma / flavouring
-        'aroma vaniglia'        => 'Ingredienti Spezie',
-        'aroma mandorla'        => 'Ingredienti Spezie',
-        'aroma limone'          => 'Ingredienti Spezie',
-        'aroma rum'             => 'Ingredienti Spezie',
-        'aroma arancia'         => 'Ingredienti Spezie',
-        // Prepared salads (not fresh greens)
-        'insalata di riso'      => 'Insalata di riso',
-        'insalata di pasta'     => 'Insalata di pasta',
-        'insalata di farro'     => 'Insalata di farro',
-        'insalata di orzo'      => 'Insalata di orzo',
-        'insalata di couscous'  => 'Insalata di couscous',
-        'insalata di quinoa'    => 'Insalata di quinoa',
-    ];
+    return (array)(evershelfVocab()['phrase_map'] ?? []);
 }
 
 /**
@@ -137,196 +42,7 @@ function evershelfShoppingPhraseMap(): array {
  * items so the (cached, daily-capped) AI call is rarely needed.
  */
 function evershelfShoppingKeywordMap(): array {
-    return [
-        // Cold cuts / affettati
-        'mortadella'    => 'Affettato',
-        'nduja'         => 'Affettato',
-        'salame'        => 'Affettato',
-        'salami'        => 'Affettato',
-        'coppa'         => 'Affettato',
-        'capicola'      => 'Affettato',
-        'speck'         => 'Affettato',
-        'schinkenspeck' => 'Affettato',
-        'schinken'      => 'Affettato',
-        'prosciutto'    => 'Affettato',
-        // Items with their own Bring! entry
-        'bresaola'      => 'Bresaola',
-        'pancetta'      => 'Pancetta',
-        'salsiccia'     => 'Salsiccia',
-        'wurstel'       => 'Wurstel',
-        // Bread & bakery
-        'pane'          => 'Pane',
-        'bauletto'      => 'Pane',
-        'pancarrè'      => 'Pane',
-        'pancare'       => 'Pane',
-        'toast'         => 'Pane',
-        'focaccia'      => 'Pane',
-        'ciabatta'      => 'Pane',
-        'baguette'      => 'Pane',
-        'grissini'      => 'Grissini',
-        'crackers'      => 'Cracker',
-        'cracker'       => 'Cracker',
-        'taralli'       => 'Taralli',
-        'tarallini'     => 'Taralli',
-        'piadina'       => 'Piadina',
-        'piadine'       => 'Piadina',
-        'piadelle'      => 'Piadina',
-        'biscotto'      => 'Biscotti',
-        'biscotti'      => 'Biscotti',
-        // Breadcrumbs single-token safety net (phrase map has priority, but just in case)
-        'grattugiato'   => 'Pangrattato',
-        'grattato'      => 'Pangrattato',
-        'pangrattato'   => 'Pangrattato',
-        'biscottate'    => 'Fette biscottate',
-        // Leavening agents
-        'lievito'       => 'Lievito',
-        // Flavourings / aromas (single-token fallback; phrases handled above)
-        'aroma'         => 'Ingredienti Spezie',
-        // Dairy
-        'latte'         => 'Latte',
-        'yogurt'        => 'Yogurt',
-        'yogurth'       => 'Yogurt',
-        'jogurt'        => 'Yogurt',
-        'joghurt'       => 'Yogurt',
-        'yaourt'        => 'Yogurt',
-        'yougurt'       => 'Yogurt',
-        'burro'         => 'Burro',
-        'butter'        => 'Burro',
-        'butterschmalz' => 'Burro',
-        'panna'         => 'Panna',
-        'mozzarella'    => 'Mozzarella',
-        'formaggio'     => 'Formaggio',
-        'ricotta'       => 'Ricotta',
-        'ricottina'     => 'Ricotta',
-        'casatella'     => 'Formaggio',
-        'philadelphia'  => 'Formaggio cremoso',
-        // "Bel Paese" — known Italian cheese brand
-        'bel'           => 'Formaggio',
-        // Pasta
-        'pasta'         => 'Pasta',
-        'spaghetti'     => 'Pasta',
-        'penne'         => 'Pasta',
-        'rigatoni'      => 'Pasta',
-        'fusilli'       => 'Pasta',
-        'orecchiette'   => 'Pasta',
-        'tortiglioni'   => 'Pasta',
-        'linguine'      => 'Pasta',
-        'sedani'        => 'Pasta',
-        'lasagne'       => 'Pasta',
-        'tortellini'    => 'Pasta',
-        'gnocchi'       => 'Gnocchi',
-        // Rice
-        'riso'          => 'Riso',
-        // Eggs
-        'uova'          => 'Uova',
-        'uovo'          => 'Uova',
-        // Fruit & veg
-        'mela'          => 'Mele',
-        'mele'          => 'Mele',
-        'pera'          => 'Pere',
-        'arancia'       => 'Arance',
-        'arance'        => 'Arance',
-        'limone'        => 'Limone',
-        'banana'        => 'Banane',
-        'banane'        => 'Banane',
-        'kiwi'          => 'Kiwi',
-        'avocado'       => 'Avocado',
-        'avocados'      => 'Avocado',
-        'pomodoro'      => 'Pomodori',
-        'pomodori'      => 'Pomodori',
-        'pomodorini'    => 'Pomodorini',
-        'carota'        => 'Carote',
-        'carote'        => 'Carote',
-        'cipolla'       => 'Cipolla',
-        'cipolle'       => 'Cipolla',
-        'aglio'         => 'Aglio',
-        'zucchina'      => 'Zucchine',
-        'zucchine'      => 'Zucchine',
-        'spinaci'       => 'Spinaci',
-        'lattuga gentile'       => 'Insalata',
-        'lattuga'               => 'Insalata',
-        'melone'        => 'Melone',
-        'finocchio'     => 'Finocchio',
-        // Condiments & pantry
-        'olio'          => 'Olio',
-        'aceto'         => 'Aceto',
-        'sale'          => 'Sale',
-        'zucchero'      => 'Zucchero',
-        'farina'        => 'Farina',
-        'lievito'       => 'Lievito',
-        'miele'         => 'Miele',
-        'marmellata'    => 'Marmellata',
-        'confettura'    => 'Marmellata',
-        'maionese'      => 'Maionese',
-        'senape'        => 'Senape',
-        'ketchup'       => 'Ketchup',
-        // Canned / preserved
-        'passata'       => 'Passata',
-        'polpa'         => 'Polpa di pomodoro',
-        'pelati'        => 'Pelati',
-        'tonno'         => 'Tonno',
-        'sardine'       => 'Sardine',
-        'ceci'          => 'Ceci',
-        'lenticchie'    => 'Lenticchie',
-        'fagioli'       => 'Fagioli',
-        'piselli'       => 'Piselli',
-        'mais'          => 'Mais',
-        // Frozen
-        'surgelato'     => 'Surgelati',
-        'surgelati'     => 'Surgelati',
-        // Drinks
-        'vino'          => 'Vino',
-        'birra'         => 'Birra',
-        'succo'         => 'Succo',
-        // Cereals & snacks — one buyable family so muesli/granola cover "Cereali"
-        'muesli'        => 'Cereali',
-        'granola'       => 'Cereali',
-        'cereali'       => 'Cereali',
-        // Frozen & desserts (before coffee/tea tokens to avoid "gelato caffè → Caffè")
-        'gelato'        => 'Gelato',
-        'semifreddo'    => 'Gelato',
-        // Beverages (coffee, tea, herbal)
-        'camomilla'     => 'Camomilla',
-        'camomille'     => 'Camomilla',
-        'tisana'        => 'Tè',
-        // Cat food / pet
-        'gatto'         => 'Cibo per gatti',
-        'cane'          => 'Cibo per cani',
-        // Known product/brand single tokens → category override
-        'risofrolle'    => 'Cracker',
-        'zuppalatte'    => 'Biscotti',
-        'kaffee'        => 'Caffè',
-        'ovomaltine'    => 'Bevande',
-        'ciobar'        => 'Cioccolata calda',
-        'apfelsaft'     => 'Succo',
-        'kartoffelpüree'=> 'Purè',
-        'purée'         => 'Purè',
-        'pure'          => 'Purè',
-        'inchusa'       => 'Birra',
-        'ichnusa'       => 'Birra',
-        'vesoletto'     => 'Vino',
-        'trebbiano'     => 'Vino',
-        'sangiovese'    => 'Vino',
-        'barbera'       => 'Vino',
-        'chianti'       => 'Vino',
-        'soave'         => 'Vino',
-        'prosecco'      => 'Vino',
-        'frizzante'     => 'Acqua',
-        'semolino'      => 'Semolino',
-        'bicarbonato'   => 'Bicarbonato',
-        'sambuca'       => 'Liquore',
-        'limoncello'    => 'Liquore',
-        'grappa'        => 'Liquore',
-        'dado'          => 'Brodo',
-        'zuccheri'      => 'Zucchero',
-        'zucchero'      => 'Zucchero',
-        // Foreign-language tokens
-        'jus'           => 'Succo',
-        'zumo'          => 'Succo',
-        'arome'         => 'Aroma',
-        'caffe'         => 'Caffè',
-        'caffè'         => 'Caffè',
-    ];
+    return (array)(evershelfVocab()['keyword_map'] ?? []);
 }
 
 /**
@@ -405,41 +121,7 @@ function evershelfProductKindVocabulary(): array {
  * @return array<string,array{0:string,1:string,2:string}>
  */
 function evershelfProductKindNumberForms(): array {
-    return [
-        'Affettato'        => ['Affettato', 'Affettati', 'm'],
-        'Aglio'            => ['Aglio', 'Agli', 'm'],
-        'Arance'           => ['Arancia', 'Arance', 'f'],
-        'Banane'           => ['Banana', 'Banane', 'f'],
-        'Bevande'          => ['Bevanda', 'Bevande', 'f'],
-        'Birra'            => ['Birra', 'Birre', 'f'],
-        'Biscotti'         => ['Biscotto', 'Biscotti', 'm'],
-        'Carote'           => ['Carota', 'Carote', 'f'],
-        'Cipolla'          => ['Cipolla', 'Cipolle', 'f'],
-        'Fette biscottate' => ['Fetta biscottata', 'Fette biscottate', 'f'],
-        'Finocchio'        => ['Finocchio', 'Finocchi', 'm'],
-        'Formaggio'        => ['Formaggio', 'Formaggi', 'm'],
-        'Gelato'           => ['Gelato', 'Gelati', 'm'],
-        'Insalata'         => ['Insalata', 'Insalate', 'f'],
-        'Limone'           => ['Limone', 'Limoni', 'm'],
-        'Liquore'          => ['Liquore', 'Liquori', 'm'],
-        'Marmellata'       => ['Marmellata', 'Marmellate', 'f'],
-        'Mele'             => ['Mela', 'Mele', 'f'],
-        'Melone'           => ['Melone', 'Meloni', 'm'],
-        'Mozzarella'       => ['Mozzarella', 'Mozzarelle', 'f'],
-        'Passata'          => ['Passata', 'Passate', 'f'],
-        'Pere'             => ['Pera', 'Pere', 'f'],
-        'Piadina'          => ['Piadina', 'Piadine', 'f'],
-        'Pomodori'         => ['Pomodoro', 'Pomodori', 'm'],
-        'Pomodorini'       => ['Pomodorino', 'Pomodorini', 'm'],
-        'Ricotta'          => ['Ricotta', 'Ricotte', 'f'],
-        'Salsiccia'        => ['Salsiccia', 'Salsicce', 'f'],
-        'Succo'            => ['Succo', 'Succhi', 'm'],
-        'Sugo'             => ['Sugo', 'Sughi', 'm'],
-        'Surgelati'        => ['Surgelato', 'Surgelati', 'm'],
-        'Uova'             => ['Uovo', 'Uova', 'f'],
-        'Verdure'          => ['Verdura', 'Verdure', 'f'],
-        'Zucchine'         => ['Zucchina', 'Zucchine', 'f'],
-    ];
+    return (array)(evershelfVocab()['number_forms'] ?? []);
 }
 
 
@@ -454,40 +136,7 @@ function evershelfProductKindNumberForms(): array {
  * @return list<array{0:string,1:string,2:string,3:string}>
  */
 function evershelfProductKindAgreementForms(): array {
-    return [
-        ['bio', 'bio', 'bio', 'bio'],
-        ['biologico', 'biologica', 'biologici', 'biologiche'],
-        ['cotto', 'cotta', 'cotti', 'cotte'],
-        ['crudo', 'cruda', 'crudi', 'crude'],
-        ['dolce', 'dolce', 'dolci', 'dolci'],
-        ['dorato', 'dorata', 'dorati', 'dorate'],
-        ['fino', 'fina', 'fini', 'fine'],
-        ['fresco', 'fresca', 'freschi', 'fresche'],
-        ['giallo', 'gialla', 'gialli', 'gialle'],
-        ['grande', 'grande', 'grandi', 'grandi'],
-        ['grattugiato', 'grattugiata', 'grattugiati', 'grattugiate'],
-        ['grosso', 'grossa', 'grossi', 'grosse'],
-        ['integrale', 'integrale', 'integrali', 'integrali'],
-        ['intero', 'intera', 'interi', 'intere'],
-        ['lungo', 'lunga', 'lunghi', 'lunghe'],
-        ['macinato', 'macinata', 'macinati', 'macinate'],
-        ['maturo', 'matura', 'maturi', 'mature'],
-        ['medio', 'media', 'medi', 'medie'],
-        ['naturale', 'naturale', 'naturali', 'naturali'],
-        ['nero', 'nera', 'neri', 'nere'],
-        ['pelato', 'pelata', 'pelati', 'pelate'],
-        ['piccante', 'piccante', 'piccanti', 'piccanti'],
-        ['piccolo', 'piccola', 'piccoli', 'piccole'],
-        ['raffinato', 'raffinata', 'raffinati', 'raffinate'],
-        ['rosso', 'rossa', 'rossi', 'rosse'],
-        ['scremato', 'scremata', 'scremati', 'scremate'],
-        ['secco', 'secca', 'secchi', 'secche'],
-        ['sodo', 'soda', 'sodi', 'sode'],
-        ['sottile', 'sottile', 'sottili', 'sottili'],
-        ['surgelato', 'surgelata', 'surgelati', 'surgelate'],
-        ['tondo', 'tonda', 'tondi', 'tonde'],
-        ['verde', 'verde', 'verdi', 'verdi'],
-    ];
+    return (array)(evershelfVocab()['agreement_forms'] ?? []);
 }
 
 /** Index of evershelfProductKindAgreementForms() by folded word (both numbers, both genders). */
@@ -752,10 +401,14 @@ function productKindFromDictionary(string $name, string $brand = ''): array {
         // Ingredient phrases ("farina di riso") only count when they lead the title —
         // otherwise "Campagnole con farina di riso" would shop as flour.
         $phraseHead = explode(' ', $phrase, 2)[0];
-        static $ingredientPhraseHeads = [
-            'farina' => true, 'olio' => true, 'sale' => true,
-            'zucchero' => true, 'aceto' => true, 'lievito' => true,
-        ];
+        // Which heads are bulk ingredients is DATA (vocab → ingredient_phrase_heads).
+        static $ingredientPhraseHeads = null;
+        if ($ingredientPhraseHeads === null) {
+            $ingredientPhraseHeads = [];
+            foreach ((array)(evershelfVocab()['ingredient_phrase_heads'] ?? []) as $headWord) {
+                $ingredientPhraseHeads[vocabFold((string)$headWord)] = true;
+            }
+        }
         $atLead = mb_strpos($lower, $phrase) === 0
             || (bool)preg_match('/^(?:il|la|lo|i|gli|le|un|uno|una|the|a|an)\s+' . preg_quote($phrase, '/') . '/u', $lower);
         if (isset($ingredientPhraseHeads[$phraseHead]) && !$atLead) {
@@ -768,16 +421,11 @@ function productKindFromDictionary(string $name, string $brand = ''): array {
     // Trailing genres — packaging/brand openers ("La sfogliata… piadine") and
     // mid-title product signals ("Fiori di latte", "bucce… pomodoro") resolve;
     // bulk ingredient tokens stay lead-only via the phrase rule above.
-    $trailingGenre = [
-        'piadina' => true, 'piadine' => true, 'piadelle' => true,
-        'avocado' => true, 'avocados' => true,
-        'muesli' => true, 'granola' => true, 'cereali' => true,
-        'yogurt' => true, 'yogurth' => true, 'jogurt' => true, 'joghurt' => true,
-        'yaourt' => true, 'yougurt' => true,
-        'gelato' => true, 'semifreddo' => true,
-        'latte' => true,
-        'pomodoro' => true, 'pomodori' => true, 'pomodorini' => true, 'pelati' => true,
-    ];
+    // Which keywords may also appear mid-title is DATA (vocab → trailing_genre).
+    $trailingGenre = [];
+    foreach ((array)(evershelfVocab()['trailing_genre'] ?? []) as $word) {
+        $trailingGenre[vocabFold((string)$word)] = true;
+    }
     $trailing = null;
     $trailingIdx = PHP_INT_MAX;
     foreach (evershelfSignificantTokens($name, $brand) as $i => $token) {
@@ -937,19 +585,8 @@ function productKindFromAi(string $name, string $brand, string $category): strin
  * @return list<string>
  */
 function productKindUmbrellaCategoryLabels(): array {
-    return [
-        // Multi-word tab labels (never a genre — every locale that ships with &)
-        'snacks & sweets', 'snack & dolci', 'snacks and sweets', 'snacks & süßwaren',
-        'cereals & legumes', 'cereali & legumi', 'cereals and legumes', 'getreide & hülsenfrüchte',
-        // English tab nouns (APP_LANG defaulted to en → these got prefixed onto Italian titles)
-        'vegetables', 'condiments', 'dairy', 'meat', 'fruit', 'fruits',
-        'gemüse', 'milchprodukte', 'fleisch', 'obst',
-        // OFF taxonomy dumps mistaken for a name
-        'fruits-based-foods', 'fruits based foods', 'plant-based-foods',
-        'plant-based-foods-and-beverages', 'sponge cake',
-        // Do NOT list Italian genres here (Verdura, Frutta, Carne, Condimenti, Latticini):
-        // those are legitimate title leaders ("Frutta secca Noci", "Verdura peperone").
-    ];
+    // The tab / OFF labels that must never become a genre: data (vocab → umbrella_labels).
+    return array_values((array)(evershelfVocab()['umbrella_labels'] ?? []));
 }
 
 /** True when $kind is a usable article genre (not a UI-tab / OFF taxonomy dump). */
@@ -972,12 +609,13 @@ function productKindIsPlausibleGenre(string $kind): bool {
     }
     // Exact English (or OFF) tab nouns — never a genre for an article title.
     // Italian singles like "Verdura"/"Carne" stay allowed when the AI/dictionary says so.
-    static $englishTabs = [
-        'vegetables' => true, 'condiments' => true, 'dairy' => true, 'meat' => true,
-        'fruit' => true, 'fruits' => true, 'snacks' => true, 'cereals' => true,
-        'legumes' => true, 'beverages' => true, 'bakery' => true, 'seafood' => true,
-        'fruitsbasedfoods' => true, 'plantbasedfoods' => true, 'spongecake' => true,
-    ];
+    static $englishTabs = [];
+    $englishTabsReady = (bool)($englishTabs['vegetables'] ?? false);
+    if (!$englishTabsReady) {
+        foreach ((array)(evershelfVocab()['english_tab_labels'] ?? []) as $tabWord) {
+            $englishTabs[(string)$tabWord] = true;
+        }
+    }
     $compact = str_replace(' ', '', $norm);
     if (isset($englishTabs[$norm]) || isset($englishTabs[$compact])) {
         return false;

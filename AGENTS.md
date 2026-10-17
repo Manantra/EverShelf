@@ -140,7 +140,28 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   and, inside the same day, continues the stamp letter (`20261014a` → `20261014b`)
   instead of reusing it — a repeated `<today>a` leaves the browser on the old CSS.
 
-## Commands that matter
+## 4b. The vocabulary is DATA, the code is language-neutral
+
+Product names, genres, brands, plural/singular forms, stop words, the shopping
+dictionaries and the "what does this title mean" rules live in **`api/vocab/<lang>.json`**.
+`api/lib/vocabulary.php` is the only algorithm that reads them (tokenizer, word/stem/phrase
+match, number forms) and it contains **no product word and no rule about Italian**. The
+browser runs the same engine (`assets/js/core/vocab.js`) over
+**`assets/js/vocab.generated.js`**, generated from the JSON by
+`php scripts/gen-vocab-js.php` (committed, offline-safe).
+
+Adding a language = dropping `api/vocab/<lang>.json` and regenerating. Adding a word =
+editing JSON, never a function.
+
+`scripts/test-vocabulary.php` enforces it: the generated file must match the JSON, and a
+**ratchet** counts the vocabulary words still left in the logic files — `product_kind.php`,
+`vocabulary.php` and `core/vocab.js` are at **0**, the rest may only go *down*. A new
+product name in `api/index.php`, `api/database.php` or `app.js` fails the build.
+
+Remaining debt (next batch, same rule): the expiry heuristics in `api/database.php` /
+`app.js` and the recipe ingredient groups.
+
+
 
 ```bash
 # PHP syntax check (same as CI)

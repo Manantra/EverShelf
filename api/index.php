@@ -4543,7 +4543,7 @@ function searchInventoryProducts(PDO $db): void {
 function aiProductNameTokens(string $name): array {
     $roots = [];
     foreach (evershelfSignificantTokens($name) as $token) {
-        $root = (string)preg_replace('/[aeiouàèéìòù]$/u', '', (string)$token);
+        $root = vocabLemma((string)$token);
         $roots[] = $root !== '' ? $root : (string)$token;
     }
     return array_values(array_unique($roots));
@@ -6426,15 +6426,7 @@ function isOffLikeCategory(string $category): bool {
  * Mirror of _isPreparedSaladName() in app.js — same patterns.
  */
 function isPreparedSaladNamePHP(string $name, string $brand = ''): bool {
-    $n = mb_strtolower($name);
-    $b = mb_strtolower($brand);
-    if (preg_match('/insalata\s+di\s+(riso|pasta|farro|orzo|couscous|quinoa|bulgur|cereali|legumi)\b/u', $n)) {
-        return true;
-    }
-    if (preg_match('/\b(riso|pasta)\s+con\b/u', $n) && preg_match('/\binsalata\b/u', $n)) {
-        return true;
-    }
-    return preg_match('/\binsalata\b/u', $n) === 1 && preg_match('/\b(ponti|rio mare|orogel|findus|star)\b/u', $b) === 1;
+return vocabIsPreparedSalad($name, $brand);
 }
 
 /**
@@ -6452,93 +6444,7 @@ function isPreparedSaladNamePHP(string $name, string $brand = ''): bool {
  * PORT EVERY CHANGE TO BOTH SIDES (same order, same patterns).
  */
 function guessCategoryFromNamePHP(string $name, string $brand = ''): string {
-    $n = mb_strtolower(trim($name));
-    if ($n === '') {
-        return 'altro';
-    }
-    if (isPreparedSaladNamePHP($n, $brand)) {
-        return 'pasta';
-    }
-    // "Uno" only when it starts the name (Bahlsen biscuits, not the Italian word)
-    if (preg_match('/^uno\b/u', $n)) {
-        return 'snack';
-    }
-    // Known Italian brands → direct category (fast path before the generic regexes)
-    static $brandRx = [
-        ['/\b(baiocchi|macine|tarallucci|tegolini|pavesini|plasmon|loacker|manner|digestive|oreo|hanuta|ringo|abbracci|gocciole|pan di stelle|oro saiwa|kinder|ferrero rocher|raffaello|bounty|twix|snickers|pringles|fonzies|tuc\b|ritz\b|mulino bianco|gran cereale|gocciole|saiwa|togo|principe|oro ciok|kit ?kat)\b/u', 'snack'],
-        ['/\b(barilla|de cecco|garofalo|la molisana|rummo|voiello|divella|agnesi|buitoni)\b/u', 'pasta'],
-        ['/\b(galbani|granarolo|yomo|danone|muller|müller|pr[eé]sident|santa lucia|jocca|fiorfiore)\b/u', 'latticini'],
-        ['/\b(mutti|cirio)\b/u', 'conserve'],
-        ['/\b(san pellegrino|levissima|ferrarelle|lete|nestea|lipton|nescaf[eé]|lavazza|illy\b|kimbo|segafredo)\b/u', 'bevande'],
-    ];
-    foreach ($brandRx as [$rx, $cat]) {
-        if (preg_match($rx, $n)) {
-            return $cat;
-        }
-    }
-    // Pasta & rice
-    if (preg_match('/spaghetti|penne|fusilli|rigatoni|linguine|orecchiette|farfalle|pasta\b|riso\b|basmati|carnaroli|arborio|gnocchi|lasagne|tagliatelle|maccheroni|bucatini|pennette|sedani|tortiglioni|calamarata|spaghettini|vermicelli/u', $n)) {
-        return 'pasta';
-    }
-    // Bread & bakery
-    if (preg_match('/pane\b|bauletto|fette biscottate|grissini|cracker|toast|piadina|piadelle|focaccia|panini\b|sandwich|taralli|pancarr[eè]|baguette|ciabatta|rosetta|tramezzino|tortilla|pita\b|pangrattato|pane grattugiato|pan.*carr[eè]/u', $n)) {
-        return 'pane';
-    }
-    // Dairy (before beverages, or "latte" would be a drink)
-    if (preg_match('/latte\b|yogurt|y[o]?gurt|yaourt|yougurt|yoghurt|formaggio|mozzarella|burro\b|panna\b|ricott|mascarpone|gorgonzola|parmigiano|grana\b|uova\b|uovo\b|egg\b|burrata|scamorza|provolone|pecorino|fontina|taleggio|stracchino|crescenza|brie\b|camembert|emmental|asiago|feta\b|provola|caciotta|caprino|philadelphia|skyr|kefir|labneh/u', $n)) {
-        return 'latticini';
-    }
-    // Conserve — tomato PREPARATIONS first (a bare "Pomodoro" is the vegetable below)
-    if (preg_match('/passata|pelati|sugo\b|sughi\b|polpa di pomod|marmellata|miele\b|zagara|legumi|ceci\b|fagioli\b|lenticchie|olive\b|tonno\b|sgombro in scatola|concentrato|brodo\b|dado\b|besciamella|passato di/u', $n)) {
-        return 'conserve';
-    }
-    // Condiments (spices, flours, sugar, flavourings, yeast)
-    if (preg_match('/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina\b|maionese|ketchup|senape|salsa\b|paprika|curry\b|cannella|noce moscata|origano|rosmarino|timo\b|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido\b|maizena|semola|pesto\b|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco|aroma\b|aromi\b|arome\b|estratto.*vaniglia|estratto.*limone|polenta\b|semolino\b|cacao amaro|cacao.*polvere|purea|pure\b|pur[ée]e/u', $n)) {
-        return 'condimenti';
-    }
-    // Beverages (after dairy). The accented alternatives close with a lookahead instead of
-    // \b: the JS \b is ASCII-only, so "caffè" never matched there while PCRE (unicode) did.
-    if (preg_match('/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè](?![a-z])|kaffee|kafè|\bt[eè](?![a-z])|\btea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/u', $n)) {
-        return 'bevande';
-    }
-    // Meat (including cold cuts)
-    if (preg_match('/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/u', $n)) {
-        return 'carne';
-    }
-    // Fish
-    if (preg_match('/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|\borata\b|sardine|\btrota\b|dentice|seppia|\bpolpo\b|filetto.*pesce|pesce.*filetto/u', $n)) {
-        return 'pesce';
-    }
-    // Fruit — stems, same list as the JS twin
-    if (preg_match('/\bmel[ae]\b|\bper[ae]\b|banan|aranc|mandarin|clementin|pompelm|limon|kiwi|mango|ananas|melon|anguri|nettarin|albicocc|pesc[ah]\b|prugn|susin|fic[oh]\b|melogran|papaya|maracuj|cocch|datter[oi]\b|lampon|mirtill|ribes|\buva\b|fragol|frutt/u', $n)) {
-        return 'frutta';
-    }
-    // Vegetables — stems on purpose and NO trailing \b ("pomodor" covers
-    // pomodoro/pomodori/pomodorini; with one, "Pomodoro" fell through to 'altro')
-    if (preg_match('/insalat|zucchin|pomodor|datterin|ciliegin|cipoll|carot|spinaci|rucol|peperon|melanzan|broccol|patat[ae]\b|finocch|sedano|porro|scalogn|cavol|cavolfior|asparag|funghi|courgette|lattuga|bietol|radicchi|carciof|fagiolin|pisell|mais\b|zucca\b|aglio\b|cetriol|rapa\b|barbabietol|cime di rapa|pak choi|bok choy|verza|cavolo nero/u', $n)) {
-        return 'verdura';
-    }
-    // Frozen
-    if (preg_match('/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato|potato wedge|potato.*wedge/u', $n)) {
-        return 'surgelati';
-    }
-    // Snacks & sweets
-    if (preg_match('/biscott|cioccolat|nutella|merendine\b|merendina|patatine|caramelle|wafer|cialda|cialdine|sfornatini|torta\b|pandoro|panettone|colomba|cornetto|brioche|croissant|dolc|dessert|tiramis[uù]|cantucci|amaretti|savoiardi|pralin|confetti dolci|chicchi.*cacao|cacao.*chicchi|risofrolle|sfogliatine|ossi di morto|canestrelli|snack/u', $n)) {
-        return 'snack';
-    }
-    // Cereals
-    if (preg_match('/cereali|muesli|fiocchi|granola|porridge|avena|mix energia|misto cereal|farro\b|orzo\b|quinoa/u', $n)) {
-        return 'cereali';
-    }
-    // Personal care
-    if (preg_match('/sapone|shampoo|dentifricio|deodorante|carta igienica|fazzoletti|cotton fioc|assorbente|rasoio|schiuma da barba|gel doccia|balsamo\b|lozione/u', $n)) {
-        return 'igiene';
-    }
-    // Household cleaning
-    if (preg_match('/detersivo|pulito|sgrassatore|candeggina|ammorbidente|anticalcare|bucato|piatti\b|lavatrice|lavastoviglie|detergente/u', $n)) {
-        return 'pulizia';
-    }
-    return 'altro';
+return vocabCategoryOfName($name, $brand);
 }
 
 function sanitizeProductCategory(string $category, string $name, string $brand = ''): string {
@@ -6826,16 +6732,7 @@ function brandsCompatible(string $a, string $b): bool {
     return $na === $nb || $na === '' || $nb === '';
 }
 
-/**
- * Catalog name trimmed down to its head word without the final vowel: the Italian
- * number marker only. "Pomodoro" and "Pomodori" share the stem, "Passata di pomodoro"
- * does not (it is a different article, not another number).
- */
-function productNameStem(string $name): string {
-    $n = normalizeProductName($name);
-    $n = trim((string)preg_replace('/\s+/u', ' ', $n));
-    return $n === '' ? '' : (string)preg_replace('/[aeiouàèéìòù]$/u', '', $n);
-}
+
 
 /**
  * True when two catalog names can be the SAME article, two spellings of one row.
@@ -6855,33 +6752,36 @@ function productNameStem(string $name): string {
  *     a jar of passata.
  */
 function productNamesSameArticle(string $a, string $b, bool $allowHeadPrefix = false): bool {
-    $na = trim((string)preg_replace('/\s+/u', ' ', normalizeProductName($a)));
-    $nb = trim((string)preg_replace('/\s+/u', ' ', normalizeProductName($b)));
-    if ($na === '' || $nb === '') {
+    $fa = vocabFold($a);
+    $fb = vocabFold($b);
+    if ($fa === '' || $fb === '') {
         return false;
     }
-    if ($na === $nb) {
+    if ($fa === $fb) {
         return true;
     }
-    // Below 4 characters the stem rule would compare noise ("Tè" / "Te").
-    if (mb_strlen($na) < 4 || mb_strlen($nb) < 4) {
-        return false;
-    }
-    if (productNameStem($na) === productNameStem($nb)) {
+    // The same article at another number (curated forms, agreement groups, suffix pairs).
+    if (vocabSameLemma($a, $b)) {
         return true;
     }
     if (!$allowHeadPrefix) {
         return false;
     }
-    if (!str_starts_with($na, $nb . ' ') && !str_starts_with($nb, $na . ' ')) {
+    // One name is the HEAD of the other, word by word ("Piadina" ⊂ "Piadina Romagnola"):
+    // a variety may merge, a derived product may not — the curated dictionary (the one the
+    // shopping list buys with) says which is which.
+    $ta = vocabTokens($a);
+    $tb = vocabTokens($b);
+    $short = count($ta) <= count($tb) ? $ta : $tb;
+    $long  = count($ta) <= count($tb) ? $tb : $ta;
+    if ($short === [] || count($short) >= count($long)) {
         return false;
     }
-    // …but not when the extra words name a DIFFERENT product. The curated dictionary is
-    // the arbiter: a variety keeps the generic of its head ("Riso" / "Riso basmati" →
-    // Riso, "Piadina" / "Piadina Romagnola" → Piadina), a derived product does not
-    // ("Latte" vs "Latte di mandorla", "Farina" vs "Farina di riso", "Pasta" vs
-    // "Pasta fresca"). Two rows that the shopping list itself would buy as different
-    // generics are never one article.
+    foreach ($short as $i => $word) {
+        if (($long[$i] ?? '') !== $word) {
+            return false;
+        }
+    }
     $kindA = (string)(productKindFromDictionary($a)['kind'] ?? '');
     $kindB = (string)(productKindFromDictionary($b)['kind'] ?? '');
     return !($kindA !== '' && $kindB !== '' && $kindA !== $kindB);
@@ -6958,12 +6858,13 @@ function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $b
 
     // 2. The same article written at another number ("Pomodoro" ↔ "Pomodori"): the AI
     //    reads the label, the household typed the pantry, and they rarely agree on the
-    //    singular — reusing the row is what keeps one article out of two. Only the
-    //    number moves; a wider match would rename somebody else's row.
-    $stem = productNameStem($nName);
-    if (mb_strlen($stem) >= 3) {
+    //    singular — reusing the row is what keeps one article out of two. The SQL only
+    //    prefilters on the first word; the decision is the vocabulary's (curated number
+    //    forms + agreement groups + per-language suffix pairs, never a regex).
+    $firstWord = vocabTokens($name)[0] ?? '';
+    if (mb_strlen($firstWord) >= 3) {
         $sql = "SELECT id, name, brand, category FROM products WHERE lower(trim(name)) LIKE ?";
-        $params = [$stem . '%'];
+        $params = [$firstWord . '%'];
         if ($excludeId) {
             $sql .= " AND id != ?";
             $params[] = $excludeId;
@@ -11395,16 +11296,16 @@ function recipeMatchStopTokens(): array {
 
 /** Generic category words that alone must not lock onto a random pantry row. */
 function recipeIsWeakFoodToken(string $t): bool {
-    static $weak = [
-        'riso', 'pasta', 'pane', 'latte', 'olio', 'vino', 'aceto', 'sale', 'pepe', 'acqua',
-        'uova', 'uovo', 'carne', 'pesce', 'pollo', 'formaggio', 'yogurt', 'miele', 'farina',
-        'zucchero', 'biscotti', 'succo', 'salsa', 'sugo', 'crema', 'panna', 'burro',
-        'prosciutto', 'salame', 'tonno', 'mais', 'piselli', 'fagioli', 'lenticchie',
-        'patate', 'patata', 'mela', 'mele', 'banana', 'insalata', 'pomodoro', 'pomodori',
-        'cipolla', 'aglio', 'zucchine', 'zucchina', 'carote', 'carota', 'integrale', 'classico',
-        'fresco', 'fresca', 'dolce', 'bianco', 'rossa', 'rosso', 'gran', 'grande',
-    ];
-    return in_array($t, $weak, true);
+    // The weak tokens are data (api/vocab/<lang>.json → recipe_weak_tokens): a generic
+    // food word that must not be the evidence that a recipe matches the pantry.
+    static $weak = null;
+    if ($weak === null) {
+        $weak = [];
+        foreach ((array)(evershelfVocab()['recipe_weak_tokens'] ?? []) as $word) {
+            $weak[vocabFold((string)$word)] = true;
+        }
+    }
+    return isset($weak[vocabFold($t)]);
 }
 
 /** Significant tokens for pantry matching (strips punctuation; keeps words ≥3 chars). */
@@ -12021,23 +11922,8 @@ function generateRecipe(PDO $db): void {
     ];
     $mealLabel = $mealLabels[$mealType] ?? $mealType;
 
-    // Sub-type specialization for dolce/succo
-    $subTypeLabels = [
-        'dolce' => [
-            'torta'    => 'Torta (soffice, da forno: torta di mele, ciambellone, plumcake, angel cake, ecc.)',
-            'crema'    => 'Crema o Budino (crema pasticcera, panna cotta, mousse, tiramisù, budino, semifreddo)',
-            'crumble'  => 'Crumble o Crostata (base croccante: crumble di frutta, crostata, sbriciolata)',
-            'biscotti' => 'Biscotti o Pasticcini (biscotti, cookies, muffin, cupcake, pasticcini)',
-            'frutta'   => 'Dolce alla Frutta (macedonia creativa, frutta caramellata, sorbetto, frullato dolce)',
-        ],
-        'succo' => [
-            'dolce'        => 'Succo Dolce e Fruttato (mix di frutta dolce: pesca, mela, pera, fragola, banana)',
-            'energizzante' => 'Succo Energizzante (con zenzero, curcuma, barbabietola, carota, mela verde)',
-            'detox'        => 'Succo Detox / Verde (cetriolo, sedano, spinaci, mela verde, limone)',
-            'rinfrescante' => 'Succo Rinfrescante (anguria, menta, lime, cetriolo, acqua di cocco)',
-            'vitaminico'   => 'Succo Vitaminico / Agrumi (arancia, pompelmo, limone, kiwi, mandarino)',
-        ]
-    ];
+    // Sub-type labels live with the prompt copy (lib/ai_prompts.php).
+    $subTypeLabels = evershelfRecipePromptLabels()['sub_types'];
     $subTypeText = '';
     if (!empty($subType) && isset($subTypeLabels[$mealType][$subType])) {
         $subHint = $subTypeLabels[$mealType][$subType];
@@ -12689,10 +12575,7 @@ function generateRecipeStream(PDO $db): void {
     $mealLabel       = $mealLabels[$mealType] ?? $mealType;
     $mealLabelSimple = ['colazione'=>'colazione','pranzo'=>'pranzo','cena'=>'cena','dolce'=>'dolce','succo'=>'succo'];
 
-    $subTypeLabels = [
-        'dolce' => ['torta'=>'Torta (soffice, da forno: torta di mele, ciambellone, plumcake, angel cake, ecc.)','crema'=>'Crema o Budino (crema pasticcera, panna cotta, mousse, tiramisù, budino, semifreddo)','crumble'=>'Crumble o Crostata (base croccante: crumble di frutta, crostata, sbriciolata)','biscotti'=>'Biscotti o Pasticcini (biscotti, cookies, muffin, cupcake, pasticcini)','frutta'=>'Dolce alla Frutta (macedonia creativa, frutta caramellata, sorbetto, frullato dolce)'],
-        'succo' => ['dolce'=>'Succo Dolce e Fruttato (mix di frutta dolce: pesca, mela, pera, fragola, banana)','energizzante'=>'Succo Energizzante (con zenzero, curcuma, barbabietola, carota, mela verde)','detox'=>'Succo Detox / Verde (cetriolo, sedano, spinaci, mela verde, limone)','rinfrescante'=>'Succo Rinfrescante (anguria, menta, lime, cetriolo, acqua di cocco)','vitaminico'=>'Succo Vitaminico / Agrumi (arancia, pompelmo, limone, kiwi, mandarino)'],
-    ];
+    $subTypeLabels = evershelfRecipePromptLabels()['sub_types'];
     $subTypeText = '';
     if (!empty($subType) && isset($subTypeLabels[$mealType][$subType])) {
         $subHint      = $subTypeLabels[$mealType][$subType];
@@ -17395,19 +17278,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // Helper: extract significant tokens from a product name (mirrors JS _nameTokens)
     // Includes synonym expansion so French/Italian variants match (e.g. yaourt = yogurt)
     $nameTokens = function(string $name): array {
-        $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
-                 'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo'];
-        $synonyms = [
-            'yaourt' => 'yogurt', 'yogourt' => 'yogurt',
-            'lait'   => 'latte',  'fromage'  => 'formaggio',
-            'sucre'  => 'zucchero', 'jus'    => 'succo',
-            'orange' => 'arancia', 'pomme'   => 'mela',
-            'poire'  => 'pera',
-        ];
-        $tokens = preg_split('/\s+/', strtolower(preg_replace('/[^\p{L}\s]/u', ' ', $name)));
-        $tokens = array_filter($tokens, fn($t) => strlen($t) > 2 && !in_array($t, $stop));
-        // Apply synonyms
-        $tokens = array_map(fn($t) => $synonyms[$t] ?? $t, $tokens);
+        // Stop words and cross-language synonyms are vocabulary data, not code.
+        $stop     = (array)(evershelfVocab()['stop_words'] ?? []);
+        $synonyms = (array)(evershelfVocab()['synonyms'] ?? []);
+        $tokens   = [];
+        foreach (vocabTokens($name) as $token) {
+            if (mb_strlen($token) <= 2 || in_array($token, $stop, true)) {
+                continue;
+            }
+            $tokens[] = $synonyms[$token] ?? $token;
+        }
         return array_values(array_unique($tokens));
     };
 

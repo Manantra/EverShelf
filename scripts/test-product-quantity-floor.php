@@ -169,7 +169,7 @@ $mirrorSource = slice_function($js, 'function _isSoldByPieceProductName(name, ca
 assert_true($mirrorSource !== '', 'app.js: _isSoldByPieceProductName() is extractable');
 $probeNames = ['Pomodoro', 'Pomodori', 'Pomodorini', 'Pomodori pelati', 'Passata di pomodoro', 'Zucchine', 'Latte intero'];
 $mirrorProbe = "\nconsole.log(JSON.stringify(" . json_encode($probeNames) . ".map(n => _isSoldByPieceProductName(n))));";
-$mirror = json_decode(js_eval($mirrorSource, $mirrorProbe), true);
+$mirror = json_decode(js_eval((string)file_get_contents($root . '/assets/js/vocab.generated.js') . "\n" . (string)file_get_contents($root . '/assets/js/core/vocab.js') . "\n" . $mirrorSource, $mirrorProbe), true);
 if (!is_array($mirror)) {
     echo "SKIP: node is not available — the mirror probes were not run\n";
 } else {

@@ -19,6 +19,9 @@ require_once __DIR__ . '/lib/cron_log.php';
 require_once __DIR__ . '/logger.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/lib/shopping_guards.php';
+// The vocabulary layer: product names/genres/brands/plurals are DATA (api/vocab/<lang>.json),
+// this lib only matches them. Loaded before product_kind.php, which reads its dictionaries.
+require_once __DIR__ . '/lib/vocabulary.php';
 // Product rules: the genre (genere) that leads every article title, and the
 // automatic promotion of the products the household uses most.
 require_once __DIR__ . '/lib/product_kind.php';
