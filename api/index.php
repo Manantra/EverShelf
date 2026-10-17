@@ -13340,15 +13340,10 @@ function italianToBring(string $italianName): string {
         fn($w) => mb_strlen($w) >= 4   // skip very short words — too ambiguous
     );
 
-    $genericQualifiers = [
-        'dolce','salato','light','bio','classico','original','naturale','fresco','fresca',
-        'intero','intera','magro','magra','piccolo','piccola','grande','rosso','bianco',
-        // Generic descriptors that appear inside multi-word product names (e.g. "succo e polpa frutta",
-        // "muesli frutta secca") but do NOT represent the item category on their own.
-        // Pass 1 (exact match on shopping_name) still works correctly for truly generic items
-        // like shopping_name='Frutta' → it2de['frutta'] = 'Früchte'.
-        'frutta','verdura','frutti',
-    ];
+    // Generic descriptors that appear inside multi-word product names ("succo e polpa
+    // frutta") but do NOT represent the category on their own: vocabulary data, so no
+    // Italian word lives here. Pass 1 (exact match) still resolves truly generic items.
+    $genericQualifiers = array_values((array)(evershelfVocab()['bring_generic_qualifiers'] ?? []));
     $candidates = [];
     foreach ($catalog['it2de'] as $itLower => $deKey) {
         if (str_contains($itLower, ' ')) continue; // multi-word key → exact-only
