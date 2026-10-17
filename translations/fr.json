@@ -1,12 +1,12 @@
 {
   "settings_search": {
-      "placeholder": "Rechercher un réglage… (ex. étiquettes, ticket, GEMINI_API_KEY)",
-      "hint": "Recherche par nom, description ou clé .env. Entrée ouvre l’entrée.",
-      "empty": "Aucun réglage trouvé.",
-      "results": "{n} résultats",
-      "env_only": "Réglage du serveur (fichier .env)",
-      "jump": "Ouvrir",
-      "clear": "Effacer la recherche"
+    "placeholder": "Rechercher un réglage… (ex. étiquettes, ticket, GEMINI_API_KEY)",
+    "hint": "Recherche par nom, description ou clé .env. Entrée ouvre l’entrée.",
+    "empty": "Aucun réglage trouvé.",
+    "results": "{n} résultats",
+    "env_only": "Réglage du serveur (fichier .env)",
+    "jump": "Ouvrir",
+    "clear": "Effacer la recherche"
   },
   "receipt": {
     "photo": "Ticket",
@@ -1011,11 +1011,11 @@
       "tags": "étiquette,étiquettes,labels",
       "family": "famille,variantes,parent,enfant",
       "kind": "genre,titre,nom,catégorie",
-      "favorites": "favoris,automatique,consommation",
-      "audit": "inventaire,comptage,vérifier,stock",
+      "favorites": "favoris,automatique,consommation,stock,seuil,minimum,quantité",
+      "audit": "inventaire,comptage,vérifier,stock,stock,seuil,minimum,quantité",
       "receipt": "ticket,reçu,courses,prix,ocr",
       "ai": "ia,ai,gemini,openai,llama,modèle,api,clé",
-      "shopping": "courses,bring,liste,supermarché",
+      "shopping": "courses,bring,liste,supermarché,stock,seuil,minimum,quantité",
       "notify": "notifications,alertes,push,ntfy,telegram",
       "ha": "home assistant,ha,domotique",
       "theme": "thème,apparence,sombre,clair",

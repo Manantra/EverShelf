@@ -1,12 +1,12 @@
 {
   "settings_search": {
-      "placeholder": "Search a setting… (e.g. tags, receipt, GEMINI_API_KEY)",
-      "hint": "Search by name, description or .env key. Enter opens the entry.",
-      "empty": "No setting found.",
-      "results": "{n} results",
-      "env_only": "Server setting (the .env file)",
-      "jump": "Go",
-      "clear": "Clear the search"
+    "placeholder": "Search a setting… (e.g. tags, receipt, GEMINI_API_KEY)",
+    "hint": "Search by name, description or .env key. Enter opens the entry.",
+    "empty": "No setting found.",
+    "results": "{n} results",
+    "env_only": "Server setting (the .env file)",
+    "jump": "Go",
+    "clear": "Clear the search"
   },
   "receipt": {
     "photo": "Receipt",
@@ -1011,11 +1011,11 @@
       "tags": "tag,label,labels",
       "family": "family,variants,parent,child",
       "kind": "genre,title,name,category",
-      "favorites": "favorites,favourites,automatic,consumption",
-      "audit": "inventory,stocktake,count,audit,check",
+      "favorites": "favorites,favourites,automatic,consumption,stock,threshold,low,minimum,on hand",
+      "audit": "inventory,stocktake,count,audit,check,stock,threshold,low,minimum,on hand",
       "receipt": "receipt,shopping prices,ocr",
       "ai": "ai,gemini,openai,llama,model,api,key",
-      "shopping": "shopping,bring,list,supermarket",
+      "shopping": "shopping,bring,list,supermarket,stock,threshold,low,minimum,on hand",
       "notify": "notifications,alerts,push,ntfy,telegram",
       "ha": "home assistant,ha,smart home",
       "theme": "theme,appearance,dark,light",

@@ -1,12 +1,12 @@
 {
   "settings_search": {
-      "placeholder": "Buscar un ajuste… (p. ej. etiquetas, ticket, GEMINI_API_KEY)",
-      "hint": "Busca por nombre, descripción o clave .env. Intro abre la entrada.",
-      "empty": "Ningún ajuste encontrado.",
-      "results": "{n} resultados",
-      "env_only": "Ajuste del servidor (archivo .env)",
-      "jump": "Ir",
-      "clear": "Borrar la búsqueda"
+    "placeholder": "Buscar un ajuste… (p. ej. etiquetas, ticket, GEMINI_API_KEY)",
+    "hint": "Busca por nombre, descripción o clave .env. Intro abre la entrada.",
+    "empty": "Ningún ajuste encontrado.",
+    "results": "{n} resultados",
+    "env_only": "Ajuste del servidor (archivo .env)",
+    "jump": "Ir",
+    "clear": "Borrar la búsqueda"
   },
   "receipt": {
     "photo": "Ticket",
@@ -1011,11 +1011,11 @@
       "tags": "etiqueta,etiquetas,labels",
       "family": "familia,variantes,padre,hijo",
       "kind": "género,título,nombre,categoría",
-      "favorites": "favoritos,automático,consumo",
-      "audit": "inventario,recuento,verificar,stock",
+      "favorites": "favoritos,automático,consumo,stock,umbral,mínimo,existencias",
+      "audit": "inventario,recuento,verificar,stock,stock,umbral,mínimo,existencias",
       "receipt": "ticket,recibo,compra,precios,ocr",
       "ai": "ia,ai,gemini,openai,llama,modelo,api,clave",
-      "shopping": "compra,bring,lista,supermercado",
+      "shopping": "compra,bring,lista,supermercado,stock,umbral,mínimo,existencias",
       "notify": "notificaciones,avisos,push,ntfy,telegram",
       "ha": "home assistant,ha,domótica",
       "theme": "tema,apariencia,oscuro,claro",
