@@ -1,4 +1,13 @@
 {
+  "settings_search": {
+      "placeholder": "Cerca un'impostazione… (es. tag, scontrino, GEMINI_API_KEY)",
+      "hint": "Cerca per nome, descrizione o chiave .env. Invio apre la voce.",
+      "empty": "Nessuna impostazione trovata.",
+      "results": "{n} risultati",
+      "env_only": "Impostazione del server (file .env)",
+      "jump": "Vai",
+      "clear": "Azzera la ricerca"
+  },
   "receipt": {
     "photo": "Scontrino",
     "title": "Scontrino",
@@ -998,6 +1007,21 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "search_kw": {
+      "tags": "tag,ettichette,etichetta,labels",
+      "family": "famiglia,varianti,parent,child,padre,figlio",
+      "kind": "genere,titolo,nome,categoria",
+      "favorites": "preferiti,favoriti,automatici,consumo",
+      "audit": "inventario,stocktake,conteggio,verifica",
+      "receipt": "scontrino,ricevuta,spesa,prezzi,ocr",
+      "ai": "ia,ai,gemini,openai,llama,modello,api,chiave",
+      "shopping": "spesa,bring,lista,supermercato",
+      "notify": "notifiche,avvisi,push,ntfy,telegram",
+      "ha": "home assistant,ha,domotica",
+      "theme": "tema,aspetto,scuro,chiaro",
+      "language": "lingua,italiano,english,deutsch",
+      "backup": "backup,salvataggio,copia,gdrive"
+    },
     "groups_aria": "Sezioni delle impostazioni",
     "subsections_label": "Sottosezioni",
     "group_app": "🤖 App e AI",

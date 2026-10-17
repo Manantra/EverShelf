@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.15.0] - 2026-10-17
+
+### Find a setting by typing what it does
+- **A search field at the top of Settings.** It matches the label, the description, the
+  synonyms ("etichette" finds *Tag*, "stocktake" finds *Inventario veloce*), the tab name
+  and the `.env` key (`GEMINI_API_KEY` works), accent- and case-insensitively. A result
+  opens the right tab, scrolls to the field and flashes it; `/` or `Ctrl/⌘+K` focuses the
+  field, arrows and `Enter` pick a result, `Esc` clears it.
+- **One registry for the whole page.** `scripts/gen-settings-schema.php` reads the settings
+  markup and writes `assets/js/settings.schema.generated.js` + `api/lib/settings_schema.php`:
+  **114 controls**, each with its tab, section, i18n label, description and `.env` key. The
+  page still renders its own HTML — the registry is what makes the search, the descriptions
+  and the coverage test possible without a rewrite.
+- **Nothing is unreachable.** The 48 `.env` keys that have no control (tokens, logging,
+  support, tuning) are listed in `api/lib/settings_env_allowlist.php` with a reason and stay
+  searchable as “server setting”, so all **129 keys** are one search away.
+- **A guard test for it**: `scripts/test-settings-schema.php` (27 checks) proves the registry
+  is in sync with the page, every control has a label and a description, every string exists
+  in all six locales, every tab belongs to a known section, and every `.env` key is either a
+  control or a documented server-only key.
+- Fixed on the way: the product-rules card had a duplicated *Famiglie* block (duplicate
+  `id`), which made the family toggle ambiguous.
+
 ## [1.14.0] - 2026-10-17
 
 ### Product tags, and nothing disappears when a refresh fails

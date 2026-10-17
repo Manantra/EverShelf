@@ -1,4 +1,13 @@
 {
+  "settings_search": {
+      "placeholder": "Search a setting… (e.g. tags, receipt, GEMINI_API_KEY)",
+      "hint": "Search by name, description or .env key. Enter opens the entry.",
+      "empty": "No setting found.",
+      "results": "{n} results",
+      "env_only": "Server setting (the .env file)",
+      "jump": "Go",
+      "clear": "Clear the search"
+  },
   "receipt": {
     "photo": "Receipt",
     "title": "Receipt",
@@ -998,6 +1007,21 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "search_kw": {
+      "tags": "tag,label,labels",
+      "family": "family,variants,parent,child",
+      "kind": "genre,title,name,category",
+      "favorites": "favorites,favourites,automatic,consumption",
+      "audit": "inventory,stocktake,count,audit,check",
+      "receipt": "receipt,shopping prices,ocr",
+      "ai": "ai,gemini,openai,llama,model,api,key",
+      "shopping": "shopping,bring,list,supermarket",
+      "notify": "notifications,alerts,push,ntfy,telegram",
+      "ha": "home assistant,ha,smart home",
+      "theme": "theme,appearance,dark,light",
+      "language": "language,italian,english,deutsch",
+      "backup": "backup,restore,copy,gdrive"
+    },
     "groups_aria": "Settings sections",
     "subsections_label": "Sub-sections",
     "group_app": "🤖 App & AI",
