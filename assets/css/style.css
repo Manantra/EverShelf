@@ -64,6 +64,14 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+/* The root element paints the canvas *before* body does, and it is white by
+   default: on Android any frame where the WebView surface is not painted yet
+   (renderer restart, navigation start, surface re-attach) showed a white flash.
+   Painting it with the app background makes those frames invisible. */
+html {
+    background: var(--bg);
+}
+
 body {
     font-family: var(--es-font);
     background: var(--bg);

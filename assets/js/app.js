@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261017k'; // bump when translations change
+const _I18N_VERSION = '20261017l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1583,6 +1583,10 @@ function _applyTheme() {
         isDark = h >= 20 || h < 7;
     }
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    // Keep the Android status bar in step with the page: a light bar over a dark
+    // page (or the other way round) reads as a flash on the tablet.
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute('content', isDark ? '#0f172a' : '#2d5016');
 }
 
 function _setThemeMode(mode) {
@@ -11559,7 +11563,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11569,7 +11573,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261017l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
