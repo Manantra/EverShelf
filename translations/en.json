@@ -1,4 +1,21 @@
 {
+  "audit": {
+    "start": "Quick stocktake",
+    "title": "Check the pantry",
+    "scope_hint": "Pick what to check: one card at a time, three answers.",
+    "scope_all": "Everything",
+    "question": "Still there?",
+    "there_is": "There is",
+    "almost_out": "Almost out",
+    "finished": "Finished",
+    "skip": "Skip",
+    "close": "Close",
+    "empty": "Nothing to check.",
+    "summary_title": "Stocktake done",
+    "summary_line": "{there} confirmed · {almost} almost out · {finished} finished · {skipped} skipped",
+    "summary_errors": "{n} changes not saved",
+    "done": "Done"
+  },
   "product_tags": {
     "form_label": "Tags",
     "placeholder": "gluten-free, organic, kids…",
@@ -1511,6 +1528,9 @@
       "trip_complete_hint": "On the shopping page, “Trip done” clears the whole list and blocks auto re-add until items run out again."
     },
     "product_rules": {
+      "audit_label": "Quick stocktake",
+      "audit_hint": "One product at a time, three big answers: the pantry is back in shape in a couple of minutes, no scanner.",
+      "audit_batch_label": "Save every",
       "tags_label": "Custom product tags",
       "tags_hint": "Free-form labels (\"gluten-free\", \"organic\", \"kids\") on the cards and to filter the pantry.",
       "card_title": "🏷️ Names and automatic favourites",

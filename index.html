@@ -323,6 +323,10 @@
             <button type="button" class="search-clear-btn" id="inventory-search-clear" onclick="clearInventorySearch()" hidden aria-label="Cancella ricerca" data-i18n-aria="inventory.clear_search" data-i18n-title="inventory.clear_search" title="Cancella ricerca">×</button>
         </div>
         <div class="inv-tag-filter" id="inventory-tag-filter" hidden></div>
+        <div class="inv-quick-actions">
+            <button type="button" class="btn-secondary" id="inventory-stocktake-btn"
+                    onclick="_auditStart()" data-i18n="audit.start">Inventario veloce</button>
+        </div>
         <!-- Quick access: recent & popular products -->
         <div id="quick-access-section" style="display:none">
             <div class="quick-access-group" id="quick-recent-group" style="display:none">
@@ -1208,6 +1212,22 @@
                             </span>
                         </label>
                         <p class="settings-hint" data-i18n="settings.product_rules.tags_hint">Etichette libere («senza glutine», «bio», «bimbi») sulle card e per filtrare la dispensa.</p>
+                    </div>
+                    <div class="form-group" style="margin-top:8px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.product_rules.audit_label">Inventario veloce</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-audit-mode-enabled">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.product_rules.audit_hint">Un prodotto alla volta, tre risposte grandi: la dispensa si sistema in un paio di minuti, senza scanner.</p>
+                        <label data-i18n="settings.product_rules.audit_batch_label" style="display:block;margin-top:6px">Salva ogni</label>
+                        <div class="qty-control" style="margin-top:6px">
+                            <button type="button" class="qty-btn" onclick="adjustQty('setting-audit-batch-size', -1, 1, 50)">−</button>
+                            <input type="number" id="setting-audit-batch-size" class="qty-input" min="1" max="50" value="5">
+                            <button type="button" class="qty-btn" onclick="adjustQty('setting-audit-batch-size', 1, 1, 50)">+</button>
+                        </div>
                     </div>
                     <div class="form-group" style="margin-top:8px">
                         <label data-i18n="settings.product_rules.auto_favorite_label">Preferiti automatici dopo</label>
@@ -2874,5 +2894,7 @@
 <script src="assets/js/vocab.generated.js?v=20261017g"></script>
 <script src="assets/js/core/vocab.js?v=20261017g"></script>
 <script src="assets/js/app.js?v=20261017g"></script>
+<script src="assets/js/audit.js?v=20261017g"></script>
+<div id="audit-overlay" class="audit-overlay" hidden></div>
 </body>
 </html>

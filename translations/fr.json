@@ -1,4 +1,21 @@
 {
+  "audit": {
+    "start": "Inventaire rapide",
+    "title": "Vérifier le garde-manger",
+    "scope_hint": "Choisissez la zone : une fiche à la fois, trois réponses.",
+    "scope_all": "Tout",
+    "question": "Toujours là ?",
+    "there_is": "Il y en a",
+    "almost_out": "Presque fini",
+    "finished": "Fini",
+    "skip": "Passer",
+    "close": "Fermer",
+    "empty": "Rien à vérifier.",
+    "summary_title": "Inventaire terminé",
+    "summary_line": "{there} confirmés · {almost} presque finis · {finished} finis · {skipped} passés",
+    "summary_errors": "{n} modifications non enregistrées",
+    "done": "Terminé"
+  },
   "product_tags": {
     "form_label": "Étiquettes",
     "placeholder": "sans gluten, bio, enfants…",
@@ -1364,6 +1381,9 @@
       "trip_complete_hint": "Sur la page Courses, « Courses terminées » vide toute la liste et bloque les réajouts auto jusqu’au prochain épuisement."
     },
     "product_rules": {
+      "audit_label": "Inventaire rapide",
+      "audit_hint": "Un produit à la fois, trois grandes réponses : le garde-manger est à jour en deux minutes, sans scanner.",
+      "audit_batch_label": "Enregistrer tous les",
       "tags_label": "Étiquettes personnalisées",
       "tags_hint": "Libellés libres (« sans gluten », « bio », « enfants ») sur les cartes et pour filtrer le garde-manger.",
       "card_title": "🏷️ Noms et favoris automatiques",
