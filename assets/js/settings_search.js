@@ -103,7 +103,10 @@ function _settingsSearchRender() {
     const lang = document.documentElement.lang || '';
     const entries = (_settingsIndex && lang === _settingsIndexLang) ? _settingsIndex : _settingsBuildIndex();
     const tokens = _settingsNorm(query).split(/\s+/).filter(Boolean);
-    const hits = entries.filter(entry => tokens.every(token => entry.hay.includes(token))).slice(0, 25);
+    // Word-boundary matching: 'tema' must not match 'sistemazione', while
+    // 'gemini_api_key' and 'scon' still work (prefix of a word).
+    const patterns = tokens.map(token => new RegExp('(^|[^a-z0-9])' + token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    const hits = entries.filter(entry => patterns.every(re => re.test(entry.hay))).slice(0, 25);
     _settingsHits = hits;
     _settingsHitIndex = 0;
     box.hidden = false;

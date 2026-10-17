@@ -1,12 +1,12 @@
 {
   "settings_search": {
-      "placeholder": "搜索设置…（例如 标签、小票、GEMINI_API_KEY）",
-      "hint": "按名称、说明或 .env 键搜索。回车打开该项。",
-      "empty": "未找到设置。",
-      "results": "{n} 个结果",
-      "env_only": "服务器设置（.env 文件）",
-      "jump": "前往",
-      "clear": "清除搜索"
+    "placeholder": "搜索设置…（例如 标签、小票、GEMINI_API_KEY）",
+    "hint": "按名称、说明或 .env 键搜索。回车打开该项。",
+    "empty": "未找到设置。",
+    "results": "{n} 个结果",
+    "env_only": "服务器设置（.env 文件）",
+    "jump": "前往",
+    "clear": "清除搜索"
   },
   "receipt": {
     "photo": "小票",
@@ -1011,11 +1011,11 @@
       "tags": "标签,标记,labels",
       "family": "系列,变体,父级,子级",
       "kind": "类型,标题,名称,分类",
-      "favorites": "收藏,最爱,自动,消耗",
-      "audit": "库存,盘点,核对,计数",
+      "favorites": "收藏,最爱,自动,消耗,库存,阈值,最低,余量",
+      "audit": "库存,盘点,核对,计数,库存,阈值,最低,余量",
       "receipt": "小票,收据,购物,价格,ocr",
       "ai": "ai,人工智能,gemini,openai,llama,模型,api,密钥",
-      "shopping": "购物,bring,清单,超市",
+      "shopping": "购物,bring,清单,超市,库存,阈值,最低,余量",
       "notify": "通知,提醒,推送,ntfy,telegram",
       "ha": "home assistant,ha,智能家居",
       "theme": "主题,外观,深色,浅色",

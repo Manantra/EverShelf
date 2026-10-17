@@ -1,12 +1,12 @@
 {
   "settings_search": {
-      "placeholder": "Einstellung suchen… (z. B. Tags, Bon, GEMINI_API_KEY)",
-      "hint": "Suche nach Name, Beschreibung oder .env-Schlüssel. Enter öffnet den Eintrag.",
-      "empty": "Keine Einstellung gefunden.",
-      "results": "{n} Treffer",
-      "env_only": "Server-Einstellung (Datei .env)",
-      "jump": "Öffnen",
-      "clear": "Suche zurücksetzen"
+    "placeholder": "Einstellung suchen… (z. B. Tags, Bon, GEMINI_API_KEY)",
+    "hint": "Suche nach Name, Beschreibung oder .env-Schlüssel. Enter öffnet den Eintrag.",
+    "empty": "Keine Einstellung gefunden.",
+    "results": "{n} Treffer",
+    "env_only": "Server-Einstellung (Datei .env)",
+    "jump": "Öffnen",
+    "clear": "Suche zurücksetzen"
   },
   "receipt": {
     "photo": "Kassenbon",
@@ -1011,11 +1011,11 @@
       "tags": "tag,etiketten,labels",
       "family": "familie,varianten,parent,child",
       "kind": "genre,titel,name,kategorie",
-      "favorites": "favoriten,automatisch,verbrauch",
-      "audit": "inventur,zählen,prüfen,bestand",
+      "favorites": "favoriten,automatisch,verbrauch,bestand,schwelle,minimum,vorrat",
+      "audit": "inventur,zählen,prüfen,bestand,bestand,schwelle,minimum,vorrat",
       "receipt": "bon,kassenzettel,einkauf,preise,ocr",
       "ai": "ki,ai,gemini,openai,llama,modell,api,schlüssel",
-      "shopping": "einkauf,bring,liste,supermarkt",
+      "shopping": "einkauf,bring,liste,supermarkt,bestand,schwelle,minimum,vorrat",
       "notify": "benachrichtigungen,hinweise,push,ntfy,telegram",
       "ha": "home assistant,ha,smart home",
       "theme": "design,erscheinungsbild,dunkel,hell",
