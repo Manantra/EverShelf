@@ -2825,7 +2825,7 @@ function haInventorySensor(PDO $db): void {
                     array_map(static fn($n) => ['name' => $n], $shopNames),
                     $country,
                     $priceCurrency,
-                    'it',
+                    (string)env('APP_LANG', 'en'),
                     false
                 );
                 $shoppingTotal = round((float)($computed['total'] ?? 0), 2);
