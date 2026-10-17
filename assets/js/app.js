@@ -9776,7 +9776,12 @@ async function loadInventory() {
             api('inventory_list', currentLocation ? { location: currentLocation } : {}),
             currentLocation ? api('inventory_list', {}) : null,
         ]);
-        currentInventory = _inventoryVisibleItems(locData.inventory || []);
+        // A rate-limit / error answer is a JSON object without `inventory`: never replace
+        // the visible pantry with an empty list in that case (the household would think
+        // everything is gone). Keep what is on screen and try again on the next refresh.
+        const locItems = Array.isArray(locData?.inventory) ? locData.inventory : null;
+        if (locItems === null) throw new Error('inventory_list: no payload');
+        currentInventory = _inventoryVisibleItems(locItems);
         _allInventoryCache = currentLocation
             ? _inventoryVisibleItems(allData?.inventory || [])
             : currentInventory;
