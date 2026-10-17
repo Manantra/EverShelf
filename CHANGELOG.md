@@ -13,7 +13,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
-## [1.12.0] - 2026-10-15
+## [1.13.0] - 2026-10-16
+
+### A scanned tomato is not a jar of passata — and the vocabulary is data
+- **A loose vegetable never becomes the pantry's tin of the same word.** The duplicate
+  consolidator merged any two barcode-less rows whose names merely shared a substring
+  ("pomodoro" ⊂ "passata di pomodoro") and kept the row with the barcode: the tomato the
+  user had just scanned was deleted into the jar. The documented "at least one row has a
+  barcode" gate is enforced, the loose head-prefix rule is word-bounded and asks the
+  curated dictionary whether the extra words name *another* product (a variety merges,
+  "Latte" vs "Latte di mandorla" does not), and the same rule now guards the reuse path.
+- **The name→category guessers are one vocabulary again.** They had drifted into two
+  different ones (26 of 83 probe names disagreed: formaggio, farina, zucchero, biscotti,
+  funghi, miele, detersivo… were 'altro' on the server; "Marmellata di albicocche" was
+  frutta; "Carote" was a beverage in the browser because of an ASCII `\b`). The PHP is now
+  a port of the JS and both read the same data.
+- **The AI also says how the product is counted.** Both identification prompts return a
+  plausible `unit` (pz/g/ml/conf), `quantity` and the pack size on the label; the answer
+  is whitelisted server-side and the add form opens on it (two tomatoes → 2 pz, cut
+  cheese → 500 g, a jar → its 700 g pack) instead of a hardcoded "pz/1".
+- **A new pantry row below the floor is refused.** `inventory_add` rejects < 20 g/ml
+  (0.02 kg/l, 1 pz, ¼ conf) — the reported "2 g instead of 2 pieces" that
+  `isInventoryDepleted()` hid the moment it was written. Client and server share the
+  floor; tomatoes are piece produce; the refusal is a translated `error_key`.
+- **"Spesa stimata" is one number.** The server resolves the basket from the smart cache
+  (the caller's quantity is only the fallback), one cache key per basket and a cache that
+  keeps a few baskets instead of one evicting slot: the app, the kiosk and the Home
+  Assistant sensor finally agree.
+- **Every recorded spend leaves a trace.** `spend_add` logs the amount and the resulting
+  month total (the ledger has no correction UI, so "the month jumped" must be answerable).
+
+### The vocabulary is DATA (multilingual by construction)
+- `api/vocab/<lang>.json` holds product genres, brands, piece produce, preparations,
+  number/agreement forms, plural suffix pairs, stop words, synonyms and the shopping
+  dictionaries. `api/lib/vocabulary.php` is the only algorithm that reads them — no
+  product word and no Italian rule in the code, and **no regex on vocabulary**.
+- The browser runs the same engine (`assets/js/core/vocab.js`) over
+  `assets/js/vocab.generated.js`, generated from the JSON (`scripts/gen-vocab-js.php`)
+  and precached by the service worker. Adding a language = adding a JSON file.
+- `scripts/test-vocabulary.php` locks it: the generated file must match the JSON, and a
+  ratchet counts the vocabulary words still in the logic files (the migrated ones are at
+  zero and may only go down). Guard tests added for the AI match, the quantity floor and
+  the canonical shopping total.
+
+
 
 ### Optional support: a donation, or nothing for now
 - **The project can now be supported without becoming a paid product.** Once, at
