@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.15.3] - 2026-10-17
+
+### The tablet stops “resetting” itself
+- **A warm reload no longer pays the 3 s splash.** The boot rail exists to tell the user what
+  the app is checking; on a reload inside a session that already ran (language change, the
+  kiosk ↻, an update) it made every refresh look like a reset. The first boot of a session
+  keeps the full rail, a warm one keeps only the fade (`sessionStorage` flag).
+- **Kiosk: the HTTP cache is used again** (`LOAD_DEFAULT` instead of `LOAD_NO_CACHE`), so a
+  reload no longer refetches every asset and the blank WebView surface stays visible for a
+  fraction of the time. Cache busting is already handled by the `?v=` stamps and the service
+  worker.
+- **Kiosk: a page watchdog.** Every 5 minutes the WebView is asked for a value; if the answer
+  does not arrive within 6 s (a hung renderer keeps showing the last frame forever) the page
+  is reloaded **once** and the event is reported as `page-watchdog-reload`. It is started in
+  `onResume` and stopped in `onPause`, so nothing probes while the tablet is in background.
+
 ## [1.15.2] - 2026-10-17
 
 ### The white flash on the tablet

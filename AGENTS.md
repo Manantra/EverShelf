@@ -260,6 +260,7 @@ npm run build
 | Splash / boot rail | `#app-preloader` in `index.html` + `_preloaderStage()` / `_PRELOADER_STAGE_KEYS` / `_PRELOADER_STAGE_OF_CHECK` in `app.js` (grey → blink → coloured aura; `is-pending|is-active|is-done|is-warn|is-error`), version chip `#preloader-version`; guard test `scripts/test-preloader-stages.php` |
 | Optional support (donations only — **no ads**) | `api/lib/support.php` (decision, payload, donation link, disclosed costs), `api/lib/qr.php` (ISO QR encoder → `?action=support_qr`), `assets/js/core/support.js` (dialog, donation panel; `_renderAdSlots()` is a parked no-op), `.env` keys `SUPPORT_*` — the banner slots and the `ADS_*` / `SUPPORT_BANNERS_AVAILABLE` keys are **commented out on purpose**; guard tests `scripts/test-support-monetization.php`, `scripts/test-qr-encoder.php`, doc `docs/wiki/Support-and-ads.md` |
 | PWA service worker | `sw.js` |
+| Kiosk (Android WebView) | `evershelf-kiosk/` — `KioskActivity.kt` (WebView surface colour, URL normalisation on resume, 5-min page watchdog), `themes.xml` (`windowBackground`), `SetupActivity.kt` (pairing wizard) |
 
 ## Anti-patterns to avoid (already present — do not copy)
 
