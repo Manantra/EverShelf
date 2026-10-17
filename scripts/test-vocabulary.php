@@ -115,11 +115,11 @@ $baseline = [
     'assets/js/app.js'            => 226,
     'assets/js/core/vocab.js'     => 0,
 ];
+// The scan is on the language the CODE is written in: a translated vocabulary file is
+// data for that language and may legitimately share a word with an identifier.
 $scan = [];
-foreach ($vocab as $data) {
-    foreach (vocabulary_words((array)$data) as $word) {
-        $scan[mb_strtolower($word)] = true;
-    }
+foreach (vocabulary_words((array)($vocab['it'] ?? [])) as $word) {
+    $scan[mb_strtolower($word)] = true;
 }
 foreach ($logicFiles as $rel) {
     $code = strip_comments((string)file_get_contents($root . '/' . $rel));

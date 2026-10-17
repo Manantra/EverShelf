@@ -12,17 +12,17 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261017a">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261017a">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261017a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261017b">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261017b">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261017b">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261017a"></script>
-    <script src="assets/js/core/auth.js?v=20261017a"></script>
+    <script src="assets/js/core/dom.js?v=20261017b"></script>
+    <script src="assets/js/core/auth.js?v=20261017b"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261017a"></script>
+    <script src="assets/js/core/support.js?v=20261017b"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -30,7 +30,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261017b';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -39,13 +39,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017a';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017b';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261017a"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261017b"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -2852,8 +2852,8 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261017a"></script>
-<script src="assets/js/core/vocab.js?v=20261017a"></script>
-<script src="assets/js/app.js?v=20261017a"></script>
+<script src="assets/js/vocab.generated.js?v=20261017b"></script>
+<script src="assets/js/core/vocab.js?v=20261017b"></script>
+<script src="assets/js/app.js?v=20261017b"></script>
 </body>
 </html>
