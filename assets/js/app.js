@@ -9769,7 +9769,10 @@ function formatPackageFraction(qty, defaultQty) {
 }
 
 // ===== INVENTORY =====
+loadInventory._requestId = 0;
 async function loadInventory() {
+    // A late answer for the previous location must not overwrite the current one.
+    const requestId = ++loadInventory._requestId;
     try {
         _restoreInventorySearchInput();
         const [locData, allData] = await Promise.all([
@@ -9779,6 +9782,7 @@ async function loadInventory() {
         // A rate-limit / error answer is a JSON object without `inventory`: never replace
         // the visible pantry with an empty list in that case (the household would think
         // everything is gone). Keep what is on screen and try again on the next refresh.
+        if (requestId !== loadInventory._requestId) return;
         const locItems = Array.isArray(locData?.inventory) ? locData.inventory : null;
         if (locItems === null) throw new Error('inventory_list: no payload');
         currentInventory = _inventoryVisibleItems(locItems);
@@ -19376,7 +19380,10 @@ async function autoSyncUrgencySpecs() {
     } catch (e) { /* ignore - sync is best-effort */ }
 }
 
+loadShoppingList._requestId = 0;
 async function loadShoppingList() {
+    // Only the newest refresh may write: a slow answer must not overwrite a newer one.
+    const requestId = ++loadShoppingList._requestId;
     const statusEl = document.getElementById('bring-status');
     const currentEl = document.getElementById('shopping-current');
     const suggestionsEl = document.getElementById('shopping-suggestions');
@@ -19390,6 +19397,7 @@ async function loadShoppingList() {
     if (isBackgroundCall) {
         try {
             const data = await api('shopping_list');
+            if (requestId !== loadShoppingList._requestId) return;
             if (data.success) {
                 const newItems = data.purchase || [];
                 const newNames = new Set(newItems.map(i => i.name.toLowerCase()));
@@ -19414,10 +19422,15 @@ async function loadShoppingList() {
         return;
     }
     
-    statusEl.style.display = 'block';
-    statusEl.innerHTML = `<div class="bring-loading"><div class="loading-spinner"></div> ${t(_isShoppingBringMode() ? 'shopping.bring_loading' : 'shopping.list_loading')}</div>`;
-    currentEl.style.display = 'none';
-    suggestionsEl.style.display = 'none';
+    // Keep what the household already sees: a refresh must not blank the list,
+    // otherwise a slow or failed call looks like "my shopping list disappeared".
+    const hadExistingItems = Array.isArray(shoppingItems) && shoppingItems.length > 0;
+    statusEl.style.display = hadExistingItems ? 'none' : 'block';
+    if (!hadExistingItems) {
+        statusEl.innerHTML = `<div class="bring-loading"><div class="loading-spinner"></div> ${t(_isShoppingBringMode() ? 'shopping.bring_loading' : 'shopping.list_loading')}</div>`;
+        currentEl.style.display = 'none';
+        suggestionsEl.style.display = 'none';
+    }
 
     // ── Demo mode: show placeholder list, skip all Bring! API calls ──────────
     if (_demoMode) {
@@ -19443,6 +19456,7 @@ async function loadShoppingList() {
     
     try {
         const data = await api('shopping_list');
+        if (requestId !== loadShoppingList._requestId) return;
         statusEl.style.display = 'none';
         
         if (!data.success) {

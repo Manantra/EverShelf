@@ -16762,7 +16762,9 @@ function smartShoppingCached(PDO $db): void {
             $raw = file_get_contents($cacheFile);
             if ($raw !== false) {
                 $data = json_decode($raw, true);
-                if ($data && isset($data['success']) && (int)($data['plan_days'] ?? -1) === $planDays) {
+                // `empty_stock_only` marks the cache schema: an older cache written while
+                // low-stock items were still listed is rebuilt instead of being served.
+                if ($data && isset($data['success']) && !empty($data['empty_stock_only']) && (int)($data['plan_days'] ?? -1) === $planDays) {
                     $data['cache_age_seconds'] = time() - ($data['cached_ts'] ?? $mtime);
                     $data['items'] = smartShoppingFilterPurchased($db, $data['items'] ?? []);
                     $data['plan_days_default'] = smartDefaultPlanDays($db);
@@ -16778,6 +16780,7 @@ function smartShoppingCached(PDO $db): void {
     $json = ob_get_clean();
     $decoded = json_decode($json, true);
     if ($decoded && !empty($decoded['success'])) {
+        $decoded['empty_stock_only'] = true;
         $decoded['cached_ts'] = time();
         $decoded['cached_at'] = date('c');
         @file_put_contents($cacheFile, json_encode($decoded, JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -18199,6 +18202,12 @@ function bringSuggestItems(PDO $db): void {
         $data = json_decode($raw, true);
         $smartItems = $data['items'] ?? [];
     }
+
+    // A product still in the pantry must never be suggested, even when a stale
+    // cache still lists it: keep only the items at (or below) zero stock.
+    $smartItems = array_values(array_filter($smartItems, static function ($item): bool {
+        return (float)($item['current_qty'] ?? $item['quantity'] ?? 0) <= 0;
+    }));
 
     // 2. List UUID for the client — Bring only when that mode is on.
     $listUUID = isShoppingBringMode()
