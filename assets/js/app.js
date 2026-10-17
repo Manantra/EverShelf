@@ -4223,7 +4223,7 @@ function _applySyncedSettings(serverSettings) {
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
-        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled',
+        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -4957,7 +4957,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
-            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled',
+            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -5660,6 +5660,8 @@ function _applyProductRuleSettingsUI(s) {
     if (auditEnabledEl) auditEnabledEl.checked = s.audit_mode_enabled !== false;
     const variantsEl = document.getElementById('setting-product-variants-enabled');
     if (variantsEl) variantsEl.checked = s.product_variants_enabled !== false;
+    const receiptEl = document.getElementById('setting-receipt-ocr-enabled');
+    if (receiptEl) receiptEl.checked = s.receipt_ocr_enabled !== false;
     const auditBatchEl = document.getElementById('setting-audit-batch-size');
     if (auditBatchEl) auditBatchEl.value = s.audit_mode_batch_size || 5;
     if (typeof _auditSetBatchSize === 'function') _auditSetBatchSize(s.audit_mode_batch_size);
@@ -5876,6 +5878,8 @@ async function saveSettings() {
     if (auditToggleEl) s.audit_mode_enabled = auditToggleEl.checked;
     const variantsToggleEl = document.getElementById('setting-product-variants-enabled');
     if (variantsToggleEl) s.product_variants_enabled = variantsToggleEl.checked;
+    const receiptToggleEl = document.getElementById('setting-receipt-ocr-enabled');
+    if (receiptToggleEl) s.receipt_ocr_enabled = receiptToggleEl.checked;
     const auditBatchField = document.getElementById('setting-audit-batch-size');
     if (auditBatchField) s.audit_mode_batch_size = Math.max(1, Math.min(50, Number(auditBatchField.value) || 5));
     const autoFavMinEl = document.getElementById('setting-auto-favorite-min-uses');
@@ -5971,6 +5975,7 @@ async function saveSettings() {
             audit_mode_enabled:          s.audit_mode_enabled !== false,
             audit_mode_batch_size:       s.audit_mode_batch_size || 5,
             product_variants_enabled:    s.product_variants_enabled !== false,
+            receipt_ocr_enabled:         s.receipt_ocr_enabled !== false,
             auto_favorite_min_uses:      s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3,
             dark_mode:                   s.dark_mode || 'auto',
             barcode_ai_fallback:          !!s.barcode_ai_fallback,

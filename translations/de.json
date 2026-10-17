@@ -1,4 +1,20 @@
 {
+  "receipt": {
+    "photo": "Kassenbon",
+    "title": "Kassenbon",
+    "reading": "Bon wird gelesen…",
+    "review_title": "Erkannte Zeilen",
+    "hint": "Prüfe die Zeilen: nichts landet im Vorrat, bevor du bestätigst.",
+    "col_name": "Produkt",
+    "col_qty": "Menge",
+    "col_unit": "Einheit",
+    "col_price": "Preis",
+    "remove": "Entfernen",
+    "confirm": "{n} in den Vorrat übernehmen",
+    "cancel": "Abbrechen",
+    "empty": "Kein lesbares Produkt auf diesem Foto.",
+    "done": "{ok} übernommen · {ko} nicht gespeichert"
+  },
   "product_family": {
     "form_label": "Familie",
     "placeholder": "z. B. Spaghetti",
@@ -1491,6 +1507,8 @@
       "trip_complete_hint": "Auf der Einkaufsseite löscht „Einkauf erledigt“ die ganze Liste und blockiert Auto-Nachträge bis Artikel wieder leer sind."
     },
     "product_rules": {
+      "receipt_label": "Bon-Erkennung",
+      "receipt_hint": "Ein Foto des Bons schlägt die Zeilen vor; nichts landet im Vorrat, bevor du die Tabelle bestätigst.",
       "family_label": "Produktfamilien",
       "family_hint": "Ein generisches Produkt (Spaghetti) mit seinen Varianten (Barilla, Rummo): der Vorrat zeigt die Variante, die Summe der Familie in einer Zeile.",
       "audit_label": "Schnelle Inventur",
@@ -1901,6 +1919,8 @@
     "badge_better": "weniger als Ø"
   },
   "error": {
+    "receipt_disabled": "Die Bon-Erkennung ist in den Einstellungen deaktiviert.",
+    "receipt_failed": "Der Bon konnte nicht gelesen werden.",
     "family_disabled": "Produktfamilien sind in den Einstellungen deaktiviert.",
     "family_self_parent": "Ein Produkt kann nicht seine eigene Familie sein.",
     "family_parent_is_child": "Diese Variante gehört bereits zu einer Familie.",

@@ -1,4 +1,20 @@
 {
+  "receipt": {
+    "photo": "Scontrino",
+    "title": "Scontrino",
+    "reading": "Leggo lo scontrino…",
+    "review_title": "Righe lette",
+    "hint": "Controlla le righe: nulla entra in dispensa prima della conferma.",
+    "col_name": "Prodotto",
+    "col_qty": "Q.tà",
+    "col_unit": "Unità",
+    "col_price": "Prezzo",
+    "remove": "Togli",
+    "confirm": "Aggiungi {n} alla dispensa",
+    "cancel": "Annulla",
+    "empty": "Nessun prodotto leggibile in questa foto.",
+    "done": "{ok} aggiunti · {ko} non salvati"
+  },
   "product_family": {
     "form_label": "Famiglia",
     "placeholder": "es. Spaghetti",
@@ -1534,6 +1550,8 @@
       "trip_complete_hint": "In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento."
     },
     "product_rules": {
+      "receipt_label": "Lettura scontrini",
+      "receipt_hint": "Una foto dello scontrino propone le righe; nulla entra in dispensa finché non confermi la tabella.",
       "family_label": "Famiglie di prodotti",
       "family_hint": "Un prodotto generico (Spaghetti) con le sue varianti (Barilla, Rummo): la dispensa mostra la variante, il totale della famiglia in una riga.",
       "audit_label": "Inventario veloce",
@@ -1901,6 +1919,8 @@
     "badge_better": "in meno vs media"
   },
   "error": {
+    "receipt_disabled": "La lettura degli scontrini è disattivata nelle impostazioni.",
+    "receipt_failed": "Non sono riuscito a leggere lo scontrino.",
     "family_disabled": "Le famiglie di prodotti sono disattivate nelle impostazioni.",
     "family_self_parent": "Un prodotto non può essere la famiglia di se stesso.",
     "family_parent_is_child": "Questa variante appartiene già a una famiglia.",

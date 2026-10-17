@@ -1,4 +1,20 @@
 {
+  "receipt": {
+    "photo": "Ticket",
+    "title": "Ticket",
+    "reading": "Leyendo el ticket…",
+    "review_title": "Líneas leídas",
+    "hint": "Revisa las líneas: nada entra en la despensa hasta que confirmes.",
+    "col_name": "Producto",
+    "col_qty": "Cant.",
+    "col_unit": "Unidad",
+    "col_price": "Precio",
+    "remove": "Quitar",
+    "confirm": "Añadir {n} a la despensa",
+    "cancel": "Cancelar",
+    "empty": "Ningún producto legible en esta foto.",
+    "done": "{ok} añadidos · {ko} no guardados"
+  },
   "product_family": {
     "form_label": "Familia",
     "placeholder": "p. ej. Spaghetti",
@@ -1387,6 +1403,8 @@
       "trip_complete_hint": "En la página Compra, «Compra hecha» vacía toda la lista y bloquea reañadidos automáticos hasta el próximo agotamiento."
     },
     "product_rules": {
+      "receipt_label": "Lectura de tickets",
+      "receipt_hint": "Una foto del ticket propone las líneas; nada entra en la despensa hasta que confirmes la tabla.",
       "family_label": "Familias de productos",
       "family_hint": "Un producto genérico (Spaghetti) con sus variantes (Barilla, Rummo): la despensa muestra la variante, el total de la familia en una línea.",
       "audit_label": "Recuento rápido",
@@ -1901,6 +1919,8 @@
     "badge_better": "menos que la media"
   },
   "error": {
+    "receipt_disabled": "La lectura de tickets está desactivada en los ajustes.",
+    "receipt_failed": "No he podido leer el ticket.",
     "family_disabled": "Las familias de productos están desactivadas en los ajustes.",
     "family_self_parent": "Un producto no puede ser su propia familia.",
     "family_parent_is_child": "Esta variante ya pertenece a una familia.",

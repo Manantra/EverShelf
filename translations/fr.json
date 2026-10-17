@@ -1,4 +1,20 @@
 {
+  "receipt": {
+    "photo": "Ticket",
+    "title": "Ticket",
+    "reading": "Lecture du ticket…",
+    "review_title": "Lignes lues",
+    "hint": "Vérifiez les lignes : rien n’entre dans le garde-manger avant confirmation.",
+    "col_name": "Produit",
+    "col_qty": "Qté",
+    "col_unit": "Unité",
+    "col_price": "Prix",
+    "remove": "Retirer",
+    "confirm": "Ajouter {n} au garde-manger",
+    "cancel": "Annuler",
+    "empty": "Aucun produit lisible sur cette photo.",
+    "done": "{ok} ajoutés · {ko} non enregistrés"
+  },
   "product_family": {
     "form_label": "Famille",
     "placeholder": "ex. Spaghetti",
@@ -1387,6 +1403,8 @@
       "trip_complete_hint": "Sur la page Courses, « Courses terminées » vide toute la liste et bloque les réajouts auto jusqu’au prochain épuisement."
     },
     "product_rules": {
+      "receipt_label": "Lecture de tickets",
+      "receipt_hint": "Une photo du ticket propose les lignes ; rien n’entre dans le garde-manger tant que vous ne confirmez pas le tableau.",
       "family_label": "Familles de produits",
       "family_hint": "Un produit générique (Spaghetti) avec ses variantes (Barilla, Rummo) : le garde-manger montre la variante, le total de la famille sur une ligne.",
       "audit_label": "Inventaire rapide",
@@ -1901,6 +1919,8 @@
     "badge_better": "moins que la moy."
   },
   "error": {
+    "receipt_disabled": "La lecture de tickets est désactivée dans les paramètres.",
+    "receipt_failed": "Je n'ai pas pu lire le ticket.",
     "family_disabled": "Les familles de produits sont désactivées dans les paramètres.",
     "family_self_parent": "Un produit ne peut pas être sa propre famille.",
     "family_parent_is_child": "Cette variante appartient déjà à une famille.",
