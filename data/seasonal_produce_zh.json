@@ -1,0 +1,3051 @@
+{
+    "source": "SeasonalItaly (MIT) https://github.com/archetipico/SeasonalItaly — adapted for EverShelf matching",
+    "region": "italy",
+    "items": [
+        {
+            "name": "杏",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "酸樱桃",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "菠萝",
+            "kind": "frutta",
+            "peak": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "shoulder": [],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "西瓜",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "苦橙",
+            "kind": "frutta",
+            "peak": [
+                1,
+                2
+            ],
+            "shoulder": [
+                12,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄肉脐橙",
+            "kind": "frutta",
+            "peak": [
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                11,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "西西里血橙",
+            "kind": "frutta",
+            "peak": [
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                12,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "晚熟脐橙",
+            "kind": "frutta",
+            "peak": [
+                4,
+                5
+            ],
+            "shoulder": [
+                3,
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "牛油果",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                3,
+                10
+            ],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "香蕉",
+            "kind": "frutta",
+            "peak": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "shoulder": [],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "香柠檬",
+            "kind": "frutta",
+            "peak": [
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                11,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "杏李",
+            "kind": "frutta",
+            "peak": [
+                7
+            ],
+            "shoulder": [
+                6,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "柿子",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "甜柿",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "角豆",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "板栗",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "枸橼",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "奇诺托橙",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                10,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "樱桃",
+            "kind": "frutta",
+            "peak": [
+                5,
+                6
+            ],
+            "shoulder": [
+                4,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "小细蜜桔",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                10,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "椰子",
+            "kind": "frutta",
+            "peak": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "shoulder": [],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "杨梅",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "榅桲",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "海枣",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                9,
+                2
+            ],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "无花果",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "仙人掌果",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "草莓",
+            "kind": "frutta",
+            "peak": [
+                5,
+                6
+            ],
+            "shoulder": [
+                4,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野草莓",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "百香果",
+            "kind": "frutta",
+            "peak": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "shoulder": [],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "黑桑椹",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "红枣",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "猕猴桃",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "树莓",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "柠檬",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2,
+                3,
+                4
+            ],
+            "shoulder": [
+                10,
+                5
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "因特多纳托柠檬",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "早花柠檬",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "荔枝",
+            "kind": "frutta",
+            "peak": [
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                11,
+                3
+            ],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "橘柚",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                10,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "柑橘",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "杏仁",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9
+            ],
+            "shoulder": [
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "芒果",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                7,
+                11
+            ],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "安努卡苹果",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                3,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄金帅苹果",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                12,
+                1,
+                2,
+                3,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "柠檬苹果",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "西比里尼粉红苹果",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "网纹洋香瓜",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄皮香瓜",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9
+            ],
+            "shoulder": [
+                7,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "蓝莓",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黑莓",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "欧枇杷",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "枇杷",
+            "kind": "frutta",
+            "peak": [
+                4,
+                5
+            ],
+            "shoulder": [
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "榛子",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "核桃",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "鲜食橄榄",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "木瓜",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                9,
+                2
+            ],
+            "imported": true,
+            "aliases": []
+        },
+        {
+            "name": "阿巴特梨",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                12,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "小早熟梨",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "迪卡纳梨",
+            "kind": "frutta",
+            "peak": [
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "凯撒梨",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "马丁干梨",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                1,
+                2,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "长柄梨",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9
+            ],
+            "shoulder": [
+                7,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "狐狸梨",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "威廉姆斯梨",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9
+            ],
+            "shoulder": [
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "桃子",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "油桃",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄肉硬桃",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "蟠桃",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "松子",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                8,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "葡萄柚",
+            "kind": "frutta",
+            "peak": [
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                11,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "红心葡萄柚",
+            "kind": "frutta",
+            "peak": [
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                11,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "李子",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "白醋栗",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黑加仑",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "红醋栗",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野玫瑰果",
+            "kind": "frutta",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "接骨木果",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9
+            ],
+            "shoulder": [
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "花楸果",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "拉玛辛紫李",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "鲜食葡萄",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "草莓葡萄",
+            "kind": "frutta",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "女王白葡萄",
+            "kind": "frutta",
+            "peak": [
+                8,
+                9
+            ],
+            "shoulder": [
+                7,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "鹅莓",
+            "kind": "frutta",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野生酸樱桃",
+            "kind": "frutta",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                5,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "大蒜",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7
+            ],
+            "shoulder": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "猪毛菜",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5
+            ],
+            "shoulder": [
+                2,
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "香叶",
+            "kind": "verdura",
+            "peak": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "shoulder": [],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "巴萨诺白芦笋",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5
+            ],
+            "shoulder": [
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野芦笋",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4
+            ],
+            "shoulder": [
+                2,
+                5
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "绿芦笋",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5
+            ],
+            "shoulder": [
+                3,
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "红菜头",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                6,
+                7,
+                8,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "罗勒",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "牛皮菜",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                4,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "嫩叶甜菜",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                9,
+                10
+            ],
+            "shoulder": [
+                3,
+                7,
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "琉璃苣",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5
+            ],
+            "shoulder": [
+                2,
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "西兰花",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                3,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "罗马西兰花",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                2,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "啤酒花嫩芽",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4
+            ],
+            "shoulder": [
+                5
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "罗马圆朝鲜蓟",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5
+            ],
+            "shoulder": [
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "萨丁刺朝鲜蓟",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                10,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "紫朝鲜蓟",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                3,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "尼扎弯刺菜蓟",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "胡萝卜",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                11,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "紫胡萝卜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "意式苦苣菜",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "抱子甘蓝",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                10,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "菜花",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "卷心菜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                9,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "羽衣甘蓝",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                9,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "苤蓝",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "紫甘蓝",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "皱叶甘蓝",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                9,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄瓜",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "草藤豆",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野苦苣",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                4,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "菜心",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄洋葱",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7
+            ],
+            "shoulder": [
+                4,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "特罗佩阿红洋葱",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                3,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "葱",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                3,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "西洋菜",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                7,
+                9,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "龙蒿",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "细香葱",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                7
+            ],
+            "shoulder": [
+                3,
+                8,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "四季豆",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "斑豆",
+            "kind": "verdura",
+            "peak": [
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                7,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "白芸豆",
+            "kind": "verdura",
+            "peak": [
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                7,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黑眼豆",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黄籽白芸豆",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "蚕豆",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野生小茴香",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                2,
+                7,
+                8,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "甜茴香",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2,
+                3,
+                4
+            ],
+            "shoulder": [
+                10,
+                5
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "南瓜花",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "假蜜环菌",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "鸡油菌",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                5,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "橙盖鹅膏菌",
+            "kind": "verdura",
+            "peak": [
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                7,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "茶树菇",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                8,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "牛肝菌",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                5,
+                6,
+                7,
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "双孢蘑菇",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                3,
+                7,
+                8,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "比利时菊苣",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                10,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "皱叶苦苣",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "风信子流苏球茎",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "生菜",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                3,
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "卡斯特卢乔小绿豆",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "马郁兰",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                5,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "甜玉米",
+            "kind": "verdura",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "茄子",
+            "kind": "verdura",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "薄荷",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "假升麻薄荷",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "荨麻",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5
+            ],
+            "shoulder": [
+                2,
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "牛至",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "土豆",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                5,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "红薯",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "新土豆",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                3,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "紫土豆",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10
+            ],
+            "shoulder": [
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "羊角椒",
+            "kind": "verdura",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "小绿甜椒",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                5,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "辣椒",
+            "kind": "verdura",
+            "peak": [
+                7,
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                6,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "豌豆",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                3,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "牛心番茄",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                5,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "小枣番茄",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                5,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "帕基诺樱桃番茄",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "圣马扎诺番茄",
+            "kind": "verdura",
+            "peak": [
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                6,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "大葱",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                3,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "马齿苋",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "欧芹",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                3,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "蒲公英苦苣笋",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "大黄",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7
+            ],
+            "shoulder": [
+                4,
+                8
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "奇奥贾红菊苣",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "特雷维索红菊苣",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                10,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "卡斯泰尔弗兰科花斑菊苣",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                10,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "辣根",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "芜菁",
+            "kind": "verdura",
+            "peak": [
+                11,
+                12,
+                1
+            ],
+            "shoulder": [
+                10,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "水萝卜",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                7
+            ],
+            "shoulder": [
+                3,
+                8,
+                9,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "迷迭香",
+            "kind": "verdura",
+            "peak": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+            ],
+            "shoulder": [],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "芝麻菜",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                3,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野芝麻菜",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6,
+                9,
+                10
+            ],
+            "shoulder": [
+                3,
+                7,
+                8,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "鼠尾草",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "红葱头",
+            "kind": "verdura",
+            "peak": [
+                7,
+                8
+            ],
+            "shoulder": [
+                6,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "宽叶苦苣",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "黑蒡",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "芹菜",
+            "kind": "verdura",
+            "peak": [
+                9,
+                10,
+                11
+            ],
+            "shoulder": [
+                8,
+                12
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "根芹菜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "野苣",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                9,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "菠菜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                4,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "荷兰豆",
+            "kind": "verdura",
+            "peak": [
+                4,
+                5,
+                6
+            ],
+            "shoulder": [
+                3,
+                7
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "蒲公英",
+            "kind": "verdura",
+            "peak": [
+                3,
+                4,
+                5
+            ],
+            "shoulder": [
+                2,
+                6
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "阿尔巴白松露",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "夏松露",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "珍贵黑松露",
+            "kind": "verdura",
+            "peak": [
+                12,
+                1,
+                2,
+                3
+            ],
+            "shoulder": [
+                11,
+                4
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "百里香",
+            "kind": "verdura",
+            "peak": [
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "shoulder": [
+                4,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "菊芋",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12,
+                1,
+                2
+            ],
+            "shoulder": [
+                9,
+                3
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "藏红花",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11
+            ],
+            "shoulder": [
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "德利卡栗南瓜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "曼托瓦南瓜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "喇叭小南瓜",
+            "kind": "verdura",
+            "peak": [
+                8,
+                9,
+                10
+            ],
+            "shoulder": [
+                7,
+                11
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "小提琴南瓜",
+            "kind": "verdura",
+            "peak": [
+                10,
+                11,
+                12
+            ],
+            "shoulder": [
+                9,
+                1,
+                2
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "西葫芦",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9,
+                10
+            ],
+            "imported": false,
+            "aliases": []
+        },
+        {
+            "name": "罗马条纹西葫芦",
+            "kind": "verdura",
+            "peak": [
+                6,
+                7,
+                8
+            ],
+            "shoulder": [
+                5,
+                9
+            ],
+            "imported": false,
+            "aliases": []
+        }
+    ],
+    "lang": "zh",
+    "translations_of": "seasonal_produce_it.json",
+    "translated_with": "ai:gemini"
+}
