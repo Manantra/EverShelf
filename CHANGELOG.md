@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of disappearing. Arrow keys work too, but a kiosk needs no keyboard. Both the
   feature and the batch size are normal settings (`AUDIT_MODE_ENABLED`,
   `AUDIT_MODE_BATCH_SIZE`, under Settings → product rules).
+- **Parent / child products (#284).** A product can now name the generic article it belongs
+  to (`products.parent_id`, one level on purpose): *Spaghetti Barilla n.5* keeps its own
+  brand, barcode, price and stock while the pantry also shows how much the family holds
+  (`Famiglia Spaghetti: 4 conf in 2 varianti`). The family is set from the product form
+  (autocomplete over the umbrellas already in use; a name that does not exist yet becomes
+  the umbrella), and `product_family` returns the umbrella with its children. The
+  duplicate consolidator now refuses to merge a child — as a seed or as a candidate — so
+  an explicit variant can never be deleted by the automatic cleanup. Off with
+  `PRODUCT_VARIANTS_ENABLED=false` (settings toggle, `.env.example`).
 - **A failed refresh no longer blanks the screen.** `inventory_list` answering with a
   JSON error (a rate limit, a restart) used to replace the pantry with an empty list:
   the payload is validated now and, when it is missing, what is on screen stays. The

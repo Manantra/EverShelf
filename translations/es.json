@@ -1,4 +1,10 @@
 {
+  "product_family": {
+    "form_label": "Familia",
+    "placeholder": "p. ej. Spaghetti",
+    "form_hint": "El producto genérico al que pertenece esta variante (Barilla → Spaghetti). Vacío = producto propio.",
+    "card": "Familia {name}: {qty} en {count} variantes"
+  },
   "audit": {
     "start": "Recuento rápido",
     "title": "Comprobar la despensa",
@@ -1381,6 +1387,8 @@
       "trip_complete_hint": "En la página Compra, «Compra hecha» vacía toda la lista y bloquea reañadidos automáticos hasta el próximo agotamiento."
     },
     "product_rules": {
+      "family_label": "Familias de productos",
+      "family_hint": "Un producto genérico (Spaghetti) con sus variantes (Barilla, Rummo): la despensa muestra la variante, el total de la familia en una línea.",
       "audit_label": "Recuento rápido",
       "audit_hint": "Un producto a la vez, tres respuestas grandes: la despensa queda al día en un par de minutos, sin escáner.",
       "audit_batch_label": "Guardar cada",
@@ -1893,6 +1901,10 @@
     "badge_better": "menos que la media"
   },
   "error": {
+    "family_disabled": "Las familias de productos están desactivadas en los ajustes.",
+    "family_self_parent": "Un producto no puede ser su propia familia.",
+    "family_parent_is_child": "Esta variante ya pertenece a una familia.",
+    "family_parent_has_children": "Un producto con variantes no puede unirse a otra familia.",
     "tags_disabled": "Las etiquetas están desactivadas en los ajustes.",
     "tag_name_required": "Escribe un nombre para la etiqueta.",
     "generic": "Error",

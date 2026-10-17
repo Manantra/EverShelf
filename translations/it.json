@@ -1,4 +1,10 @@
 {
+  "product_family": {
+    "form_label": "Famiglia",
+    "placeholder": "es. Spaghetti",
+    "form_hint": "Il prodotto generico a cui appartiene questa variante (Barilla → Spaghetti). Vuoto = prodotto a sé.",
+    "card": "Famiglia {name}: {qty} in {count} varianti"
+  },
   "audit": {
     "start": "Inventario veloce",
     "title": "Verifica la dispensa",
@@ -1528,6 +1534,8 @@
       "trip_complete_hint": "In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento."
     },
     "product_rules": {
+      "family_label": "Famiglie di prodotti",
+      "family_hint": "Un prodotto generico (Spaghetti) con le sue varianti (Barilla, Rummo): la dispensa mostra la variante, il totale della famiglia in una riga.",
       "audit_label": "Inventario veloce",
       "audit_hint": "Un prodotto alla volta, tre risposte grandi: la dispensa si sistema in un paio di minuti, senza scanner.",
       "audit_batch_label": "Salva ogni",
@@ -1893,6 +1901,10 @@
     "badge_better": "in meno vs media"
   },
   "error": {
+    "family_disabled": "Le famiglie di prodotti sono disattivate nelle impostazioni.",
+    "family_self_parent": "Un prodotto non può essere la famiglia di se stesso.",
+    "family_parent_is_child": "Questa variante appartiene già a una famiglia.",
+    "family_parent_has_children": "Un prodotto con varianti non può entrare in un’altra famiglia.",
     "tags_disabled": "I tag sono disattivati nelle impostazioni.",
     "tag_name_required": "Scrivi un nome per il tag.",
     "generic": "Errore",

@@ -1,4 +1,10 @@
 {
+  "product_family": {
+    "form_label": "Family",
+    "placeholder": "e.g. Spaghetti",
+    "form_hint": "The generic product this variant belongs to (Barilla → Spaghetti). Empty = a product of its own.",
+    "card": "Family {name}: {qty} across {count} variants"
+  },
   "audit": {
     "start": "Quick stocktake",
     "title": "Check the pantry",
@@ -1528,6 +1534,8 @@
       "trip_complete_hint": "On the shopping page, “Trip done” clears the whole list and blocks auto re-add until items run out again."
     },
     "product_rules": {
+      "family_label": "Product families",
+      "family_hint": "A generic product (Spaghetti) with its variants (Barilla, Rummo): the pantry shows the variant, the family total on one line.",
       "audit_label": "Quick stocktake",
       "audit_hint": "One product at a time, three big answers: the pantry is back in shape in a couple of minutes, no scanner.",
       "audit_batch_label": "Save every",
@@ -1893,6 +1901,10 @@
     "badge_better": "less than avg"
   },
   "error": {
+    "family_disabled": "Product families are switched off in the settings.",
+    "family_self_parent": "A product cannot be its own family.",
+    "family_parent_is_child": "This variant already belongs to a family.",
+    "family_parent_has_children": "A product with variants cannot join another family.",
     "tags_disabled": "Tags are switched off in the settings.",
     "tag_name_required": "Enter a name for the tag.",
     "generic": "Error",

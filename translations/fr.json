@@ -1,4 +1,10 @@
 {
+  "product_family": {
+    "form_label": "Famille",
+    "placeholder": "ex. Spaghetti",
+    "form_hint": "Le produit générique dont cette variante fait partie (Barilla → Spaghetti). Vide = produit à part.",
+    "card": "Famille {name} : {qty} sur {count} variantes"
+  },
   "audit": {
     "start": "Inventaire rapide",
     "title": "Vérifier le garde-manger",
@@ -1381,6 +1387,8 @@
       "trip_complete_hint": "Sur la page Courses, « Courses terminées » vide toute la liste et bloque les réajouts auto jusqu’au prochain épuisement."
     },
     "product_rules": {
+      "family_label": "Familles de produits",
+      "family_hint": "Un produit générique (Spaghetti) avec ses variantes (Barilla, Rummo) : le garde-manger montre la variante, le total de la famille sur une ligne.",
       "audit_label": "Inventaire rapide",
       "audit_hint": "Un produit à la fois, trois grandes réponses : le garde-manger est à jour en deux minutes, sans scanner.",
       "audit_batch_label": "Enregistrer tous les",
@@ -1893,6 +1901,10 @@
     "badge_better": "moins que la moy."
   },
   "error": {
+    "family_disabled": "Les familles de produits sont désactivées dans les paramètres.",
+    "family_self_parent": "Un produit ne peut pas être sa propre famille.",
+    "family_parent_is_child": "Cette variante appartient déjà à une famille.",
+    "family_parent_has_children": "Un produit avec des variantes ne peut pas rejoindre une autre famille.",
     "tags_disabled": "Les étiquettes sont désactivées dans les paramètres.",
     "tag_name_required": "Saisissez un nom pour l'étiquette.",
     "generic": "Erreur",

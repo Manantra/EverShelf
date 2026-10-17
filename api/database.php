@@ -158,6 +158,7 @@ function initializeDB(PDO $db): void {
             default_quantity REAL DEFAULT 1,
             notes TEXT DEFAULT '',
             shopping_name TEXT DEFAULT '',
+            parent_id INTEGER DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -222,6 +223,13 @@ function migrateDB(PDO $db): void {
         try { $db->exec("ALTER TABLE products ADD COLUMN shopping_name TEXT DEFAULT ''"); }
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
+    // Parent / child products (#284): a child keeps its own brand, barcode and
+    // stock and rolls up to the umbrella product for the family totals.
+    if (!in_array('parent_id', $colNames)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN parent_id INTEGER DEFAULT NULL"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_products_parent ON products(parent_id)");
 
     // Empty barcode strings break UNIQUE (only one '' allowed); normalize to NULL.
     $db->exec("UPDATE products SET barcode = NULL WHERE barcode IS NOT NULL AND TRIM(barcode) = ''");
