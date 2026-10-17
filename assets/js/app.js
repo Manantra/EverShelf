@@ -1411,6 +1411,12 @@ let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', zh: '简体中文' };
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
 
+/** Collation locale for the UI language (sorting must follow it, never a fixed 'it'). */
+function _collationLocale() {
+    const map = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', zh: 'zh-CN', en: 'en-GB', it: 'it-IT' };
+    return map[_currentLang] || 'en-GB';
+}
+
 // Apply theme IMMEDIATELY to prevent flash of unstyled content
 (function _earlyTheme() {
     try {
@@ -3937,7 +3943,7 @@ async function _tryGeminiVisualBarcode() {
     try {
         const result = await api('gemini_barcode_visual', {}, 'POST', {
             image: imageBase64,
-            lang: _currentLang || 'it',
+            lang: _currentLang || 'en',
         });
 
         if (myGen !== _aiVisualGen) {
@@ -4778,7 +4784,7 @@ async function _submitBugReport() {
             user_agent: navigator.userAgent,
             url: location.href,
             version: _loadedVersion || '',
-            lang: _currentLang || 'it',
+            lang: _currentLang || 'en',
         });
 
         if (res.ok) {
@@ -10166,7 +10172,7 @@ function _sortOpenedFirst(items) {
         const ra = rank(a);
         const rb = rank(b);
         if (ra !== rb) return ra - rb;
-        return (a.name || '').localeCompare(b.name || '', 'it');
+        return (a.name || '').localeCompare(b.name || '', _collationLocale());
     });
 }
 
@@ -10319,7 +10325,7 @@ function filterInventory() {
 
     matched.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
-        return (a.item.name || '').localeCompare(b.item.name || '', 'it');
+        return (a.item.name || '').localeCompare(b.item.name || '', _collationLocale());
     });
 
     renderInventory(matched.map(m => m.item), { flat: true });
@@ -24376,19 +24382,17 @@ function _initBrowserTtsVoices(selectedVoice) {
             });
         } catch (_) { return false; }
         if (!voices.length) return false;
-        // Italian voices first, then others
-        const it = voices.filter(v => v.lang.startsWith('it'));
-        const others = voices.filter(v => !v.lang.startsWith('it'));
-        const sorted = [...it, ...others];
+        // The voice of the UI language first, then the others (never a fixed Italian).
+        const mine = voices.filter(v => v.lang.startsWith(_currentLang));
+        const others = voices.filter(v => !v.lang.startsWith(_currentLang));
+        const sorted = [...mine, ...others];
         sel.innerHTML = sorted.map(v =>
             `<option value="${v.name}" ${v.name === selectedVoice ? 'selected' : ''}>${v.name} (${v.lang})${v.localService ? '' : ' ☁️'}</option>`
         ).join('');
-        // Auto-select first Italian voice if no preference set
+        // Auto-select the first voice of the UI language if no preference is set
         if (!selectedVoice) {
-            const paola = sorted.find(v => v.name === 'Paola');
-            const firstIt = sorted.find(v => v.lang.startsWith('it'));
-            if (paola) sel.value = paola.name;
-            else if (firstIt) sel.value = firstIt.name;
+            const mineFirst = sorted.find(v => v.lang.startsWith(_currentLang));
+            if (mineFirst) sel.value = mineFirst.name;
         }
         return true;
     };
