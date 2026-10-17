@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.15.1] - 2026-10-17
+
+### A save is a decision: the checklist empties itself
+- **“Da decidere” no longer repeats an answered question.** An option the user answered
+  (“not now”) at the current `askVersion` is a decision, not a pending task: it leaves the
+  list instead of sitting there forever (bumping `askVersion` asks again, as before).
+- **Saving a configuration removes it from both lists.** Before the request the page
+  snapshots which `ask` options were unconfigured; after the save it acknowledges the ones
+  that are now configured (they leave “Da decidere”), plus every “Novità” row in the tab
+  the user just saved (they saw it and saved). Rows in other tabs keep their news, so
+  saving the AI key cannot clear an option nobody looked at.
+- Guarded by `scripts/test-settings-checklist.php` (21 checks): the shipped functions are
+  extracted from `app.js` and run in node against a stub checklist — answered option out of
+  “Da decidere”, just-configured option acknowledged, news of the saved tab cleared, news of
+  another tab kept, non-`ask` rows never acknowledged.
+
 ## [1.15.0] - 2026-10-17
 
 ### Find a setting by typing what it does

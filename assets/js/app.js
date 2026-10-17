@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261017j'; // bump when translations change
+const _I18N_VERSION = '20261017k'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5892,6 +5892,9 @@ async function saveSettings() {
     saveSettingsToStorage(s);
     
     // Save ALL settings to server .env
+    // What was unconfigured before the save: the ones that become configured are
+    // decisions, so they leave the checklist instead of coming back.
+    const checklistPendingBefore = _checklistPendingBeforeSave();
     try {
         const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || (typeof getApiToken === 'function' ? getApiToken() : '');
         if (settingsToken && typeof setApiToken === 'function') setApiToken(settingsToken);
@@ -6032,6 +6035,11 @@ async function saveSettings() {
             }
         }
     } catch(e) {}
+    // The save is an answer: drop the rows it decided on, then repaint the card.
+    _ackSavedChecklistItems(
+        checklistPendingBefore,
+        document.querySelector('.settings-tabs .settings-tab.active')?.dataset.tab || ''
+    );
     _renderSettingsChecklist();
     // Persist meal_plan and tts_voice to SQLite for cross-device sync
     try {
@@ -11551,7 +11559,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017k';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11561,7 +11569,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261017k';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28105,6 +28113,30 @@ function _markSetupSeen(ids) {
     try { localStorage.setItem('evershelf_setup_seen', JSON.stringify(seen)); } catch (e) {}
 }
 
+/** Ask items that were not configured when the save started (captured first). */
+function _checklistPendingBeforeSave() {
+    return SETTINGS_CHECKLIST.filter(item => item.ask && _checklistState(item) !== 'ok').map(item => item.id);
+}
+
+/**
+ * A save is a decision. Two rows leave both "Da decidere" and "Novità":
+ *  - an option that was not configured before the save and is now;
+ *  - a "Novità" row living in the tab the user just saved (they saw it and saved).
+ * Anything else keeps its row: saving the AI key must not clear the news of a
+ * notification option nobody looked at.
+ */
+function _ackSavedChecklistItems(pendingBefore, savedTab) {
+    const acked = [];
+    for (const item of SETTINGS_CHECKLIST) {
+        if (!item.ask || _checklistState(item) !== 'ok') continue;
+        const justConfigured = Array.isArray(pendingBefore) && pendingBefore.includes(item.id);
+        const inSavedTab = !!savedTab && item.tab === savedTab;
+        if (justConfigured || inSavedTab) acked.push(item.id);
+    }
+    if (acked.length) _markSetupSeen(acked);
+    return acked;
+}
+
 /** The checklist item a wizard step belongs to (undefined for the other steps). */
 function _checklistItemForStep(step) {
     return SETTINGS_CHECKLIST.find(i => i.ask && i.step === step);
@@ -28115,9 +28147,19 @@ function _checklistState(item) {
     catch (e) { return 'todo'; }
 }
 
-/** Items that are not configured yet (shown in the card). */
+/**
+ * Items that still need a decision (shown in "Da decidere"): not configured and
+ * never answered at the current `askVersion`. An option the user already answered
+ * ("not now") is a decision, not a pending task — keeping it in the list forever
+ * is what made the card feel like it never emptied. A version bump asks again.
+ */
 function _checklistTodoItems() {
-    return SETTINGS_CHECKLIST.filter(i => _checklistState(i) !== 'ok');
+    const seen = _setupSeen();
+    return SETTINGS_CHECKLIST.filter(item => {
+        if (_checklistState(item) === 'ok') return false;
+        if (item.ask && (seen[item.id] || 0) >= (item.askVersion || 1)) return false;
+        return true;
+    });
 }
 
 /**
