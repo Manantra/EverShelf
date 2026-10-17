@@ -43,7 +43,7 @@ function evershelfIcsToken(): string {
 function evershelfIcsRotateToken(): string {
     $token   = bin2hex(random_bytes(16)); // 32 hex chars, CSPRNG
     $newEnv  = ['ICS_TOKEN' => $token];
-    $envFile = dirname(__DIR__, 2) . '/.env';
+    $envFile = evershelfEnvFile();
     $example = dirname(__DIR__, 2) . '/.env.example';
 
     $written = false;
