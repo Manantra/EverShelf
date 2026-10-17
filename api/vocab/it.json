@@ -794,6 +794,29 @@
     "pomme": "mela",
     "poire": "pera"
   },
+  "bring_generic_qualifiers": [
+    "dolce",
+    "salato",
+    "light",
+    "bio",
+    "classico",
+    "original",
+    "naturale",
+    "fresco",
+    "fresca",
+    "intero",
+    "intera",
+    "magro",
+    "magra",
+    "piccolo",
+    "piccola",
+    "grande",
+    "rosso",
+    "bianco",
+    "frutta",
+    "verdura",
+    "frutti"
+  ],
   "categories": [
     {
       "cat": "pasta",
