@@ -1,4 +1,10 @@
 {
+  "product_tags": {
+    "form_label": "Tag",
+    "placeholder": "senza glutine, bio, bimbi…",
+    "form_hint": "Separa i tag con una virgola.",
+    "filter_clear": "Azzera i tag"
+  },
   "app": {
     "name": "EverShelf",
     "loading": "Caricamento..."
@@ -1505,6 +1511,8 @@
       "trip_complete_hint": "In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento."
     },
     "product_rules": {
+      "tags_label": "Tag personalizzati sui prodotti",
+      "tags_hint": "Etichette libere («senza glutine», «bio», «bimbi») sulle card e per filtrare la dispensa.",
       "card_title": "🏷️ Nomi e preferiti automatici",
       "card_hint": "Ogni articolo porta davanti al titolo il suo genere (es. «Yogurt Fiori di latte»). Se il nome non lo dice, l'app lo ricava dal dizionario interno e — solo se serve — chiede all'AI una parola sola, poi la tiene in cache per i prodotti simili. Ogni titolo inizia sempre con la lettera maiuscola.",
       "kind_prefix_label": "Aggiungi il genere al titolo",
@@ -1865,6 +1873,8 @@
     "badge_better": "in meno vs media"
   },
   "error": {
+    "tags_disabled": "I tag sono disattivati nelle impostazioni.",
+    "tag_name_required": "Scrivi un nome per il tag.",
     "generic": "Errore",
     "product_id_required": "Prodotto non salvato: riprova ad aggiungerlo",
     "network": "Errore di rete",

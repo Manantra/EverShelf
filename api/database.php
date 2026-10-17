@@ -256,6 +256,12 @@ function migrateDB(PDO $db): void {
     require_once __DIR__ . '/lib/webpush.php';
     evershelfWebPushEnsureTable($db);
 
+    // Custom product tags (#97): free-form labels on the catalogue. Relational
+    // tables, not a comma-separated column, so filtering by tag is an index
+    // lookup and renaming a tag is one row.
+    require_once __DIR__ . '/lib/tags.php';
+    tagsEnsureTables($db);
+
     // Migrate transactions CHECK constraint to allow 'waste' type
     $sql = $db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")->fetchColumn();
     if ($sql && strpos($sql, "'waste'") === false) {

@@ -1,4 +1,10 @@
 {
+  "product_tags": {
+    "form_label": "Tags",
+    "placeholder": "gluten-free, organic, kids…",
+    "form_hint": "Separate tags with a comma.",
+    "filter_clear": "Clear tags"
+  },
   "app": {
     "name": "EverShelf",
     "loading": "Loading..."
@@ -1505,6 +1511,8 @@
       "trip_complete_hint": "On the shopping page, “Trip done” clears the whole list and blocks auto re-add until items run out again."
     },
     "product_rules": {
+      "tags_label": "Custom product tags",
+      "tags_hint": "Free-form labels (\"gluten-free\", \"organic\", \"kids\") on the cards and to filter the pantry.",
       "card_title": "🏷️ Names and automatic favourites",
       "card_hint": "Every article carries its genre in front of the title (e.g. \"Yogurt Fiori di latte\"). When the name does not say it, the app derives it from the built-in dictionary and — only if needed — asks the AI for a single word, then caches it for similar products. Every title also always starts with a capital letter.",
       "kind_prefix_label": "Add the genre to the title",
@@ -1865,6 +1873,8 @@
     "badge_better": "less than avg"
   },
   "error": {
+    "tags_disabled": "Tags are switched off in the settings.",
+    "tag_name_required": "Enter a name for the tag.",
     "generic": "Error",
     "product_id_required": "Product not saved: try adding it again",
     "network": "Network error",

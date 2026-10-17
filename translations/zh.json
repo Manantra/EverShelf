@@ -1,4 +1,10 @@
 {
+  "product_tags": {
+    "form_label": "标签",
+    "placeholder": "无麸质, 有机, 儿童…",
+    "form_hint": "用逗号分隔标签。",
+    "filter_clear": "清除标签"
+  },
   "app": {
     "name": "EverShelf",
     "loading": "正在加载…"
@@ -1505,6 +1511,8 @@
       "trip_complete_hint": "在购物页点「购物完成」会清空清单，并阻止自动重新加入，直到再次用完。"
     },
     "product_rules": {
+      "tags_label": "自定义产品标签",
+      "tags_hint": "自由标签（“无麸质”“有机”“儿童”），显示在卡片上并可用于筛选储藏室。",
       "card_title": "🏷️ 名称与自动收藏",
       "card_hint": "每个条目在标题前都会带上它的品类（例如「Yogurt Fiori di latte」）。如果名称里没有，应用会从内置词典推断，必要时只向 AI 询问一个词，并把结果缓存给相似商品使用。此外，每个标题始终以大写字母开头。",
       "kind_prefix_label": "在标题前添加品类",
@@ -1865,6 +1873,8 @@
     "badge_better": "低于平均值"
   },
   "error": {
+    "tags_disabled": "标签已在设置中关闭。",
+    "tag_name_required": "请输入标签名称。",
     "generic": "出错了",
     "product_id_required": "商品未保存：请重新添加",
     "network": "网络错误",

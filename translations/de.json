@@ -1,4 +1,10 @@
 {
+  "product_tags": {
+    "form_label": "Tags",
+    "placeholder": "glutenfrei, bio, kinder…",
+    "form_hint": "Tags mit Komma trennen.",
+    "filter_clear": "Tags zurücksetzen"
+  },
   "app": {
     "name": "EverShelf",
     "loading": "Laden..."
@@ -1462,6 +1468,8 @@
       "trip_complete_hint": "Auf der Einkaufsseite löscht „Einkauf erledigt“ die ganze Liste und blockiert Auto-Nachträge bis Artikel wieder leer sind."
     },
     "product_rules": {
+      "tags_label": "Eigene Produkt-Tags",
+      "tags_hint": "Freie Etiketten („glutenfrei“, „bio“, „kinder“) auf den Karten und zum Filtern des Vorrats.",
       "card_title": "🏷️ Namen und automatische Favoriten",
       "card_hint": "Jeder Artikel trägt seine Gattung vor dem Titel (z. B. „Yogurt Fiori di latte\"). Sagt der Name es nicht, leitet die App sie aus dem internen Wörterbuch ab und fragt — nur falls nötig — die KI nach einem einzigen Wort; danach wird es für ähnliche Produkte zwischengespeichert. Außerdem beginnt jeder Titel immer mit einem Großbuchstaben.",
       "kind_prefix_label": "Gattung im Titel ergänzen",
@@ -1865,6 +1873,8 @@
     "badge_better": "weniger als Ø"
   },
   "error": {
+    "tags_disabled": "Tags sind in den Einstellungen deaktiviert.",
+    "tag_name_required": "Gib einen Namen für den Tag ein.",
     "generic": "Fehler",
     "product_id_required": "Produkt nicht gespeichert: bitte erneut hinzufügen",
     "network": "Netzwerkfehler",
