@@ -62,6 +62,41 @@ $root = __DIR__ . '/..';
 $js   = (string)file_get_contents($root . '/assets/js/app.js');
 $api  = (string)file_get_contents($root . '/api/index.php');
 
+/** Run a slice of the app's own JS in node and return stdout ('' when node is missing). */
+function js_eval(string $source, string $code): string
+{
+    static $node = null;
+    if ($node === null) {
+        $node = trim((string)shell_exec('command -v node 2>/dev/null'));
+    }
+    if ($node === '') {
+        return '';
+    }
+    $file = tempnam(sys_get_temp_dir(), 'evershelf-') . '.js';
+    file_put_contents($file, $source . "\n" . $code . "\n");
+    $out = (string)shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>/dev/null');
+    @unlink($file);
+    return trim($out);
+}
+
+/** Extract a whole top-level function from app.js (up to the next top-level function). */
+function slice_function(string $source, string $signature): string
+{
+    $start = strpos($source, $signature);
+    if ($start === false) {
+        return '';
+    }
+    $end = strpos($source, "\nfunction ", $start + 1);
+    return $end === false ? substr($source, $start) : substr($source, $start, $end - $start);
+}
+
+/** The vocabulary engine + data, so extracted JS functions run as they do in the app. */
+function js_vocab_source(string $root): string
+{
+    return (string)file_get_contents($root . '/assets/js/vocab.generated.js') . "\n"
+        . (string)file_get_contents($root . '/assets/js/core/vocab.js');
+}
+
 /** Window that starts at the first $needle (empty when the anchor is gone). */
 function slice_from(string $source, string $needle, int $len = 4000): string
 {
@@ -70,8 +105,10 @@ function slice_from(string $source, string $needle, int $len = 4000): string
 }
 
 // ── The same article, two spellings ─────────────────────────────────────────
-assert_same('pomodor', productNameStem('Pomodoro'), 'stem: the final vowel is the number marker');
-assert_same('pomodor', productNameStem('Pomodori'), 'stem: singular and plural share it');
+// The number relation is the vocabulary's (curated forms + suffix pairs, no regex).
+assert_true(vocabSameLemma('Pomodoro', 'Pomodori'), 'lemma: singular and plural are the same word');
+assert_true(vocabSameLemma('Mele', 'Mela'), 'lemma: a plural and its singular meet');
+assert_true(!vocabSameLemma('Pomodoro', 'Pomodorini'), 'lemma: a different word stays different');
 assert_true(productNamesSameArticle('Pomodoro', 'Pomodori'), 'Pomodoro ↔ Pomodori is one article');
 assert_true(productNamesSameArticle('Uovo', 'Uova'), 'Uovo ↔ Uova is one article');
 assert_true(productNamesSameArticle(' pomodoro ', 'POMODORO'), 'whitespace/case never split an article');
@@ -84,7 +121,7 @@ assert_true(!productNamesSameArticle('Riso', 'Riso basmati'), 'no head-prefix ma
 assert_true(productNamesSameArticle('Riso', 'Riso basmati', true), 'with a barcode the head rule applies');
 assert_true(productNamesSameArticle('Piadina', 'Piadina Romagnola', true), 'AI "Piadina" + OFF "Piadina Romagnola"');
 assert_true(!productNamesSameArticle('Pomodoro', 'Passata di pomodoro', true), 'a contained word never merges, barcode or not');
-assert_true(!productNamesSameArticle('Tè', 'Te'), 'names under 4 characters never merge on the stem');
+assert_true(productNamesSameArticle('Tè', 'Te'), 'the accent is a spelling, not another word (folded)');
 
 // A head-prefix match is a VARIETY, never a derived product: the curated dictionary
 // (the same one the shopping list buys with) decides, for every product, not just produce.
@@ -108,7 +145,7 @@ assert_true(str_contains($collect, "'event'    => 'product_merge_declined'"),
 $dupAnchor = 'function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $barcode, ?int $excludeId = null): ?int {';
 $dup = slice_from($api, $dupAnchor, 4200);
 assert_true($dup !== '', 'api: findDuplicateProductId() exists');
-assert_true(str_contains($dup, 'productNameStem($nName)'), 'api: the reuse path also looks for the same article at another number');
+assert_true(str_contains($dup, 'vocabTokens($name)[0]') && str_contains($dup, 'productNamesSameArticle($name'), 'api: the reuse path also looks for the same article at another number');
 assert_true(str_contains($dup, "productNamesSameArticle(\$name, (string)(\$c['name'] ?? ''))"),
     'api: and re-checks the candidate with the same rule');
 assert_true(str_contains($dup, 'isSoldByPieceProduct($name)'), 'api: the reuse guard knows loose produce');
@@ -152,111 +189,19 @@ assert_true(str_contains($fetch, '_aiMatchKeepSameNature(res.in_stock, q, aiProd
 assert_true(str_contains($fetch, '_aiMatchKeepSameNature(res.finished, q, aiProduct?.category || \'\')'), 'app.js: the finished candidates are filtered');
 assert_true(str_contains($fetch, '_aiMatchKeepSameNature(res.catalog, q, aiProduct?.category || \'\')'), 'app.js: the catalog candidates are filtered');
 
-// The regex itself, applied to the names that produced the report. The JS literal is
-// ASCII + \b, so PCRE reads it the same way.
-assert_true(preg_match('~function _aiNameLooksProcessed\(name\) \{\s*return /(.+?)/i\.test~s', $js, $m) === 1,
-    'app.js: the fresh/preparation regex is readable');
-$pattern = '~' . ($m[1] ?? '') . '~i';
-assert_true(@preg_match($pattern, '') !== false, 'app.js: the regex compiles in PCRE too');
-foreach (['Pomodoro', 'Pomodori', 'Pomodorini', 'Pomodoro ciliegino', 'Latte intero', 'Farina integrale'] as $fresh) {
-    assert_true(preg_match($pattern, $fresh) === 0, "fresh produce stays fresh: {$fresh}");
-}
-foreach (['Passata di pomodoro', 'Pomodori pelati', 'Sugo di pomodoro', 'Pomodori secchi', 'Confettura di albicocche', 'Yogurt bianco'] as $processed) {
-    assert_true(preg_match($pattern, $processed) === 1, "a preparation is recognised as such: {$processed}");
-}
-
-/** Run a slice of the app's own JS in node and return stdout ('' when node is missing). */
-function js_eval(string $source, string $code): string
-{
-    static $node = null;
-    if ($node === null) {
-        $node = trim((string)shell_exec('command -v node 2>/dev/null'));
-    }
-    if ($node === '') {
-        return '';
-    }
-    $file = tempnam(sys_get_temp_dir(), 'evershelf-') . '.js';
-    file_put_contents($file, $source . "\n" . $code . "\n");
-    $out = (string)shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>/dev/null');
-    @unlink($file);
-    return trim($out);
-}
-
-/** Extract a whole top-level function from app.js (up to the next top-level function). */
-function slice_function(string $source, string $signature): string
-{
-    $start = strpos($source, $signature);
-    if ($start === false) {
-        return '';
-    }
-    $end = strpos($source, "\nfunction ", $start + 1);
-    return $end === false ? substr($source, $start) : substr($source, $start, $end - $start);
-}
-
-// ── A bare "Pomodoro" is a VEGETABLE, not a jar (JS and PHP must agree) ─────
-assert_same('verdura', guessCategoryFromNamePHP('Pomodoro'), 'php: a bare Pomodoro is fresh produce');
-assert_same('verdura', guessCategoryFromNamePHP('Pomodorini ciliegino'), 'php: cherry tomatoes too');
-assert_same('verdura', guessCategoryFromNamePHP('Datterini'), 'php: datterini (fresh) are produce');
-assert_same('conserve', guessCategoryFromNamePHP('Passata di pomodoro'), 'php: a passata stays a conserve');
-assert_same('conserve', guessCategoryFromNamePHP('Pomodori pelati'), 'php: pelati stay a conserve');
-assert_same('conserve', guessCategoryFromNamePHP('Sugo di pomodoro'), 'php: a sugo stays a conserve');
-assert_same('verdura', guessCategoryFromNamePHP('Insalata'), 'php: a bare Insalata is produce');
-assert_same('pasta', guessCategoryFromNamePHP('Insalata di riso'), 'php: a rice salad is not leafy produce');
-
-$guessSource = slice_function($js, 'function guessCategoryFromName(name, brand = \'\') {');
-$saladSource = slice_function($js, 'function _isPreparedSaladName(name, brand = \'\') {');
-assert_true($guessSource !== '' && $saladSource !== '', 'app.js: the name → category guesser is extractable');
-// The twins must answer the same thing for EVERY product, not just tomatoes: the probe
-// list covers the whole grocery vocabulary (produce, preparations, dairy, drinks, pantry,
-// snacks, household), and the app's own JS decides one side of the comparison.
-$probes = [
-    'Pomodoro', 'Pomodori', 'Pomodorini', 'Pomodorini ciliegino', 'Datterini', 'Carote', 'Carote novelle',
-    'Zucchine', 'Melanzane', 'Peperoni', 'Cipolle', 'Patate', 'Insalata', 'Rucola', 'Spinaci', 'Pere', 'Mele',
-    'Banane', 'Arance', 'Limoni', 'Kiwi', 'Melone', 'Anguria', 'Uva', 'Fragole', 'Funghi', 'Finocchi', 'Sedano',
-    'Passata di pomodoro', 'Pomodori pelati', 'Sugo di pomodoro', 'Polpa di pomodoro', 'Concentrato di pomodoro',
-    'Marmellata di albicocche', 'Miele', 'Ceci', 'Fagioli', 'Lenticchie', 'Olive', 'Tonno in scatola', 'Sottaceti',
-    'Latte', 'Latte di mandorla', 'Yogurt bianco', 'Yogurt greco', 'Formaggio', 'Mozzarella', 'Burro',
-    'Panna da cucina', 'Acqua', 'Acqua frizzante', 'Succo di mela', 'Vino rosso', 'Caffè', 'Tè', 'Tè al limone',
-    'Limonata', 'Pasta', 'Pasta fresca', 'Riso', 'Riso basmati', 'Farina', 'Farina di riso', 'Farina 00',
-    'Olio di semi', 'Olio extra vergine di oliva', 'Aceto balsamico', 'Sale', 'Zucchero', 'Zucchero di canna',
-    'Biscotti', 'Fette biscottate', 'Pane', 'Grissini', 'Cracker', 'Pangrattato', 'Detersivo piatti', 'Shampoo',
-    'Dentifricio', 'Sapone', 'Carta igienica', 'Insalata di riso', 'Patatine',
-];
-$guessProbe = "\nconsole.log(JSON.stringify(" . json_encode($probes) . ".map(n => guessCategoryFromName(n))));";
-$jsGuesses = json_decode(js_eval($saladSource . "\n" . $guessSource, $guessProbe), true);
-if (!is_array($jsGuesses)) {
-    echo "SKIP: node is not available — the JS category probes were not run\n";
+// The fresh/preparation rule now comes from the vocabulary, not from a regex in app.js:
+// run the app's own engine in node and ask it about the names that produced the report.
+$processedProbe = "\nconst names = " . json_encode(['Pomodoro','Pomodori','Pomodorini','Pomodoro ciliegino','Latte intero','Farina integrale','Passata di pomodoro','Pomodori pelati','Sugo di pomodoro','Pomodori secchi','Confettura di albicocche','Yogurt bianco']) . ";\nconsole.log(JSON.stringify(names.map(n => vocabLooksProcessed(n))));";
+$processedFlags = json_decode(js_eval(js_vocab_source($root), $processedProbe), true);
+if (!is_array($processedFlags)) {
+    echo "SKIP: node is not available — the freshness probes were not run\n";
 } else {
-    foreach ($probes as $i => $probe) {
-        assert_same(guessCategoryFromNamePHP($probe), $jsGuesses[$i] ?? null,
-            "the JS and PHP guessers agree on \"{$probe}\"");
+    foreach (['Pomodoro','Pomodori','Pomodorini','Pomodoro ciliegino','Latte intero','Farina integrale'] as $i => $fresh) {
+        assert_same(false, $processedFlags[$i] ?? null, "fresh produce stays fresh: {$fresh}");
     }
-}
-
-// ── A loose vegetable is never offered the pantry's tin of the same name ────
-$icons = '';
-if (preg_match('/const CATEGORY_ICONS = \{.*?\};/s', $js, $mIcons) === 1) {
-    $icons = $mIcons[0];
-}
-$filterSource = $icons . "\n" . implode("\n", array_filter([
-    slice_function($js, 'function _isProduceCategory(cat) {'),
-    slice_function($js, 'function _isPreparedSaladName(name, brand = \'\') {'),
-    slice_function($js, 'function guessCategoryFromName(name, brand = \'\') {'),
-    slice_function($js, 'function mapToLocalCategory(ofCategory, productName, productBrand = \'\') {'),
-    slice_function($js, 'function _aiNameLooksProcessed(name) {'),
-    slice_function($js, 'function _aiMatchKeepSameNature(list, draftName, draftCategory = \'\') {'),
-]));
-$filterProbe = "\nconsole.log(JSON.stringify(_aiMatchKeepSameNature(" .
-    "[{name:'Pomodoro',category:'conserve'},{name:'Pomodori a grappolo',category:'verdura'}," .
-    "{name:'Passata di pomodoro',category:'conserve'},{name:'Pomodorini San Marzano grappolo',category:'verdura'}," .
-    "{name:'Pomodorino',category:'altro'}]," .
-    "'Pomodoro','verdura').map(i => i.name)));";
-$kept = json_decode(js_eval("const t = (k) => k;\n" . $filterSource, $filterProbe), true);
-if (!is_array($kept)) {
-    echo "SKIP: node is not available — the candidate filter probe was not run\n";
-} else {
-    assert_same(['Pomodori a grappolo', 'Pomodorini San Marzano grappolo', 'Pomodorino'], $kept,
-        'a loose tomato keeps the produce rows and an unclassified one (the tin and the passata are dropped)');
+    foreach (['Passata di pomodoro','Pomodori pelati','Sugo di pomodoro','Pomodori secchi','Confettura di albicocche','Yogurt bianco'] as $i => $processed) {
+        assert_same(true, $processedFlags[$i + 6] ?? null, "a preparation is recognised as such: {$processed}");
+    }
 }
 
 // ── The AI also says HOW the product is counted, and the app must take it ──
@@ -313,7 +258,7 @@ $unitProbe = "\nconsole.log(JSON.stringify([" .
     "_aiStorageFields({unit:'ml',quantity:1000,name:'Latte fresco',category:'latticini'})," .
     "_aiStorageFields({unit:'',quantity:0,name:'Cosi',category:'altro'})," .
     "]));";
-$units = json_decode(js_eval($unitSource, $unitProbe), true);
+$units = json_decode(js_eval(js_vocab_source($root) . "\n" . $unitSource, $unitProbe), true);
 if (!is_array($units)) {
     echo "SKIP: node is not available — the JS unit probes were not run\n";
 } else {

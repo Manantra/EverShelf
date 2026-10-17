@@ -24,6 +24,48 @@
  *                              category, search_terms, confidence, description.
  *                              Unknown locales fall back to the English set.
  */
+/**
+ * Meal / sub-type labels used INSIDE the recipe prompt.
+ *
+ * This is prose the model reads (examples included), not name matching — which is why it
+ * lives with the other prompt copy instead of in the logic. The words themselves are
+ * content, not a vocabulary rule: nothing here decides how a product is classified.
+ */
+function evershelfRecipePromptLabels(): array {
+    return [
+        'meal_labels' => [
+            'colazione' => 'colazione (mattina)',
+            'pranzo'    => 'pranzo (mezzogiorno)',
+            'cena'      => 'cena (sera)',
+            'dolce'     => 'dolce/dessert',
+            'succo'     => 'succo di frutta/bevanda',
+        ],
+        'meal_labels_simple' => [
+            'colazione' => 'colazione',
+            'pranzo'    => 'pranzo',
+            'cena'      => 'cena',
+            'dolce'     => 'dolce',
+            'succo'     => 'succo',
+        ],
+        'sub_types' => [
+            'dolce' => [
+                'torta'    => 'Torta (soffice, da forno: torta di mele, ciambellone, plumcake, angel cake, ecc.)',
+                'crema'    => 'Crema o Budino (crema pasticcera, panna cotta, mousse, tiramisù, budino, semifreddo)',
+                'crumble'  => 'Crumble o Crostata (base croccante: crumble di frutta, crostata, sbriciolata)',
+                'biscotti' => 'Biscotti o Pasticcini (biscotti, cookies, muffin, cupcake, pasticcini)',
+                'frutta'   => 'Dolce alla Frutta (macedonia creativa, frutta caramellata, sorbetto, frullato dolce)',
+            ],
+            'succo' => [
+                'dolce'        => 'Succo Dolce e Fruttato (mix di frutta dolce: pesca, mela, pera, fragola, banana)',
+                'energizzante' => 'Succo Energizzante (con zenzero, curcuma, barbabietola, carota, mela verde)',
+                'detox'        => 'Succo Detox / Verde (cetriolo, sedano, spinaci, mela verde, limone)',
+                'rinfrescante' => 'Succo Rinfrescante (anguria, menta, lime, cetriolo, acqua di cocco)',
+                'vitaminico'   => 'Succo Vitaminico / Agrumi (arancia, pompelmo, limone, kiwi, mandarino)',
+            ],
+        ],
+    ];
+}
+
 function evershelfIdentifyPromptFragments(string $lang): array {
     $categories = 'latticini, pasta, bevande, snack, carne, pesce, frutta, verdura, surgelati, condimenti, conserve, cereali, pane, igiene, pulizia, altro';
 
