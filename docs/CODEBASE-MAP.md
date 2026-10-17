@@ -30,6 +30,12 @@
 | `scripts/*` | Maintenance CLIs + the regression suite CI runs | |
 | `mcp-server/` | Node MCP server exposing EverShelf API to agents | separate npm pkg |
 | `evershelf-kiosk/`, `evershelf-health-bridge/` | Android apps (Kotlin/Gradle) | |
+
+The kiosk WebView is themed, not white: `KioskActivity.launchWebView()` sets the surface colour
+to the splash (`#0C1222`), `onResume` only reloads when the URL is not the configured app any
+more (the WebView canonicalises `host:8080` → `host:8080/`), and a 5-minute watchdog reloads
+the page once if a JS probe goes unanswered for 6 s (`page-watchdog-reload` in the error
+reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
 | `docs/`, `docs/wiki/` | Documentation | |
 | `.github/workflows/` | CI: lint (PHP/JS/shell), PHP regression tests, docker build, i18n audit, auto-merge, release | |
 

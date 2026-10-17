@@ -90,6 +90,34 @@ class KioskActivity : AppCompatActivity() {
     private val updateCheckRunnable = Runnable { schedulePeriodicUpdateCheck() }
     private val UPDATE_CHECK_INTERVAL_MS = 30L * 60 * 1000  // 30 minutes
 
+    // Page watchdog: a WebView whose renderer hangs keeps showing the last frame and
+    // never answers. Every 5 minutes we ask it for a value; if the answer does not
+    // arrive in 6 s the page is reloaded once (never more: the next probe waits for
+    // the interval), instead of leaving a dead tablet on the wall.
+    private val watchdogHandler = Handler(Looper.getMainLooper())
+    private val WATCHDOG_INTERVAL_MS = 5L * 60 * 1000
+    private val WATCHDOG_TIMEOUT_MS = 6_000L
+    private var watchdogAnswered = true
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            if (!isFinishing && webView.visibility == View.VISIBLE) {
+                watchdogAnswered = false
+                webView.evaluateJavascript("1+1") { watchdogAnswered = true }
+                watchdogHandler.postDelayed({
+                    if (!watchdogAnswered) {
+                        ErrorReporter.reportMessage(
+                            type    = "page-watchdog-reload",
+                            message = "The page did not answer a JS probe for 6 s: reloading once",
+                            forceReport = false
+                        )
+                        webView.reload()
+                    }
+                }, WATCHDOG_TIMEOUT_MS)
+            }
+            watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS)
+        }
+    }
+
     private fun schedulePeriodicUpdateCheck() {
         checkForUpdates(forceCheck = false)
         updateCheckHandler.postDelayed(updateCheckRunnable, UPDATE_CHECK_INTERVAL_MS)
@@ -375,7 +403,10 @@ class KioskActivity : AppCompatActivity() {
         settings.mediaPlaybackRequiresUserGesture = false
         settings.allowFileAccess = true
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-        settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+        // LOAD_NO_CACHE refetched every asset on every load, so a reload showed the
+        // blank WebView surface for longer. The ?v= stamps + the service worker
+        // already bust what changed.
+        settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
 
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
@@ -1246,10 +1277,14 @@ class KioskActivity : AppCompatActivity() {
         // Start (or restart) the periodic update check
         updateCheckHandler.removeCallbacks(updateCheckRunnable)
         updateCheckHandler.postDelayed(updateCheckRunnable, UPDATE_CHECK_INTERVAL_MS)
+        // …and the page watchdog (stopped in onPause: no probes while in background)
+        watchdogHandler.removeCallbacks(watchdogRunnable)
+        watchdogHandler.postDelayed(watchdogRunnable, WATCHDOG_INTERVAL_MS)
     }
 
     override fun onPause() {
         super.onPause()
+        watchdogHandler.removeCallbacks(watchdogRunnable)
         updateCheckHandler.removeCallbacks(updateCheckRunnable)
     }
 

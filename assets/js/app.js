@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261017l'; // bump when translations change
+const _I18N_VERSION = '20261017m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11563,7 +11563,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11573,7 +11573,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261017m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29466,7 +29466,16 @@ async function _initApp() {
     const preloader = document.getElementById('app-preloader');
     if (preloader) {
         const elapsed = Date.now() - _splashStart;
-        const minDelay = Math.max(0, 3000 - elapsed);
+        // A reload inside a session that was already running (language change, the
+        // kiosk ↻, an update) is not a cold boot: paying the full splash makes it
+        // look like a reset, so keep only the fade. The first boot of a session
+        // keeps the 3 s rail that tells the user what is being checked.
+        let warmBoot = false;
+        try {
+            warmBoot = sessionStorage.getItem('evershelf_booted') === '1';
+            sessionStorage.setItem('evershelf_booted', '1');
+        } catch (e) { /* private mode: always show the full splash */ }
+        const minDelay = Math.max(0, (warmBoot ? 500 : 3000) - elapsed);
         setTimeout(() => {
             // Last icon of the rail: settings, wizard and dashboard are done
             _preloaderStage('ui', 'done');
