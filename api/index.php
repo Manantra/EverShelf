@@ -11,6 +11,7 @@
 // ── Core bootstrap (env, security, database, logger) ─────────────────────────
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/tags.php';
+require_once __DIR__ . '/lib/product_family.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -950,6 +951,17 @@ try {
             break;
         case 'product_tags_set':
             setProductTags($db);
+            break;
+
+        // ===== PARENT / CHILD PRODUCTS (#284) — off with PRODUCT_VARIANTS_ENABLED=false =====
+        case 'families_list':
+            listProductFamilies($db);
+            break;
+        case 'product_family':
+            getProductFamily($db);
+            break;
+        case 'product_set_parent':
+            setProductParent($db);
             break;
         case 'inventory_search':
             searchInventoryProducts($db);
@@ -4470,6 +4482,11 @@ function getProduct(PDO $db): void {
         if (tagsEnabled()) {
             $product['tags'] = tagsForProduct($db, (int)$product['id']);
         }
+        if (productVariantsEnabled() && !empty($product['parent_id'])) {
+            $__p = $db->prepare("SELECT name FROM products WHERE id = ?");
+            $__p->execute([(int)$product['parent_id']]);
+            $product['parent_name'] = (string)($__p->fetchColumn() ?: '');
+        }
         echo json_encode(['success' => true, 'product' => $product]);
     } else {
         http_response_code(404);
@@ -4850,6 +4867,7 @@ function listInventory(PDO $db): void {
     // Custom tags (#97) ride along with every row so the client can draw the
     // pills without a second round trip.
     tagsAttachToRows($db, $rows);
+    familyAttachToRows($db, $rows);
     echo json_encode(['inventory' => $rows]);
 }
 
@@ -6975,11 +6993,17 @@ function productCanonicalScore(PDO $db, array $row): float {
 function collectDuplicateProductIds(PDO $db, array $row): array {
     $seedId = (int)$row['id'];
     $ids = [$seedId];
+    // A child is an explicit variant of a family: the consolidator must never
+    // delete it just because another row looks similar (that is the user's choice).
+    if (productVariantsEnabled() && !empty($row['parent_id'])) {
+        return $ids;
+    }
     $barcode = normalizeProductBarcode($row['barcode'] ?? null);
     $seedName = (string)($row['name'] ?? '');
 
     if ($barcode !== null) {
-        $stmt = $db->prepare("SELECT id, name, category FROM products WHERE barcode = ? AND id != ?");
+        // Children are explicit variants: never a merge candidate of another row.
+        $stmt = $db->prepare("SELECT id, name, category FROM products WHERE barcode = ? AND id != ? AND parent_id IS NULL");
         $stmt->execute([$barcode, $seedId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
             $clash = productRowClashesWithLooseProduce($seedName, $c);
@@ -6998,7 +7022,7 @@ function collectDuplicateProductIds(PDO $db, array $row): array {
 
     $nName = normalizeProductName($seedName);
     if ($nName !== '') {
-        $stmt = $db->prepare("SELECT id, name, brand, category FROM products WHERE lower(trim(name)) = ? AND id != ?");
+        $stmt = $db->prepare("SELECT id, name, brand, category FROM products WHERE lower(trim(name)) = ? AND id != ? AND parent_id IS NULL");
         $stmt->execute([$nName, $seedId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
             $clash = productRowClashesWithLooseProduce($seedName, $c);
@@ -8955,6 +8979,7 @@ function getServerSettings(): void {
         // Product rules: genre prefix in the title + automatic favourites
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
         'tags_enabled'                => tagsEnabled(),
+        'product_variants_enabled'    => productVariantsEnabled(),
         'audit_mode_enabled'          => env('AUDIT_MODE_ENABLED', 'true') === 'true',
         'audit_mode_batch_size'       => (int)env('AUDIT_MODE_BATCH_SIZE', '5'),
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
@@ -9405,6 +9430,7 @@ function saveSettings(): void {
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
         'tags_enabled'                   => 'TAGS_ENABLED',
+        'product_variants_enabled'       => 'PRODUCT_VARIANTS_ENABLED',
         'audit_mode_enabled'             => 'AUDIT_MODE_ENABLED',
         'audit_mode_batch_size'          => 'AUDIT_MODE_BATCH_SIZE',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
@@ -21251,4 +21277,79 @@ function setProductTags(PDO $db): void
         'count'      => count($stored),
     ]);
     echo json_encode(['success' => true, 'tags' => $stored]);
+}
+
+// ===== PARENT / CHILD PRODUCTS (#284) =====
+// A child keeps its own row (brand, barcode, stock); the umbrella is a catalogue
+// row with no stock of its own, so "how much pasta do I have?" is one sum.
+
+/** GET families_list — the umbrella products the user can attach a child to. */
+function listProductFamilies(PDO $db): void
+{
+    if (!productVariantsEnabled()) {
+        echo json_encode(['success' => true, 'enabled' => false, 'families' => []]);
+        return;
+    }
+    echo json_encode(['success' => true, 'enabled' => true, 'families' => familyNames($db)]);
+}
+
+/** GET product_family&id=N — the umbrella, its children and the totals. */
+function getProductFamily(PDO $db): void
+{
+    if (!productVariantsEnabled()) {
+        echo json_encode(['success' => false, 'error_key' => 'error.family_disabled']);
+        return;
+    }
+    $id = (int)($_GET['id'] ?? 0);
+    $stmt = $db->prepare("SELECT * FROM products WHERE id = ?");
+    $stmt->execute([$id]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'not_found']);
+        return;
+    }
+    $parentId  = (int)($product['parent_id'] ?? 0);
+    $umbrellaId = $parentId > 0 ? $parentId : (int)$product['id'];
+    $stmt = $db->prepare("SELECT id, name FROM products WHERE id = ?");
+    $stmt->execute([$umbrellaId]);
+    $umbrella = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$umbrella) {
+        $umbrella = ['id' => $umbrellaId, 'name' => (string)$product['name']];
+    }
+    echo json_encode([
+        'success'  => true,
+        'parent'   => ['id' => (int)$umbrella['id'], 'name' => (string)$umbrella['name']],
+        'children' => familyChildren($db, (int)$umbrella['id']),
+        'is_child' => $parentId > 0,
+    ]);
+}
+
+/** POST product_set_parent — attach a product to an umbrella (or detach it). */
+function setProductParent(PDO $db): void
+{
+    if (!productVariantsEnabled()) {
+        echo json_encode(['success' => false, 'error_key' => 'error.family_disabled']);
+        return;
+    }
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $id = (int)($input['id'] ?? 0);
+    $parentId = null;
+    if (array_key_exists('parent_id', $input) && $input['parent_id'] !== null && $input['parent_id'] !== '') {
+        $parentId = (int)$input['parent_id'];
+    } elseif (trim((string)($input['parent_name'] ?? '')) !== '') {
+        $parentId = familyResolveParent($db, (string)$input['parent_name']);
+    }
+    [$ok, $errorKey] = familySetParent($db, $id, $parentId);
+    if (!$ok) {
+        echo json_encode(['success' => false, 'error_key' => $errorKey]);
+        return;
+    }
+    EverLog::info('API product family set', [
+        'event'      => 'api_product_family_set',
+        'product_id' => $id,
+        'parent_id'  => $parentId,
+    ]);
+    echo json_encode(['success' => true, 'parent_id' => $parentId]);
 }

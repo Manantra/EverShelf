@@ -12,17 +12,17 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261017g">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261017g">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261017g">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261017h">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261017h">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261017h">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261017g"></script>
-    <script src="assets/js/core/auth.js?v=20261017g"></script>
+    <script src="assets/js/core/dom.js?v=20261017h"></script>
+    <script src="assets/js/core/auth.js?v=20261017h"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261017g"></script>
+    <script src="assets/js/core/support.js?v=20261017h"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -30,7 +30,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261017h';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -39,13 +39,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017g';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017h';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261017g"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261017h"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -804,6 +804,14 @@
                     <datalist id="product-tags-datalist"></datalist>
                     <p class="settings-hint" data-i18n="product_tags.form_hint">Separa i tag con una virgola.</p>
                 </div>
+                <div class="form-group" id="pf-family-group">
+                    <label data-i18n="product_family.form_label">Famiglia</label>
+                    <input type="text" id="pf-parent" class="form-input" list="product-families-datalist"
+                           placeholder="es. Spaghetti" data-i18n-placeholder="product_family.placeholder"
+                           autocomplete="off">
+                    <datalist id="product-families-datalist"></datalist>
+                    <p class="settings-hint" data-i18n="product_family.form_hint">Il prodotto generico a cui appartiene questa variante (Barilla → Spaghetti). Vuoto = prodotto a sé.</p>
+                </div>
             <div class="form-group">
                 <label data-i18n="product.barcode_label">🔖 Barcode</label>
                 <div class="expiry-input-row">
@@ -1211,7 +1219,27 @@
                                 <span class="toggle-slider"></span>
                             </span>
                         </label>
+                    <div class="form-group" style="margin-top:8px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.product_rules.family_label">Famiglie di prodotti</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-product-variants-enabled">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.product_rules.family_hint">Un prodotto generico (Spaghetti) con le sue varianti (Barilla, Rummo): la dispensa mostra la variante, il totale della famiglia è in una riga.</p>
+                    </div>
                         <p class="settings-hint" data-i18n="settings.product_rules.tags_hint">Etichette libere («senza glutine», «bio», «bimbi») sulle card e per filtrare la dispensa.</p>
+                    </div>
+                    <div class="form-group" style="margin-top:8px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.product_rules.family_label">Famiglie di prodotti</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-product-variants-enabled">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.product_rules.family_hint">Un prodotto generico (Spaghetti) con le sue varianti (Barilla, Rummo): la dispensa mostra la variante, il totale della famiglia in una riga.</p>
                     </div>
                     <div class="form-group" style="margin-top:8px">
                         <label class="toggle-row">
@@ -2891,10 +2919,10 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261017g"></script>
-<script src="assets/js/core/vocab.js?v=20261017g"></script>
-<script src="assets/js/app.js?v=20261017g"></script>
-<script src="assets/js/audit.js?v=20261017g"></script>
+<script src="assets/js/vocab.generated.js?v=20261017h"></script>
+<script src="assets/js/core/vocab.js?v=20261017h"></script>
+<script src="assets/js/app.js?v=20261017h"></script>
+<script src="assets/js/audit.js?v=20261017h"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 </body>
 </html>

@@ -133,7 +133,9 @@ assert_true(productNamesSameArticle('Yogurt', 'Yogurt greco', true), 'a greek yo
 assert_true(productNamesSameArticle('Cracker', 'Cracker integrali', true), 'a wholemeal cracker is a cracker');
 
 // ── The consolidator (which DELETES a row) uses the safe rule ───────────────
-$collect = slice_from($api, 'function collectDuplicateProductIds(PDO $db, array $row): array {', 3500);
+// The window follows the function as it grows (the #284 parent guard and the
+// parent_id filters added a few lines); the assertions below are unchanged.
+$collect = slice_from($api, 'function collectDuplicateProductIds(PDO $db, array $row): array {', 4500);
 assert_true($collect !== '', 'api: collectDuplicateProductIds() exists');
 assert_true(str_contains($collect, 'productNamesSameArticle($nName, $otherName, $barcode !== null || $otherBarcode !== null)'),
     'api: the loose match is gated on a barcode, as the comment always promised');

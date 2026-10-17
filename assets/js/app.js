@@ -4223,7 +4223,7 @@ function _applySyncedSettings(serverSettings) {
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
-        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size',
+        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -4957,7 +4957,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
-            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size',
+            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -5658,6 +5658,8 @@ function _applyProductRuleSettingsUI(s) {
     if (tagsEnabledEl) tagsEnabledEl.checked = s.tags_enabled !== false;
     const auditEnabledEl = document.getElementById('setting-audit-mode-enabled');
     if (auditEnabledEl) auditEnabledEl.checked = s.audit_mode_enabled !== false;
+    const variantsEl = document.getElementById('setting-product-variants-enabled');
+    if (variantsEl) variantsEl.checked = s.product_variants_enabled !== false;
     const auditBatchEl = document.getElementById('setting-audit-batch-size');
     if (auditBatchEl) auditBatchEl.value = s.audit_mode_batch_size || 5;
     if (typeof _auditSetBatchSize === 'function') _auditSetBatchSize(s.audit_mode_batch_size);
@@ -5872,6 +5874,8 @@ async function saveSettings() {
     if (tagsToggleEl) s.tags_enabled = tagsToggleEl.checked;
     const auditToggleEl = document.getElementById('setting-audit-mode-enabled');
     if (auditToggleEl) s.audit_mode_enabled = auditToggleEl.checked;
+    const variantsToggleEl = document.getElementById('setting-product-variants-enabled');
+    if (variantsToggleEl) s.product_variants_enabled = variantsToggleEl.checked;
     const auditBatchField = document.getElementById('setting-audit-batch-size');
     if (auditBatchField) s.audit_mode_batch_size = Math.max(1, Math.min(50, Number(auditBatchField.value) || 5));
     const autoFavMinEl = document.getElementById('setting-auto-favorite-min-uses');
@@ -5966,6 +5970,7 @@ async function saveSettings() {
             tags_enabled:                s.tags_enabled !== false,
             audit_mode_enabled:          s.audit_mode_enabled !== false,
             audit_mode_batch_size:       s.audit_mode_batch_size || 5,
+            product_variants_enabled:    s.product_variants_enabled !== false,
             auto_favorite_min_uses:      s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3,
             dark_mode:                   s.dark_mode || 'auto',
             barcode_ai_fallback:          !!s.barcode_ai_fallback,
@@ -9643,6 +9648,34 @@ async function _saveProductTags(productId, raw) {
     } catch (_e) { /* the product is saved either way */ }
 }
 
+/** Families (#284): the umbrella names for the form autocomplete. */
+let _familiesEnabled = true;
+
+async function _loadFamilies() {
+    try {
+        const data = await api('families_list');
+        _familiesEnabled = data?.enabled !== false;
+        const group = document.getElementById('pf-family-group');
+        if (group) group.hidden = !_familiesEnabled;
+        const dl = document.getElementById('product-families-datalist');
+        if (dl) dl.innerHTML = (data?.families || []).map(f => `<option value="${escapeHtml(f.name)}"></option>`).join('');
+    } catch (_e) { /* families are optional */ }
+}
+
+/** Attach (or detach) the product to an umbrella right after it is saved. */
+async function _saveProductFamily(productId, parentName) {
+    if (!productId || !_familiesEnabled) return;
+    try {
+        const res = await api('product_set_parent', {}, 'POST', { id: productId, parent_name: String(parentName || '').trim() });
+        if (res?.success) {
+            if (currentProduct && Number(currentProduct.id) === Number(productId)) currentProduct.parent_id = res.parent_id;
+            _loadFamilies();
+        } else if (res?.error_key) {
+            showToast(t(res.error_key), 'error');
+        }
+    } catch (_e) { /* the product is saved either way */ }
+}
+
 function toggleInventoryTagFilter(name) {
     const key = String(name || '').toLowerCase();
     if (!key) return;
@@ -9898,6 +9931,13 @@ function renderInventoryItem(item, opts = {}) {
     const catIcon = CATEGORY_ICONS[catKey] || '📦';
     // Text only — image/icon on the left (or category header) already shows the food emoji once
     const catBadge = `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${escapeHtml(categoryText(catKey))}</span>`;
+    // Family (#284): the child is what you have, the umbrella is how much of it.
+    const familyBadge = (item.parent_name && Number(item.family_count) > 1)
+        ? `<span class="inv-badge badge-family">${escapeHtml(t('product_family.card')
+            .replace('{name}', String(item.parent_name))
+            .replace('{qty}', stripHtml(formatQuantity(item.family_qty, item.unit, item.default_quantity, item.package_unit)))
+            .replace('{count}', String(item.family_count)))}</span>`
+        : '';
     // Custom tags: small pills, and tapping one filters the pantry by it.
     const tagPills = (Array.isArray(item.tags) && item.tags.length)
         ? `<span class="inv-tag-list">${item.tags.map(tg => `<button type="button" class="inv-tag-pill" onclick="toggleInventoryTagFilter('${escapeHtml(String(tg)).replace(/'/g, '&#39;')}')">${escapeHtml(String(tg))}</button>`).join('')}</span>`
@@ -9940,7 +9980,7 @@ function renderInventoryItem(item, opts = {}) {
                 ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
                 <div class="inv-meta">
                     <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
-                    ${catBadge}${tagPills}
+                    ${catBadge}${tagPills}${familyBadge}
                     ${expiryBadge}
                     ${openedBadge}
                     ${vacuumBadge}
@@ -10234,7 +10274,7 @@ function _playInventorySwipeDemo(container) {
 }
 
 function renderInventory(items, options = {}) {
-    if (!_knownTags.length) _loadKnownTags();
+    if (!_knownTags.length) { _loadKnownTags(); _loadFamilies(); }
     _renderInventoryTagFilter();
     const container = document.getElementById('inventory-list');
     const visible = _inventoryVisibleItems(items);
@@ -12731,6 +12771,8 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-id').value = '';
     const pfTagsNew = document.getElementById('pf-tags');
     if (pfTagsNew) pfTagsNew.value = '';
+    const pfParentNew = document.getElementById('pf-parent');
+    if (pfParentNew) pfParentNew.value = '';
     document.getElementById('pf-name').value = '';
     document.getElementById('pf-brand').value = '';
     document.getElementById('pf-category').value = '';
@@ -13010,6 +13052,7 @@ async function submitProduct(e) {
             // Tags are catalogue data: save them right after the product, so a
             // reused or merged row still receives the labels the user typed.
             await _saveProductTags(result.id, document.getElementById('pf-tags')?.value || '');
+            await _saveProductFamily(result.id, document.getElementById('pf-parent')?.value || '');
             currentProduct = { ...productData, id: result.id };
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
@@ -13384,6 +13427,8 @@ function editProductFromAction() {
     document.getElementById('pf-notes').value = currentProduct.notes || '';
     const pfTagsEdit = document.getElementById('pf-tags');
     if (pfTagsEdit) pfTagsEdit.value = Array.isArray(currentProduct.tags) ? currentProduct.tags.join(', ') : '';
+    const pfParentEdit = document.getElementById('pf-parent');
+    if (pfParentEdit) pfParentEdit.value = currentProduct.parent_name || '';
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
     document.getElementById('product-form-title').textContent = t('product.title_edit');

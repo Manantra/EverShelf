@@ -1,4 +1,10 @@
 {
+  "product_family": {
+    "form_label": "Familie",
+    "placeholder": "z. B. Spaghetti",
+    "form_hint": "Das generische Produkt, zu dem diese Variante gehört (Barilla → Spaghetti). Leer = eigenes Produkt.",
+    "card": "Familie {name}: {qty} in {count} Varianten"
+  },
   "audit": {
     "start": "Schnelle Inventur",
     "title": "Vorrat prüfen",
@@ -1485,6 +1491,8 @@
       "trip_complete_hint": "Auf der Einkaufsseite löscht „Einkauf erledigt“ die ganze Liste und blockiert Auto-Nachträge bis Artikel wieder leer sind."
     },
     "product_rules": {
+      "family_label": "Produktfamilien",
+      "family_hint": "Ein generisches Produkt (Spaghetti) mit seinen Varianten (Barilla, Rummo): der Vorrat zeigt die Variante, die Summe der Familie in einer Zeile.",
       "audit_label": "Schnelle Inventur",
       "audit_hint": "Ein Produkt nach dem anderen, drei große Antworten: der Vorrat ist in zwei Minuten wieder korrekt, ohne Scanner.",
       "audit_batch_label": "Speichern alle",
@@ -1893,6 +1901,10 @@
     "badge_better": "weniger als Ø"
   },
   "error": {
+    "family_disabled": "Produktfamilien sind in den Einstellungen deaktiviert.",
+    "family_self_parent": "Ein Produkt kann nicht seine eigene Familie sein.",
+    "family_parent_is_child": "Diese Variante gehört bereits zu einer Familie.",
+    "family_parent_has_children": "Ein Produkt mit Varianten kann keiner anderen Familie beitreten.",
     "tags_disabled": "Tags sind in den Einstellungen deaktiviert.",
     "tag_name_required": "Gib einen Namen für den Tag ein.",
     "generic": "Fehler",
