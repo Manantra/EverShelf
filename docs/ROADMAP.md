@@ -38,6 +38,8 @@ far), `feature` / `enhancement` / `bug` / `i18n` / `docs`.
 | Recipe favourites + portion rescaler | #123, #124 | 1.10.0 |
 | Telegram bot (`/lista`, `/scadenze`) | [#102](https://github.com/dadaloop82/EverShelf/issues/102) | 1.11.3 (rest of the issue is still open) |
 | AI-identified product could not reach the pantry (“Product ID required”) | [#282](https://github.com/dadaloop82/EverShelf/issues/282) | 1.11.14 |
+| A scanned tomato is never the pantry's jar of passata (duplicates, AI name→category, AI unit/quantity, pantry floor) | — | 1.13.0 |
+| The vocabulary is **data** (`api/vocab/<lang>.json`) — genres, brands, plurals; no product names in the code | — | 1.13.0 |
 | Optional support layer — **donations only**, no advertising | — | 1.12.0 |
 
 ## 🔜 Next (agreed, waiting for hands)
