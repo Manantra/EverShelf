@@ -734,7 +734,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
     }
 
     // ── 9. .env file ──────────────────────────────────────────────────────────
-    $envExists = file_exists(__DIR__ . '/../.env');
+    $envExists = is_file(evershelfEnvFile());
     $checks['env_file'] = [
         'ok'       => $envExists,
         'optional' => true,
@@ -9302,7 +9302,7 @@ function saveSettings(): void {
     if (!empty($input['gemini_api_key']) && empty($input['gemini_key'])) {
         $input['gemini_key'] = $input['gemini_api_key'];
     }
-    $envFile = __DIR__ . '/../.env';
+    $envFile = evershelfEnvFile();
     $envVars = loadEnv();
     
     // Map of input key → .env key — only update if present in input
@@ -13924,8 +13924,8 @@ function restoreLocalBackup(string $filename, PDO $db): array {
 
 /** Write / overwrite a single key in the .env file (used by OAuth callback). */
 function _gdriveSetEnvVar(string $key, string $value): void {
-    $envFile = __DIR__ . '/../.env';
-    evershelfWriteEnvFile($envFile, [$key => $value], __DIR__ . '/../.env.example');
+    $envFile = evershelfEnvFile();
+    evershelfWriteEnvFile($envFile, [$key => $value], dirname(__DIR__) . '/.env.example');
     clearEnvOverrides([$key]); // a DB override would otherwise shadow the new file value
 }
 

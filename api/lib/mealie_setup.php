@@ -191,7 +191,7 @@ function mealieWriteEnvKeys(array $updates): array {
     if (empty($updates)) {
         return ['success' => false, 'error' => 'nothing_to_write'];
     }
-    $envFile      = EVERSHELF_ROOT . '/.env';
+    $envFile      = evershelfEnvFile();
     $templateFile = EVERSHELF_ROOT . '/.env.example';
     $keys         = array_map('strval', array_keys($updates));
 

@@ -3,12 +3,65 @@
  * EverShelf — environment variable loader (.env + DB overrides).
  */
 
+/**
+ * The .env this installation reads and writes.
+ *
+ * Default: `<app>/.env`. A container can point it elsewhere with the
+ * `EVERSHELF_ENV_FILE` environment variable (on Unraid the whole appdata folder
+ * is mounted at /config and the file is /config/.env), which is what makes the
+ * configuration survive a container update and stay writable from Settings.
+ *
+ * The variable is read from the real process environment, never from the file
+ * itself: it decides *which* file to read, so it cannot come from that file.
+ * The resolved path is cached for the request, because loadEnv() bridges the
+ * file into getenv() and could otherwise shadow the override with an empty value.
+ */
+function evershelfEnvFile(): string
+{
+    static $resolved = null;
+    if ($resolved !== null) {
+        return $resolved;
+    }
+    $override = getenv('EVERSHELF_ENV_FILE');
+    if ($override === false || trim((string)$override) === '') {
+        $override = $_SERVER['EVERSHELF_ENV_FILE'] ?? ($_ENV['EVERSHELF_ENV_FILE'] ?? '');
+    }
+    $override = trim((string)$override);
+    $root = defined('EVERSHELF_ROOT') ? EVERSHELF_ROOT : dirname(__DIR__, 2);
+    $resolved = $override !== '' ? $override : $root . '/.env';
+    return $resolved;
+}
+
+/**
+ * The configured .env, created from `.env.example` when it does not exist yet
+ * (an empty /config folder on a fresh container). Best effort: a read-only
+ * mount simply keeps the path and the caller reports what it can.
+ */
+function evershelfEnsureEnvFile(): string
+{
+    $file = evershelfEnvFile();
+    if (is_file($file)) {
+        return $file;
+    }
+    $example = (defined('EVERSHELF_ROOT') ? EVERSHELF_ROOT : dirname(__DIR__, 2)) . '/.env.example';
+    if (is_file($example)) {
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        if (@copy($example, $file)) {
+            @chmod($file, 0664);
+        }
+    }
+    return $file;
+}
+
 function loadEnv(bool $reload = false): array {
     static $cache = null;
     if (!$reload && $cache !== null) {
         return $cache;
     }
-    $envFile = dirname(__DIR__, 2) . '/.env';
+    $envFile = evershelfEnsureEnvFile();
     $cache = [];
     if (file_exists($envFile)) {
         $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);

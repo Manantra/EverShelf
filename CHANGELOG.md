@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.0] - 2026-10-17
+
+### Installable from Unraid, with a container-safe `.env`
+- **`EVERSHELF_ENV_FILE`.** The app now reads *and writes* its `.env` from the path in this
+  environment variable (default unchanged: `<app>/.env`), creating it from `.env.example`
+  when the folder is empty. A container can therefore keep the configuration on a mounted
+  folder that survives updates — and the Settings page can save into it.
+- **The Unraid template is versioned in the repo** (`unraid/evershelf.xml`, CA template
+  contributed by **@DevlinDelFuego**). Two corrections were needed before shipping it: the
+  **data volume** was missing (`/var/www/html/data` holds the SQLite database — without it an
+  update started from an empty pantry) and `.env` was mounted as a *file*, which Docker turns
+  into a directory when the file does not exist yet. It now mounts the folder (`/config`) and
+  passes `EVERSHELF_ENV_FILE=/config/.env`.
+- **`docs/wiki/Unraid.md`**: install, the two mandatory paths, permissions (`chown -R 33:33`),
+  the pairing code from `docker logs`, backup of both paths and a troubleshooting table.
+- **`scripts/test-unraid-template.php`**: guard test — XML well-formed, published image, port
+  80, both persistent paths, the env override, that `evershelfEnvFile()` honours it, that no
+  writer keeps a hardcoded `.env` path, and that the wiki/README explain it.
+
 ## [1.15.3] - 2026-10-17
 
 ### The tablet stops “resetting” itself

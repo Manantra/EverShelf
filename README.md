@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.15.3-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.16.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -47,6 +47,8 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 <summary><b>⚙️ Install & config</b></summary>
 
 **Docker** (recommended): `docker compose pull && docker compose up -d`
+
+**Unraid**: Community Applications template (contributed by **@DevlinDelFuego**) — `unraid/evershelf.xml`, with the guide in [docs/wiki/Unraid.md](docs/wiki/Unraid.md). It mounts the database **and** the folder holding `.env`, so both survive a container update.
 
 **Manual:** clone → `cp .env.example .env` → `chmod 755 data/` → point web server at repo root.
 
