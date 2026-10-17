@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.15.2] - 2026-10-17
+
+### The white flash on the tablet
+- **The root canvas was white.** `body` painted the app background but `<html>` did not, so
+  every frame in which the WebView surface was not painted yet (renderer restart, start of
+  a navigation, surface re-attach after resume) showed white. `html` now paints `var(--bg)`
+  too, and the Android `theme-color` follows the light/dark theme instead of staying fixed
+  on the light accent.
+- **Kiosk**: the WebView surface is now the splash colour (`#0C1222`) instead of the default
+  white (`webView.setBackgroundColor`), and `onResume` no longer reloads the whole app when
+  the WebView canonicalised the URL (`host:8080` → `host:8080/`) — that reload was the other
+  half of the “it resets for a moment” feeling. **Needs a new APK**; the CSS/JS half reaches
+  the tablet as soon as the web app is updated.
+
 ## [1.15.1] - 2026-10-17
 
 ### A save is a decision: the checklist empties itself

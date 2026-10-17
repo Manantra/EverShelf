@@ -363,6 +363,11 @@ class KioskActivity : AppCompatActivity() {
 
         webView.visibility   = View.VISIBLE
         btnSettings.visibility = View.VISIBLE
+        // The WebView surface is WHITE by default and shows through whenever the
+        // page is not painted yet (renderer restart, navigation start, surface
+        // re-attach after resume): that is the half-second white flash on the
+        // tablet. Match the splash colour instead.
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#0C1222"))
 
         val settings = webView.settings
         settings.javaScriptEnabled = true
@@ -1140,6 +1145,20 @@ class KioskActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * True when the WebView is already showing the configured app, whatever the
+     * trailing slash or fragment: a false negative here reloads the whole app on
+     * every resume (white flash on the tablet).
+     */
+    private fun sameAppUrl(current: String?, configured: String): Boolean {
+        if (current.isNullOrBlank()) return false
+        fun norm(u: String): String = u.trim()
+            .substringBefore('#')
+            .removeSuffix("/")
+            .replace(Regex("^https?://", RegexOption.IGNORE_CASE), "")
+        return norm(current) == norm(configured)
+    }
+
     private fun buildDeviceLabel(): String {
         val mfr   = Build.MANUFACTURER.takeIf { it.isNotBlank() && it != "unknown" }
             ?: Build.PRODUCT.takeIf { it.isNotBlank() && it != "unknown" }
@@ -1215,7 +1234,10 @@ class KioskActivity : AppCompatActivity() {
         enterImmersiveMode()
         if (prefs.getBoolean(KEY_SETUP_COMPLETE, false) && webView.visibility == View.VISIBLE) {
             val url = prefs.getString(KEY_URL, "") ?: ""
-            if (url.isNotEmpty() && webView.url != url) webView.loadUrl(url)
+            // The WebView canonicalises the URL ("host:8080" → "host:8080/"), so a
+            // strict compare reloaded the whole app on every resume — a needless
+            // flash. Reload only when the WebView is not on the app any more.
+            if (url.isNotEmpty() && !sameAppUrl(webView.url, url)) webView.loadUrl(url)
             // Re-apply screensaver flag in case the user changed it in Settings
             applyScreensaverFlag()
         }
