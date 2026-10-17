@@ -11975,3 +11975,48 @@ body.offline-mode #smart-shopping {
 .receipt-qty, .receipt-price { width: 80px; }
 .receipt-unit { width: 70px; }
 .receipt-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+/* Settings search: one field over the whole page, results jump to the control. */
+.settings-search { margin: 0 0 14px; }
+.settings-search-box { position: relative; display: flex; align-items: center; gap: 8px; }
+.settings-search-icon { position: absolute; left: 12px; pointer-events: none; opacity: 0.7; }
+.settings-search-box .form-input { padding-left: 36px; padding-right: 36px; width: 100%; }
+.settings-search .settings-hint { margin: 4px 0 0 4px; }
+.settings-search-results {
+    margin-top: 6px;
+    max-height: 46vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 12px;
+    background: var(--bg-card, #fff);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+.settings-search-count,
+.settings-search-empty { margin: 0; padding: 8px 12px; font-size: 0.8rem; color: var(--text-muted, #666); }
+.settings-search-hit {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--border-color, #f0f0f0);
+    cursor: pointer;
+    font: inherit;
+    color: var(--text-color, inherit);
+}
+.settings-search-hit:hover,
+.settings-search-hit.is-active { background: var(--bg-subtle, #f4f6f4); }
+.settings-search-hit-label { display: block; font-weight: 600; font-size: 0.92rem; }
+.settings-search-hit-label code { font-size: 0.72rem; opacity: 0.65; font-weight: 400; }
+.settings-search-hit-hint { display: block; font-size: 0.8rem; color: var(--text-muted, #666); margin-top: 2px; }
+.settings-field-hit {
+    outline: 2px solid var(--accent-color, #2e7d32);
+    outline-offset: 3px;
+    border-radius: 8px;
+    animation: settings-hit-pulse 1.3s ease-in-out 2;
+}
+@keyframes settings-hit-pulse {
+    0%, 100% { background: transparent; }
+    50% { background: rgba(46, 125, 50, 0.10); }
+}

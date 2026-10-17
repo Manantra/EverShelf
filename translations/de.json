@@ -1,4 +1,13 @@
 {
+  "settings_search": {
+      "placeholder": "Einstellung suchen… (z. B. Tags, Bon, GEMINI_API_KEY)",
+      "hint": "Suche nach Name, Beschreibung oder .env-Schlüssel. Enter öffnet den Eintrag.",
+      "empty": "Keine Einstellung gefunden.",
+      "results": "{n} Treffer",
+      "env_only": "Server-Einstellung (Datei .env)",
+      "jump": "Öffnen",
+      "clear": "Suche zurücksetzen"
+  },
   "receipt": {
     "photo": "Kassenbon",
     "title": "Kassenbon",
@@ -998,6 +1007,21 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "search_kw": {
+      "tags": "tag,etiketten,labels",
+      "family": "familie,varianten,parent,child",
+      "kind": "genre,titel,name,kategorie",
+      "favorites": "favoriten,automatisch,verbrauch",
+      "audit": "inventur,zählen,prüfen,bestand",
+      "receipt": "bon,kassenzettel,einkauf,preise,ocr",
+      "ai": "ki,ai,gemini,openai,llama,modell,api,schlüssel",
+      "shopping": "einkauf,bring,liste,supermarkt",
+      "notify": "benachrichtigungen,hinweise,push,ntfy,telegram",
+      "ha": "home assistant,ha,smart home",
+      "theme": "design,erscheinungsbild,dunkel,hell",
+      "language": "sprache,italienisch,englisch,deutsch",
+      "backup": "sicherung,wiederherstellen,kopie,gdrive"
+    },
     "groups_aria": "Bereiche der Einstellungen",
     "subsections_label": "Unterabschnitte",
     "group_app": "🤖 App & KI",

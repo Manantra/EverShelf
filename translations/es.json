@@ -1,4 +1,13 @@
 {
+  "settings_search": {
+      "placeholder": "Buscar un ajuste… (p. ej. etiquetas, ticket, GEMINI_API_KEY)",
+      "hint": "Busca por nombre, descripción o clave .env. Intro abre la entrada.",
+      "empty": "Ningún ajuste encontrado.",
+      "results": "{n} resultados",
+      "env_only": "Ajuste del servidor (archivo .env)",
+      "jump": "Ir",
+      "clear": "Borrar la búsqueda"
+  },
   "receipt": {
     "photo": "Ticket",
     "title": "Ticket",
@@ -998,6 +1007,21 @@
     "timer_chip": "⏱️ 00:00 · Temporizador"
   },
   "settings": {
+    "search_kw": {
+      "tags": "etiqueta,etiquetas,labels",
+      "family": "familia,variantes,padre,hijo",
+      "kind": "género,título,nombre,categoría",
+      "favorites": "favoritos,automático,consumo",
+      "audit": "inventario,recuento,verificar,stock",
+      "receipt": "ticket,recibo,compra,precios,ocr",
+      "ai": "ia,ai,gemini,openai,llama,modelo,api,clave",
+      "shopping": "compra,bring,lista,supermercado",
+      "notify": "notificaciones,avisos,push,ntfy,telegram",
+      "ha": "home assistant,ha,domótica",
+      "theme": "tema,apariencia,oscuro,claro",
+      "language": "idioma,italiano,inglés,alemán",
+      "backup": "copia de seguridad,restaurar,copia,gdrive"
+    },
     "groups_aria": "Secciones de ajustes",
     "subsections_label": "Subsecciones",
     "group_app": "🤖 App e IA",
