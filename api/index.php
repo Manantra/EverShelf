@@ -12,6 +12,7 @@
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
+require_once __DIR__ . '/lib/receipt_ocr.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -108,7 +109,7 @@ function checkRateLimit(string $action): void {
     }
 
     // Determine limit based on action
-    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr', 'gemini_barcode_visual'];
+    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr', 'gemini_barcode_visual', 'parse_receipt'];
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
     $errorActions = ['report_error', 'check_update'];
@@ -1486,6 +1487,9 @@ try {
             geminiNumberOCR();
             break;
 
+        case 'parse_receipt':
+            parseReceipt();
+            break;
         case 'gemini_barcode_visual':
             geminiBarcodeVisual();
             break;
@@ -8980,6 +8984,8 @@ function getServerSettings(): void {
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
         'tags_enabled'                => tagsEnabled(),
         'product_variants_enabled'    => productVariantsEnabled(),
+        'receipt_ocr_enabled'         => receiptOcrEnabled(),
+        'receipt_ocr_max_items'       => receiptOcrMaxItems(),
         'audit_mode_enabled'          => env('AUDIT_MODE_ENABLED', 'true') === 'true',
         'audit_mode_batch_size'       => (int)env('AUDIT_MODE_BATCH_SIZE', '5'),
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
@@ -9431,6 +9437,8 @@ function saveSettings(): void {
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
         'tags_enabled'                   => 'TAGS_ENABLED',
         'product_variants_enabled'       => 'PRODUCT_VARIANTS_ENABLED',
+        'receipt_ocr_enabled'            => 'RECEIPT_OCR_ENABLED',
+        'receipt_ocr_max_items'          => 'RECEIPT_OCR_MAX_ITEMS',
         'audit_mode_enabled'             => 'AUDIT_MODE_ENABLED',
         'audit_mode_batch_size'          => 'AUDIT_MODE_BATCH_SIZE',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
@@ -21352,4 +21360,74 @@ function setProductParent(PDO $db): void
         'parent_id'  => $parentId,
     ]);
     echo json_encode(['success' => true, 'parent_id' => $parentId]);
+}
+
+// ===== RECEIPT OCR (#114) =====
+// One photo in, a list of proposed pantry rows out. Nothing is written here:
+// the browser shows an editable review table and only then calls inventory_add.
+
+function parseReceipt(): void
+{
+    EverLog::info('parseReceipt');
+    if (!receiptOcrEnabled()) {
+        echo json_encode(['success' => false, 'error_key' => 'error.receipt_disabled']);
+        return;
+    }
+    $apiKey = aiCredential();
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key', 'error_key' => 'error.ai_not_configured']);
+        return;
+    }
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $image = (string)($input['image'] ?? '');
+    if ($image === '') {
+        echo json_encode(['success' => false, 'error' => 'no_image']);
+        return;
+    }
+    // A 8 MB base64 frame is ~6 MB of pixels: past this the model answer is
+    // unusable anyway and the request only burns quota.
+    if (strlen($image) > 8 * 1024 * 1024) {
+        echo json_encode(['success' => false, 'error' => 'image_too_large', 'error_key' => 'error.image_too_large']);
+        return;
+    }
+    $lang = productKindNormalizeLang((string)($input['lang'] ?? env('APP_LANG', 'en')));
+    $langName = match ($lang) {
+        'de'    => 'German',
+        'fr'    => 'French',
+        'es'    => 'Spanish',
+        'en'    => 'English',
+        default => 'Italian',
+    };
+    $prompt = "Read this supermarket receipt and list every purchased line.\n"
+        . "Write the product names in {$langName}, in the singular, without the price, the SKU or the quantity.\n"
+        . "Respond with ONLY a valid JSON array (no markdown, no backticks):\n"
+        . "[{\"name\":\"...\",\"brand\":\"...\",\"qty\":1,\"unit\":\"conf\",\"price\":1.99}]\n"
+        . "- qty and unit follow the pantry convention: pz (countable pieces), g (weighed), "
+        . "ml (poured liquids), conf (sealed pack: bottle, jar, bag, box)\n"
+        . "- price: the line total as a number, 0 when you cannot read it\n"
+        . "- skip total lines, discounts, deposits, loyalty points and anything that is not a product\n"
+        . "- never invent a line you cannot read; an empty array is a valid answer";
+    $payload = [
+        'contents' => [[
+            'parts' => [
+                ['text' => $prompt],
+                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $image]],
+            ],
+        ]],
+    ];
+    $resp = callGeminiWithFallback($apiKey, $payload, 45, 'parse_receipt', 'vision');
+    $text = '';
+    foreach (($resp['candidates'][0]['content']['parts'] ?? []) as $part) {
+        if (isset($part['text'])) {
+            $text .= $part['text'];
+        }
+    }
+    $items = receiptParseModelJson($text);
+    EverLog::info('API receipt parsed', [
+        'event' => 'api_parse_receipt',
+        'items' => count($items),
+        'lang'  => $lang,
+    ]);
+    echo json_encode(['success' => true, 'items' => $items, 'count' => count($items)]);
 }

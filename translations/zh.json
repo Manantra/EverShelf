@@ -1,4 +1,20 @@
 {
+  "receipt": {
+    "photo": "小票",
+    "title": "小票",
+    "reading": "正在识别小票…",
+    "review_title": "识别到的行",
+    "hint": "请检查这些行：确认之前不会加入储藏室。",
+    "col_name": "商品",
+    "col_qty": "数量",
+    "col_unit": "单位",
+    "col_price": "价格",
+    "remove": "移除",
+    "confirm": "把 {n} 项加入储藏室",
+    "cancel": "取消",
+    "empty": "这张照片里没有可识别的商品。",
+    "done": "已添加 {ok} 项 · {ko} 项未保存"
+  },
   "product_family": {
     "form_label": "系列",
     "placeholder": "例如 意大利面",
@@ -1534,6 +1550,8 @@
       "trip_complete_hint": "在购物页点「购物完成」会清空清单，并阻止自动重新加入，直到再次用完。"
     },
     "product_rules": {
+      "receipt_label": "小票识别",
+      "receipt_hint": "拍照后先给出候选行；确认表格之前不会加入储藏室。",
       "family_label": "产品系列",
       "family_hint": "一个通用产品（意大利面）及其变体（Barilla、Rummo）：储藏室显示变体，系列合计显示在一行。",
       "audit_label": "快速盘点",
@@ -1901,6 +1919,8 @@
     "badge_better": "低于平均值"
   },
   "error": {
+    "receipt_disabled": "小票识别已在设置中关闭。",
+    "receipt_failed": "无法读取这张小票。",
     "family_disabled": "产品系列已在设置中关闭。",
     "family_self_parent": "产品不能作为自己的系列。",
     "family_parent_is_child": "这个变体已经属于某个系列。",

@@ -1,4 +1,20 @@
 {
+  "receipt": {
+    "photo": "Receipt",
+    "title": "Receipt",
+    "reading": "Reading the receipt…",
+    "review_title": "Lines found",
+    "hint": "Check the lines: nothing enters the pantry until you confirm.",
+    "col_name": "Product",
+    "col_qty": "Qty",
+    "col_unit": "Unit",
+    "col_price": "Price",
+    "remove": "Remove",
+    "confirm": "Add {n} to the pantry",
+    "cancel": "Cancel",
+    "empty": "No readable product in this photo.",
+    "done": "{ok} added · {ko} not saved"
+  },
   "product_family": {
     "form_label": "Family",
     "placeholder": "e.g. Spaghetti",
@@ -1534,6 +1550,8 @@
       "trip_complete_hint": "On the shopping page, “Trip done” clears the whole list and blocks auto re-add until items run out again."
     },
     "product_rules": {
+      "receipt_label": "Receipt scanning",
+      "receipt_hint": "One photo of the receipt proposes the lines; nothing enters the pantry until you confirm the table.",
       "family_label": "Product families",
       "family_hint": "A generic product (Spaghetti) with its variants (Barilla, Rummo): the pantry shows the variant, the family total on one line.",
       "audit_label": "Quick stocktake",
@@ -1901,6 +1919,8 @@
     "badge_better": "less than avg"
   },
   "error": {
+    "receipt_disabled": "Receipt scanning is switched off in the settings.",
+    "receipt_failed": "I could not read the receipt.",
     "family_disabled": "Product families are switched off in the settings.",
     "family_self_parent": "A product cannot be its own family.",
     "family_parent_is_child": "This variant already belongs to a family.",

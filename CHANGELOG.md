@@ -42,6 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate consolidator now refuses to merge a child — as a seed or as a candidate — so
   an explicit variant can never be deleted by the automatic cleanup. Off with
   `PRODUCT_VARIANTS_ENABLED=false` (settings toggle, `.env.example`).
+- **Receipt OCR (#114).** A *Scontrino* button on the scan page takes one photo (a file
+  input with `capture="environment"`: the camera on a phone, the gallery on a desktop)
+  and `parse_receipt` asks the vision model for the purchased lines — name, brand,
+  quantity, unit and price — in the app language. The answer is untrusted: every row goes
+  through `receiptSanitizeItem()` (known unit, finite quantity, bounded price, no blank
+  name) and the list is capped at `RECEIPT_OCR_MAX_ITEMS`. The **endpoint never writes**:
+  an editable review table opens, rows can be corrected or removed, and only *Add N to the
+  pantry* creates the catalogue row (`name_user_set`) and the `inventory_add`, counting
+  what was saved and what failed. Off with `RECEIPT_OCR_ENABLED=false`; it runs in the AI
+  rate-limit bucket.
 - **A failed refresh no longer blanks the screen.** `inventory_list` answering with a
   JSON error (a rate limit, a restart) used to replace the pantry with an empty list:
   the payload is validated now and, when it is missing, what is on screen stays. The

@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.14.0h';
+const CACHE = 'evershelf-v1.14.0i';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -21,6 +21,7 @@ const SHELL = [
     BASE + 'assets/css/elegant.css',
     BASE + 'assets/js/app.js',
     BASE + 'assets/js/audit.js',
+    BASE + 'assets/js/receipt.js',
     BASE + 'assets/js/vocab.generated.js',
     BASE + 'assets/js/core/vocab.js',
     BASE + 'assets/js/core/auth.js',

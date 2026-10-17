@@ -11964,3 +11964,14 @@ body.offline-mode #smart-shopping {
 }
 .audit-summary { font-size: 1.05rem; line-height: 1.5; }
 .audit-done { margin-top: 12px; text-align: center; background: var(--accent-color, #2e7d32); color: #fff; border-color: transparent; }
+
+/* Receipt OCR (#114): the review table is the safety net before the pantry. */
+.receipt-table-wrap { max-height: 45vh; overflow: auto; margin: 8px 0; }
+.receipt-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.receipt-table th { text-align: left; font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--border-color, #e0e0e0); }
+.receipt-table td { padding: 4px 6px; vertical-align: middle; }
+.receipt-table .form-input { padding: 4px 6px; font-size: 0.85rem; }
+.receipt-name { min-width: 150px; }
+.receipt-qty, .receipt-price { width: 80px; }
+.receipt-unit { width: 70px; }
+.receipt-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
