@@ -1,4 +1,21 @@
 {
+  "audit": {
+    "start": "Inventario veloce",
+    "title": "Verifica la dispensa",
+    "scope_hint": "Scegli cosa controllare: una card alla volta, tre risposte.",
+    "scope_all": "Tutto",
+    "question": "C'è ancora?",
+    "there_is": "C’è",
+    "almost_out": "Quasi finito",
+    "finished": "Finito",
+    "skip": "Salta",
+    "close": "Chiudi",
+    "empty": "Nessun prodotto da controllare.",
+    "summary_title": "Inventario fatto",
+    "summary_line": "{there} confermati · {almost} quasi finiti · {finished} finiti · {skipped} saltati",
+    "summary_errors": "{n} modifiche non salvate",
+    "done": "Fatto"
+  },
   "product_tags": {
     "form_label": "Tag",
     "placeholder": "senza glutine, bio, bimbi…",
@@ -1511,6 +1528,9 @@
       "trip_complete_hint": "In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento."
     },
     "product_rules": {
+      "audit_label": "Inventario veloce",
+      "audit_hint": "Un prodotto alla volta, tre risposte grandi: la dispensa si sistema in un paio di minuti, senza scanner.",
+      "audit_batch_label": "Salva ogni",
       "tags_label": "Tag personalizzati sui prodotti",
       "tags_hint": "Etichette libere («senza glutine», «bio», «bimbi») sulle card e per filtrare la dispensa.",
       "card_title": "🏷️ Nomi e preferiti automatici",

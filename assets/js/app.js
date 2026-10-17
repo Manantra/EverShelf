@@ -4223,7 +4223,7 @@ function _applySyncedSettings(serverSettings) {
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
-        'product_kind_prefix','auto_favorite_min_uses','tags_enabled',
+        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -4957,7 +4957,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
-            'product_kind_prefix','auto_favorite_min_uses','tags_enabled',
+            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -5656,6 +5656,13 @@ function _applyProductRuleSettingsUI(s) {
     if (prefixEl) prefixEl.checked = s.product_kind_prefix !== false;
     const tagsEnabledEl = document.getElementById('setting-tags-enabled');
     if (tagsEnabledEl) tagsEnabledEl.checked = s.tags_enabled !== false;
+    const auditEnabledEl = document.getElementById('setting-audit-mode-enabled');
+    if (auditEnabledEl) auditEnabledEl.checked = s.audit_mode_enabled !== false;
+    const auditBatchEl = document.getElementById('setting-audit-batch-size');
+    if (auditBatchEl) auditBatchEl.value = s.audit_mode_batch_size || 5;
+    if (typeof _auditSetBatchSize === 'function') _auditSetBatchSize(s.audit_mode_batch_size);
+    const stocktakeBtn = document.getElementById('inventory-stocktake-btn');
+    if (stocktakeBtn) stocktakeBtn.hidden = s.audit_mode_enabled === false;
     const minUsesEl = document.getElementById('setting-auto-favorite-min-uses');
     if (minUsesEl) minUsesEl.value = s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3;
 }
@@ -5863,6 +5870,10 @@ async function saveSettings() {
     if (productKindPrefixEl) s.product_kind_prefix = productKindPrefixEl.checked;
     const tagsToggleEl = document.getElementById('setting-tags-enabled');
     if (tagsToggleEl) s.tags_enabled = tagsToggleEl.checked;
+    const auditToggleEl = document.getElementById('setting-audit-mode-enabled');
+    if (auditToggleEl) s.audit_mode_enabled = auditToggleEl.checked;
+    const auditBatchField = document.getElementById('setting-audit-batch-size');
+    if (auditBatchField) s.audit_mode_batch_size = Math.max(1, Math.min(50, Number(auditBatchField.value) || 5));
     const autoFavMinEl = document.getElementById('setting-auto-favorite-min-uses');
     if (autoFavMinEl) s.auto_favorite_min_uses = parseInt(autoFavMinEl.value, 10) || 0;
     // OAuth fields
@@ -5953,6 +5964,8 @@ async function saveSettings() {
             ...(s.shopping_remove_on_buy ? { shopping_remove_on_buy: s.shopping_remove_on_buy } : {}),
             product_kind_prefix:         s.product_kind_prefix !== false,
             tags_enabled:                s.tags_enabled !== false,
+            audit_mode_enabled:          s.audit_mode_enabled !== false,
+            audit_mode_batch_size:       s.audit_mode_batch_size || 5,
             auto_favorite_min_uses:      s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3,
             dark_mode:                   s.dark_mode || 'auto',
             barcode_ai_fallback:          !!s.barcode_ai_fallback,

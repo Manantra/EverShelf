@@ -20,6 +20,7 @@ const SHELL = [
     BASE + 'assets/css/corporate.css',
     BASE + 'assets/css/elegant.css',
     BASE + 'assets/js/app.js',
+    BASE + 'assets/js/audit.js',
     BASE + 'assets/js/vocab.generated.js',
     BASE + 'assets/js/core/vocab.js',
     BASE + 'assets/js/core/auth.js',

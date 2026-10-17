@@ -1,4 +1,21 @@
 {
+  "audit": {
+    "start": "Schnelle Inventur",
+    "title": "Vorrat prüfen",
+    "scope_hint": "Wähle den Bereich: eine Karte nach der anderen, drei Antworten.",
+    "scope_all": "Alles",
+    "question": "Noch da?",
+    "there_is": "Ist da",
+    "almost_out": "Fast leer",
+    "finished": "Leer",
+    "skip": "Überspringen",
+    "close": "Schließen",
+    "empty": "Nichts zu prüfen.",
+    "summary_title": "Inventur fertig",
+    "summary_line": "{there} bestätigt · {almost} fast leer · {finished} leer · {skipped} übersprungen",
+    "summary_errors": "{n} Änderungen nicht gespeichert",
+    "done": "Fertig"
+  },
   "product_tags": {
     "form_label": "Tags",
     "placeholder": "glutenfrei, bio, kinder…",
@@ -1468,6 +1485,9 @@
       "trip_complete_hint": "Auf der Einkaufsseite löscht „Einkauf erledigt“ die ganze Liste und blockiert Auto-Nachträge bis Artikel wieder leer sind."
     },
     "product_rules": {
+      "audit_label": "Schnelle Inventur",
+      "audit_hint": "Ein Produkt nach dem anderen, drei große Antworten: der Vorrat ist in zwei Minuten wieder korrekt, ohne Scanner.",
+      "audit_batch_label": "Speichern alle",
       "tags_label": "Eigene Produkt-Tags",
       "tags_hint": "Freie Etiketten („glutenfrei“, „bio“, „kinder“) auf den Karten und zum Filtern des Vorrats.",
       "card_title": "🏷️ Namen und automatische Favoriten",

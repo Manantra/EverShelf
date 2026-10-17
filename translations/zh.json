@@ -1,4 +1,21 @@
 {
+  "audit": {
+    "start": "快速盘点",
+    "title": "核对储藏室",
+    "scope_hint": "选择范围：一次一张卡片，三个答案。",
+    "scope_all": "全部",
+    "question": "还在吗？",
+    "there_is": "有",
+    "almost_out": "快没了",
+    "finished": "已用完",
+    "skip": "跳过",
+    "close": "关闭",
+    "empty": "没有需要核对的内容。",
+    "summary_title": "盘点完成",
+    "summary_line": "{there} 确认 · {almost} 快没了 · {finished} 已用完 · {skipped} 跳过",
+    "summary_errors": "{n} 项修改未保存",
+    "done": "完成"
+  },
   "product_tags": {
     "form_label": "标签",
     "placeholder": "无麸质, 有机, 儿童…",
@@ -1511,6 +1528,9 @@
       "trip_complete_hint": "在购物页点「购物完成」会清空清单，并阻止自动重新加入，直到再次用完。"
     },
     "product_rules": {
+      "audit_label": "快速盘点",
+      "audit_hint": "一次一个产品，三个大按钮：几分钟内就能校正储藏室，无需扫码枪。",
+      "audit_batch_label": "每",
       "tags_label": "自定义产品标签",
       "tags_hint": "自由标签（“无麸质”“有机”“儿童”），显示在卡片上并可用于筛选储藏室。",
       "card_title": "🏷️ 名称与自动收藏",

@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the tags already in use; `inventory_list` and `product_get` ship the labels with the
   row, so the client needs no second round trip. The option is a normal setting
   (`TAGS_ENABLED`, default on, toggle under Settings → product rules).
+- **Quick stocktake (#285).** An *Inventario veloce* button on the pantry page walks the
+  pantry one card at a time — scope: everything or one location — with three big answers:
+  *there is* (nothing is written, the row is right), *almost out* (the unit's low-stock
+  value: 1 pz / 0.5 conf / 100 g·ml / 0.1 kg·l) and *finished* (0). Answers are queued and
+  written through `inventory_update` every `AUDIT_MODE_BATCH_SIZE` items (default 5) and at
+  the end, and the summary counts what changed; a change that did not save is reported
+  instead of disappearing. Arrow keys work too, but a kiosk needs no keyboard. Both the
+  feature and the batch size are normal settings (`AUDIT_MODE_ENABLED`,
+  `AUDIT_MODE_BATCH_SIZE`, under Settings → product rules).
 - **A failed refresh no longer blanks the screen.** `inventory_list` answering with a
   JSON error (a rate limit, a restart) used to replace the pantry with an empty list:
   the payload is validated now and, when it is missing, what is on screen stays. The

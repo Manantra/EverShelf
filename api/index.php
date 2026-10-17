@@ -8955,6 +8955,8 @@ function getServerSettings(): void {
         // Product rules: genre prefix in the title + automatic favourites
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
         'tags_enabled'                => tagsEnabled(),
+        'audit_mode_enabled'          => env('AUDIT_MODE_ENABLED', 'true') === 'true',
+        'audit_mode_batch_size'       => (int)env('AUDIT_MODE_BATCH_SIZE', '5'),
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
         'auto_favorite_top_n'         => (int)env('AUTO_FAVORITE_TOP_N', '3'),
         'dark_mode'                   => env('DARK_MODE', 'auto'),
@@ -9403,6 +9405,8 @@ function saveSettings(): void {
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
         'tags_enabled'                   => 'TAGS_ENABLED',
+        'audit_mode_enabled'             => 'AUDIT_MODE_ENABLED',
+        'audit_mode_batch_size'          => 'AUDIT_MODE_BATCH_SIZE',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
         'auto_favorite_top_n'            => 'AUTO_FAVORITE_TOP_N',
         // Home Assistant
