@@ -98,13 +98,22 @@ The anti-waste logic cannot ignore the freezer.
 
 ### 5. Quick audit mode (stocktaking in two minutes) · **S–M**
 Issue: [#285](https://github.com/dadaloop82/EverShelf/issues/285)
-Inventories drift. A touch view that shows **one item at a time** with three big
-buttons — *there is*, *finished*, *almost out* — lets you walk a shelf or the fridge
-without the scanner.
+Inventories drift. A touch view that shows **one item at a time** as a sentence —
+“Ci sono ancora 120 g di Formaggio Morbido di Barilla in Frigo” — and asks one
+question with real answers: *Sì, confermo*, *Cambio quantità* / *Cambio posizione*
+(the normal edit sheet opens on top of the run, manual or from the scale), *No, è
+esaurito* (the use-all action) and *No, è deperito* (the throw-all action), plus
+*quasi finito* and *salta* for the rest. You can walk a shelf or the fridge without
+the scanner.
 
 * One screen, large targets, works on the kiosk with a finger and on a phone.
-* Writes through the existing `inventory_update` path, so undo and the dashboard
-  refresh keep working; batches the changes and reports them at the end.
+* A run closed by mistake resumes from the point reached for one hour; when the
+  scale is connected, *Leggi dalla bilancia* fills the quantity in one tap.
+* *Indietro* rewinds the last answer with a real undo — including from the summary,
+  so the last article can be fixed after the run has ended.
+* Writes through the existing `inventory_update` / `inventory_use` paths, so
+  consumption stats, the shopping list and the waste learning keep working; batches
+  the changes and reports them at the end.
 * No new backend action needed.
 
 ### 6. Household nutrition profiles for the AI chef · **M**
