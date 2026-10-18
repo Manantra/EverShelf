@@ -1771,7 +1771,8 @@
       "test_running": "Test läuft…",
       "test_disabled": "Zuerst KI aktivieren, dann testen.",
       "test_ok": "OK — {ms} ms ({provider}): {reply}",
-      "test_fail": "Fehlgeschlagen — {ms} ms: {error}"
+      "test_fail": "Fehlgeschlagen — {ms} ms: {error}",
+      "test_model": "Modell: {model}"
     },
     "openai": {
       "title": "☁️ OpenAI",

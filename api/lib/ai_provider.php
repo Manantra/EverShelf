@@ -210,7 +210,9 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
     curl_close($ch);
 
     $elapsed = microtime(true) - $t0;
-    $label = aiProvider();
+    // Label the log line with the model actually called, not just the provider:
+    // "openai" alone cannot tell two models apart when one of them is misconfigured.
+    $label = aiOpenAiModel() !== '' ? aiOpenAiModel() : aiProvider();
     if ($raw === false) {
         $raw = json_encode(['error' => ['message' => $err ?: 'curl_failed']]);
         $code = $code ?: 500;
@@ -276,11 +278,14 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
  */
 function aiRunConnectionTest(int $timeout = 25): array {
     $provider = aiProvider();
+    // Even a test that never leaves the server says which model it would call:
+    // "not configured" alone hides a wrong OPENAI_MODEL behind a missing key.
+    $configuredModel = aiUsesOpenAiProtocol() ? aiOpenAiModel() : 'gemini';
     if (!aiIsEnabled()) {
-        return ['success' => false, 'provider' => $provider, 'latency_ms' => 0, 'error' => 'ai_disabled'];
+        return ['success' => false, 'provider' => $provider, 'latency_ms' => 0, 'model' => $configuredModel, 'error' => 'ai_disabled'];
     }
     if (!aiProviderConfigured()) {
-        return ['success' => false, 'provider' => $provider, 'latency_ms' => 0, 'error' => 'not_configured'];
+        return ['success' => false, 'provider' => $provider, 'latency_ms' => 0, 'model' => $configuredModel, 'error' => 'not_configured'];
     }
 
     $payload = [
@@ -295,6 +300,10 @@ function aiRunConnectionTest(int $timeout = 25): array {
     ];
 
     $t0 = microtime(true);
+    // The model actually called: returned to the client and logged, so a
+    // "test failed" message always says which model was tested (issue #298 —
+    // a stale OPENAI_MODEL made the test look like the model had not changed).
+    $usedModel = $configuredModel;
     if (aiUsesOpenAiProtocol()) {
         $result = aiOpenAiChatCompletions($payload, $timeout);
         $latency = (int)($result['latency_ms'] ?? round((microtime(true) - $t0) * 1000));
@@ -303,6 +312,7 @@ function aiRunConnectionTest(int $timeout = 25): array {
         $models = function_exists('geminiModelChain') ? geminiModelChain('lite') : ['gemini-2.5-flash-lite'];
         $result = ['http_code' => 0, 'data' => null, 'body' => ''];
         foreach ($models as $model) {
+            $usedModel = (string)$model;
             $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}";
             if (function_exists('callGemini')) {
                 $result = callGemini($url, function_exists('geminiEnsureNoThinking') ? geminiEnsureNoThinking($payload) : $payload, $timeout);
@@ -327,15 +337,19 @@ function aiRunConnectionTest(int $timeout = 25): array {
             'provider' => $provider,
             'latency_ms' => $latency,
             'reply' => mb_substr($text, 0, 120),
-            'model' => aiUsesOpenAiProtocol() ? aiOpenAiModel() : 'gemini',
+            'model' => $usedModel,
         ];
     }
 
-    $err = $result['data']['error']['message'] ?? substr((string)($result['body'] ?? ''), 0, 200);
+    // OpenRouter and friends put the useful sentence in error.message, but a
+    // non-JSON answer (HTML proxy page, gateway timeout) has no such field: keep
+    // enough of the raw body for the panel to be actionable instead of "HTTP 500".
+    $err = $result['data']['error']['message'] ?? substr((string)($result['body'] ?? ''), 0, 500);
     return [
         'success' => false,
         'provider' => $provider,
         'latency_ms' => $latency,
+        'model' => $usedModel,
         'error' => $err !== '' ? $err : ('HTTP ' . ($result['http_code'] ?? 0)),
     ];
 }

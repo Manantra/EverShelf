@@ -8026,6 +8026,15 @@ body.cooking-mode-active .app-header {
     line-height: 1.4;
 }
 
+/* A failed AI test can carry a long provider sentence ("No endpoints found for
+   <model>…"): show all of it instead of clipping the part that matters. */
+#ai-test-result {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
 .settings-panel-intro {
     font-size: 0.88rem;
     color: var(--text-muted);

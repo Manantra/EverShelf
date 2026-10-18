@@ -1771,7 +1771,8 @@
       "test_running": "Test en cours…",
       "test_disabled": "Activez d’abord l’IA, puis lancez le test.",
       "test_ok": "OK — {ms} ms ({provider}): {reply}",
-      "test_fail": "Échec — {ms} ms : {error}"
+      "test_fail": "Échec — {ms} ms : {error}",
+      "test_model": "Modèle : {model}"
     },
     "openai": {
       "title": "☁️ OpenAI",

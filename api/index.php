@@ -9052,6 +9052,15 @@ function aiTestConnection(): void {
         echo json_encode(['success' => true] + $result);
         return;
     }
+    // The panel shows this; the log must keep it too. "No endpoints found for
+    // <model>" is the sentence that tells a wrong model from a wrong key, and it
+    // used to live only in the HTTP body of the provider (issue #298).
+    EverLog::warn('AI connection test failed', [
+        'event'    => 'ai_test_failed',
+        'provider' => (string)($result['provider'] ?? aiProvider()),
+        'model'    => (string)($result['model'] ?? ''),
+        'error'    => mb_substr((string)($result['error'] ?? ''), 0, 300),
+    ]);
     http_response_code(($result['error'] ?? '') === 'ai_disabled' ? 503 : 400);
     echo json_encode(['success' => false] + $result);
 }

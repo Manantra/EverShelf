@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261017n'; // bump when translations change
+const _I18N_VERSION = '20261018a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4202,6 +4202,16 @@ async function syncSettingsFromDB() {
 }
 
 /**
+ * Keys the server always emits and fully owns: an empty value is a real answer
+ * ("no model configured"), not "missing from this payload". Without this, a
+ * value cleared in .env stayed in the client cache and the next Settings save
+ * wrote the stale value back (issue #298).
+ */
+const _SETTINGS_EMPTY_IS_AUTHORITATIVE = new Set([
+    'ai_provider', 'openai_base_url', 'openai_model', 'llama_base_url', 'llama_model',
+]);
+
+/**
  * Apply server settings object into in-memory cache (_settingsCache).
  * Called both from _initApp (to reuse an already-fetched response) and syncSettingsFromDB.
  */
@@ -4237,10 +4247,11 @@ function _applySyncedSettings(serverSettings) {
         'ha_notify_service','ha_expiry_days'];
     let changed = false;
     for (const key of serverKeys) {
-        if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
-            s[key] = serverSettings[key];
-            changed = true;
-        }
+        const value = serverSettings[key];
+        if (value === undefined || value === null) continue;
+        if (value === '' && !_SETTINGS_EMPTY_IS_AUTHORITATIVE.has(key)) continue;
+        s[key] = value;
+        changed = true;
     }
     if (Array.isArray(serverSettings.custom_locations)) {
         s.custom_locations = serverSettings.custom_locations;
@@ -6428,18 +6439,24 @@ async function testAiConnection() {
     out.textContent = t('settings.ai.test_running');
     try {
         const res = await api('ai_test', {}, 'POST', {});
+        // Which model was actually called: the one thing a failed test must say
+        // out loud. A stale copy in the DB used to make the test look like the
+        // .env change had not been applied at all (issue #298).
+        const modelLine = res && res.model
+            ? '\n' + t('settings.ai.test_model').replace('{model}', res.model)
+            : '';
         if (res && res.success) {
             out.style.color = 'var(--success, #1a7f37)';
             out.textContent = t('settings.ai.test_ok')
                 .replace('{ms}', String(res.latency_ms ?? '—'))
                 .replace('{provider}', res.provider || '')
-                .replace('{reply}', res.reply || '');
+                .replace('{reply}', res.reply || '') + modelLine;
         } else {
             out.style.color = 'var(--danger, #c0392b)';
             const err = res?.error || 'error';
             out.textContent = t('settings.ai.test_fail')
                 .replace('{ms}', String(res?.latency_ms ?? '—'))
-                .replace('{error}', err);
+                .replace('{error}', err) + modelLine;
         }
     } catch (e) {
         out.style.color = 'var(--danger, #c0392b)';
@@ -11563,7 +11580,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261017n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11573,7 +11590,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261017n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261018a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
