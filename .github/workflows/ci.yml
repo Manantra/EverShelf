@@ -218,8 +218,15 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         run: |
           VER="${{ steps.version.outputs.version }}"
-          # Extract the section for this version from CHANGELOG.md
-          BODY=$(awk "/^## \[?${VER#v}\]?|^## ${VER}/,/^## [0-9]/" CHANGELOG.md | head -50 | tail -n +1 | grep -v "^## [0-9]" || true)
+          # The section for this version, up to the next "## [...]" heading.
+          # The old end pattern (/^## [0-9]/) never matched the bracketed headings,
+          # so the range ran to the end of the file and every release body carried
+          # the previous release too (seen on v1.16.1, which appended 1.16.0).
+          BODY=$(awk -v ver="${VER#v}" '
+            index($0, "## [" ver "]") == 1 { inside = 1; print; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md | head -200)
           if [ -z "$BODY" ]; then
             BODY="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
           fi
