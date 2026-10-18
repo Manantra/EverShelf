@@ -13,6 +13,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.3] - 2026-10-18
+
+### The backup panel speaks the UI language (follow-up to #290)
+- **No more English inside a translated UI.** The restore endpoint answered with
+  English prose (“Restore complete — reload the page…”) and the panel printed it; the
+  delete/OAuth failures and the Drive push line carried hardcoded English
+  (`Error deleting backup`, `Code exchange failed`, `purged: N`), and the retention
+  unit had an Italian `'gg'` fallback. Every backup/Drive failure now returns an
+  `error_key`, the client resolves it with `t()` (`_apiErrorText()`), and restore
+  returns `message_key` while the panel shows its own literal key.
+- **14 new keys in all six locales** — `error.backup_no_dir`, `backup_no_db`,
+  `backup_copy_failed`, `backup_invalid_name`, `backup_not_found`,
+  `backup_delete_failed`, `backup_restore_failed`, `gdrive_disabled`,
+  `gdrive_folder_missing`, `gdrive_not_configured`, `gdrive_not_authorized`,
+  `gdrive_code_missing`, plus the dynamic `settings.backup.gdrive_error` (`{error}`)
+  and `settings.backup.gdrive_pushed` (`{file}`, `{purged}`).
+- **The panel's HTML fallbacks are English** (the universal fallback language), so the
+  source no longer shows Italian text that looks hardcoded. The labels were already
+  wired with `data-i18n` and render in the selected language — verified in the real DOM
+  (English “Backup Now” / German “Jetzt sichern”).
+- **`scripts/test-backup-i18n.php`** locks backend → `error_key` → bare `t('…')` → six
+  locales (with placeholders), asserts English ≠ Italian for every label, and fails if a
+  hardcoded English fallback is reintroduced in the backup panel.
+
 ## [1.16.2] - 2026-10-18
 
 ### The daily backup actually runs (issue #290)
