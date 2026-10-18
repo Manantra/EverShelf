@@ -5,10 +5,12 @@
  * The stocktake is client-only, so two halves again:
  *  - functional: the "almost out" quantity is computed by the very function the
  *    UI calls (extracted from assets/js/audit.js and run in node), per unit;
- *  - wiring: the entry point exists and can be switched off, the answers go to
- *    `inventory_update` (which does accept a quantity), the writes are batched,
- *    "there is" writes nothing, the summary counts are drawn, and all six
- *    locales carry the strings — with no emoji inside a translated label.
+ *  - wiring: the entry point exists and can be switched off, each card reads a
+ *    sentence with the quantity emphasised, the five decisions are real (confirm
+ *    writes nothing, quantity/location open the normal edit sheet ABOVE the run,
+ *    "esaurito" is the use-all action, "deperito" is the throw-all action), the
+ *    writes are batched and a failed one is reported, and all six locales carry
+ *    the strings and their placeholders.
  *
  * Run: php scripts/test-quick-audit.php
  */
@@ -69,21 +71,106 @@ check('the overlay exists', strpos($html, 'id="audit-overlay"') !== false);
 check('the module is loaded', strpos($html, 'assets/js/audit.js') !== false);
 check('the service worker precaches the module', strpos($sw, 'assets/js/audit.js') !== false);
 
-check('a stocktake opens on a scope picker', strpos($audit, 'function _auditBegin(location)') !== false);
+check('a stocktake opens on a scope picker', strpos($audit, 'function _auditBegin(location, saved = null)') !== false);
 check('one card at a time', strpos($audit, '_audit.items[_audit.index]') !== false);
-check('three answers', substr_count($audit, 'onclick="_auditAnswer(') === 3
-    || (strpos($audit, "_auditAnswer('there')") !== false
-        && strpos($audit, "_auditAnswer('almost')") !== false
-        && strpos($audit, "_auditAnswer('finished')") !== false));
-check('skip is the fourth, quiet action', strpos($audit, "_auditAnswer('skip')") !== false);
-check('"there is" writes nothing', strpos($audit, "} else if (kind === 'there') {") !== false);
+check('the card reads a full sentence', strpos($audit, 'function _auditSentence(it)') !== false
+    && strpos($audit, "t(brand ? 'audit.sentence_brand' : 'audit.sentence')") !== false);
+check('the sentence makes the quantity the loudest fact',
+    strpos($audit, 'class="audit-qty"') !== false);
+check('the sentence carries the four facts',
+    strpos($audit, "replace('{qty}'") !== false
+    && strpos($audit, "replace('{name}'") !== false
+    && strpos($audit, "replace('{brand}'") !== false
+    && strpos($audit, "replace('{location}'") !== false);
+check('the values are escaped before they reach the sentence',
+    strpos($audit, 'escapeHtml(stripHtml(formatQuantity(') !== false
+    && strpos($audit, 'escapeHtml(it.display_name || it.name') !== false);
+check('the five decisions are on the card',
+    strpos($audit, "onclick=\"_auditAnswer('there')\"") !== false
+    && strpos($audit, "onclick=\"_auditEdit('quantity')\"") !== false
+    && strpos($audit, "onclick=\"_auditEdit('location')\"") !== false
+    && strpos($audit, "onclick=\"_auditAnswer('finished')\"") !== false
+    && strpos($audit, "onclick=\"_auditAnswer('spoiled')\"") !== false);
+check('"almost out" and "skip" stay as the quiet answers',
+    strpos($audit, "onclick=\"_auditAnswer('almost')\"") !== false
+    && strpos($audit, "onclick=\"_auditAnswer('skip')\"") !== false);
+check('a confirm writes nothing', strpos($audit, "} else if (kind === 'there') {") !== false);
+check('changing quantity opens the existing edit sheet',
+    strpos($audit, 'editInventoryItem(it.id)') !== false);
+check('the edit sheet can land on the quantity field', strpos($app, 'id="edit-qty-group"') !== false);
+check('the edit sheet can land on the location field', strpos($app, 'id="edit-loc-group"') !== false);
+check('a saved edit refreshes the card underneath',
+    strpos($app, '_auditItemSaved(payload.id)') !== false
+    && strpos($audit, 'function _auditItemSaved(id)') !== false);
+check('the stocktake sheet hides the recipe shortcut (no dead-end behind the run)',
+    strpos($audit, '#modal-content .btn-recipe-from-ingredient') !== false);
+check('"exhausted" is the real use-all action',
+    strpos($audit, "kind: 'use'") !== false
+    && substr_count($audit, 'use_all: true') >= 2);
+check('"spoiled" is the real throw-all action (waste reason)',
+    strpos($audit, "kind: 'waste'") !== false
+    && strpos($audit, "_wasteNotesForReason('spoiled')") !== false);
 check('the answers are batched', strpos($audit, '_audit.queue.length >= _auditBatchSize') !== false);
 check('a flush sends inventory_update with a quantity',
     strpos($audit, "api('inventory_update', {}, 'POST', { id: row.id, quantity: row.quantity })") !== false);
+check('a flush sends inventory_use for exhausted/spoiled',
+    substr_count($audit, "api('inventory_use', {}, 'POST', {") >= 2);
 check('the backend accepts a quantity update',
     strpos($api, 'if (isset($input[\'quantity\'])) { $fields[] = "quantity = ?";') !== false);
-check('the summary counts every answer', strpos($audit, 'audit.summary_line') !== false);
+check('the summary counts every answer', strpos($audit, 'audit.summary_line') !== false
+    && strpos($audit, "replace('{spoiled}'") !== false);
 check('an unsaved change is reported', strpos($audit, 'state.errors') !== false);
+check('the keyboard never fires while the edit sheet is open',
+    strpos($audit, "modal.style.display === 'flex'") !== false);
+
+// ------------------------------------------------- paused run (one hour)
+check('closing a run keeps the point reached',
+    strpos($audit, "AUDIT_RESUME_KEY = 'evershelf_audit_resume'") !== false
+    && strpos($audit, 'function _auditPersist()') !== false);
+check('a run is resumable only within the hour',
+    strpos($audit, 'AUDIT_RESUME_TTL_MS = 60 * 60 * 1000') !== false
+    && strpos($audit, '> AUDIT_RESUME_TTL_MS') !== false);
+check('the scope picker offers to resume it',
+    strpos($audit, 'function _auditResume()') !== false
+    && strpos($audit, 'onclick="_auditResume()"') !== false);
+check('resuming skips everything already answered',
+    strpos($audit, '!answered[String(id)]') !== false);
+check('every answer is persisted at once', strpos($audit, '_audit.answered[String(it.id)] = kind;') !== false
+    && substr_count($audit, '_auditPersist();') >= 3);
+check('a completed run is not offered again', strpos($audit, '_auditClearPersist();') !== false);
+
+// ------------------------------------------------------- scale from the card
+check('the scale button is drawn only when the scale is connected',
+    strpos($audit, 'function _auditScaleReady(it)') !== false
+    && strpos($audit, 's.scale_enabled && s.scale_gateway_url && _scaleConnected') !== false
+    && strpos($audit, 'onclick="_auditScale()"') !== false);
+check('the scale button starts the real reading',
+    strpos($audit, 'function _auditScale()') !== false
+    && strpos($audit, 'readScaleForEdit()') !== false);
+check('the scale is offered only for weighable rows',
+    strpos($audit, 'function _auditWeighableUnit(it)') !== false);
+
+// --------------------------------------------------------- undo last answer
+check('the card offers a back button once something is answered',
+    strpos($audit, 'class="audit-back"') !== false
+    && strpos($audit, 'onclick="_auditUndo()"') !== false);
+check('the summary can undo the last answer too',
+    strpos($audit, 'class="audit-undo"') !== false
+    && substr_count($audit, 'onclick="_auditUndo()"') >= 2);
+check('a still-queued answer is dropped, not sent',
+    strpos($audit, 'state.queue.indexOf(entry.row)') !== false
+    && strpos($audit, 'state.queue.splice(queuedAt, 1)') !== false);
+check('a sent quantity change is put back',
+    strpos($audit, 'quantity: entry.previousQuantity') !== false);
+check('a sent use-all/throw-all is undone on the server',
+    strpos($audit, "api('transaction_undo'") !== false
+    && strpos($audit, 'row.transactionId') !== false);
+check('the run is only rewound when the revert worked',
+    strpos($audit, "showToast(t('audit.undo_failed')") !== false);
+check('the summary keeps the finished run for the undo',
+    strpos($audit, 'state.finished = true') !== false);
+check('Backspace is the keyboard shortcut for undo',
+    strpos($audit, "ev.key === 'Backspace'") !== false);
 
 check('the option is a setting', strpos($api, "'audit_mode_enabled'") !== false);
 check('the batch size is a setting', strpos($api, "'audit_mode_batch_size'") !== false);
@@ -96,9 +183,17 @@ check('the .env example documents it',
     strpos((string)file_get_contents($root . '/.env.example'), 'AUDIT_MODE_ENABLED') !== false);
 
 // ------------------------------------------------------------------ i18n
-$keys = ['start', 'title', 'scope_hint', 'scope_all', 'question', 'there_is', 'almost_out',
-         'finished', 'skip', 'close', 'empty', 'summary_title', 'summary_line',
-         'summary_errors', 'done'];
+$keys = ['start', 'title', 'scope_hint', 'scope_all', 'question', 'sentence', 'sentence_brand',
+         'confirm_yes', 'change_qty', 'change_location', 'read_scale', 'resume', 'resume_hint',
+         'undo_last', 'undo_done', 'undo_failed',
+         'almost_out', 'exhausted', 'spoiled', 'skip', 'close', 'empty', 'summary_title',
+         'summary_line', 'summary_errors', 'done'];
+$placeholders = [
+    'sentence'       => ['{qty}', '{name}', '{location}'],
+    'sentence_brand' => ['{qty}', '{name}', '{brand}', '{location}'],
+    'resume'         => ['{n}'],
+    'summary_line'   => ['{there}', '{almost}', '{finished}', '{spoiled}', '{skipped}'],
+];
 $emoji = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]/u';
 foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $lang) {
     $data = json_decode((string)file_get_contents($root . '/translations/' . $lang . '.json'), true);
@@ -106,6 +201,13 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $lang) {
     foreach ($keys as $key) {
         if (!isset($data['audit'][$key]) || !is_string($data['audit'][$key]) || $data['audit'][$key] === '') {
             $missing[] = 'audit.' . $key;
+        }
+    }
+    foreach ($placeholders as $key => $tokens) {
+        foreach ($tokens as $token) {
+            if (strpos((string)($data['audit'][$key] ?? ''), $token) === false) {
+                $missing[] = 'audit.' . $key . ' lacks ' . $token;
+            }
         }
     }
     $settings = $data['settings']['product_rules'] ?? [];
@@ -119,7 +221,7 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $lang) {
     // The icons are markup, never part of the label: an emoji in a translation is
     // the "label prints its own icon twice" bug scripts/test-i18n-icons.php exists for.
     $withEmoji = [];
-    foreach (['there_is', 'almost_out', 'finished', 'skip', 'question'] as $key) {
+    foreach (['confirm_yes', 'change_qty', 'change_location', 'read_scale', 'resume', 'undo_last', 'almost_out', 'exhausted', 'spoiled', 'skip', 'question'] as $key) {
         if (preg_match($emoji, (string)($data['audit'][$key] ?? ''))) {
             $withEmoji[] = $key;
         }

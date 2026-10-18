@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261018c'; // bump when translations change
+const _I18N_VERSION = '20261018f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11121,7 +11121,7 @@ function editInventoryItem(id, _retried) {
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
         <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
-            <div class="form-group">
+            <div class="form-group" id="edit-qty-group">
                 <label>${iconLabel('📦', 'inventory.label_quantity')}</label>
                 <div class="qty-control-with-unit">
                     <div class="qty-control">
@@ -11155,7 +11155,7 @@ function editInventoryItem(id, _retried) {
                     </select>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-loc-group">
                 <label>${t('inventory.label_position')}</label>
                 <div class="location-selector">
                     ${Object.entries(LOCATIONS).map(([k, v]) => `
@@ -11397,6 +11397,9 @@ async function submitEditInventory(e, id, productId) {
         if ((_inventorySearchQuery || '').trim()) filterInventory();
         else renderInventory(currentInventory);
         await loadInventory();
+        // A stocktake can open this sheet on top of its card: refresh the sentence
+        // with what was just saved (the audit overlay stayed open underneath).
+        if (typeof _auditItemSaved === 'function') _auditItemSaved(payload.id);
     } catch (err) {
         console.error('submitEditInventory', err);
         showToast(t('error.connection'), 'error');
@@ -11600,7 +11603,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11610,7 +11613,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261018c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261018f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -13,6 +13,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.4] - 2026-10-18
+
+### The quick stocktake reads a sentence — and its answers really act
+- **The card says the facts.** Instead of a muted meta line, each card reads a sentence
+  — “Ci sono ancora **120 g** di **Formaggio Morbido** di **Barilla** in **🧊 Frigo**” —
+  with the quantity in a large accent pill and the article, brand and place in bold: the
+  four things being checked are the four things you see, in all six locales
+  (`audit.sentence` / `audit.sentence_brand`, placeholders `{qty}`, `{name}`, `{brand}`,
+  `{location}`; values escaped, only the markup is ours).
+- **Five real answers instead of three.** *Sì, confermo* writes nothing (the row is
+  right). *Cambio quantità* opens the normal inventory edit sheet **on top of the
+  stocktake** — the run stays underneath, so nothing is lost — with the quantity field
+  in view, manual or from the scale as before (`edit-qty-group`). *Cambio posizione*
+  opens the same sheet with the location selector in view (`edit-loc-group`); after a
+  save the card refreshes from the live pantry, and a row set to 0 drops out. *No, è
+  esaurito* is the real “usa tutto” (`inventory_use` + `use_all`): consumption stats,
+  the shopping list and the depleted-product rules react. *No, è deperito* is the real
+  “butta tutto” (`inventory_use` + `notes: "Buttato|spoiled"`): it counts as waste and
+  feeds the waste-learning hints. *Quasi finito* and *Salta* stay as the quiet answers,
+  and the summary counts `{finished}` and `{spoiled}` separately.
+- **A run closed by mistake resumes within the hour.** The point reached is stored in
+  `localStorage` (`evershelf_audit_resume`, one-hour TTL): the scope picker shows *↩
+  Riprendi l’inventario (N rimasti)* above the scopes, every answer is persisted as it
+  is given, the saved rows are reconciled with the live pantry (deleted/moved rows are
+  harmless) and a completed run clears the entry. After an hour the pause is dropped.
+- **“Leggi dalla bilancia” on the card.** When the scale is enabled, configured and
+  really connected (`_scaleConnected`) and the row has a weighable unit (g/ml, or a
+  pack measured in g/ml), the card shows a one-tap *⚖️ Leggi dalla bilancia*: it opens
+  the edit sheet and starts the live reading (`readScaleForEdit`), which fills the
+  quantity; the sheet keeps its own button too.
+- **↩ Indietro, with a real undo.** After the first card, a quiet *Indietro* button (and
+  `Backspace` on a keyboard) rewinds one answer; the summary keeps the finished run in
+  memory until *Fatto*, so the **last** article can still be fixed from there. A write
+  still sitting in the batch queue is simply dropped, an already-sent quantity update is
+  put back to the previous quantity, and an `inventory_use` (esaurito/deperito) is
+  reverted through `transaction_undo` with the `transaction_id` returned by the write
+  (persisted with the paused run). If the revert fails the run is not rewound and the
+  user is told instead of being shown a lie.
+- **The keyboard cannot fire under the edit sheet.** The arrow shortcuts (↑ is now
+  *deperito*) are ignored while `#modal-overlay` is open or a field has focus.
+- **`scripts/test-quick-audit.php`** grew to 73 checks: the sentence and its four
+  placeholders in every locale, the five decisions, the two edit-sheet anchors, the
+  use-all/throw-all payloads, the resume TTL and answered-row skipping, the scale
+  availability rules, the queue/sent/transaction-undo paths of *Indietro*, the batched
+  updates and the keyboard guard.
+
 ## [1.16.3] - 2026-10-18
 
 ### The backup panel speaks the UI language (follow-up to #290)
