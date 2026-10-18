@@ -247,12 +247,11 @@ Groups:
   assets/js/app.js`, translation JSON validity + top-level key parity against
   `it.json`, a Docker build smoke test, then **auto-merge develop → main** and
   **create GH Release** using the version in `index.html` (the release body is the
-  `## [x.y.z]` CHANGELOG section for that version, when it exists). Two details are
-  worth remembering when writing the entry: `awk` collects the section up to the next
-  `^## [0-9]` line — which the bracketed `## [1.9.0]` headings do **not** match, so the
-  range runs to end-of-file — and CI then truncates it with `head -50`. Keep the
-  headline summary in the first ~47 lines after the heading, or it never reaches the
-  release page (fixing the workflow needs the same `workflow`-scoped PAT as below).
+  `## [x.y.z]` CHANGELOG section for that version, when it exists: `awk` starts at
+  `## [x.y.z]` and stops at the next `## ` heading, so the previous release is never
+  appended, with a 200-line safety cap). The old end pattern `/^## [0-9]/` never
+  matched the bracketed headings and ran to end-of-file — that is why v1.16.1
+  shipped with the 1.16.0 notes under it.
 - The heavier gates — the `scripts/test-*.php` regression suite,
   `scripts/i18n-audit.py`, `shellcheck` and `node -c` on **every** JS file
   (including `mcp-server/`) — are listed in `AGENTS.md` and run **locally today**.
