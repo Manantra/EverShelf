@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261018b'; // bump when translations change
+const _I18N_VERSION = '20261018c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4301,8 +4301,8 @@ async function _loadBackupTab() {
             const oauthStatusEl = document.getElementById('gdrive-oauth-token-status');
             if (oauthStatusEl) {
                 oauthStatusEl.textContent = ss.gdrive_refresh_token_set
-                    ? ('✅ ' + (t('settings.backup.gdrive_oauth_authorized') || 'Authorized'))
-                    : ('⚠️ ' + (t('settings.backup.gdrive_oauth_not_authorized') || 'Not authorized yet'));
+                    ? ('✅ ' + t('settings.backup.gdrive_oauth_authorized'))
+                    : ('⚠️ ' + t('settings.backup.gdrive_oauth_not_authorized'));
                 oauthStatusEl.style.color = ss.gdrive_refresh_token_set ? '#15803d' : '#b45309';
             }
             // Redirect URI for OAuth setup — always http://localhost for self-hosted compat
@@ -4359,7 +4359,7 @@ async function _renderBackupTab() {
                         <button class="btn btn-small btn-danger" onclick="${escapeAttr(`_backupDelete(${JSON.stringify(b.filename)})`)}" style="flex-shrink:0" title="${escapeAttr(t('settings.backup.delete_btn'))}">🗑</button>
                     </div>`;
                 }).join('');
-                listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info') || ''} ${data.retention_days} ${t('settings.backup.retention_days') || 'gg'}</p>${rows}`;
+                listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info')} ${data.retention_days} ${t('settings.backup.retention_days')}</p>${rows}`;
             }
         }
     } catch(e) {
@@ -4378,7 +4378,7 @@ async function _backupNow() {
             if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ ${r.filename} (${r.size_kb} KB)`; }
             await _renderBackupTab();
         } else {
-            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + _apiErrorText(r); }
         }
     } catch(e) {
         if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${e.message}`; }
@@ -4392,7 +4392,7 @@ async function _backupDelete(filename) {
     if (!confirm(`${t('settings.backup.delete_confirm')} ${filename}?`)) return;
     const r = await api('backup_delete', {}, 'POST', { filename });
     if (r && r.success) await _renderBackupTab();
-    else alert(`❌ ${r?.error || 'Error deleting backup'}`);
+    else alert('❌ ' + _apiErrorText(r));
 }
 
 async function _backupRestore(filename) {
@@ -4402,10 +4402,13 @@ async function _backupRestore(filename) {
     try {
         const r = await api('backup_restore', {}, 'POST', { filename });
         if (r && r.success) {
-            alert(`✅ ${r.message || t('settings.backup.restore_done')}\n\n${t('settings.backup.reload_hint')}`);
+            // The endpoint also returns `message_key`/`message` for API callers;
+            // the UI always shows its own literal key so the audit sees it and an
+            // unknown key can never surface as "settings.backup.…".
+            alert('✅ ' + t('settings.backup.restore_done') + '\n\n' + t('settings.backup.reload_hint'));
             location.reload();
         } else {
-            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + _apiErrorText(r); }
         }
     } catch(e) {
         if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${e.message}`; }
@@ -4424,10 +4427,10 @@ async function _gdriveTest() {
         if (r && r.success) {
             if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ ${t('settings.backup.gdrive_ok')}`; }
         } else {
-            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.backup.gdrive_error', { error: _apiErrorText(r) }); }
         }
     } catch(e) {
-        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${e.message}`; }
+        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.backup.gdrive_error', { error: e.message }); }
     } finally {
         if (btn) btn.disabled = false;
         if (statusEl) setTimeout(() => { statusEl.style.display = 'none'; }, 6000);
@@ -4443,12 +4446,18 @@ async function _gdrivePushNow() {
         await saveSettings();
         const r = await api('gdrive_push');
         if (r && r.success) {
-            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ ${r.filename} → Drive (purged: ${r.purged_remote || 0})`; }
+            if (statusEl) {
+                statusEl.className = 'settings-status success';
+                statusEl.textContent = '✅ ' + t('settings.backup.gdrive_pushed', {
+                    file: r.filename || '',
+                    purged: String(r.purged_remote || 0),
+                });
+            }
         } else {
-            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.backup.gdrive_error', { error: _apiErrorText(r) }); }
         }
     } catch(e) {
-        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${e.message}`; }
+        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.backup.gdrive_error', { error: e.message }); }
     } finally {
         if (btn) btn.disabled = false;
         if (statusEl) setTimeout(() => { statusEl.style.display = 'none'; }, 6000);
@@ -4470,14 +4479,14 @@ async function _gdriveAuthorize() {
             if (codeSection) codeSection.style.display = '';
             const statusEl = document.getElementById('gdrive-oauth-token-status');
             if (statusEl) {
-                statusEl.textContent = t('settings.backup.gdrive_oauth_window_opened') || '🔑 Authorization page opened — authorize and paste the URL below';
+                statusEl.textContent = t('settings.backup.gdrive_oauth_window_opened');
                 statusEl.style.color = '#2563eb';
             }
         } else {
-            alert('❌ ' + (r?.error || 'Failed to get OAuth URL'));
+            alert('❌ ' + t('settings.backup.gdrive_error', { error: _apiErrorText(r) }));
         }
     } catch(e) {
-        alert('❌ ' + e.message);
+        alert('❌ ' + t('settings.backup.gdrive_error', { error: e.message }));
     } finally {
         if (btn) btn.disabled = false;
     }
@@ -4487,7 +4496,7 @@ async function _gdriveSubmitCode() {
     const inputEl = document.getElementById('gdrive-code-input');
     const btn     = document.getElementById('btn-gdrive-submit-code');
     const raw     = (inputEl?.value || '').trim();
-    if (!raw) { alert(t('settings.backup.gdrive_code_empty') || 'Paste the URL or code first'); return; }
+    if (!raw) { alert(t('settings.backup.gdrive_code_empty')); return; }
 
     // Accept either a full URL (extract code param) or just the bare code
     let code = raw;
@@ -4506,17 +4515,17 @@ async function _gdriveSubmitCode() {
         if (r && r.success) {
             const statusEl = document.getElementById('gdrive-oauth-token-status');
             if (statusEl) {
-                statusEl.textContent = '✅ ' + (t('settings.backup.gdrive_oauth_authorized') || 'Authorized');
+                statusEl.textContent = '✅ ' + t('settings.backup.gdrive_oauth_authorized');
                 statusEl.style.color = '#15803d';
             }
             const codeSection = document.getElementById('gdrive-code-section');
             if (codeSection) codeSection.style.display = 'none';
             if (inputEl) inputEl.value = '';
         } else {
-            alert('❌ ' + (r?.error || 'Code exchange failed'));
+            alert('❌ ' + t('settings.backup.gdrive_error', { error: _apiErrorText(r) }));
         }
     } catch(e) {
-        alert('❌ ' + e.message);
+        alert('❌ ' + t('settings.backup.gdrive_error', { error: e.message }));
     } finally {
         if (btn) btn.disabled = false;
     }
@@ -11591,7 +11600,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11601,7 +11610,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261018b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261018c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -14861,6 +14870,20 @@ function _apiErrorText(data) {
     const key = data?.error_key;
     if (key === 'error.product_id_required') return t('error.product_id_required');
     if (key === 'error.quantity_below_min') return t('error.quantity_below_min', data?.error_args || {});
+    // Backup endpoints answer with a translated key: the English prose in
+    // `error` is for non-browser callers and must never reach the UI.
+    if (key === 'error.backup_no_dir') return t('error.backup_no_dir');
+    if (key === 'error.backup_no_db') return t('error.backup_no_db');
+    if (key === 'error.backup_copy_failed') return t('error.backup_copy_failed');
+    if (key === 'error.backup_invalid_name') return t('error.backup_invalid_name');
+    if (key === 'error.backup_not_found') return t('error.backup_not_found');
+    if (key === 'error.backup_delete_failed') return t('error.backup_delete_failed');
+    if (key === 'error.backup_restore_failed') return t('error.backup_restore_failed');
+    if (key === 'error.gdrive_disabled') return t('error.gdrive_disabled');
+    if (key === 'error.gdrive_folder_missing') return t('error.gdrive_folder_missing');
+    if (key === 'error.gdrive_not_configured') return t('error.gdrive_not_configured');
+    if (key === 'error.gdrive_not_authorized') return t('error.gdrive_not_authorized');
+    if (key === 'error.gdrive_code_missing') return t('error.gdrive_code_missing');
     return data?.error || t('error.generic');
 }
 

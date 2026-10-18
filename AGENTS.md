@@ -202,6 +202,7 @@ php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health ch
 php scripts/test-recipe-archive.php     # archive: content_hash dedup, many libero/day, scheduled slots still unique
 php scripts/test-env-overrides.php      # a hand-edited .env wins over a stale DB fallback; the read-only fallback still works
 php scripts/test-docker-cron.php        # container cron (5 min, www-data) really runs the daily backup; stale-backup warning in 6 locales
+php scripts/test-backup-i18n.php        # backup panel: error_key → t() in 6 locales, no hardcoded English fallback
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -263,7 +264,7 @@ npm run build
 | Optional support (donations only — **no ads**) | `api/lib/support.php` (decision, payload, donation link, disclosed costs), `api/lib/qr.php` (ISO QR encoder → `?action=support_qr`), `assets/js/core/support.js` (dialog, donation panel; `_renderAdSlots()` is a parked no-op), `.env` keys `SUPPORT_*` — the banner slots and the `ADS_*` / `SUPPORT_BANNERS_AVAILABLE` keys are **commented out on purpose**; guard tests `scripts/test-support-monetization.php`, `scripts/test-qr-encoder.php`, doc `docs/wiki/Support-and-ads.md` |
 | PWA service worker | `sw.js` |
 | Unraid / containers | `unraid/evershelf.xml` (CA template: the `data` path is the database), `docs/wiki/Unraid.md`, `EVERSHELF_ENV_FILE` → `evershelfEnvFile()` in `api/lib/env.php` — guard test `scripts/test-unraid-template.php` |
-| Backup + the scheduler that runs it | `createLocalBackup()` / `restoreLocalBackup()` / `listLocalBackups()` in `api/index.php` (`VACUUM INTO` → `.part` → rename, retention, `data/backup_last_ts.json`); `docker/evershelf-cron` (`/etc/cron.d/evershelf`, every 5 min as `www-data`) runs `api/cron_smart_shopping.php`, which backs up at most once every 23 h when `BACKUP_ENABLED=true` (default); *Settings → 💾 Backup* shows the last one and warns after `_BACKUP_STALE_DAYS` (8) — guard test `scripts/test-docker-cron.php` |
+| Backup + the scheduler that runs it | `createLocalBackup()` / `restoreLocalBackup()` / `listLocalBackups()` in `api/index.php` (`VACUUM INTO` → `.part` → rename, retention, `data/backup_last_ts.json`); `docker/evershelf-cron` (`/etc/cron.d/evershelf`, every 5 min as `www-data`) runs `api/cron_smart_shopping.php`, which backs up at most once every 23 h when `BACKUP_ENABLED=true` (default); *Settings → 💾 Backup* shows the last one and warns after `_BACKUP_STALE_DAYS` (8); failures carry `error_key`, restore carries `message_key` — guard tests `scripts/test-docker-cron.php`, `scripts/test-backup-i18n.php` |
 | Kiosk (Android WebView) | `evershelf-kiosk/` — `KioskActivity.kt` (WebView surface colour, URL normalisation on resume, 5-min page watchdog), `themes.xml` (`windowBackground`), `SetupActivity.kt` (pairing wizard) |
 
 ## Anti-patterns to avoid (already present — do not copy)

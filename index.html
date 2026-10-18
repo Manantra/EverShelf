@@ -12,17 +12,17 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261018b">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261018b">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261018b">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261018c">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261018c">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261018c">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261018b"></script>
-    <script src="assets/js/core/auth.js?v=20261018b"></script>
+    <script src="assets/js/core/dom.js?v=20261018c"></script>
+    <script src="assets/js/core/auth.js?v=20261018c"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261018b"></script>
+    <script src="assets/js/core/support.js?v=20261018c"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -30,7 +30,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261018b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261018c';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -39,13 +39,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018b';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018c';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261018b"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261018c"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -110,7 +110,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.16.2</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.16.3</span>
             </span>
         </div>
 
@@ -168,7 +168,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.16.2</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.16.3</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -2417,11 +2417,11 @@
             <div class="settings-panel" id="tab-backup">
                 <!-- Local Backup -->
                 <div class="settings-card">
-                    <h4 data-i18n="settings.backup.local_title">💾 Backup Locale</h4>
-                    <p class="settings-hint" data-i18n="settings.backup.local_hint">Snapshot giornaliero automatico del database. Massimo 3 giorni di storico (configurabile).</p>
+                    <h4 data-i18n="settings.backup.local_title">💾 Local Backup</h4>
+                    <p class="settings-hint" data-i18n="settings.backup.local_hint">One backup per day while the cron runs (the Docker image runs it automatically). Files live in data/backups — copy them off the data volume for real safety.</p>
                     <div class="form-group" style="margin-bottom:10px">
                         <label class="toggle-row">
-                            <span data-i18n="settings.backup.enabled">Backup automatico quotidiano</span>
+                            <span data-i18n="settings.backup.enabled">Enable daily automatic backup</span>
                             <span class="toggle-switch">
                                 <input type="checkbox" id="setting-backup-enabled" onchange="saveSettings()">
                                 <span class="toggle-slider"></span>
@@ -2429,26 +2429,26 @@
                         </label>
                     </div>
                     <div id="backup-last-info" style="margin-bottom:12px;padding:10px 12px;background:var(--bg-secondary,#f8fafc);border-radius:8px;font-size:0.83rem;color:var(--text-secondary)">
-                        <span data-i18n="settings.info.loading">Caricamento…</span>
+                        <span data-i18n="settings.info.loading">Loading…</span>
                     </div>
                     <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-                        <label data-i18n="settings.backup.retention_days" style="flex-shrink:0">Retention (giorni):</label>
+                        <label data-i18n="settings.backup.retention_days" style="flex-shrink:0">Retention (days):</label>
                         <input type="number" id="setting-backup-retention-days" class="form-input" style="width:80px" min="1" max="90" value="3">
                     </div>
-                    <button class="btn btn-large btn-accent full-width" onclick="_backupNow()" id="btn-backup-now" data-i18n="settings.backup.backup_now">💾 Backup Ora</button>
+                    <button class="btn btn-large btn-accent full-width" onclick="_backupNow()" id="btn-backup-now" data-i18n="settings.backup.backup_now">💾 Backup Now</button>
                     <div id="backup-status" style="display:none;margin-top:8px" class="settings-status"></div>
                     <!-- List of backups -->
                     <div id="backup-list-container" style="margin-top:14px">
-                        <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
+                        <p class="settings-hint" data-i18n="settings.info.loading">Loading…</p>
                     </div>
                 </div>
                 <!-- Google Drive -->
                 <div class="settings-card">
                     <h4 data-i18n="settings.backup.gdrive_title">☁️ Google Drive</h4>
-                    <p class="settings-hint" data-i18n="settings.backup.gdrive_hint">Carica automaticamente il backup su Google Drive usando un Service Account.</p>
+                    <p class="settings-hint" data-i18n="settings.backup.gdrive_hint">Upload the daily backup to Google Drive automatically (OAuth 2.0, no external library).</p>
                     <div class="form-group" style="margin-bottom:10px">
                         <label class="toggle-row">
-                            <span data-i18n="settings.backup.gdrive_enabled">Abilita backup Google Drive</span>
+                            <span data-i18n="settings.backup.gdrive_enabled">Enable Google Drive backup</span>
                             <span class="toggle-switch">
                                 <input type="checkbox" id="setting-gdrive-enabled" onchange="saveSettings()">
                                 <span class="toggle-slider"></span>
@@ -2458,14 +2458,14 @@
                     <div id="gdrive-config-section">
                         <!-- Folder ID (shared between both methods) -->
                         <div class="form-group">
-                            <label data-i18n="settings.backup.gdrive_folder_id">ID Cartella Drive</label>
+                            <label data-i18n="settings.backup.gdrive_folder_id">Drive folder ID</label>
                             <input type="text" id="setting-gdrive-folder-id" class="form-input" placeholder="1ABCdef_xyz…">
-                            <p class="settings-hint" data-i18n="settings.backup.gdrive_folder_id_hint">Copia l'ID dalla URL della cartella Drive: …/folders/<strong>ID</strong></p>
+                            <p class="settings-hint" data-i18n="settings.backup.gdrive_folder_id_hint">Copy the ID from the Drive folder URL: …/folders/<strong>ID</strong></p>
                         </div>
                         <!-- OAuth 2.0 section -->
                         <div id="gdrive-oauth-section">
                             <details style="margin-bottom:14px;background:var(--bg-secondary,#f8fafc);border-radius:8px;padding:10px 14px">
-                                <summary style="cursor:pointer;font-weight:600;font-size:0.83rem" data-i18n="settings.backup.gdrive_oauth_how_to">📋 Come configurare OAuth 2.0 (passo dopo passo)</summary>
+                                <summary style="cursor:pointer;font-weight:600;font-size:0.83rem" data-i18n="settings.backup.gdrive_oauth_how_to">📋 How to set up OAuth 2.0 (step by step)</summary>
                                 <ol style="margin:10px 0 0 16px;font-size:0.8rem;color:var(--text-secondary);line-height:1.8" data-i18n-html="settings.backup.gdrive_oauth_steps"></ol>
                             </details>
                             <div class="form-group">
@@ -2477,32 +2477,32 @@
                                 <input type="password" id="setting-gdrive-client-secret" class="form-input" placeholder="GOCSPX-…">
                             </div>
                             <div class="form-group" style="background:var(--bg-secondary,#f8fafc);border-radius:8px;padding:10px 14px;font-size:0.82rem">
-                                <span data-i18n="settings.backup.gdrive_redirect_uri_label">Redirect URI (aggiungi in Google Cloud Console):</span>
+                                <span data-i18n="settings.backup.gdrive_redirect_uri_label">Redirect URI (add it in Google Cloud Console):</span>
                                 <code id="gdrive-redirect-uri-display" style="display:block;margin-top:4px;word-break:break-all;color:var(--text-primary);font-size:0.78rem">http://localhost</code>
-                                <p class="settings-hint" style="margin-top:6px;margin-bottom:0" data-i18n="settings.backup.gdrive_redirect_uri_hint">Registra questo URI in Google Cloud Console come "URI di reindirizzamento autorizzato". Per le installazioni senza dominio pubblico usa <strong>http://localhost</strong>.</p>
+                                <p class="settings-hint" style="margin-top:6px;margin-bottom:0" data-i18n="settings.backup.gdrive_redirect_uri_hint">Register this URI in Google Cloud Console as an “Authorized redirect URI”. Installations without a public domain use <strong>http://localhost</strong>.</p>
                             </div>
                             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px">
-                                <button class="btn btn-secondary" onclick="_gdriveAuthorize()" id="btn-gdrive-authorize" data-i18n="settings.backup.gdrive_oauth_authorize">🔑 Autorizza con Google</button>
+                                <button class="btn btn-secondary" onclick="_gdriveAuthorize()" id="btn-gdrive-authorize" data-i18n="settings.backup.gdrive_oauth_authorize">🔑 Authorize with Google</button>
                                 <span id="gdrive-oauth-token-status" style="font-size:0.83rem"></span>
                             </div>
                             <!-- Manual code entry (appears after clicking Authorize) -->
                             <div id="gdrive-code-section" style="display:none;margin-top:12px;padding:12px 14px;background:var(--bg-secondary,#f8fafc);border-radius:8px;border:1px solid var(--border)">
-                                <p style="font-size:0.82rem;margin-bottom:8px;font-weight:600" data-i18n="settings.backup.gdrive_code_title">Incolla l'URL o il codice di autorizzazione</p>
-                                <p class="settings-hint" style="margin-bottom:8px" data-i18n="settings.backup.gdrive_code_hint">Dopo aver autorizzato su Google, il browser proverà ad aprire <code>http://localhost</code> e mostrerà un errore. Copia l'intero URL dalla barra degli indirizzi e incollalo qui sotto.</p>
+                                <p style="font-size:0.82rem;margin-bottom:8px;font-weight:600" data-i18n="settings.backup.gdrive_code_title">Paste the authorization URL or code</p>
+                                <p class="settings-hint" style="margin-bottom:8px" data-i18n="settings.backup.gdrive_code_hint">After authorizing with Google, the browser will try to open <code>http://localhost</code> and show a connection error — that is expected. Copy the whole URL from the address bar and paste it below.</p>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                                    <input type="text" id="gdrive-code-input" class="form-input" style="flex:1;min-width:0" placeholder="http://localhost/?code=4%2F0A… oppure solo il codice" data-i18n-placeholder="settings.backup.gdrive_code_placeholder">
-                                    <button class="btn btn-primary" onclick="_gdriveSubmitCode()" id="btn-gdrive-submit-code" data-i18n="settings.backup.gdrive_code_submit">Conferma</button>
+                                    <input type="text" id="gdrive-code-input" class="form-input" style="flex:1;min-width:0" placeholder="http://localhost/?code=4%2F0A… or just the code" data-i18n-placeholder="settings.backup.gdrive_code_placeholder">
+                                    <button class="btn btn-primary" onclick="_gdriveSubmitCode()" id="btn-gdrive-submit-code" data-i18n="settings.backup.gdrive_code_submit">Submit</button>
                                 </div>
                             </div>
                         </div>
                         <!-- Retention + action buttons (shared) -->
                         <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-                            <label data-i18n="settings.backup.gdrive_retention_days" style="flex-shrink:0">Retention Drive (giorni, 0=tutto):</label>
+                            <label data-i18n="settings.backup.gdrive_retention_days" style="flex-shrink:0">Drive retention (days, 0=keep all):</label>
                             <input type="number" id="setting-gdrive-retention-days" class="form-input" style="width:80px" min="0" max="365" value="30">
                         </div>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-                            <button class="btn btn-secondary" onclick="_gdriveTest()" id="btn-gdrive-test" data-i18n="settings.backup.gdrive_test">🔗 Testa Connessione</button>
-                            <button class="btn btn-accent" onclick="_gdrivePushNow()" id="btn-gdrive-push" data-i18n="settings.backup.gdrive_push_now">☁️ Carica Ora su Drive</button>
+                            <button class="btn btn-secondary" onclick="_gdriveTest()" id="btn-gdrive-test" data-i18n="settings.backup.gdrive_test">🔗 Test Connection</button>
+                            <button class="btn btn-accent" onclick="_gdrivePushNow()" id="btn-gdrive-push" data-i18n="settings.backup.gdrive_push_now">☁️ Upload to Drive Now</button>
                         </div>
                         <div id="gdrive-test-status" style="display:none;margin-top:8px" class="settings-status"></div>
                     </div>
@@ -2932,13 +2932,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261018b"></script>
-<script src="assets/js/core/vocab.js?v=20261018b"></script>
-<script src="assets/js/app.js?v=20261018b"></script>
-<script src="assets/js/audit.js?v=20261018b"></script>
-<script src="assets/js/receipt.js?v=20261018b"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261018b"></script>
-<script src="assets/js/settings_search.js?v=20261018b"></script>
+<script src="assets/js/vocab.generated.js?v=20261018c"></script>
+<script src="assets/js/core/vocab.js?v=20261018c"></script>
+<script src="assets/js/app.js?v=20261018c"></script>
+<script src="assets/js/audit.js?v=20261018c"></script>
+<script src="assets/js/receipt.js?v=20261018c"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261018c"></script>
+<script src="assets/js/settings_search.js?v=20261018c"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>
