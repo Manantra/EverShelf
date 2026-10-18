@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.2] - 2026-10-18
+
+### The daily backup actually runs (issue #290)
+- **The image now runs its own scheduler.** `docker/evershelf-cron` is installed as
+  `/etc/cron.d/evershelf` and executes `api/cron_smart_shopping.php` every 5 minutes as
+  `www-data`; the container starts the daemon before Apache. Until now
+  `BACKUP_ENABLED` defaulted to `true` but no scheduler existed in the image, so on
+  Docker/Unraid the "automatic daily backup" never happened — the panel promised it and
+  the UI never warned. Bare-metal installs keep using their host crontab.
+- **A backup is a consistent snapshot.** `createLocalBackup()` uses `VACUUM INTO`
+  (reading through the WAL) into a `.part` file and renames it, instead of a plain
+  `copy()` that could catch a write in the middle; older SQLite builds fall back to a
+  checkpoint + copy. A failed run never leaves a half file behind.
+- **The UI is honest and warns.** `get_settings` exposes `backup_last_ts`, the Settings
+  checklist keeps a backup row until a fresh one exists, and the backup panel shows how
+  old the last backup is and warns when it is older than 8 days (or when none ever
+  ran). The automatic-backup toggle is now really on the page —
+  `setting-backup-enabled` was read by the code but never rendered. New strings in all
+  six locales.
+- **Docs:** Installation, Configuration, Unraid and the FAQ now say that Docker backups
+  are automatic, where the files live (`data/backups/`, **inside** the volume — copy
+  them off-volume for a real backup) and how to restore one.
+  `scripts/test-docker-cron.php` locks the whole chain (image → cron → backup → UI →
+  six locales → docs).
+
 ## [1.16.1] - 2026-10-18
 
 ### A hand-edited `.env` wins again (issue #298)
