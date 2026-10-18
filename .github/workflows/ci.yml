@@ -244,3 +244,20 @@ jobs:
           body: ${{ steps.changelog.outputs.body }}
           target_commitish: main
           make_latest: true
+
+      # A push made with a token from inside a workflow does not trigger another
+      # workflow, so neither the auto-merge push to main nor the tag created
+      # above ever started publish-docker: every release needed a manual
+      # `gh workflow run publish-docker.yml --ref main` (v1.16.1/v1.16.2 both
+      # shipped without the image until it was dispatched by hand). Dispatch it
+      # here, right after the release exists.
+      - name: Publish the Docker image for this release
+        if: steps.tag_check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::WORKFLOW_PAT is not set — run 'gh workflow run publish-docker.yml --ref main' by hand"
+            exit 0
+          fi
+          gh workflow run publish-docker.yml --ref main

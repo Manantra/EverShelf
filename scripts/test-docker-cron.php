@@ -92,6 +92,15 @@ assert_true(
     'the backup is rate-limited to once every 23 hours (not once per 5-minute run)'
 );
 
+// ── Publishing the image follows the release, automatically ────────────────
+// A workflow push cannot trigger another workflow, so the tag alone never built
+// the image; v1.16.1/v1.16.2 needed a manual dispatch.
+$ci = (string)file_get_contents($root . '/.github/workflows/ci.yml');
+assert_true(
+    str_contains($ci, 'gh workflow run publish-docker.yml --ref main'),
+    'creating a release dispatches publish-docker (a token push cannot trigger it)'
+);
+
 // ── The backup itself is a consistent snapshot, not a plain copy ────────────
 assert_true(str_contains($api, "'backup_last_ts' =>"), 'get_settings exposes backup_last_ts (the checklist/panel need it)');
 assert_true(str_contains($api, "env('BACKUP_ENABLED', 'true') === 'true'"), 'backup_enabled defaults to true in get_settings');
