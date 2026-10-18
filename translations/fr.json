@@ -1354,7 +1354,10 @@
     "backup": {
       "tab": "Sauvegarde",
       "local_title": "Sauvegarde locale",
-      "local_hint": "Instantané quotidien de la base de données. Configurez le nombre de jours de rétention.",
+      "local_hint": "Une sauvegarde par jour tant que le cron tourne (l’image Docker l’exécute automatiquement). Les fichiers sont dans data/backups — copiez-les hors du volume de données pour une vraie sécurité.",
+      "checklist_hint": "Une sauvegarde par jour dans data/backups : vérifiez que le cron tourne et gardez une copie hors du volume de données.",
+      "stale_warning": "Dernière sauvegarde il y a {days} jours — la sauvegarde automatique ne tourne pas. Vérifiez le cron ou lancez « Sauvegarder maintenant ».",
+      "never_warning": "Aucune sauvegarde n’a jamais été faite : lancez-en une et assurez-vous que le cron tourne.",
       "enabled": "Activer la sauvegarde automatique quotidienne",
       "retention_days": "Rétention (jours)",
       "retention_info": "Les sauvegardes sont conservées pendant",

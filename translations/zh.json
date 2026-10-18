@@ -1458,7 +1458,10 @@
     "backup": {
       "tab": "备份",
       "local_title": "本地备份",
-      "local_hint": "每天生成数据库快照，并可设置备份保留天数。",
+      "local_hint": "cron 运行时每天备份一次（Docker 镜像会自动运行）。文件在 data/backups 中——请复制到数据卷之外，才能真正安全。",
+      "checklist_hint": "每天在 data/backups 中备份一次：请确认 cron 正在运行，并在数据卷之外保留一份副本。",
+      "stale_warning": "上次备份是 {days} 天前——自动备份没有运行。请检查 cron 或点击“立即备份”。",
+      "never_warning": "从未执行过备份：现在开始一次，并确认 cron 正在运行。",
       "enabled": "启用每日自动备份",
       "retention_days": "保留天数",
       "retention_info": "备份保留",

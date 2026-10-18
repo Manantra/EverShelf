@@ -10,6 +10,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libzip-dev \
     libicu-dev \
     ca-certificates \
+    cron \
     curl \
     tesseract-ocr \
     tesseract-ocr-ita \
@@ -39,6 +40,15 @@ RUN bash /var/www/html/scripts/install-transformers-model.sh
 # Copy application files
 COPY . /var/www/html/
 
+# Cron inside the container. The daily backup, the smart-shopping cache, the
+# barcode sync and the retention passes only happen when
+# api/cron_smart_shopping.php runs: without a scheduler here, BACKUP_ENABLED=true
+# is a promise the container never kept (a Docker/Unraid upgrade could not fall
+# back to a backup). The file is /etc/cron.d/evershelf — root:root 0644, or cron
+# refuses it — and the job runs as www-data, not root.
+COPY docker/evershelf-cron /etc/cron.d/evershelf
+RUN chmod 0644 /etc/cron.d/evershelf
+
 # Create data directory with proper permissions
 RUN mkdir -p /var/www/html/data/backups \
     && chown -R www-data:www-data /var/www/html/data \
@@ -58,4 +68,7 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost/ || exit 1
 
-CMD ["apache2-foreground"]
+# Cron daemon + Apache in one container. -f keeps cron attached so its own
+# messages reach `docker logs` (the image has no syslog daemon); Apache stays the
+# long-running process the container lifecycle follows.
+CMD ["sh", "-c", "cron -f -L 15 & exec apache2-foreground"]

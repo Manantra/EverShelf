@@ -1,0 +1,10 @@
+# EverShelf — jobs run by the cron daemon inside the container.
+#
+# One run every 5 minutes is the schedule the wiki documents for bare metal:
+# the script itself decides what is due (the smart-shopping cache every run,
+# the barcode sync weekly, the retentions, and at most one backup every 23 h).
+# Running it as www-data keeps every file it writes owned by the web app.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+*/5 * * * * www-data php /var/www/html/api/cron_smart_shopping.php >> /var/www/html/data/cron.log 2>&1

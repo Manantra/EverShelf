@@ -1415,7 +1415,10 @@
     "backup": {
       "tab": "Backup",
       "local_title": "Lokales Backup",
-      "local_hint": "Täglicher Datenbank-Snapshot. Konfiguriere, wie viele Tage Backups aufbewahrt werden.",
+      "local_hint": "Ein Backup pro Tag, solange der Cron läuft (im Docker-Image läuft er automatisch). Die Dateien liegen in data/backups – für echte Sicherheit kopiere sie außerhalb des Daten-Volumes.",
+      "checklist_hint": "Ein Backup pro Tag in data/backups: prüfe, dass der Cron läuft, und halte eine Kopie außerhalb des Daten-Volumes.",
+      "stale_warning": "Letztes Backup vor {days} Tagen – das automatische Backup läuft nicht. Prüfe den Cron oder klicke auf „Jetzt sichern“.",
+      "never_warning": "Es wurde noch nie ein Backup erstellt: starte jetzt eines und prüfe, ob der Cron läuft.",
       "enabled": "Tägliches automatisches Backup aktivieren",
       "retention_days": "Aufbewahrung (Tage)",
       "retention_info": "Backups werden aufbewahrt für",

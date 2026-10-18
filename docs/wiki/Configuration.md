@@ -380,7 +380,18 @@ EverShelf uses **SQLite** stored at `data/evershelf.db`. The file is created aut
 
 Schema migrations run automatically whenever `database.php` is loaded — no manual migration steps needed.
 
-To back up the database:
+**Backups are automatic.** The Docker image runs `api/cron_smart_shopping.php` every 5
+minutes as `www-data`; that job creates at most one database backup every 23 hours in
+`data/backups/` and keeps `BACKUP_RETENTION_DAYS` (default 3, `BACKUP_ENABLED=false`
+turns it off). Bare-metal installs schedule the same script themselves — see
+[Installation → Backup](Installation#backup). *Settings → 💾 Backup* shows the last
+backup, warns when it is older than 8 days, and restores one.
+
+> `data/backups/` sits **inside** the data volume: it protects against a bad restore or
+> a wrong deletion, not against losing the volume. Copy that folder off the volume or
+> enable Google Drive in the same panel.
+
+To take one by hand (the in-app button does the same through `VACUUM INTO`):
 
 ```bash
 sqlite3 data/evershelf.db ".backup 'data/backups/evershelf-$(date +%Y%m%d).db'"

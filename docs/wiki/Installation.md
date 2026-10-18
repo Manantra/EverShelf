@@ -42,6 +42,7 @@ To build locally instead of pulling: `docker compose build && docker compose up 
 The Docker image:
 - Uses PHP-Apache on Debian Bookworm
 - Auto-creates the `data/` directory with correct permissions
+- Runs the maintenance cron **inside the container** (every 5 minutes: smart shopping, barcode sync, retentions and at most one database backup per day)
 - Exposes port `8080` by default (configurable in `docker-compose.yml`)
 - Persists data in a named Docker volume
 - Tags: `latest` (main), `vX.Y.Z` (releases), `sha-…`
@@ -180,16 +181,28 @@ evershelf.yourdomain.com {
 
 ---
 
-## Cron Jobs (optional)
+## Cron Jobs
 
 Scheduled work keeps the predictions and the caches fresh. Every job is a plain CLI
-script and is safe to run by hand:
+script and is safe to run by hand.
+
+**Docker: nothing to install.** The image ships `/etc/cron.d/evershelf`, which runs
+`api/cron_smart_shopping.php` every 5 minutes as `www-data` (output in
+`data/cron.log`). That single job also covers the barcode sync, the retention passes
+and the daily backup. Check it with:
+
+```bash
+docker logs evershelf 2>&1 | grep -i cron
+tail -n 20 data/cron.log
+```
+
+**Bare metal:** schedule it yourself.
 
 ```bash
 # Edit crontab
 crontab -e
 
-# Smart shopping predictions (every 5 minutes)
+# Smart shopping predictions + daily backup (every 5 minutes)
 */5 * * * * php /var/www/html/dispensa/api/cron_smart_shopping.php >> /var/www/html/dispensa/data/cron.log 2>&1
 
 # Barcode catalog refresh (weekly; daily for small catalogs)
@@ -204,10 +217,20 @@ crontab -e
 > watchdog*) and each job pings an external URL when it finishes, so what raises the
 > alarm is the *missing* ping. Healthchecks.io and Uptime Kuma push monitors both work;
 > see [Configuration → Cron watchdog](Configuration#cron-watchdog-healthchecksio--uptime-kuma).
+> The backup panel is the second alarm: it shows the last backup and warns when it is
+> older than 8 days.
 
 ---
 
-## Backup (optional)
+## Backup
+
+**Docker:** automatic. The in-container cron creates a backup of `data/evershelf.db`
+at most once every 23 hours (and the new one replaces the oldest beyond
+`BACKUP_RETENTION_DAYS`, default 3). `Settings → 💾 Backup` lists them, lets you run
+one now and restores one. `BACKUP_ENABLED=false` switches the automatic copy off.
+
+**Bare metal:** add the daily line to your crontab — or let the every-5-minutes
+`cron_smart_shopping.php` above do it, which is the same job the container runs.
 
 ```bash
 # Edit crontab
@@ -222,8 +245,13 @@ timestamp, and keeps the newest `BACKUP_RETENTION_DAYS` of them (`.env`, default
 Because the database runs in WAL mode it uses SQLite's online backup — `sqlite3
 ... ".backup"`, or a PHP `PRAGMA wal_checkpoint(FULL)` when the `sqlite3` CLI is
 missing — instead of a plain file copy, which would silently drop the newest
-transactions. The Docker image ships the `sqlite3` CLI, so the fast path is used
-there.
+transactions. The in-app backup does the same through `VACUUM INTO`. The Docker image
+ships the `sqlite3` CLI, so the fast path is used there.
+
+> **The backups live inside the data volume.** `data/backups/` protects you from a
+> bad restore or a wrong deletion — not from losing the volume (a template change, a
+> `docker compose down -v`, a disk failure). Copy that folder off the volume, keep the
+> appdata folder in your Unraid backup, or enable Google Drive in the same panel.
 
 ---
 

@@ -1276,6 +1276,19 @@ function evershelfSettingsSchema(): array
     ),
     96 => 
     array (
+      'id' => 'setting-backup-enabled',
+      'env' => 'BACKUP_ENABLED',
+      'tab' => 'tab-backup',
+      'group' => 'system',
+      'label' => 'settings.backup.enabled',
+      'hint' => '',
+      'card' => 'settings.backup.local_title',
+      'card_hint' => 'settings.backup.local_hint',
+      'keywords' => '',
+      'type' => 'bool',
+    ),
+    97 => 
+    array (
       'id' => 'setting-backup-retention-days',
       'env' => 'BACKUP_RETENTION_DAYS',
       'tab' => 'tab-backup',
@@ -1287,7 +1300,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    97 => 
+    98 => 
     array (
       'id' => 'setting-gdrive-enabled',
       'env' => 'GDRIVE_ENABLED',
@@ -1300,7 +1313,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'bool',
     ),
-    98 => 
+    99 => 
     array (
       'id' => 'setting-gdrive-folder-id',
       'env' => 'GDRIVE_FOLDER_ID',
@@ -1313,7 +1326,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    99 => 
+    100 => 
     array (
       'id' => 'setting-gdrive-client-id',
       'env' => '',
@@ -1326,7 +1339,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    100 => 
+    101 => 
     array (
       'id' => 'setting-gdrive-client-secret',
       'env' => '',
@@ -1339,7 +1352,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'secret',
     ),
-    101 => 
+    102 => 
     array (
       'id' => 'gdrive-code-input',
       'env' => '',
@@ -1352,7 +1365,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'text',
     ),
-    102 => 
+    103 => 
     array (
       'id' => 'setting-gdrive-retention-days',
       'env' => 'GDRIVE_RETENTION_DAYS',
@@ -1365,7 +1378,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'int',
     ),
-    103 => 
+    104 => 
     array (
       'id' => 'setting-audit-batch-size',
       'env' => 'AUDIT_MODE_BATCH_SIZE',
@@ -1378,7 +1391,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    104 => 
+    105 => 
     array (
       'id' => 'setting-shopping-remove-trip',
       'env' => '',
@@ -1391,7 +1404,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    105 => 
+    106 => 
     array (
       'id' => 'setting-pref-pocafame',
       'env' => 'PREF_POCAFAME',
@@ -1404,7 +1417,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    106 => 
+    107 => 
     array (
       'id' => 'setting-pref-scadenze',
       'env' => 'PREF_SCADENZE',
@@ -1417,7 +1430,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    107 => 
+    108 => 
     array (
       'id' => 'setting-pref-healthy',
       'env' => 'PREF_HEALTHY',
@@ -1430,7 +1443,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    108 => 
+    109 => 
     array (
       'id' => 'setting-pref-opened',
       'env' => 'PREF_OPENED',
@@ -1443,7 +1456,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    109 => 
+    110 => 
     array (
       'id' => 'setting-pref-zerowaste',
       'env' => 'PREF_ZEROWASTE',
@@ -1456,7 +1469,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    110 => 
+    111 => 
     array (
       'id' => 'setting-weather-lat',
       'env' => '',
@@ -1469,7 +1482,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    111 => 
+    112 => 
     array (
       'id' => 'setting-weather-lon',
       'env' => '',
@@ -1482,7 +1495,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    112 => 
+    113 => 
     array (
       'id' => 'setting-weather-city',
       'env' => '',
@@ -1495,7 +1508,7 @@ function evershelfSettingsSchema(): array
       'keywords' => '',
       'type' => 'action',
     ),
-    113 => 
+    114 => 
     array (
       'id' => 'setting-audit-batch-size',
       'env' => 'AUDIT_MODE_BATCH_SIZE',
@@ -1603,150 +1616,145 @@ function evershelfSettingsSchema(): array
     ),
     18 => 
     array (
-      'env' => 'BACKUP_ENABLED',
+      'env' => 'GDRIVE_SERVICE_ACCOUNT_JSON',
       'reason' => 'storage',
     ),
     19 => 
     array (
-      'env' => 'GDRIVE_SERVICE_ACCOUNT_JSON',
+      'env' => 'GDRIVE_SERVICE_ACCOUNT_FILE',
       'reason' => 'storage',
     ),
     20 => 
     array (
-      'env' => 'GDRIVE_SERVICE_ACCOUNT_FILE',
-      'reason' => 'storage',
-    ),
-    21 => 
-    array (
       'env' => 'API_TOKEN',
       'reason' => 'security',
     ),
-    22 => 
+    21 => 
     array (
       'env' => 'CORS_ORIGIN',
       'reason' => 'security',
     ),
-    23 => 
+    22 => 
     array (
       'env' => 'TRUSTED_PROXIES',
       'reason' => 'security',
     ),
-    24 => 
+    23 => 
     array (
       'env' => 'API_BOOTSTRAP_OPEN',
       'reason' => 'security',
     ),
-    25 => 
+    24 => 
     array (
       'env' => 'GH_ISSUE_TOKEN',
       'reason' => 'security',
     ),
-    26 => 
+    25 => 
     array (
       'env' => 'GH_ISSUE_TOKEN_ENC',
       'reason' => 'security',
     ),
-    27 => 
+    26 => 
     array (
       'env' => 'GH_ISSUE_TOKEN_KEY',
       'reason' => 'security',
     ),
-    28 => 
+    27 => 
     array (
       'env' => 'REPORT_ENABLED',
       'reason' => 'security',
     ),
-    29 => 
+    28 => 
     array (
       'env' => 'INSTANCE_NAME',
       'reason' => 'advanced',
     ),
-    30 => 
+    29 => 
     array (
       'env' => 'HA_WEBHOOK_EVENTS',
       'reason' => 'advanced',
     ),
-    31 => 
+    30 => 
     array (
       'env' => 'NOTIFY_CHANNELS',
       'reason' => 'advanced',
     ),
-    32 => 
+    31 => 
     array (
       'env' => 'NOTIFY_EVENTS',
       'reason' => 'advanced',
     ),
-    33 => 
+    32 => 
     array (
       'env' => 'ICS_TOKEN',
       'reason' => 'security',
     ),
-    34 => 
+    33 => 
     array (
       'env' => 'BARCODE_AI_FALLBACK',
       'reason' => 'advanced',
     ),
-    35 => 
+    34 => 
     array (
       'env' => 'BARCODE_OFFLINE_ENABLED',
       'reason' => 'advanced',
     ),
-    36 => 
+    35 => 
     array (
       'env' => 'BARCODE_OFFLINE_SYNC_DAYS',
       'reason' => 'advanced',
     ),
-    37 => 
+    36 => 
     array (
       'env' => 'BARCODE_LOOKUP_TIMEOUT',
       'reason' => 'advanced',
     ),
-    38 => 
+    37 => 
     array (
       'env' => 'DEMO_MODE',
       'reason' => 'logging',
     ),
-    39 => 
+    38 => 
     array (
       'env' => 'DISPLAY_ERRORS',
       'reason' => 'logging',
     ),
-    40 => 
+    39 => 
     array (
       'env' => 'LOG_LEVEL',
       'reason' => 'logging',
     ),
-    41 => 
+    40 => 
     array (
       'env' => 'LOG_ROTATE_HOURS',
       'reason' => 'logging',
     ),
-    42 => 
+    41 => 
     array (
       'env' => 'LOG_MAX_FILES',
       'reason' => 'logging',
     ),
-    43 => 
+    42 => 
     array (
       'env' => 'GEMINI_CLASSIFY_DAILY_MAX',
       'reason' => 'advanced',
     ),
-    44 => 
+    43 => 
     array (
       'env' => 'RECEIPT_OCR_MAX_ITEMS',
       'reason' => 'advanced',
     ),
-    45 => 
+    44 => 
     array (
       'env' => 'AUTO_FAVORITE_TOP_N',
       'reason' => 'advanced',
     ),
-    46 => 
+    45 => 
     array (
       'env' => 'AUTO_FAVORITE_WINDOW_DAYS',
       'reason' => 'advanced',
     ),
-    47 => 
+    46 => 
     array (
       'env' => 'CRON_LOG_MAX_BYTES',
       'reason' => 'logging',

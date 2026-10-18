@@ -41,6 +41,23 @@ sudo chown 33:33 .env
 
 Settings saves are written to `.env` whenever the web server can write it; the database fallback exists for read-only files and for Unraid-style `EVERSHELF_ENV_FILE` mounts.
 
+### Are backups automatic? Where do they live?
+
+- **Docker / Unraid:** yes. The image runs `api/cron_smart_shopping.php` every 5 minutes
+  as `www-data` (see `/etc/cron.d/evershelf`); that job creates at most one database
+  backup every 23 hours in `data/backups/` and keeps `BACKUP_RETENTION_DAYS` (default 3).
+  Nothing to install on the host.
+- **Bare metal:** schedule it yourself — `Installation → Backup` has the crontab lines.
+- **Check it:** *Settings → 💾 Backup* shows the last backup and warns when it is older
+  than 8 days; the settings checklist keeps a row until a fresh one exists. The panel
+  also has a **Backup now** button.
+- **Restore:** the same panel — it replaces the current database with the chosen file.
+
+> Backups live **inside the data volume**. They protect against a bad restore or a wrong
+> deletion, not against losing the volume (a template change, `docker compose down -v`, a
+> disk failure): copy `data/backups/` off the volume, keep the appdata folder in your
+> Unraid backup, or enable Google Drive in the same panel.
+
 ### Docker container exits immediately
 
 ```bash
