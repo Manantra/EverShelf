@@ -1771,7 +1771,8 @@
       "test_running": "正在测试…",
       "test_disabled": "请先启用 AI，再运行测试。",
       "test_ok": "正常 — {ms} ms（{provider}）：{reply}",
-      "test_fail": "失败 — {ms} ms：{error}"
+      "test_fail": "失败 — {ms} ms：{error}",
+      "test_model": "模型：{model}"
     },
     "openai": {
       "title": "☁️ OpenAI",

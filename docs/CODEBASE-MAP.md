@@ -233,7 +233,11 @@ Groups:
 ## 9. Config & secrets
 
 - Secrets live in `.env` (git-ignored). `save_settings` (~line 8082) rewrites
-  `.env`, or falls back to DB overrides in `app_settings.env_overrides`.
+  `.env`, or falls back to DB overrides in `app_settings.env_overrides` when the
+  file is not writable. Each fallback entry stores the `.env` value it was saved
+  against: when the file no longer matches (a hand edit followed by a restart)
+  the file wins and the stale entry is dropped, with the event
+  `settings_override_stale` — a DB copy must never shadow `.env` forever (#298).
 - `.env.example` documents every knob with comments.
 - `.env`, `data/`, `logs/` are denied by `.htaccess`.
 

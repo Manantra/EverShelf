@@ -81,10 +81,128 @@ function loadEnv(bool $reload = false): array {
         putenv("{$k}={$v}");
         $_ENV[$k] = $v;
     }
+    if ($reload) {
+        // The file just changed on disk: the database fallbacks were saved against
+        // the previous content, so their baselines must be re-evaluated too. Without
+        // this a stale fallback survives the reload and keeps shadowing the file.
+        loadEnvOverrides(true);
+    }
     return $cache;
 }
 
-/** @return array<string,string> */
+/**
+ * The .env file exactly as it is on disk right now, plus its mtime.
+ *
+ * `loadEnv()` is cached for the request and bridged into getenv(); the override
+ * bookkeeping needs the *file* value as it was written, so it reads the file
+ * directly instead of trusting that cache.
+ *
+ * @return array{vars: array<string,string>, mtime: int}
+ */
+function evershelfEnvFileSnapshot(): array
+{
+    $file  = evershelfEnsureEnvFile();
+    $vars  = [];
+    $mtime = 0;
+    if (is_file($file)) {
+        $mtime = (int)@filemtime($file);
+        $lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0 || strpos($line, '=') === false) {
+                continue;
+            }
+            [$key, $val] = explode('=', $line, 2);
+            $vars[trim($key)] = trim($val);
+        }
+    }
+    return ['vars' => $vars, 'mtime' => $mtime];
+}
+
+/**
+ * Was a database fallback saved against the .env as it is now?
+ *
+ * Each fallback entry records the .env value it was written against (`null` when
+ * the key was absent from the file). When the file no longer matches, the user
+ * edited .env by hand — that edit is the newer decision and must win. Without
+ * this check the database copy shadowed .env forever (issue #298: `OPENAI_MODEL`
+ * changed in .env was ignored after a Settings save had fallback-stored the old
+ * value because the file was not writable by www-data).
+ */
+function evershelfEnvOverrideMatchesFile(?string $baseline, string $key, array $fileVars): bool
+{
+    $present = array_key_exists($key, $fileVars);
+    if ($baseline === null) {
+        return !$present;
+    }
+    return $present && $fileVars[$key] === $baseline;
+}
+
+/**
+ * The stored override map exactly as persisted: values may be arrays carrying
+ * their .env baseline, or legacy bare strings. Writers must start from this map,
+ * not from the flattened one loadEnvOverrides() returns, or a prune/save would
+ * downgrade every modern entry back to a legacy string.
+ *
+ * @return array<string,mixed>
+ */
+function evershelfLoadEnvOverridesRaw(): array
+{
+    if (!function_exists('getDB')) {
+        return [];
+    }
+    try {
+        $row = getDB()->query("SELECT value FROM app_settings WHERE key = 'env_overrides'")->fetchColumn();
+        if (!$row) {
+            return [];
+        }
+        $decoded = json_decode((string)$row, true);
+        return is_array($decoded) ? $decoded : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Persist the override map, or remove the row when nothing is left.
+ * One writer for the table, so a prune and a save cannot disagree.
+ *
+ * @param array<string,mixed> $entries
+ */
+function evershelfPersistEnvOverrides(array $entries): bool
+{
+    if (!function_exists('getDB')) {
+        return false;
+    }
+    try {
+        $db = getDB();
+        if ($entries === []) {
+            $db->exec("DELETE FROM app_settings WHERE key = 'env_overrides'");
+            return true;
+        }
+        $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('env_overrides', ?, datetime('now'))
+                      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+            ->execute([json_encode($entries, JSON_UNESCAPED_UNICODE)]);
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Settings saved to SQLite because .env was not writable, merged on read by env().
+ *
+ * New entries carry the .env value they were saved against:
+ * `{"KEY":{"value":"…","env":"…"}}`, with `env => null` when the key was absent.
+ * An entry whose baseline no longer matches the file is stale — the user changed
+ * .env by hand — so the file wins and the stored copy is dropped (issue #298).
+ *
+ * Legacy entries are bare strings and have no baseline. There the .env mtime is
+ * the discriminator: a file modified *after* the fallback row was stored is a
+ * newer decision than the row, so the file wins. A read-only .env never moves,
+ * which is exactly the install the fallback exists for (issue #261).
+ *
+ * @return array<string,string>
+ */
 function loadEnvOverrides(bool $reload = false): array {
     static $cache = null;
     if (!$reload && $cache !== null) {
@@ -102,19 +220,60 @@ function loadEnvOverrides(bool $reload = false): array {
     }
     $cache = [];
     try {
-        $row = getDB()->query("SELECT value FROM app_settings WHERE key = 'env_overrides'")->fetchColumn();
-        if ($row) {
-            $decoded = json_decode((string)$row, true);
-            if (is_array($decoded)) {
-                foreach ($decoded as $k => $v) {
-                    if (is_string($k) && (is_string($v) || is_numeric($v))) {
-                        $cache[$k] = (string)$v;
-                    }
+        $stmt = getDB()->query("SELECT value, updated_at FROM app_settings WHERE key = 'env_overrides'");
+        $row  = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        if (!$row || empty($row['value'])) {
+            return $cache;
+        }
+        $decoded = json_decode((string)$row['value'], true);
+        if (!is_array($decoded)) {
+            return $cache;
+        }
+        $file    = evershelfEnvFileSnapshot();
+        // app_settings.updated_at is datetime('now'), i.e. UTC.
+        $savedAt = !empty($row['updated_at']) ? (int)strtotime((string)$row['updated_at'] . ' UTC') : 0;
+        $stale   = [];
+        $kept    = [];
+        foreach ($decoded as $k => $v) {
+            if (!is_string($k)) {
+                continue;
+            }
+            if (is_array($v)) {
+                if (!array_key_exists('value', $v)) {
+                    continue;
                 }
+                $baseline = array_key_exists('env', $v) && is_string($v['env']) ? $v['env'] : null;
+                if (!evershelfEnvOverrideMatchesFile($baseline, $k, $file['vars'])) {
+                    $stale[] = $k;
+                    continue;
+                }
+                $cache[$k] = (string)$v['value'];
+                $kept[$k]  = $v; // keep the baseline when the map is written back
+                continue;
+            }
+            if (is_string($v) || is_numeric($v)) {
+                // Legacy bare string: the file's mtime is the only baseline we have.
+                if ($file['mtime'] > 0 && $savedAt > 0 && $file['mtime'] > $savedAt
+                    && array_key_exists($k, $file['vars'])) {
+                    $stale[] = $k;
+                    continue;
+                }
+                $cache[$k] = (string)$v;
+                $kept[$k]  = $v;
+            }
+        }
+        if ($stale !== []) {
+            evershelfPersistEnvOverrides($kept);
+            if (class_exists('EverLog')) {
+                // Keys only: these values are secrets often enough (API keys).
+                EverLog::info('stale settings override ignored — the .env file was edited by hand', [
+                    'event' => 'settings_override_stale',
+                    'keys'  => $stale,
+                ]);
             }
         }
     } catch (Throwable $e) {
-        // DB may be unavailable during early bootstrap
+        $cache = []; // DB may be unavailable during early bootstrap
     }
     return $cache;
 }
@@ -197,20 +356,33 @@ function evershelfWriteEnvFile(string $envFile, array $updates, string $template
     return $ok;
 }
 
-/** Persist env overrides when .env is not writable (merged on read via env()). */
+/**
+ * Persist env overrides when .env is not writable (merged on read via env()).
+ *
+ * Each value is stored together with the .env value it was saved against, so a
+ * later hand edit of the file can invalidate the copy instead of being shadowed
+ * by it (issue #298).
+ */
 function saveEnvOverrides(array $updates): bool {
     if (empty($updates) || !function_exists('getDB')) {
         return false;
     }
     try {
-        $db = getDB();
-        $current = loadEnvOverrides(true);
+        // Trigger the stale-entry pruning first, then start from the map exactly as
+        // stored so the surviving entries keep their .env baseline.
+        loadEnvOverrides(true);
+        $current = evershelfLoadEnvOverridesRaw();
+        $file    = evershelfEnvFileSnapshot();
         foreach ($updates as $key => $val) {
-            $current[(string)$key] = (string)$val;
+            $key = (string)$key;
+            $current[$key] = [
+                'value' => (string)$val,
+                'env'   => array_key_exists($key, $file['vars']) ? $file['vars'][$key] : null,
+            ];
         }
-        $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('env_overrides', ?, datetime('now'))
-                      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
-            ->execute([json_encode($current, JSON_UNESCAPED_UNICODE)]);
+        if (!evershelfPersistEnvOverrides($current)) {
+            return false;
+        }
         loadEnvOverrides(true);
         return true;
     } catch (Throwable $e) {
@@ -224,7 +396,9 @@ function clearEnvOverrides(array $envKeys): void {
         return;
     }
     try {
-        $current = loadEnvOverrides(true);
+        // Prune stale entries first, then work on the raw map (see the helper).
+        loadEnvOverrides(true);
+        $current = evershelfLoadEnvOverridesRaw();
         $changed = false;
         foreach ($envKeys as $key) {
             if (isset($current[$key])) {
@@ -235,14 +409,7 @@ function clearEnvOverrides(array $envKeys): void {
         if (!$changed) {
             return;
         }
-        $db = getDB();
-        if (empty($current)) {
-            $db->exec("DELETE FROM app_settings WHERE key = 'env_overrides'");
-        } else {
-            $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('env_overrides', ?, datetime('now'))
-                          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
-                ->execute([json_encode($current, JSON_UNESCAPED_UNICODE)]);
-        }
+        evershelfPersistEnvOverrides($current);
         loadEnvOverrides(true);
     } catch (Throwable $e) {
         // best effort
