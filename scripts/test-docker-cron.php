@@ -94,12 +94,23 @@ assert_true(
 
 // ── Publishing the image follows the release, automatically ────────────────
 // A workflow push cannot trigger another workflow, so the tag alone never built
-// the image; v1.16.1/v1.16.2 needed a manual dispatch.
+// the image; v1.16.1/v1.16.2 needed a manual dispatch. The release job now calls
+// publish-docker as a reusable workflow (no PAT, no dispatch).
 $ci = (string)file_get_contents($root . '/.github/workflows/ci.yml');
+$publisher = (string)file_get_contents($root . '/.github/workflows/publish-docker.yml');
 assert_true(
-    str_contains($ci, 'gh workflow run publish-docker.yml --ref main'),
-    'creating a release dispatches publish-docker (a token push cannot trigger it)'
+    str_contains($ci, 'uses: ./.github/workflows/publish-docker.yml'),
+    'the release job calls publish-docker as a reusable workflow'
 );
+assert_true(
+    str_contains($ci, 'version: ${{ needs.create-release.outputs.version }}')
+    && str_contains($ci, 'latest: true'),
+    'the call passes the version and the latest tag'
+);
+assert_true(str_contains($ci, 'created: ${{ steps.tag_check.outputs.exists') ,'create-release reports whether it created a release');
+assert_true(str_contains($publisher, 'workflow_call:'), 'publish-docker can be called by another workflow');
+assert_true(str_contains($publisher, 'inputs.version'), 'the reusable workflow accepts the version to tag');
+assert_true(!str_contains($ci, 'gh workflow run publish-docker'), 'publishing no longer depends on a PAT-authenticated dispatch');
 
 // ── The backup itself is a consistent snapshot, not a plain copy ────────────
 assert_true(str_contains($api, "'backup_last_ts' =>"), 'get_settings exposes backup_last_ts (the checklist/panel need it)');

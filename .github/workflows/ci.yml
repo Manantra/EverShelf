@@ -189,6 +189,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      created: ${{ steps.tag_check.outputs.exists == 'false' }}
+      version: ${{ steps.version.outputs.plain }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -202,6 +205,7 @@ jobs:
         run: |
           VER=$(grep -oP 'header-version">v\K[\d.]+' index.html | head -1)
           echo "version=v${VER}" >> $GITHUB_OUTPUT
+          echo "plain=${VER}" >> $GITHUB_OUTPUT
           echo "Detected version: v${VER}"
 
       - name: Check if tag already exists
@@ -245,19 +249,19 @@ jobs:
           target_commitish: main
           make_latest: true
 
-      # A push made with a token from inside a workflow does not trigger another
-      # workflow, so neither the auto-merge push to main nor the tag created
-      # above ever started publish-docker: every release needed a manual
-      # `gh workflow run publish-docker.yml --ref main` (v1.16.1/v1.16.2 both
-      # shipped without the image until it was dispatched by hand). Dispatch it
-      # here, right after the release exists.
-      - name: Publish the Docker image for this release
-        if: steps.tag_check.outputs.exists == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::WORKFLOW_PAT is not set — run 'gh workflow run publish-docker.yml --ref main' by hand"
-            exit 0
-          fi
-          gh workflow run publish-docker.yml --ref main
+  # A push/tag made with a token from inside a workflow does not trigger another
+  # workflow, so the release alone never built the image. The image job is a
+  # reusable workflow, called directly here: no PAT, no dispatch, no gap. Only
+  # when this run actually created a release (a tag that already existed means
+  # the image was published with it).
+  publish-container:
+    name: Publish Docker Image
+    needs: [create-release]
+    if: github.ref == 'refs/heads/develop' && needs.create-release.outputs.created == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-docker.yml
+    with:
+      version: ${{ needs.create-release.outputs.version }}
+      latest: true
