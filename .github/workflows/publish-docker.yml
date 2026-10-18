@@ -5,6 +5,32 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.16.3); leave empty for no version tag'
+        type: string
+        required: false
+        default: ''
+      latest:
+        description: 'Also tag the image as latest'
+        type: boolean
+        required: false
+        default: true
+  # Called by ci.yml right after it creates a release: a push/tag made with a
+  # token inside a workflow cannot trigger this one, so the release job calls it
+  # directly (no PAT, no manual dispatch).
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.16.3) when called by the release job'
+        type: string
+        required: false
+        default: ''
+      latest:
+        description: 'Also tag the image as latest'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -40,9 +66,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ inputs.latest == true || github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != null && inputs.version != '' }}
             type=sha,prefix=sha-,format=short
             type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
 
