@@ -200,6 +200,7 @@ php scripts/test-support-monetization.php # optional support: the 2 answers, don
 php scripts/test-qr-encoder.php         # the server-side QR encoder (frozen vectors + format/version information)
 php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health checks ↔ locales, no icon left blinking
 php scripts/test-recipe-archive.php     # archive: content_hash dedup, many libero/day, scheduled slots still unique
+php scripts/test-env-overrides.php      # a hand-edited .env wins over a stale DB fallback; the read-only fallback still works
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -232,7 +233,7 @@ npm run build
 |---|---|
 | Add/change an HTTP endpoint | `api/index.php` switch (line 898) + a handler `function` below |
 | Auth / CORS / demo mode | `api/lib/security.php` |
-| Config / `.env` read+write | `api/lib/env.php`, `saveSettings()` (~8082) |
+| Config / `.env` read+write | `api/lib/env.php` (`env()`, `loadEnvOverrides()`: a fallback stored because `.env` was read-only carries the value it was saved against, so a later hand edit of the file wins and the stale entry is dropped — `settings_override_stale`), `saveSettings()` (~9293) — guard test `scripts/test-env-overrides.php` |
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
 | Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |

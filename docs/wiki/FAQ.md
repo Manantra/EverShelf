@@ -26,12 +26,20 @@ chown -R www-data:www-data data/
 
 ### Docker bind mount: "Critical error — Data directory / Disk write test / Database connection"
 
-When you replace the named volume evershelf_data with a host path (./data:/var/www/html/data), Docker creates the host directory as root if it doesn't exist, and the image's build-time chown www-data is shadowed. Fix on the host:
+When you replace the named volume evershelf_data with a host path (`./data:/var/www/html/data`), Docker creates the host directory as root if it doesn't exist, and the image's build-time chown www-data is shadowed. Fix on the host:
 
 ```bash
-mkdir -p ./data  
-sudo chown -R 33:33 ./data   # 33 = www-data UID in the container   
+mkdir -p ./data
+sudo chown -R 33:33 ./data   # 33 = www-data UID in the container
 ```
+
+The same applies to a bind-mounted `.env`: if the file is owned by root, the app can read the configuration but **Settings cannot save it**. The app then keeps the changed keys in its own database (`app_settings.env_overrides`) and answers "saved". A later hand edit of `.env` wins over that copy — the stale entry is detected and dropped (since 1.16.1) — but the clean fix is to let the container own the file:
+
+```bash
+sudo chown 33:33 .env
+```
+
+Settings saves are written to `.env` whenever the web server can write it; the database fallback exists for read-only files and for Unraid-style `EVERSHELF_ENV_FILE` mounts.
 
 ### Docker container exits immediately
 
