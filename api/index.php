@@ -1401,13 +1401,17 @@ try {
             if (!empty($tokResult['token'])) {
                 echo json_encode(['success' => true]);
             } else {
-                echo json_encode(['success' => false, 'error' => $tokResult['error'] ?? 'Auth failed']);
+                echo json_encode([
+                    'success'   => false,
+                    'error'     => $tokResult['error'] ?? 'Auth failed',
+                    'error_key' => $tokResult['error_key'] ?? '',
+                ]);
             }
             break;
         case 'gdrive_oauth_url':
             $clientId = env('GDRIVE_CLIENT_ID', '');
             if (empty($clientId)) {
-                echo json_encode(['success' => false, 'error' => 'GDRIVE_CLIENT_ID not configured — save settings first']);
+                echo json_encode(['success' => false, 'error' => 'GDRIVE_CLIENT_ID not configured — save settings first', 'error_key' => 'error.gdrive_not_configured']);
             } else {
                 // Use http://localhost so the flow works on any self-hosted server (IP, local domain, etc.).
                 // Google will redirect to http://localhost?code=... after auth; user copies and pastes the URL.
@@ -1431,13 +1435,13 @@ try {
             $code        = trim($_exchangeBody['code'] ?? '');
             $redirectUri = trim($_exchangeBody['redirect_uri'] ?? '') ?: (env('GDRIVE_REDIRECT_URI', '') ?: 'http://localhost');
             if (empty($code)) {
-                echo json_encode(['success' => false, 'error' => 'No authorization code provided']);
+                echo json_encode(['success' => false, 'error' => 'No authorization code provided', 'error_key' => 'error.gdrive_code_missing']);
                 break;
             }
             $clientId     = env('GDRIVE_CLIENT_ID', '');
             $clientSecret = env('GDRIVE_CLIENT_SECRET', '');
             if (!$clientId || !$clientSecret) {
-                echo json_encode(['success' => false, 'error' => 'Client ID/Secret not configured — save settings first']);
+                echo json_encode(['success' => false, 'error' => 'Client ID/Secret not configured — save settings first', 'error_key' => 'error.gdrive_not_configured']);
                 break;
             }
             $ch = curl_init('https://oauth2.googleapis.com/token');
@@ -13816,12 +13820,12 @@ function createLocalBackup(?PDO $db = null): array {
     EverLog::info('createLocalBackup');
     $backupDir = BACKUP_DIR;
     if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true)) {
-        return ['success' => false, 'error' => 'Cannot create backup directory'];
+        return ['success' => false, 'error' => 'Cannot create backup directory', 'error_key' => 'error.backup_no_dir'];
     }
 
     $dbFile = __DIR__ . '/../data/evershelf.db';
     if (!file_exists($dbFile)) {
-        return ['success' => false, 'error' => 'Database file not found'];
+        return ['success' => false, 'error' => 'Database file not found', 'error_key' => 'error.backup_no_db'];
     }
 
     $date     = date('Y-m-d_Hi');
@@ -13852,7 +13856,7 @@ function createLocalBackup(?PDO $db = null): array {
     }
     if (!$made || !@rename($tmpPath, $destPath)) {
         @unlink($tmpPath);
-        return ['success' => false, 'error' => 'Failed to copy database file'];
+        return ['success' => false, 'error' => 'Failed to copy database file', 'error_key' => 'error.backup_copy_failed'];
     }
 
     // Purge local backups older than retention
@@ -13916,13 +13920,15 @@ function listLocalBackups(): array {
  */
 function deleteLocalBackup(string $filename): array {
     if (!preg_match('/^evershelf_\d{4}-\d{2}-\d{2}_\d{4}\.db$/', $filename)) {
-        return ['success' => false, 'error' => 'Invalid backup filename'];
+        return ['success' => false, 'error' => 'Invalid backup filename', 'error_key' => 'error.backup_invalid_name'];
     }
     $path = BACKUP_DIR . '/' . $filename;
     if (!file_exists($path)) {
-        return ['success' => false, 'error' => 'File not found'];
+        return ['success' => false, 'error' => 'File not found', 'error_key' => 'error.backup_not_found'];
     }
-    return unlink($path) ? ['success' => true] : ['success' => false, 'error' => 'Failed to delete file'];
+    return unlink($path)
+        ? ['success' => true]
+        : ['success' => false, 'error' => 'Failed to delete file', 'error_key' => 'error.backup_delete_failed'];
 }
 
 /**
@@ -13931,11 +13937,11 @@ function deleteLocalBackup(string $filename): array {
  */
 function restoreLocalBackup(string $filename, PDO $db): array {
     if (!preg_match('/^evershelf_\d{4}-\d{2}-\d{2}_\d{4}\.db$/', $filename)) {
-        return ['success' => false, 'error' => 'Invalid backup filename'];
+        return ['success' => false, 'error' => 'Invalid backup filename', 'error_key' => 'error.backup_invalid_name'];
     }
     $backupPath = BACKUP_DIR . '/' . $filename;
     if (!file_exists($backupPath)) {
-        return ['success' => false, 'error' => 'Backup file not found'];
+        return ['success' => false, 'error' => 'Backup file not found', 'error_key' => 'error.backup_not_found'];
     }
     $dbPath = __DIR__ . '/../data/evershelf.db';
 
@@ -13943,7 +13949,7 @@ function restoreLocalBackup(string $filename, PDO $db): array {
     try { $db->exec('PRAGMA wal_checkpoint(FULL)'); } catch (Throwable $e) {}
 
     if (!copy($backupPath, $dbPath)) {
-        return ['success' => false, 'error' => 'Failed to restore backup'];
+        return ['success' => false, 'error' => 'Failed to restore backup', 'error_key' => 'error.backup_restore_failed'];
     }
     // Remove stale WAL/SHM so next connection starts clean
     @unlink($dbPath . '-wal');
@@ -13952,7 +13958,14 @@ function restoreLocalBackup(string $filename, PDO $db): array {
     @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
 
     EverLog::info('restoreLocalBackup', ['filename' => $filename]);
-    return ['success' => true, 'message' => 'Restore complete — reload the page to see the restored data.'];
+    // The key is what the client shows; `message` stays for non-browser callers
+    // that have no translations (the UI never prints it — issue: it was English
+    // prose inside an Italian UI).
+    return [
+        'success'     => true,
+        'message'     => 'Restore complete — reload the page to see the restored data.',
+        'message_key' => 'settings.backup.restore_done',
+    ];
 }
 
 // ===== GOOGLE DRIVE BACKUP =====
@@ -13985,10 +13998,10 @@ function _gdriveGetTokenOAuth(): array {
     $clientSecret = env('GDRIVE_CLIENT_SECRET', '');
     $refreshToken = env('GDRIVE_REFRESH_TOKEN', '');
     if (!$clientId || !$clientSecret) {
-        return ['error' => 'GDRIVE_CLIENT_ID and GDRIVE_CLIENT_SECRET are required for OAuth'];
+        return ['error' => 'GDRIVE_CLIENT_ID and GDRIVE_CLIENT_SECRET are required for OAuth', 'error_key' => 'error.gdrive_not_configured'];
     }
     if (!$refreshToken) {
-        return ['error' => 'Not authorized yet — click "Authorize with Google" first'];
+        return ['error' => 'Not authorized yet — click "Authorize with Google" first', 'error_key' => 'error.gdrive_not_authorized'];
     }
     $ch = curl_init('https://oauth2.googleapis.com/token');
     curl_setopt_array($ch, [
@@ -14155,11 +14168,11 @@ function _gdrivePurgeOld(string $token, string $folderId, int $retentionDays): i
 function backupToGDrive(?PDO $db = null): array {
     EverLog::info('backupToGDrive');
     if (env('GDRIVE_ENABLED', 'false') !== 'true') {
-        return ['success' => false, 'error' => 'Google Drive backup is not enabled'];
+        return ['success' => false, 'error' => 'Google Drive backup is not enabled', 'error_key' => 'error.gdrive_disabled'];
     }
     $folderId = env('GDRIVE_FOLDER_ID', '');
     if (empty($folderId)) {
-        return ['success' => false, 'error' => 'GDRIVE_FOLDER_ID not configured'];
+        return ['success' => false, 'error' => 'GDRIVE_FOLDER_ID not configured', 'error_key' => 'error.gdrive_folder_missing'];
     }
 
     // 1. Create (or reuse recent) local backup
@@ -14169,14 +14182,22 @@ function backupToGDrive(?PDO $db = null): array {
     // 2. Authenticate with Google
     $tokResult = _gdriveGetTokenEx();
     if (empty($tokResult['token'])) {
-        return ['success' => false, 'error' => $tokResult['error'] ?? 'Google Drive authentication failed'];
+        return [
+            'success'   => false,
+            'error'     => $tokResult['error'] ?? 'Google Drive authentication failed',
+            'error_key' => $tokResult['error_key'] ?? '',
+        ];
     }
     $token = $tokResult['token'];
 
     // 3. Upload
     $uploadResult = _gdriveUploadFile($token, $folderId, $local['path'], $local['filename']);
     if (empty($uploadResult['id'])) {
-        return ['success' => false, 'error' => $uploadResult['error'] ?? 'Upload to Google Drive failed'];
+        return [
+            'success'   => false,
+            'error'     => $uploadResult['error'] ?? 'Upload to Google Drive failed',
+            'error_key' => $uploadResult['error_key'] ?? '',
+        ];
     }
     $driveFileId = $uploadResult['id'];
 
