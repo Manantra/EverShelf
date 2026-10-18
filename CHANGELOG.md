@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.1] - 2026-10-18
+
+### A hand-edited `.env` wins again (issue #298)
+- **Stale database fallbacks no longer shadow the file.** When Settings cannot write
+  `.env` (a Docker bind mount owned by root, a read-only mount) it stores the changed keys
+  in `app_settings.env_overrides`. That copy used to win forever, so changing
+  `OPENAI_MODEL` in `.env` and restarting the container changed nothing — the old model
+  kept being used and tested. Each fallback now records the `.env` value it was saved
+  against: when the file no longer matches, the hand edit wins and the stale entry is
+  dropped (legacy entries are judged by the file's mtime). The log event
+  `settings_override_stale` names the keys that were dropped, never their values.
+- **The AI connection test says what it called.** The answer carries the model actually
+  used — also on failure — and the failure is logged (`ai_test_failed`) with provider,
+  model and the provider's own message. The panel wraps the full error instead of
+  clipping it, and a value cleared in `.env` no longer survives in the client cache to be
+  written back by the next save.
+- **FAQ:** Docker bind-mount permissions (contributed by **@prein**, #297) plus the
+  `.env` ownership note (`chown 33:33 .env`) that lets Settings write the file directly.
+- **`scripts/test-env-overrides.php`** now covers both sides: the fallback still wins
+  while `.env` is untouched (issue #261) and loses as soon as the file is edited, in the
+  new and in the legacy format.
+
 ## [1.16.0] - 2026-10-17
 
 ### Installable from Unraid, with a container-safe `.env`
