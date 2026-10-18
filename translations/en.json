@@ -1458,7 +1458,10 @@
     "backup": {
       "tab": "Backup",
       "local_title": "Local Backup",
-      "local_hint": "Daily database snapshot. Configure how many days of backups to keep.",
+      "local_hint": "One backup per day while the cron runs (the Docker image runs it automatically). Files live in data/backups — copy them off the data volume for real safety.",
+      "checklist_hint": "One backup per day in data/backups: make sure the cron runs and keep a copy off the data volume.",
+      "stale_warning": "Last backup {days} days ago — the automatic backup is not running. Check the cron or click “Backup now”.",
+      "never_warning": "No backup has ever run: start one now and make sure the cron is running.",
       "enabled": "Enable daily automatic backup",
       "retention_days": "Retention (days)",
       "retention_info": "Backups are kept for",

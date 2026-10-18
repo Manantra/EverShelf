@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261018a'; // bump when translations change
+const _I18N_VERSION = '20261018b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4284,6 +4284,8 @@ async function _loadBackupTab() {
         if (ss) {
             const bkRetEl = document.getElementById('setting-backup-retention-days');
             if (bkRetEl) { bkRetEl.value = ss.backup_retention_days || 3; bkRetEl.dataset.loaded = '1'; }
+            const bkEnEl = document.getElementById('setting-backup-enabled');
+            if (bkEnEl) { bkEnEl.checked = ss.backup_enabled !== false; bkEnEl.dataset.loaded = '1'; }
             const gdriveEnEl = document.getElementById('setting-gdrive-enabled');
             if (gdriveEnEl) gdriveEnEl.checked = !!ss.gdrive_enabled;
             const gdriveFolderEl = document.getElementById('setting-gdrive-folder-id');
@@ -4320,7 +4322,9 @@ async function _renderBackupTab() {
             if (lastInfoEl) lastInfoEl.innerHTML = '<span style="color:#ef4444">' + t('settings.backup.load_error') + '</span>';
             return;
         }
-        // Last backup info
+        // Last backup info + the honest warning: a missing or old timestamp means
+        // the scheduler is not running (no cron on bare metal, a stopped daemon in
+        // Docker), so the "automatic backup" is not happening at all.
         if (lastInfoEl) {
             if (data.last_backup_ts) {
                 const secsAgo = Math.floor(Date.now() / 1000) - data.last_backup_ts;
@@ -4330,9 +4334,14 @@ async function _renderBackupTab() {
                 else if (secsAgo < 86400)    ago = t('time.hours_ago', { n: Math.floor(secsAgo / 3600) });
                 else                         ago = t('time.days_ago', { n: Math.floor(secsAgo / 86400) });
                 const name = data.last_backup_file || '';
-                lastInfoEl.innerHTML = `<strong>${t('settings.backup.last_backup')}</strong>: ${ago} <span style="color:#94a3b8;font-size:0.78rem">(${name})</span>`;
+                const stale = secsAgo > _BACKUP_STALE_DAYS * 86400;
+                lastInfoEl.innerHTML = `<strong>${t('settings.backup.last_backup')}</strong>: ${ago} <span style="color:#94a3b8;font-size:0.78rem">(${name})</span>`
+                    + (stale
+                        ? `<div style="color:#b45309;margin-top:4px">⚠️ ${t('settings.backup.stale_warning').replace('{days}', String(Math.floor(secsAgo / 86400)))}</div>`
+                        : '');
             } else {
-                lastInfoEl.innerHTML = `<em style="color:#f59e0b">${t('settings.backup.no_backup_yet')}</em>`;
+                lastInfoEl.innerHTML = `<em style="color:#f59e0b">${t('settings.backup.no_backup_yet')}</em>`
+                    + `<div style="color:#b45309;margin-top:4px">⚠️ ${t('settings.backup.never_warning')}</div>`;
             }
         }
         // Backup list
@@ -5086,6 +5095,8 @@ async function loadSettingsUI() {
     const scaleUrlUiEl = document.getElementById('setting-scale-url');
     if (scaleUrlUiEl) scaleUrlUiEl.value = s.scale_gateway_url || '';
     // Backup settings pre-fill (populated fully when _loadBackupTab() is called)
+    const bkEnUiEl = document.getElementById('setting-backup-enabled');
+    if (bkEnUiEl && !bkEnUiEl.dataset.loaded) bkEnUiEl.checked = s.backup_enabled !== false;
     const bkRetEl = document.getElementById('setting-backup-retention-days');
     if (bkRetEl && !bkRetEl.dataset.loaded) bkRetEl.value = s.backup_retention_days || 3;
     const gdriveEnUiEl = document.getElementById('setting-gdrive-enabled');
@@ -11580,7 +11591,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11590,7 +11601,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261018a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261018b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28041,6 +28052,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // `state()` reads the last get_settings payload (srv) plus local settings (s).
 // `step` is the index in _setupSteps() (only for items with ask: true).
 
+/**
+ * A backup older than this means the scheduler is not running. One week plus a
+ * day of slack: the job backs up at most once every 23 h, so 7 days would raise
+ * a false alarm after a single missed run.
+ */
+const _BACKUP_STALE_DAYS = 8;
+
 const SETTINGS_CHECKLIST = [
     {
         id: 'ai', tab: 'tab-api', level: 'recommended',
@@ -28102,6 +28120,18 @@ const SETTINGS_CHECKLIST = [
         id: 'calendar', tab: 'tab-calendar', level: 'optional',
         titleKey: 'settings.calendar.title', hintKey: 'settings.calendar.hint',
         state: (srv) => (srv.ics_enabled ? 'ok' : 'todo'),
+    },
+    {
+        id: 'backup', tab: 'tab-backup', level: 'recommended',
+        titleKey: 'settings.backup.local_title', hintKey: 'settings.backup.checklist_hint',
+        // A missing or old backup means the scheduler is not running — that is the
+        // state worth surfacing, not "never configured". The row clears itself as
+        // soon as a fresh backup exists (the container runs the job every 5 min).
+        state: (srv) => {
+            const ts = Number(srv.backup_last_ts || 0);
+            if (!ts) return 'todo';
+            return (Date.now() / 1000 - ts) < _BACKUP_STALE_DAYS * 86400 ? 'ok' : 'todo';
+        },
     },
     {
         id: 'gdrive', tab: 'tab-backup', level: 'optional',

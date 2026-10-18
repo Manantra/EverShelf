@@ -1354,7 +1354,10 @@
     "backup": {
       "tab": "Copia de seguridad",
       "local_title": "Copia local",
-      "local_hint": "Instantánea diaria de la base de datos. Configura cuántos días de copias de seguridad conservar.",
+      "local_hint": "Una copia al día mientras el cron se ejecuta (la imagen Docker lo hace automáticamente). Los archivos están en data/backups: cópialos fuera del volumen de datos para una seguridad real.",
+      "checklist_hint": "Una copia al día en data/backups: comprueba que el cron se ejecuta y guarda una copia fuera del volumen de datos.",
+      "stale_warning": "Última copia hace {days} días: la copia automática no se está ejecutando. Revisa el cron o pulsa «Copia ahora».",
+      "never_warning": "Nunca se ha ejecutado una copia: inicia una ahora y comprueba que el cron se ejecuta.",
       "enabled": "Activar copia de seguridad diaria automática",
       "retention_days": "Retención (días)",
       "retention_info": "Las copias se conservan durante",

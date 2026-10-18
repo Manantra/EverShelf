@@ -1175,6 +1175,18 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "text"
         },
         {
+            "id": "setting-backup-enabled",
+            "env": "BACKUP_ENABLED",
+            "tab": "tab-backup",
+            "group": "system",
+            "label": "settings.backup.enabled",
+            "hint": "",
+            "card": "settings.backup.local_title",
+            "card_hint": "settings.backup.local_hint",
+            "keywords": "",
+            "type": "bool"
+        },
+        {
             "id": "setting-backup-retention-days",
             "env": "BACKUP_RETENTION_DAYS",
             "tab": "tab-backup",
@@ -1463,10 +1475,6 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         {
             "env": "TRANSACTION_RETENTION_DAYS",
             "reason": "advanced"
-        },
-        {
-            "env": "BACKUP_ENABLED",
-            "reason": "storage"
         },
         {
             "env": "GDRIVE_SERVICE_ACCOUNT_JSON",

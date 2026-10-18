@@ -8967,6 +8967,15 @@ function getServerSettings(): void {
         // Backup
         'backup_enabled' => env('BACKUP_ENABLED', 'true') === 'true',
         'backup_retention_days' => (int)env('BACKUP_RETENTION_DAYS', '3'),
+        // Last completed backup (unix ts) — the Settings checklist and the backup
+        // panel warn when it is missing or old, i.e. when the cron is not running.
+        'backup_last_ts' => (function (): ?int {
+            if (!is_file(BACKUP_LAST_TS_PATH)) {
+                return null;
+            }
+            $data = json_decode((string)@file_get_contents(BACKUP_LAST_TS_PATH), true);
+            return is_array($data) && !empty($data['ts']) ? (int)$data['ts'] : null;
+        })(),
         'gdrive_enabled' => env('GDRIVE_ENABLED', 'false') === 'true',
         'gdrive_folder_id' => env('GDRIVE_FOLDER_ID', ''),
         'gdrive_retention_days' => (int)env('GDRIVE_RETENTION_DAYS', '30'),
@@ -13815,17 +13824,34 @@ function createLocalBackup(?PDO $db = null): array {
         return ['success' => false, 'error' => 'Database file not found'];
     }
 
-    // WAL checkpoint: flush WAL into main DB file before copying
-    try {
-        $pdo = $db ?? getDB();
-        $pdo->exec('PRAGMA wal_checkpoint(FULL)');
-    } catch (Throwable $e) { /* non-fatal */ }
-
     $date     = date('Y-m-d_Hi');
     $filename = "evershelf_{$date}.db";
     $destPath = "$backupDir/$filename";
+    $tmpPath  = $destPath . '.part';
+    @unlink($tmpPath);
 
-    if (!copy($dbFile, $destPath)) {
+    // A consistent snapshot while the app keeps writing. SQLite's VACUUM INTO
+    // reads *through* the WAL, so the result is a valid database at one point in
+    // time; a plain copy() can catch a write in the middle. Older SQLite builds
+    // fall back to a WAL checkpoint + copy. Either way the snapshot is written to
+    // a .part file and renamed, so a failure never leaves a half file behind.
+    $made = false;
+    try {
+        $pdo = $db ?? getDB();
+        $pdo->exec('VACUUM INTO ' . $pdo->quote($tmpPath));
+        $made = is_file($tmpPath) && filesize($tmpPath) > 0;
+    } catch (Throwable $e) {
+        $made = false;
+    }
+    if (!$made) {
+        try {
+            ($db ?? getDB())->exec('PRAGMA wal_checkpoint(FULL)');
+        } catch (Throwable $e) { /* non-fatal */ }
+        @unlink($tmpPath);
+        $made = @copy($dbFile, $tmpPath);
+    }
+    if (!$made || !@rename($tmpPath, $destPath)) {
+        @unlink($tmpPath);
         return ['success' => false, 'error' => 'Failed to copy database file'];
     }
 

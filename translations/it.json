@@ -1458,7 +1458,10 @@
     "backup": {
       "tab": "Backup",
       "local_title": "Backup Locale",
-      "local_hint": "Snapshot giornaliero del database. Configura quanti giorni di backup conservare.",
+      "local_hint": "Un backup al giorno quando gira il cron (l'immagine Docker lo esegue da sola). I file stanno in data/backups: copiali fuori dal volume dati per una vera sicurezza.",
+      "checklist_hint": "Un backup al giorno in data/backups: controlla che il cron giri e conserva una copia fuori dal volume dati.",
+      "stale_warning": "Ultimo backup {days} giorni fa: il backup automatico non sta girando. Controlla il cron o esegui «Backup ora».",
+      "never_warning": "Nessun backup è mai stato eseguito: avvia un backup ora e verifica che il cron giri.",
       "enabled": "Backup automatico quotidiano",
       "retention_days": "Giorni di retention",
       "retention_info": "I backup vengono conservati per",

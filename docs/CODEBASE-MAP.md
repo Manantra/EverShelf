@@ -148,7 +148,7 @@ Most are user/runtime state and git-ignored (`*` = committed static/tracked).
 | File | Purpose |
 |---|---|
 | `evershelf.db` | main DB |
-| `backups/` | DB snapshots |
+| `backups/` | DB snapshots — created by the in-container cron (at most one every 23 h) or `backup.sh`; **inside the data volume**, so copy it off-volume for a real backup |
 | `bring_token.json`, `bring_catalog.json` | Bring! auth + catalog |
 | `smart_shopping_cache.json` | computed shopping plan |
 | `shopping_price_cache.json` | AI price estimates |
@@ -240,6 +240,13 @@ Groups:
   `settings_override_stale` — a DB copy must never shadow `.env` forever (#298).
 - `.env.example` documents every knob with comments.
 - `.env`, `data/`, `logs/` are denied by `.htaccess`.
+- **Scheduling:** `api/cron_smart_shopping.php` is the one job — smart shopping,
+  barcode sync, retention passes and the daily backup. The Docker image runs it every
+  5 minutes from `/etc/cron.d/evershelf` as `www-data` (`docker/evershelf-cron`); bare
+  metal uses the host crontab. The backup is `createLocalBackup()` in `api/index.php`
+  (`VACUUM INTO` + `.part` rename, retention, `data/backup_last_ts.json`), and
+  *Settings → 💾 Backup* warns when the last one is missing or older than 8 days —
+  guard test `scripts/test-docker-cron.php`.
 
 ## 10. CI/CD (`.github/workflows`)
 

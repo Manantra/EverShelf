@@ -87,6 +87,7 @@ php scripts/test-html-in-text.php
 php scripts/test-auto-favorite.php
 php scripts/test-recipe-archive.php
 php scripts/test-env-overrides.php
+php scripts/test-docker-cron.php
 php scripts/test-seasonal-match.php
 # full list: ls scripts/test-*.php
 

@@ -63,17 +63,24 @@ receipt OCR…) and can be switched off in **Settings → Product rules**.
 
 ## Backup
 
-Everything you need is in the two paths:
+The container runs its own cron, so a **database backup is created automatically** (at
+most one every 23 hours) in
+`/mnt/user/appdata/evershelf/data/backups/`. The panel *Settings → 💾 Backup* shows the
+last one, warns when it is older than 8 days and restores it.
+
+Those files live **inside** the App data path, so they do not survive losing that path.
+For a copy that does:
 
 ```bash
-# stop the container first, then copy the folder (database + .env together)
+# stop the container first, then copy the folder (database + .env + backups)
 docker stop evershelf
 cp -a /mnt/user/appdata/evershelf /mnt/user/backup/evershelf-$(date +%F)
 docker start evershelf
 ```
 
-The in-app backup (Settings → System → Backup) covers the database; keeping the whole
-appdata folder also keeps the configuration.
+The Unraid *Appdata Backup* plugin covers the same folder on a schedule; Google Drive
+in the same panel is the third option. Keeping the whole appdata folder keeps the
+configuration (`.env`) too — the in-app backup covers the database.
 
 ## Troubleshooting
 
