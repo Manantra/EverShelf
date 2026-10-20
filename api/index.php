@@ -183,10 +183,23 @@ function checkRateLimit(string $action): void {
     }));
 
     if (count($data) >= $limit) {
-        EverLog::warn('rate_limit hit', ['action' => $action, 'limit' => $limit, 'window_s' => $window]);
+        EverLog::warn('rate_limit hit', [
+            'event'    => 'api_rate_limited',
+            'action'   => $action,
+            'limit'    => $limit,
+            'window_s' => $window,
+        ]);
         http_response_code(429);
         header('Retry-After: ' . $window);
-        echo json_encode(['error' => 'Too many requests. Please try again later.']);
+        // `error_key` is the stable, translatable value: the client resolves it with t()
+        // before showing anything, so a de/fr/es/zh user never reads the English prose
+        // (which stays for curl and the logs).
+        echo json_encode([
+            'success'     => false,
+            'error'       => 'Too many requests. Please try again later.',
+            'error_key'   => 'error.rate_limited',
+            'retry_after' => $window,
+        ]);
         exit;
     }
 
@@ -14266,18 +14279,24 @@ function parseUrgencyFromShoppingSpec(string $spec): ?string {
     return null;
 }
 
-/** UI/API metadata for a shopping-list urgency level. */
+/**
+ * UI/API metadata for a shopping-list urgency level.
+ *
+ * `urgency_label_key` is the stable, translatable value a client resolves with t()
+ * (kiosk, Home Assistant, the PWA): `urgency_label` stays as the human-readable
+ * fallback for callers that cannot translate, but it is Italian by construction.
+ */
 function shoppingListUrgencyMeta(?string $urgency): array {
     static $map = [
-        'critical' => ['urgency' => 'critical', 'urgency_label' => 'Urgente', 'urgency_color' => '#ef4444', 'urgent' => true],
-        'high'     => ['urgency' => 'high', 'urgency_label' => 'Presto', 'urgency_color' => '#f97316', 'urgent' => true],
-        'medium'   => ['urgency' => 'medium', 'urgency_label' => 'A breve', 'urgency_color' => '#eab308', 'urgent' => false],
-        'low'      => ['urgency' => 'low', 'urgency_label' => 'Previsione', 'urgency_color' => '#22c55e', 'urgent' => false],
+        'critical' => ['urgency' => 'critical', 'urgency_label' => 'Urgente', 'urgency_label_key' => 'shopping.urgency_critical', 'urgency_color' => '#ef4444', 'urgent' => true],
+        'high'     => ['urgency' => 'high', 'urgency_label' => 'Presto', 'urgency_label_key' => 'shopping.urgency_high', 'urgency_color' => '#f97316', 'urgent' => true],
+        'medium'   => ['urgency' => 'medium', 'urgency_label' => 'A breve', 'urgency_label_key' => 'shopping.urgency_medium', 'urgency_color' => '#eab308', 'urgent' => false],
+        'low'      => ['urgency' => 'low', 'urgency_label' => 'Previsione', 'urgency_label_key' => 'shopping.urgency_low', 'urgency_color' => '#22c55e', 'urgent' => false],
     ];
     if ($urgency === null || $urgency === '' || $urgency === 'none') {
-        return ['urgency' => null, 'urgency_label' => null, 'urgency_color' => null, 'urgent' => false];
+        return ['urgency' => null, 'urgency_label' => null, 'urgency_label_key' => null, 'urgency_color' => null, 'urgent' => false];
     }
-    return $map[$urgency] ?? ['urgency' => $urgency, 'urgency_label' => null, 'urgency_color' => null, 'urgent' => false];
+    return $map[$urgency] ?? ['urgency' => $urgency, 'urgency_label' => null, 'urgency_label_key' => null, 'urgency_color' => null, 'urgent' => false];
 }
 
 /** Resolve urgency for one shopping-list row (smart cache → spec markers). */
@@ -14322,10 +14341,11 @@ function enrichShoppingListItem(array $item, array $smartItems): array {
     $spec    = (string)($item['specification'] ?? $item['note'] ?? '');
     $urgency = resolveShoppingListItemUrgency($name, $rawName, $spec, $smartItems);
     $meta    = shoppingListUrgencyMeta($urgency);
-    $item['urgency']       = $meta['urgency'];
-    $item['urgency_label'] = $meta['urgency_label'];
-    $item['urgency_color'] = $meta['urgency_color'];
-    $item['urgent']        = $meta['urgent'];
+    $item['urgency']           = $meta['urgency'];
+    $item['urgency_label']     = $meta['urgency_label'];
+    $item['urgency_label_key'] = $meta['urgency_label_key'];
+    $item['urgency_color']     = $meta['urgency_color'];
+    $item['urgent']            = $meta['urgent'];
     $si = _matchSmartShoppingItem($name, $smartItems);
     if ($si === null && $rawName !== '' && mb_strtolower($rawName) !== mb_strtolower($name)) {
         $si = _matchSmartShoppingItem($rawName, $smartItems);

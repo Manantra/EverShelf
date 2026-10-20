@@ -2026,7 +2026,8 @@
     "gdrive_folder_missing": "Set the Drive folder ID",
     "gdrive_not_configured": "Set the Client ID and Client Secret in the settings",
     "gdrive_not_authorized": "Authorize Google Drive first",
-    "gdrive_code_missing": "Paste the authorization code"
+    "gdrive_code_missing": "Paste the authorization code",
+    "rate_limited": "Too many requests. Please try again later."
   },
   "confirm": {
     "remove_item": "Do you really want to remove this product from inventory?",
