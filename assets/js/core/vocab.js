@@ -103,6 +103,9 @@ function vocabCategoryOfName(name, brand = '') {
     }
     for (const rule of (data.categories || [])) {
         if (vocabMatchesTermsTokens(tokens, rule.terms)) return rule.cat || 'altro';
+    }
+    return 'altro';
+}
 
 /** Does the title carry a pack size ("500 g", "1,5 l")? Format, not vocabulary. */
 function vocabHasPackSize(name) {
@@ -225,8 +228,4 @@ function vocabSameLemma(a, b) {
     const tb = vocabTokens(b);
     if (!ta.length || ta.length !== tb.length) return false;
     return ta.every((word, i) => vocabSameLemmaWord(word, tb[i]));
-}
-
-    }
-    return 'altro';
 }
