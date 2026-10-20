@@ -153,9 +153,12 @@ browser runs the same engine (`assets/js/core/vocab.js`) over
 Adding a language = dropping `api/vocab/<lang>.json` and regenerating. Adding a word =
 editing JSON, never a function.
 
-`scripts/test-vocabulary.php` enforces it: the generated file must match the JSON, and a
+`scripts/test-vocabulary.php` enforces it: the generated file must match the JSON, a
 **ratchet** counts the vocabulary words still left in the logic files — `product_kind.php`,
-`vocabulary.php` and `core/vocab.js` are at **0**, the rest may only go *down*. A new
+`vocabulary.php` and `core/vocab.js` are at **0**, the rest may only go *down* — and the
+browser engine must expose **every** top-level function it declares: a lost closing brace
+in `core/vocab.js` once left nine of them nested (the file still parsed, so nothing
+complained, and the piece-produce/prepared-salad/plural paths called `undefined`). A new
 product name in `api/index.php`, `api/database.php` or `app.js` fails the build.
 
 Remaining debt (next batch, same rule): the expiry heuristics in `api/database.php` /
@@ -203,6 +206,8 @@ php scripts/test-recipe-archive.php     # archive: content_hash dedup, many libe
 php scripts/test-env-overrides.php      # a hand-edited .env wins over a stale DB fallback; the read-only fallback still works
 php scripts/test-docker-cron.php        # container cron (5 min, www-data) really runs the daily backup; stale-backup warning in 6 locales
 php scripts/test-backup-i18n.php        # backup panel: error_key → t() in 6 locales, no hardcoded English fallback
+php scripts/test-i18n-boot.php         # ?lang= deep link, 429 error_key, add-form units, urgency prefix by marker
+php scripts/test-vocabulary.php        # vocabulary is data: generated file in sync, ratchet, every engine function defined
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -255,7 +260,8 @@ npm run build
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |
 | Health / Fuel mode | `api/lib/health.php` |
 | Frontend API wrapper | `api()` in `assets/js/app.js` line **5384** |
-| i18n helper | `t()` line ~1198, `loadTranslations()` ~1209 |
+| i18n helper | `t()` (~line 1471), `loadTranslations()` (~1482), `_urlLangOverride()` (line 1417: `?lang=` wins over localStorage); anything PHP hands to the UI is a key (`error_key`, `hint_key`, `urgency_label_key`) — guard test `scripts/test-i18n-boot.php` |
+| Rate limits (429) | `checkRateLimit()` in `api/index.php` (line 111) + `data/rate_limits/`; the answer carries `error_key: error.rate_limited` + `retry_after` |
 | Settings page (sections, accordion, checklist) | `SETTINGS_GROUPS` + `switchSettingsGroup()`, `SETTINGS_CHECKLIST` (~25820), `_initSettingsAccordions()` (~5222), `_openSettingsCardFor()` (~5288), `_checklistNewsItems()` (~25907) |
 | Dashboard panels & limits | `DASHBOARD_*_MAX` (~6623), `_dashboardAlertCap()`, `_staleRotationPick()`, `_INSIGHT_PHASES` (~6529) / `_applyInsightPhase()` (~6544); bars are drawn at 0% and filled from `data-target` on reveal — guard test `scripts/test-dashboard-panels.php` |
 | Emoji-before-translated-label bug | `iconLabel()` / `_stripLeadingEmoji()`; guard test `scripts/test-i18n-icons.php` |

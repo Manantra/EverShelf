@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.5] - 2026-10-20
+
+### The app opens in the language the link asked for — and the vocabulary answers again
+- **`?lang=` deep link.** `…/?lang=de` (also `?lang=zh-CN`, `?lang=fr_FR`) opens the app
+  already translated: the URL beats the stored preference for that boot, the value is
+  stored, and choosing another language from the picker rewrites `?lang=` instead of
+  reloading into the old one (`_urlLangOverride()`; guard test `test-i18n-boot.php`).
+  No external script has to reach into `localStorage` before `app.js` runs any more.
+- **A rate-limited request speaks the UI language.** The 429 answer now carries a
+  stable `error_key` (`error.rate_limited`, six locales) and `retry_after`, and `api()`
+  resolves the key before any caller prints `data.error` — de/fr/es/zh no longer read
+  the English prose.
+- **The add form's units are translated.** The `pz`/`conf`/`g`/`ml` options carry
+  `data-i18n`, the badge follows the select (`syncAddQtyUnitBadge()`, called when the
+  form opens and after a language change) and the dynamically built unit selects print
+  `t('units.pz')` / `t('units.conf')` instead of the Italian tokens.
+- **The urgency prefix is recognised by its marker, not by its word.**
+  `_specDisplayText()` drops the `⚡/🟠/🟡/🔵` segment whatever language wrote the row
+  (the label is localized when the sync pushes it), and the shopping API exposes
+  `urgency_label_key` next to `urgency_label`, so a client can translate it.
+- **Fixed: `assets/js/core/vocab.js` had lost two closing braces** in
+  `vocabCategoryOfName()`. The file still parsed, but the nine functions below it
+  (`vocabLooksProcessed`, `vocabSameLemma`, `vocabIsPieceProduce`, `vocabNumberForms`,
+  `vocabHasPackSize` …) stayed nested inside it and were `undefined` in the browser:
+  the piece-produce, prepared-salad, processed-food and singular/plural paths called
+  into the void. `scripts/test-vocabulary.php` now proves that every top-level function
+  of the file is defined once it is evaluated — which is also why the JS probes of
+  `test-ai-product-match.php` had been silently skipping.
+
 ## [1.16.4] - 2026-10-18
 
 ### The quick stocktake reads a sentence — and its answers really act

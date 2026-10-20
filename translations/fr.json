@@ -2026,7 +2026,8 @@
     "gdrive_folder_missing": "Indiquez l’ID du dossier Drive",
     "gdrive_not_configured": "Renseignez le Client ID et le Client Secret dans les réglages",
     "gdrive_not_authorized": "Autorisez d’abord Google Drive",
-    "gdrive_code_missing": "Collez le code d’autorisation"
+    "gdrive_code_missing": "Collez le code d’autorisation",
+    "rate_limited": "Trop de requêtes. Veuillez réessayer dans un instant."
   },
   "confirm": {
     "remove_item": "Voulez-vous vraiment supprimer ce produit de l'inventaire ?",

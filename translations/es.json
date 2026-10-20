@@ -2026,7 +2026,8 @@
     "gdrive_folder_missing": "Indica el ID de la carpeta de Drive",
     "gdrive_not_configured": "Configura el Client ID y el Client Secret en los ajustes",
     "gdrive_not_authorized": "Autoriza Google Drive primero",
-    "gdrive_code_missing": "Pega el código de autorización"
+    "gdrive_code_missing": "Pega el código de autorización",
+    "rate_limited": "Demasiadas solicitudes. Inténtalo de nuevo en un momento."
   },
   "confirm": {
     "remove_item": "¿Realmente quieres eliminar este producto del inventario?",

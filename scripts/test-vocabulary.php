@@ -148,6 +148,36 @@ $path = evershelfVocabPath('xx');
 assert_true($path === evershelfVocabPath('it') || $path === evershelfVocabPath('en'),
     'an unknown locale falls back to a shipped vocabulary');
 
+// ── The browser engine really exposes every function it promises ───────────
+// A lost closing brace in assets/js/core/vocab.js leaves the rest of the file
+// nested inside the previous function: the file still parses (so `node --check`
+// and the browser are happy) but every later function is `undefined` at runtime,
+// and the app calls into the void. Count them from the source and ask node whether
+// each one is defined once the whole file has been evaluated.
+$vocabJs = (string)file_get_contents(__DIR__ . '/../assets/js/core/vocab.js');
+preg_match_all('/^function ([A-Za-z0-9_]+)\(/m', $vocabJs, $mjs);
+$jsFunctions = $mjs[1] ?? [];
+assert_true(count($jsFunctions) >= 10, 'core/vocab.js declares its engine functions at top level');
+$node = trim((string)shell_exec('command -v node 2>/dev/null'));
+if ($node === '') {
+    echo "SKIP: node is not available — the browser engine probe was not run\n";
+} else {
+    $file = tempnam(sys_get_temp_dir(), 'evershelf-') . '.js';
+    file_put_contents($file, "const fs = require('fs');\n"
+        . "\$src = fs.readFileSync(" . json_encode(__DIR__ . '/../assets/js/core/vocab.js') . ", 'utf8');\n"
+        . "\$missing = " . json_encode($jsFunctions) . ".filter(n => (new Function(\$src + '\\n; return typeof ' + n + ';'))() !== 'function');\n"
+        . "console.log(JSON.stringify(\$missing));\n");
+    $missing = json_decode((string)shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>/dev/null'), true);
+    @unlink($file);
+    if (!is_array($missing)) {
+        echo "SKIP: the browser engine probe did not answer\n";
+    } else {
+        assert_true($missing === [],
+            'core/vocab.js: every top-level function is defined when the file is evaluated'
+            . ($missing === [] ? '' : ' (nested/unreachable: ' . implode(', ', $missing) . ')'));
+    }
+}
+
 if ($fail === 0) {
     echo "\nAll vocabulary guard tests passed.\n";
 }

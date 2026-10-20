@@ -143,9 +143,13 @@ no locale is missing a **top-level** section present in `it.json`. The full nest
 
 ## Language Detection Order
 
-1. `localStorage.getItem('evershelf_lang')` — the language the user last picked
+1. `?lang=` in the URL (`/?lang=de`, `?lang=zh-CN`, `?lang=fr_FR`) — the deep link the
+   marketing/landing pages use. It wins over the stored preference for that boot, and
+   is written to `localStorage` so a reload keeps it (`_urlLangOverride()`); changing
+   the language from the picker rewrites the parameter instead of undoing it
+2. `localStorage.getItem('evershelf_lang')` — the language the user last picked
    (written by `changeLanguage()`; the setup wizard sets it on first run)
-2. `navigator.language` / `navigator.languages` (browser preference, first two letters)
-3. Fallback: `en` — also when the detected code is not in `_SUPPORTED_LANGS`
+3. `navigator.language` / `navigator.languages` (browser preference, first two letters)
+4. Fallback: `en` — also when the detected code is not in `_SUPPORTED_LANGS`
 
 Users can change the language in **Settings → 🌐 Language** (the page reloads).

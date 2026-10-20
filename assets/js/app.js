@@ -1403,13 +1403,34 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261018f'; // bump when translations change
+const _I18N_VERSION = '20261020a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
-let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', zh: '简体中文' };
+
+/**
+ * Language asked by the URL (`/?lang=de`), the deep link the marketing site uses to
+ * open the app/demo already translated. Returns '' when the parameter is missing,
+ * malformed or unsupported, so every other link keeps the stored preference.
+ */
+function _urlLangOverride(search) {
+    let raw = '';
+    try {
+        raw = new URLSearchParams(String(search || '')).get('lang') || '';
+    } catch (_) {
+        return '';
+    }
+    const code = raw.trim().toLowerCase().replace(/[-_].*$/, '');
+    return Object.prototype.hasOwnProperty.call(_SUPPORTED_LANGS, code) ? code : '';
+}
+
+const _URL_LANG = _urlLangOverride(location.search);
+let _currentLang = _URL_LANG || localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
+// The deep link wins over the stored preference for this boot, and is stored: a
+// reload (or the picker) must not silently fall back to the previous language.
+if (_URL_LANG) localStorage.setItem('evershelf_lang', _URL_LANG);
 
 /** Collation locale for the UI language (sorting must follow it, never a fixed 'it'). */
 function _collationLocale() {
@@ -1545,6 +1566,9 @@ function translatePage() {
     document.documentElement.lang = _currentLang;
     // Populate language selector if present
     _populateLanguageSelector();
+    // The add form's unit badge is owned by JS (it follows the selected unit);
+    // data-i18n only paints the default before the form is opened.
+    if (typeof syncAddQtyUnitBadge === 'function') syncAddQtyUnitBadge();
 }
 
 // Populate the language selector dropdown
@@ -1565,6 +1589,14 @@ function _populateLanguageSelector() {
 function changeLanguage(lang) {
     if (lang === _currentLang) return;
     localStorage.setItem('evershelf_lang', lang);
+    // A `?lang=` deep link beats localStorage on the next boot: keep the URL in step
+    // with the picker, or the reload would undo the choice it has just saved.
+    if (_URL_LANG) {
+        const url = new URL(location.href);
+        url.searchParams.set('lang', lang);
+        location.replace(url.toString());
+        return;
+    }
     location.reload();
 }
 
@@ -6600,6 +6632,14 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     if (data && data.error) {
         remoteLog('API_FAIL', `${action}: ${data.error}`);
     }
+    // `error_key` is the stable, translatable value PHP sends (rate limits, backups,
+    // guards). Every caller prints `data.error`, so it is resolved here once instead
+    // of in each one: a de/fr/es/zh user must never read the English prose. Keys that
+    // carry placeholders are left to the caller, the only one that knows the arguments.
+    if (data && typeof data.error_key === 'string' && data.error_key !== '') {
+        const localized = t(data.error_key);
+        if (localized !== data.error_key && !/\{\w+\}/.test(localized)) data.error = localized;
+    }
     return data || { success: false, error: 'invalid_response' };
 }
 
@@ -9859,6 +9899,17 @@ function setQtyInputUnitLabel(inputId, unit, muted = false) {
     badge.title = (t('qty.unit_for_input')) + ': ' + badge.textContent;
 }
 
+/**
+ * The add form's unit badge follows its select. The badge is `add-quantity-unit` and
+ * nothing else updates it, so without this call it keeps saying "pz" while the
+ * select is on grams or packs (and keeps the Italian abbreviation in every locale).
+ */
+function syncAddQtyUnitBadge() {
+    const select = document.getElementById('add-unit');
+    if (!select) return;
+    setQtyInputUnitLabel('add-quantity', select.value, true);
+}
+
 function getActiveUseUnitLabel() {
     if (_useConfMode) {
         if (_useConfMode._activeUnit === 'conf') return 'conf';
@@ -11143,7 +11194,7 @@ function editInventoryItem(id, _retried) {
             <div class="form-group">
                 <label>${t('product.unit_label')}</label>
                 <select id="edit-unit" class="form-input" onchange="onEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? 'conf (' + t('units.boxes') + ')' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
@@ -11603,7 +11654,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261020a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11613,7 +11664,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261018f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261020a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -13597,7 +13648,7 @@ function editActionInventoryItem(inventoryId) {
             <div class="form-group">
                 <label>${t('product.unit_label')}</label>
                 <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? 'conf (' + t('units.boxes') + ')' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="action-edit-conf-group" style="display:${isConf ? 'block' : 'none'}">
@@ -14231,6 +14282,10 @@ function showAddForm() {
         }
     }
     
+    // The unit may have been moved above (shopping-list target): the badge has to
+    // name the unit that is really selected, in the UI language.
+    syncAddQtyUnitBadge();
+
     // Track manual edits to quantity in add form
     const addQtyInput = document.getElementById('add-quantity');
     addQtyInput.removeEventListener('input', markAddQtyManuallySet);
@@ -19759,13 +19814,15 @@ async function loadShoppingList() {
 function _specDisplayText(spec) {
     if (!spec) return '';
     let s = spec;
-    const lower = spec.toLowerCase();
-    for (const prefix of ['⚡ urgente', '🟠 presto', '🟡 a breve', '🔵 previsione']) {
-        if (lower.startsWith(prefix)) {
-            s = spec.slice(prefix.length).replace(/^\s*[·\-]\s*/, '').trim();
-            break;
-        }
-    }
+    // The urgency segment starts with its marker and ends with a word in whatever
+    // language wrote it (the sync layer localizes the label when it pushes the row).
+    // Drop the segment by the MARKER, never by matching the Italian word: a row
+    // written by a German user must lose its label in an Italian UI too, and vice
+    // versa. `🛒` is the quantity, never an urgency.
+    s = s.split(' · ')
+         .filter(part => !/^[⚡🟠🟡🔵]/u.test(part.trim()))
+         .join(' · ')
+         .trim();
     // Legacy: qty pushed to Bring before v1.7.51
     s = s.replace(/🛒\s*(Compra|Almeno|Buy|At least):\s*[^·]+/gi, '')
          .replace(/^\s*[·\-]\s*|\s*[·\-]\s*$/g, '').trim();

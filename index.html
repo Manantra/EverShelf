@@ -12,17 +12,17 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261018f">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261018f">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261018f">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261020a">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261020a">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261020a">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261018f"></script>
-    <script src="assets/js/core/auth.js?v=20261018f"></script>
+    <script src="assets/js/core/dom.js?v=20261020a"></script>
+    <script src="assets/js/core/auth.js?v=20261020a"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261018f"></script>
+    <script src="assets/js/core/support.js?v=20261020a"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -30,7 +30,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261018f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261020a';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -39,13 +39,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261018f';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261020a';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261018f"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261020a"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -110,7 +110,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.16.4</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.16.5</span>
             </span>
         </div>
 
@@ -168,7 +168,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.16.4</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.16.5</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -528,12 +528,12 @@
                         <input type="number" id="add-quantity" value="1" min="0.1" step="any" class="qty-input">
                         <button type="button" class="qty-btn" onclick="adjustAddQty(1)">+</button>
                     </div>
-                    <span class="qty-unit-badge qty-unit-muted" id="add-quantity-unit" aria-live="polite">pz</span>
+                    <span class="qty-unit-badge qty-unit-muted" id="add-quantity-unit" aria-live="polite" data-i18n="units.pz">pz</span>
                     <select id="add-unit" class="form-input unit-select" onchange="onAddUnitChange()">
-                        <option value="pz">pz</option>
-                        <option value="conf">conf</option>
-                        <option value="g">g</option>
-                        <option value="ml">ml</option>
+                        <option value="pz" data-i18n="units.pz">pz</option>
+                        <option value="conf" data-i18n="units.conf">conf</option>
+                        <option value="g" data-i18n="units.g">g</option>
+                        <option value="ml" data-i18n="units.ml">ml</option>
                     </select>
                 </div>
                 <button type="button" id="btn-scale-add" class="btn btn-secondary scale-read-btn" style="display:none" onclick="readScaleWeight('add-quantity', function(){ return document.getElementById('add-unit').value; })" data-i18n="scale.read_btn">⚖️ Leggi dalla bilancia</button>
@@ -2932,13 +2932,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261018f"></script>
-<script src="assets/js/core/vocab.js?v=20261018f"></script>
-<script src="assets/js/app.js?v=20261018f"></script>
-<script src="assets/js/audit.js?v=20261018f"></script>
-<script src="assets/js/receipt.js?v=20261018f"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261018f"></script>
-<script src="assets/js/settings_search.js?v=20261018f"></script>
+<script src="assets/js/vocab.generated.js?v=20261020a"></script>
+<script src="assets/js/core/vocab.js?v=20261020a"></script>
+<script src="assets/js/app.js?v=20261020a"></script>
+<script src="assets/js/audit.js?v=20261020a"></script>
+<script src="assets/js/receipt.js?v=20261020a"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261020a"></script>
+<script src="assets/js/settings_search.js?v=20261020a"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

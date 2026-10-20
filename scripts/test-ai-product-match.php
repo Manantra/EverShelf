@@ -1,4 +1,4 @@
-ATI#!/usr/bin/env php
+#!/usr/bin/env php
 <?php
 /**
  * Regression tests: the product the AI reads must match the RIGHT catalog article.

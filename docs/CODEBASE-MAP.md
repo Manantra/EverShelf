@@ -68,7 +68,13 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
 - State held in module-level `let` vars (`shoppingItems`, `LOCATIONS`,
   `_currentLang`, `_scale*`, banner queue, …). No framework/reactivity.
 - i18n via `t(key)` + `data-i18n` attributes; `loadTranslations()` fetches
-  `translations/<lang>.json`. **Never** print a literal emoji beside a translated
+  `translations/<lang>.json`. The boot order is **`?lang=` in the URL →
+  `localStorage.evershelf_lang` → `navigator.language` → `en`** (`_urlLangOverride()`
+  parses `de`, `zh-CN`, `fr_FR` and ignores anything else; `changeLanguage()` rewrites
+  the parameter instead of reloading into the old language — `scripts/test-i18n-boot.php`
+  locks it). Anything PHP can hand to the UI travels as a key, never as prose:
+  `error_key` (resolved once inside `api()`), `hint_key`, `tip_key`, `reasons[]`,
+  `urgency_label_key`. **Never** print a literal emoji beside a translated
   label: the values already carry their icon, so use `iconLabel(icon, key)` /
   `_stripLeadingEmoji()` (`scripts/test-i18n-icons.php` enforces it in all six locales).
 - Dashboard: the alert blocks are capped per block (`DASHBOARD_EXPIRING_MAX` 3,

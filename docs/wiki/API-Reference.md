@@ -26,7 +26,19 @@ GET requests pass parameters as query params; POST requests send JSON in the bod
 | Error reports | 20 req/min | `report_error`, `check_update` |
 | Bug reports | 2 req/hour | `report_bug` (creates a public issue) |
 
-Exceeded limits return HTTP 429 with `{"error": "rate_limit_exceeded"}`.
+Exceeded limits return HTTP 429 with a stable, translatable code (the English prose in
+`error` is for curl and the logs; the UI resolves `error_key`):
+
+```json
+{
+  "success": false,
+  "error": "Too many requests. Please try again later.",
+  "error_key": "error.rate_limited",
+  "retry_after": 60
+}
+```
+
+`retry_after` is in seconds and is also sent as the `Retry-After` header.
 
 ---
 
