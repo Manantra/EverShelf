@@ -17,6 +17,12 @@ require_once __DIR__ . '/lib/receipt_ocr.php';
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
 
+// Declared before the router dispatches (line ~900): `const` statements are executed
+// at runtime, so constants defined further down the file are still undefined when a
+// route handler runs. Smart Shopping used to fail with "Undefined constant".
+const SMART_HIGH_USE_STOCK_PCT = 25.0;
+const SHOPPING_TOTAL_CACHE_MAX = 4;
+
 /**
  * Comprato → block until the family is finished again (cleared on deplete).
  * Rimuovi (purchased=false) → block only for the rest of the calendar month.
@@ -17136,9 +17142,6 @@ function smartAvgPurchaseQty(float $totalBought, int $buyCount): float {
     return $totalBought / $buyCount;
 }
 
-/** Stock share of a typical purchase at/below which a high-use product must hit the list. */
-const SMART_HIGH_USE_STOCK_PCT = 25.0;
-
 /**
  * Typical purchase size for the % remaining rule (avg buy → family avg → default).
  */
@@ -20505,9 +20508,6 @@ function _loadCanonicalShoppingTotal(string $listHash): ?array {
     $result = $entry['result'] ?? null;
     return is_array($result) ? $result : null;
 }
-
-/** Max priced baskets kept on disk (the current list + a couple of variants). */
-const SHOPPING_TOTAL_CACHE_MAX = 4;
 
 /**
  * Keep the newest $max baskets, newest first. Pure, so the cache shape is testable.
