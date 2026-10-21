@@ -57,7 +57,7 @@ register_shutdown_function($cleanup);
 $db = new PDO('sqlite:' . $lockFile);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-$db->exec("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, brand TEXT DEFAULT '', shopping_name TEXT DEFAULT '')");
+$db->exec("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, brand TEXT DEFAULT '', shopping_name TEXT DEFAULT '', unit TEXT DEFAULT '', default_quantity REAL DEFAULT 0, package_unit TEXT DEFAULT '')");
 $db->exec("CREATE TABLE inventory (product_id INTEGER, quantity REAL, expiry_date TEXT)");
 $db->exec("CREATE TABLE shopping_list (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, raw_name TEXT DEFAULT '', specification TEXT DEFAULT '')");
 // Real schema also touched by the shared predicate (blocklist / purchase history).

@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.6] - 2026-10-21
+
+### A finished product gets on the shopping list again
+- **The family rule stopped hiding real shortfalls.** A depleted article was dropped as soon
+  as *any* other product sharing its `shopping_name` had stock — adding grams, packs and pieces
+  together, and counting expired batches and 0.5 g smears. In a real pantry that hid 74
+  finished products with purchase history: “360 g” of lemon jam kept every jar of jam off the
+  list, an expired pack kept butter off, a smear kept tomatoes off. Coverage now needs a
+  *usable* purchase: fresh, above `EVERSHELF_TRACE_QTY`, expanded to the same base family with
+  the package size (`evershelfBaseQty()`: 3 packs × 1 l = 3 l) and worth at least one pack (or
+  half the usual bought quantity for g/ml). Guard: `scripts/test-shopping-restock.php`.
+- **“Usa tutto” always lands on the list.** `bringAddDepletedProduct()` no longer skips the add
+  when another product of the family is still stocked: an explicit action is not a prediction,
+  and the row is stamped `🛒 Esaurito`, so the cleanup keeps it. The generic lookup still stops
+  duplicates.
+- **An expired batch with fresh stock no longer leaks a row** with no suggested quantity
+  (“3 packs at home, one expired”): the product is skipped and the dashboard banner keeps
+  showing the expiry.
+- `EVERSHELF_TRACE_QTY` is now the single source of the trace thresholds
+  (`productQtyThreshold()` reads it), and `scripts/backfill-finished-shopping.php` applies the
+  same usable-stock rule before re-adding a finished product in bulk.
+
 ## [1.16.5] - 2026-10-20
 
 ### The app opens in the language the link asked for — and the vocabulary answers again

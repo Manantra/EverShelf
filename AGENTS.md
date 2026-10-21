@@ -197,6 +197,7 @@ php scripts/test-product-rename.php     # a scanned title/brand can be corrected
 php scripts/test-inventory-add-guard.php # adding to the pantry always has a catalog id (no raw "Product ID required")
 php scripts/test-ai-product-match.php   # the AI name matches the RIGHT article (tomatoes ≠ passata), ranking + client filter
 php scripts/test-product-quantity-floor.php # a pantry row below 20 g/ml (or 1 pz) is refused; tomatoes count by piece
+php scripts/test-shopping-restock.php    # a finished product reaches the list (usable family stock, "usa tutto" always adds)
 php scripts/test-shopping-total-canonical.php # one "Spesa stimata" for app, kiosk and Home Assistant (one basket, one key)
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 php scripts/test-support-monetization.php # optional support: the 2 answers, donation link, parked banner slots, all 6 locales
@@ -244,6 +245,7 @@ npm run build
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
 | Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |
+| A finished product must reach the list | `smartShopping()` family coverage uses **usable** stock only: fresh, above `EVERSHELF_TRACE_QTY` (single source of `productQtyThreshold()`), expanded to the same base family with `evershelfBaseQty()` and worth ≥ 1 pack (or ½ the usual buy for g/ml) — `evershelfFamilyUsableStockQty()` is the DB form used by the cleanup and the backfill; `bringAddDepletedProduct()` (explicit "usa tutto") always adds, stamped `🛒 Esaurito` — guard test `scripts/test-shopping-restock.php` |
 | Recipe archive (chat / generate) | `recipesArchiveUpsert()` + `recipeArchiveContentHash()` in `api/index.php` / `api/database.php`; `recipes.content_hash` prevents clones; `useRecipeIngredient()` / scale X÷Y UI in `app.js` — guard test `scripts/test-recipe-archive.php` |
 | Genre in the article title | `api/lib/product_kind.php` + `mergeIncomingProductFields()` (the single title choke point) + `products.kind`; dictionary shared with `computeShoppingName()` — guard test `scripts/test-product-kind-prefix.php` |
 | Singular title ↔ plural pantry | `productKindSingularizeName()` (stored title), `productNameForPieces()` + `display_name` in `listInventory()`, `productKindUnitCountsPieces()` — guard test `scripts/test-product-number.php` |
