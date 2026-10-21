@@ -13743,6 +13743,17 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
 
     $genericName = $prod['shopping_name'] ?: computeShoppingName($prod['name'], '', $prod['brand']);
 
+    // "Not buying this" applies to the real-time sync too: a stock change must not put
+    // back on the list what the user (or an external client) has just dismissed.
+    if (shoppingIsDismissed($db, (string)$genericName, (string)$prod['name'])) {
+        EverLog::debug('bringQuickSync: dismissed, skipped', [
+            'event' => 'shopping_dismissed_skip',
+            'product_id' => $productId,
+            'name' => $genericName,
+        ]);
+        return;
+    }
+
     if (isShoppingBringMode()) {
         // Delegate to Bring!
         $auth = bringAuth();
@@ -15911,6 +15922,11 @@ function shoppingSyncProductFromCache(PDO $db, int $productId): void {
     }
 
     $genericName = $si['shopping_name'] ?: $si['name'];
+    // A dismissed article stays off the list here too (this is the path a stock change
+    // takes, not just the 5-minute cron).
+    if (shoppingIsDismissed($db, (string)$genericName, (string)($si['name'] ?? ''))) {
+        return;
+    }
     $spec = evershelfBuildShoppingSpec($si);
 
     $existing = internalFindShoppingListRowByGeneric($db, $genericName, $si['name'] ?? $genericName);

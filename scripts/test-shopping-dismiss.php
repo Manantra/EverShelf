@@ -141,6 +141,20 @@ if (isShoppingBringMode()) {
     $cronFn = substr($api, (int)strpos($api, 'function internalShoppingAutoAddCritical('), 4000);
     assert_true(str_contains($cronFn, 'shoppingIsDismissed('),
         'internalShoppingAutoAddCritical() skips dismissed products');
+
+    // The real-time sync (a stock change) must not put it back either.
+    $db->exec('DELETE FROM shopping_list');
+    shoppingMarkDismissed($db, 'Verdure', 'Macedonia di Verdure', 14);
+    bringQuickSyncProduct($db, 3);
+    $names = $db->query('SELECT name FROM shopping_list')->fetchAll(PDO::FETCH_COLUMN);
+    assert_true(!in_array('Verdure', $names, true),
+        'a stock change does not re-add a dismissed product (bringQuickSyncProduct)');
+
+    shoppingClearDismissedForProduct($db, 3);   // the same clear a purchase performs
+    bringQuickSyncProduct($db, 3);
+    $names = $db->query('SELECT name FROM shopping_list')->fetchAll(PDO::FETCH_COLUMN);
+    assert_true(in_array('Verdure', $names, true),
+        'once the dismiss is lifted the same sync adds it (control)');
 }
 
 if ($fail === 0) {
