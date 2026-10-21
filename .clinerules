@@ -80,6 +80,7 @@ php scripts/test-shopping-guards.php
 php scripts/test-shopping-restock.php
 php scripts/test-expiry-and-plan-days.php
 php scripts/test-tap-open.php
+php scripts/test-locale-dates.php
 php scripts/test-product-kind-prefix.php
 php scripts/test-product-number.php
 php scripts/test-preloader-stages.php
