@@ -268,6 +268,26 @@ Remove an item from the Bring! list.
 ### `smart_shopping` — GET
 Get smart shopping predictions based on consumption history.
 
+### `shopping_remove` — POST
+Remove one or more rows from the active shopping list (internal list, or the Bring!
+mirror when `SHOPPING_MODE=bring`).
+
+```json
+{
+  "name": "Avocado",
+  "rawName": "Avocado Hass",
+  "purchased": false,
+  "dismiss_days": 14
+}
+```
+
+| Param | Meaning |
+|---|---|
+| `name` / `rawName` | row name and the specific product behind it (`items: [...]` removes a batch) |
+| `purchased` | `true` (default) = bought → suppressed until the product is finished again; `false` = **not** buying → a dated **dismiss** (`app_settings.shopping_dismissed`) that the cron respects, so the item is not re-added five minutes later |
+| `dismiss_days` | optional window for `purchased: false` (1–365, default `SHOPPING_DISMISS_DAYS` = 14). A purchase (or adding the product to the pantry) lifts the dismiss |
+| `seasonal_dismiss` | out-of-season produce: stay off the list until the next peak month |
+
 ### `recipe_shopping_add` — POST
 Turn a recipe into the list of what the pantry does **not** cover: the gap is
 recomputed on every call (`need − have`), matching stock by `product_id`, then the

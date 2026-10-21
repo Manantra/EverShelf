@@ -5200,6 +5200,8 @@ function addToInventory(PDO $db): void {
     // Only blocklist when the shopping need is fully covered
     if (!empty($restock['removed'])) {
         bringMarkPurchasedForProduct($db, $productId);
+        // …and a previous "non lo compro" is over: the household just bought it.
+        shoppingClearDismissedForProduct($db, $productId);
     }
     invalidateSmartShoppingCache();
 }
@@ -15601,6 +15603,142 @@ function bringIsPurchasedBlocked(PDO $db, string $name, ?string $shoppingName = 
     return false;
 }
 
+// ── A dismiss the cron must respect ("non lo compro") ───────────────────────
+// The purchase blocklist alone was not enough: smartItemNeedsRestockOverride() lets a
+// DEPLETED product through, and internalShoppingAutoAddCritical() cleared the block on
+// re-add — so an external client's `purchased: false` lasted minutes. The dismiss is a
+// dated decision stored in `app_settings.shopping_dismissed` (key → YYYY-MM-DD) and it
+// wins over the prediction, exactly like the out-of-season dismiss.
+
+/** How long a dismissed product stays out of the auto-add (env SHOPPING_DISMISS_DAYS). */
+function shoppingDismissDays(): int
+{
+    return max(1, min(365, (int)env('SHOPPING_DISMISS_DAYS', '14')));
+}
+
+/** Live dismiss map (lowercased key → YYYY-MM-DD); expired entries are dropped. */
+function shoppingDismissLoad(PDO $db): array
+{
+    try {
+        $raw = $db->query("SELECT value FROM app_settings WHERE key = 'shopping_dismissed'")->fetchColumn();
+    } catch (Throwable $e) {
+        return [];
+    }
+    $map = is_string($raw) && $raw !== '' ? json_decode($raw, true) : [];
+    if (!is_array($map)) {
+        return [];
+    }
+    $today = date('Y-m-d');
+    $out = [];
+    foreach ($map as $key => $until) {
+        $key = mb_strtolower(trim((string)$key));
+        $until = trim((string)$until);
+        if ($key === '' || $until === '' || $until < $today) {
+            continue;
+        }
+        $out[$key] = $until;
+    }
+    return $out;
+}
+
+function shoppingDismissSave(PDO $db, array $map): void
+{
+    $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('shopping_dismissed', ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
+    $stmt->execute([json_encode($map, JSON_UNESCAPED_UNICODE)]);
+}
+
+/** Keys a dismiss is recorded under: the row name, its generic and the Bring! spellings. */
+function shoppingDismissKeys(PDO $db, string $name, string $rawName = ''): array
+{
+    $keys = [];
+    foreach (array_merge([$name, $rawName], shoppingExpandRemovedNames($db, $name, $rawName)) as $n) {
+        $n = mb_strtolower(trim((string)$n));
+        if ($n === '') {
+            continue;
+        }
+        $keys[$n] = true;
+        $generic = computeShoppingName($n);
+        if ($generic !== '') {
+            $keys[mb_strtolower($generic)] = true;
+        }
+    }
+    return array_keys($keys);
+}
+
+/**
+ * Remember "I am not buying this" for `$days` (0 → env default).
+ * Used by shopping_remove with purchased=false: an external client (spesaPoli) and the
+ * app's own Rimuovi both mean "keep it off the list for a while".
+ */
+function shoppingMarkDismissed(PDO $db, string $name, string $rawName = '', int $days = 0): void
+{
+    if (trim($name) === '' && trim($rawName) === '') {
+        return;
+    }
+    $days = $days > 0 ? max(1, min(365, $days)) : shoppingDismissDays();
+    $until = date('Y-m-d', strtotime('+' . $days . ' days'));
+    $map = shoppingDismissLoad($db);
+    foreach (shoppingDismissKeys($db, $name, $rawName) as $key) {
+        $map[$key] = $until;
+    }
+    shoppingDismissSave($db, $map);
+}
+
+/** Is this article dismissed right now? Exact keys only (a dismiss is a user decision). */
+function shoppingIsDismissed(PDO $db, string $name, string $generic = ''): bool
+{
+    $map = shoppingDismissLoad($db);
+    if ($map === []) {
+        return false;
+    }
+    foreach ([$name, $generic] as $candidate) {
+        $key = mb_strtolower(trim((string)$candidate));
+        if ($key !== '' && isset($map[$key])) {
+            return true;
+        }
+        $computed = $key !== '' ? mb_strtolower(computeShoppingName($key)) : '';
+        if ($computed !== '' && isset($map[$computed])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Lift the dismiss (bought it, or the user added it back on purpose). */
+function shoppingClearDismissed(PDO $db, array $names): void
+{
+    $map = shoppingDismissLoad($db);
+    if ($map === []) {
+        return;
+    }
+    $changed = false;
+    foreach ($names as $n) {
+        $key = mb_strtolower(trim((string)$n));
+        if ($key !== '' && isset($map[$key])) {
+            unset($map[$key]);
+            $changed = true;
+        }
+    }
+    if ($changed) {
+        shoppingDismissSave($db, $map);
+    }
+}
+
+/** Lift a "non lo compro" for this product's family — the user just bought it. */
+function shoppingClearDismissedForProduct(PDO $db, int $productId): void
+{
+    $stmt = $db->prepare("SELECT name, shopping_name FROM products WHERE id = ?");
+    $stmt->execute([$productId]);
+    $prod = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$prod) {
+        return;
+    }
+    $name    = (string)($prod['name'] ?? '');
+    $generic = trim((string)($prod['shopping_name'] ?? '')) ?: computeShoppingName($name);
+    shoppingClearDismissed($db, array_merge([$name, $generic], shoppingDismissKeys($db, $generic, $name)));
+}
+
 /** Mark Bring! "recently purchased" items so cron/client do not re-add them. */
 function bringSyncPurchasedFromBringList(PDO $db, array $recently): void {
     if (empty($recently)) {
@@ -16195,6 +16333,11 @@ function bringAutoAddCritical(PDO $db): array {
     $updated = 0;
     foreach ($smartItems as $si) {
         if (!smartItemShouldSyncToBring($si)) continue;
+        // "Non lo compro" wins over the prediction, on the Bring! mirror too.
+        $dismissName = trim((string)($si['shopping_name'] ?? '')) ?: trim((string)($si['name'] ?? ''));
+        if ($dismissName !== '' && shoppingIsDismissed($db, $dismissName, (string)($si['name'] ?? ''))) {
+            continue;
+        }
         // Partial family stock is fine — smartItemShouldSyncToBring already
         // refuses rows whose stock covers the planning window.
         $result = bringUpsertSmartItem($db, $si, $listUUID, $bringData, $onBring);
@@ -16234,6 +16377,12 @@ function internalShoppingAutoAddCritical(PDO $db): array {
         }
         $name = trim((string)($si['shopping_name'] ?? '')) ?: trim((string)($si['name'] ?? ''));
         if ($name === '') {
+            continue;
+        }
+        // The user (or an external client) said "non lo compro": the cron must not undo
+        // that decision. This is the same guard the out-of-season dismiss uses below, and
+        // it deliberately comes BEFORE the blocklist clear at the bottom of the loop.
+        if (shoppingIsDismissed($db, $name, (string)($si['name'] ?? ''))) {
             continue;
         }
         // Out-of-season dismiss: the user removed it on purpose, so a stale smart
@@ -19229,8 +19378,16 @@ function shoppingRemoveInternal(PDO $db, array $input): void {
         }
         if ($asPurchased) {
             bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName), true);
+            // Bought it: a previous "non lo compro" is over.
+            shoppingClearDismissed($db, array_merge([$name, $rawName], shoppingDismissKeys($db, $name, $rawName)));
         } else {
             bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName), false);
+            // "Non lo compro": keep it off the list for SHOPPING_DISMISS_DAYS. The purchase
+            // blocklist alone lasted minutes — a depleted product bypasses it
+            // (smartItemNeedsRestockOverride) and the cron cleared it on re-add.
+            // `dismiss_days` (optional, 1–90) overrides the env default; 0 keeps it default.
+            $dismissDays = isset($input['dismiss_days']) ? (int)$input['dismiss_days'] : 0;
+            shoppingMarkDismissed($db, $name, $rawName, $dismissDays);
         }
         // Out-of-season dismiss: stay off the list until the next peak month.
         if (!empty($input['seasonal_dismiss'])) {
