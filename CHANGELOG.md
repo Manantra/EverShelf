@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.15] - 2026-10-21
+
+### The smaller lists follow the phone pass
+- The lists that still cut their text are readable too: quick-name search results,
+  the **AI match candidates** (you could not see which article was picked), the receipt
+  review rows, and the spend bar labels pinned at 78 px (“Latticin…”).
+- No behaviour change, no new keys: `assets/css/mobile.css` only relaxes the truncation.
+
 ## [1.16.14] - 2026-10-21
 
 ### The lists are readable on a phone

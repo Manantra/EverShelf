@@ -64,6 +64,8 @@ $rules = [
     '/\.shop-row-title\s*\{[^}]*flex-wrap:\s*wrap/'                 => 'the shopping title wraps',
     '/\.shop-row-title-name\s*\{[^}]*flex:\s*1 1 100%/'             => 'the shopping name gets the first line',
     '/\.recipe-archive-title\s*\{[^}]*white-space:\s*normal/'       => 'recipe titles wrap',
+    '/\.ai-match-info strong,[\s\S]{0,120}?white-space:\s*normal/' => 'the AI match candidates are readable (which article was picked)',
+    '/\.ms-cat-name\s*\{[^}]*white-space:\s*normal/'              => 'the spend bar labels are not cut to 78 px',
 ];
 foreach ($rules as $regex => $msg) {
     assert_true((bool)preg_match($regex, $css), $msg);
