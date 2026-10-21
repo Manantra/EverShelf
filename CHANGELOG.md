@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.10] - 2026-10-21
+
+### The row stops contradicting itself (“Esaurito … ma ne hai 235 g”)
+- **A family row reports the family’s stock.** The shopping payload now carries
+  `family_qty` (usable stock of the whole buyable generic, in the item’s unit) and the row
+  shows it instead of the representative product’s own quantity. 16 rows in a real pantry
+  said “Esaurito” while `pct_left` (family) said 20–90%; they now read “235 g (47%)”.
+- **“Hai già X in dispensa” speaks about the same family.** The hint matched any product
+  starting with the same word, so a row marked *Zucchero di canna · Esaurito* proudly
+  announced 235 g of *Zucchero grezzo* — a different buyable article. It now uses the
+  `shopping_name` family only.
+- **Raw cane sugar is cane sugar.** `zucchero grezzo di canna` / `zucchero grezzo` map to
+  **Zucchero di canna** in `api/vocab/it.json` (it used to fall back to plain `Zucchero`,
+  i.e. white sugar). `assets/js/vocab.generated.js` regenerated.
+- **Coverage reads “one whole pack”**: for pieces/packs a family covers a restock when it
+  still holds **one** full unit (the average purchase is not used — a legacy gram log on a
+  conf product would make coverage impossible), weights/volumes keep “half the usual buy”.
+  Guard: `scripts/test-shopping-restock.php` (family_qty, the hint matcher, the fixture).
+
 ## [1.16.9] - 2026-10-21
 
 ### A tap works on the phone, and the last alert list reacts too

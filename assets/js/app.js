@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261021d'; // bump when translations change
+const _I18N_VERSION = '20261021e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11688,7 +11688,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11698,7 +11698,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261021d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261021e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18466,16 +18466,17 @@ function _formatInvQtyDisplay(qty, unit, defaultQty = 0, packageUnit = '') {
 }
 
 function _shoppingFamilyInventoryRows(item, smartData, invItems) {
-    const shoppingName = (smartData?.shopping_name || item.name || '').toLowerCase();
-    const firstTok = (_nameTokens(item.name)[0] || '').toLowerCase();
+    // Same FAMILY only (`shopping_name`), which is exactly what the server uses to group
+    // the row. The old first-token fallback matched any product starting with the same
+    // word — "Zucchero grezzo di canna" showed "Hai già 235 g in dispensa" under a row
+    // marked "Esaurito", because the two are different buyable articles.
+    const rowFamily = String(smartData?.shopping_name || item.rawName || item.name || '').toLowerCase().trim();
+    if (!rowFamily) return [];
     return invItems.filter(i => {
         if (parseFloat(i.quantity) <= 0) return false;
-        const iShopping = (i.shopping_name || '').toLowerCase();
-        if (shoppingName && iShopping === shoppingName) {
-            return _productMatchesShoppingFamily(i.name, shoppingName);
-        }
-        const iFirst = (_nameTokens(i.name || '')[0] || '').toLowerCase();
-        return firstTok && iFirst === firstTok;
+        const iShopping = String(i.shopping_name || '').toLowerCase().trim();
+        const iName = String(i.name || '').toLowerCase().trim();
+        return iShopping === rowFamily || iName === rowFamily;
     });
 }
 
@@ -19332,10 +19333,14 @@ function renderSmartItem(item) {
         const pct = Math.min(100, Math.max(0, item.pct_left));
         const barColor = pct <= 15 ? '#ef4444' : pct <= 30 ? '#f97316' : pct <= 50 ? '#eab308' : '#22c55e';
 
-        // Quantity display
+        // Quantity display: this row is a FAMILY row (one buyable generic), so show the
+        // family's usable stock — not the representative product's own. A finished brand
+        // next to 235 g of another one used to read "Esaurito" and "Hai già 235 g" at once.
+        const famQty = Number(item.family_qty);
+        const shownQty = Number.isFinite(famQty) && famQty > 0 ? famQty : (Number(item.current_qty) || 0);
         let qtyText = '';
-        if (item.current_qty > 0) {
-            qtyText = `${item.current_qty} ${item.unit}`;
+        if (shownQty > 0) {
+            qtyText = `${shownQty} ${item.unit}`;
             if (item.pct_left < 100) qtyText += ` (${pct}%)`;
         } else {
             qtyText = t('shopping.out_of_stock');

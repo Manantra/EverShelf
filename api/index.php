@@ -17773,13 +17773,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $familyBaseQty = (float)($usableStockByShoppingName[$sNameForRef][$refBase['family']] ?? 0.0);
         $familyUsableQty = $familyBaseQty / $perUnitBase;                        // incl. this product
         $otherFamilyUsableQty = max(0.0, ($familyBaseQty - $ownBaseQty) / $perUnitBase);
-        // "Covered" means the family still holds a usable purchase's worth: a full pack
-        // for anything sold by the pack/piece, half the usual bought quantity for g/ml
-        // (the convention the high-use rule already uses). Half a jar of another flavour
-        // (360 g against the 620 g pack you buy) is a shortfall, not cover — that is the
-        // jam/dairy case that kept finished articles off the list.
+        // "Covered" means the family still holds a usable purchase's worth:
+        //   * anything sold by the pack/piece → at least ONE full pack/piece left,
+        //   * weights/volumes → half the usual bought quantity (the convention the
+        //     high-use rule already uses).
+        // Half a jar of another flavour (0.58 packs) is a shortfall, not cover — that is
+        // the jam/dairy case that kept finished articles off the list. The average
+        // purchase is deliberately NOT used for packs: a legacy gram log on a conf
+        // product (690 "conf" for a 690 g jar) would make coverage impossible.
         $refIsPack = in_array(mb_strtolower($unit), ['conf', 'pz', 'busta', 'buste', 'pacco', 'pacchi', 'barattolo', 'barattoli', 'confezione', 'confezioni', 'pezzo', 'pezzi'], true);
-        $coverageNeeded = $refIsPack ? max(1.0, $refQty) : max(1.0, 0.5 * $refQty);
+        $coverageNeeded = $refIsPack ? 1.0 : max(1.0, 0.5 * $refQty);
 
         // --- Determine urgency ---
         $urgency = 'none'; // none, low, medium, high, critical
@@ -18274,6 +18277,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'category' => $p['category'] ?: '',
             'unit' => $unit,
             'current_qty' => round($qty, 1),
+            // Stock of the whole buyable FAMILY in this item's unit. The row is one
+            // generic ("Zucchero di canna"), so a finished brand next to 235 g of another
+            // one must not read "Esaurito" while `pct_left` says 47%.
+            'family_qty' => round($familyUsableQty, 1),
             'default_qty' => $defQty,
             'package_unit' => $p['package_unit'] ?: '',
             // Family stock vs typical purchase (drives the ≤25% high-use rule in sync).
