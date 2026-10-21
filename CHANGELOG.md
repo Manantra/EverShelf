@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.11] - 2026-10-21
+
+### Dates follow the country, everywhere
+- **Italy reads gg/mm/aaaa.** `formatDate()` printed a month NAME (“19 ott 2026”), and the
+  dashboard banner and the import preview printed the raw ISO string from the API
+  (“scadeva il 2026-10-19”). Every date goes through `formatDate()` now: it 19/10/2026,
+  de 19.10.2026, fr/es/en-GB gg/mm/yyyy, zh 2026/10/19.
+- **One locale map.** Eight hand-written `_currentLang === 'de' ? 'de-DE' : … : 'it-IT'`
+  ternaries gave French and Spanish users the ITALIAN format — Italian month names in the
+  log and in the screensaver, and an Italian voice in the text-to-speech. They all use
+  `_collationLocale()` now.
+  Guard: `scripts/test-locale-dates.php`.
+
 ## [1.16.10] - 2026-10-21
 
 ### The row stops contradicting itself (“Esaurito … ma ne hai 235 g”)

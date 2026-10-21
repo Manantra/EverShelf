@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261021e'; // bump when translations change
+const _I18N_VERSION = '20261021f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1830,7 +1830,7 @@ function _renderImportPreview(res) {
             <td>${escapeHtml(d.name || '')}${d.brand ? `<div class="import-row-issues">${escapeHtml(d.brand)}</div>` : ''}</td>
             <td>${escapeHtml(locLabel)}</td>
             <td>${escapeHtml(String(d.quantity ?? ''))} ${escapeHtml(d.unit || '')}</td>
-            <td>${escapeHtml(d.expiry_date || '—')}</td>
+            <td>${escapeHtml(d.expiry_date ? formatDate(d.expiry_date) : '—')}</td>
         </tr>`;
     }).join('');
 
@@ -7697,7 +7697,7 @@ function _renderMacrosSection(data) {
             <div class="macro-bar-wrap">
                 <div class="macro-bar-fill" style="background:${m.color}" data-target="${barPct}"></div>
             </div>
-            <span class="macro-val">${m.value.toLocaleString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT')}${m.unit}${m.pct !== null ? ` <small>(${m.pct}%)</small>` : ''}</span>
+            <span class="macro-val">${m.value.toLocaleString(_collationLocale())}${m.unit}${m.pct !== null ? ` <small>(${m.pct}%)</small>` : ''}</span>
         </div>`;
     }).join('');
 
@@ -8812,7 +8812,7 @@ function renderBannerItem() {
             whenText = item.days_expired === 0
                 ? t('expiry.expired_today_long')
                 : t('expiry.expired_ago_long').replace('{n}', item.days_expired);
-            if (item.expiry_date) dateText = t('dashboard.banner_sold_date', { date: item.expiry_date });
+            if (item.expiry_date) dateText = t('dashboard.banner_sold_date', { date: formatDate(item.expiry_date) });
         }
 
         if (safety.level === 'danger') {
@@ -11499,7 +11499,7 @@ let _scanLogTimer = null;
 function scanLog(msg) {
     const el = document.getElementById('scan-debug-log');
     if (el) {
-        const _scanLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+        const _scanLocale = _collationLocale();
         const ts = new Date().toLocaleTimeString(_scanLocale, {hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:1});
         el.textContent += `[${ts}] ${msg}\n`;
         el.scrollTop = el.scrollHeight;
@@ -11688,7 +11688,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11698,7 +11698,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261021e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261021f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15272,7 +15272,7 @@ function _updateUseHeroMeta(items) {
         const expDate = new Date(soonest.expiry_date + 'T12:00:00');
         const today = new Date(); today.setHours(0,0,0,0);
         const days = Math.round((expDate - today) / 86400000);
-        const locale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+        const locale = _collationLocale();
         const dateStr = expDate.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: '2-digit' });
 
         let cls, label;
@@ -15345,7 +15345,7 @@ function _renderUseExpiryHint(items) {
     const diffDays = Math.round((expDate - today) / 86400000);
 
     const locInfo  = LOCATIONS[soonest.location] || { icon: '📦', label: soonest.location };
-    const dateStr  = expDate.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT', { day: '2-digit', month: '2-digit' });
+    const dateStr  = expDate.toLocaleDateString(_collationLocale(), { day: '2-digit', month: '2-digit' });
 
     let whenStr;
     if (diffDays < 0)       whenStr = t('use.when_expired').replace('{n}', -diffDays);
@@ -20914,16 +20914,18 @@ function stripHtml(str) {
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
-    const _loc1 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
-    return d.toLocaleDateString(_loc1, { day: '2-digit', month: 'short', year: 'numeric' });
+    // The UI language decides the shape (it → 19/10/2026, de → 19.10.2026, zh → 2026/10/19).
+    // The old ternary gave fr and es the ITALIAN format, and `month: 'short'` printed a
+    // month name where the country expects gg/mm/aaaa.
+    return d.toLocaleDateString(_collationLocale());
 }
 
 function formatDateTime(dtStr) {
     if (!dtStr) return '';
     const d = new Date(dtStr.replace(' ', 'T'));
-    const _loc2 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
-    return d.toLocaleDateString(_loc2, { day: '2-digit', month: 'short' }) + ' ' + 
-           d.toLocaleTimeString(_loc2, { hour: '2-digit', minute: '2-digit' });
+    const loc = _collationLocale();
+    return d.toLocaleDateString(loc) + ' ' +
+           d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
 }
 
 function daysUntilExpiry(dateStr) {
@@ -20991,7 +20993,7 @@ async function loadLog(more = false) {
             html = `<p style="text-align:center;color:var(--text-muted)">${t('log.empty')}</p>`;
         } else {
             let lastDate = more ? '' : null;
-            const _logLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+            const _logLocale = _collationLocale();
             txns.forEach(tx => {
                 const dt = new Date(tx.created_at + 'Z');
                 const dateStr = dt.toLocaleDateString(_logLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -21488,7 +21490,7 @@ async function loadRecipeArchive() {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     
     for (const [date, entries] of Object.entries(byDate)) {
-        const _mealLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+        const _mealLocale = _collationLocale();
         let dateLabel = new Date(date + 'T12:00:00').toLocaleDateString(_mealLocale, { weekday: 'long', day: 'numeric', month: 'long' });
         if (date === today) dateLabel = t('date.today');
         else if (date === yesterday) dateLabel = t('date.yesterday');
@@ -23271,7 +23273,7 @@ async function renderRecipe(r) {
                 if (diffDays < 0) details.push(t('expiry.badge_expired_ago').replace('{n}', Math.abs(diffDays)));
                 else if (diffDays <= 3) details.push(t('expiry.badge_expires_red').replace('{n}', diffDays));
                 else if (diffDays <= 7) details.push(t('expiry.badge_expires_yellow').replace('{n}', diffDays));
-                else details.push('📅 ' + exp.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT'));
+                else details.push('📅 ' + exp.toLocaleDateString(_collationLocale()));
             }
             if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
             const stockLine = _recipeIngStockHintHtml(ing);
@@ -24798,7 +24800,7 @@ function _speakBrowser(text) {
                 utt.lang  = chosen.lang;
             } else {
                 // No voices loaded yet — set lang and let the browser decide
-                utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+                utt.lang = _collationLocale();   // a French UI must not speak Italian
             }
         }
         // Chrome quirks:
@@ -26838,7 +26840,7 @@ function activateScreensaver() {
 
 function updateScreensaverClock() {
     const now = new Date();
-    const _ssLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+    const _ssLocale = _collationLocale();
     const time = now.toLocaleTimeString(_ssLocale, { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString(_ssLocale, { weekday: 'long', day: 'numeric', month: 'long' });
     const el = document.getElementById('screensaver-clock');
@@ -27968,7 +27970,7 @@ function _formatFamilySiblingDate(dtStr) {
     if (!dtStr) return '';
     const d = new Date(String(dtStr).replace(' ', 'T'));
     if (isNaN(d.getTime())) return '';
-    const loc = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
+    const loc = _collationLocale();
     return d.toLocaleDateString(loc, { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
