@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.12] - 2026-10-21
+
+### “Non lo compro” now survives the 5-minute cron
+- **A removed-not-bought item stays off the list.** An external client (spesaPoli) sent
+  `shopping_remove` with `purchased: false` and six products were back within five
+  minutes: the purchase blocklist alone was not enough — `smartItemNeedsRestockOverride()`
+  lets a *depleted* product through by design, and
+  `internalShoppingAutoAddCritical()` cleared the block when it re-added the row.
+- **A dated dismiss** (`app_settings.shopping_dismissed`: key → `YYYY-MM-DD`) is stored for
+  every `purchased: false`, honoured by both auto-add paths (internal list and Bring!
+  mirror) and **never cleared by the cron**. The window is `SHOPPING_DISMISS_DAYS`
+  (default 14, 1–365) or a per-call `dismiss_days` (1–365).
+- **A purchase lifts it**: `shopping_remove` with `purchased: true`, or adding the product
+  to the pantry once the shopping need is covered, clears the dismiss for the whole family.
+  Choosing it again by hand (“usa tutto”) still works — an explicit action is not a
+  prediction.
+- Documented for integrators in `docs/wiki/API-Reference.md` (`shopping_remove`), with the
+  env key in `.env.example`. Guard: `scripts/test-shopping-dismiss.php`.
+
 ## [1.16.11] - 2026-10-21
 
 ### Dates follow the country, everywhere
