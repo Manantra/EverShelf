@@ -18683,17 +18683,34 @@ function internalShoppingNormalizeNames(PDO $db): array {
     return ['updated' => $updated];
 }
 
-/** Drop internal rows whose family stock already covers the smart-shopping plan window. */
+/**
+ * Drop internal rows whose family stock already covers the smart-shopping plan window.
+ *
+ * The smart cache stays the single source of truth for "is this row still needed": a row
+ * the cache still predicts is NOT pruned, or the cron would add it, delete it and add it
+ * again every 5 minutes (the automations fought each other: `internalShoppingAutoAddCritical`
+ * vs this function). Rows the user marked as finished (🛒 Esaurito) are never touched.
+ */
 function internalShoppingPruneCovered(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $rows = $db->query('SELECT id, name, raw_name FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
     $prods = $db->query('SELECT id, name, shopping_name FROM products')->fetchAll(PDO::FETCH_ASSOC);
+    $index = evershelfSmartItemsIndex(evershelfLoadSmartItemsForSync($db));
     $removed = 0;
     foreach ($rows as $row) {
         $listName = (string)$row['name'];
         $listRaw  = (string)($row['raw_name'] ?? '');
+        // Never the row the user said "I finished this" about.
+        if (evershelfSpecIsDeliberate((string)($row['specification'] ?? ''))) {
+            continue;
+        }
+        // Still predicted by the cache → the auto-add would put it straight back.
+        $si = $index !== [] ? evershelfSmartItemFor($index, $listName, $listRaw) : null;
+        if ($si !== null && evershelfSmartItemIsStillNeeded($db, $si)) {
+            continue;
+        }
         if (seasonalShoppingItemOutOfSeason($listName)
             || ($listRaw !== '' && seasonalShoppingItemOutOfSeason($listRaw))) {
             $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);

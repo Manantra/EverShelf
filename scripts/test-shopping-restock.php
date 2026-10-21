@@ -138,11 +138,41 @@ if (!isShoppingBringMode()) {
         'a row stays while the family has only 360 g against a 620 g pack');
 }
 
+// ── The prune must not fight the auto-add (add → prune → add every 5 minutes) ──
+if (!isShoppingBringMode()) {
+    $cacheFile   = __DIR__ . '/../data/smart_shopping_cache.json';
+    $cacheBackup = file_exists($cacheFile) ? file_get_contents($cacheFile) : null;
+    register_shutdown_function(static function () use ($cacheFile, $cacheBackup): void {
+        if ($cacheBackup === null) {
+            @unlink($cacheFile);
+        } else {
+            @file_put_contents($cacheFile, $cacheBackup);
+        }
+    });
+    file_put_contents($cacheFile, json_encode([
+        'success' => true,
+        'cached_ts' => time(),
+        'items' => [[
+            'name' => 'Marmellata', 'shopping_name' => 'Marmellata', 'unit' => 'conf',
+            'urgency' => 'medium', 'current_qty' => 0, 'period_usage' => 1, 'days_left' => 0,
+            'default_qty' => 620, 'package_unit' => 'g',
+        ]],
+    ], JSON_UNESCAPED_UNICODE));
+
+    $db->exec('DELETE FROM shopping_list');
+    $db->exec("INSERT INTO shopping_list (name, raw_name, specification) VALUES
+        ('Marmellata', 'Marmellata', '🟡 A breve · 🛒 Compra: 1 conf'),
+        ('Yogurt', 'Yogurt bianco', 'Yogurt bianco · 🛒 Esaurito')");
+    $prune = internalShoppingPruneCovered($db);
+    $left  = (int)$db->query('SELECT COUNT(*) FROM shopping_list')->fetchColumn();
+    assert_true($left === 2,
+        'the prune keeps the row the cache still predicts and the row the user finished (left: ' . $left . ', removed: ' . (int)($prune['removed'] ?? 0) . ')');
+}
+
 if ($fail === 0) {
     echo "\nAll shopping restock tests passed.\n";
 }
 exit($fail === 0 ? 0 : 1);
-
 }
 assert_true(is_array($out), 'smartShopping() answers JSON');
 assert_true(isset($byName['marmellata']), 'a finished jar of jam is predicted when the family has less than a pack');

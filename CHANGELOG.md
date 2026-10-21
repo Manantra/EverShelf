@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.7] - 2026-10-21
+
+### The two automations stopped fighting over the same row
+- **Add → prune → add no longer happens.** `internalShoppingPruneCovered()` removes rows
+  whose family covers the plan window, while `internalShoppingAutoAddCritical()` adds back
+  what the smart cache predicts. When the two disagreed the cron added a row and deleted it
+  again every 5 minutes, so the list never settled and the finished products (marmellata,
+  yogurt, caffè…) appeared and vanished on their own. The prune now leaves alone both the
+  rows the cache still predicts and the rows the user marked as finished (`🛒 Esaurito`).
+  Guard: the prune check in `scripts/test-shopping-restock.php`.
+
 ## [1.16.6] - 2026-10-21
 
 ### A finished product gets on the shopping list again
