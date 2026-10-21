@@ -6368,8 +6368,9 @@ function deleteInventory(PDO $db): void {
  * “Finito” write off an entire jar from the ledger.
  */
 function productQtyThreshold(string $unit): float {
-    static $thresholds = ['g' => 2, 'ml' => 2, 'kg' => 0.002, 'l' => 0.002, 'conf' => 0.05, 'pz' => 0.25];
-    return $thresholds[$unit] ?? 0.5;
+    // Single source: EVERSHELF_TRACE_QTY (api/lib/shopping_sync.php), so the family
+    // stock checks and the pantry's "finished" rule can never disagree.
+    return EVERSHELF_TRACE_QTY[mb_strtolower(trim($unit))] ?? 0.5;
 }
 
 /**
@@ -16106,7 +16107,8 @@ function bringCleanupObsolete(PDO $db): array {
 
     // Shared index + "still needed?" predicate (see api/lib/shopping_sync.php).
     $index       = evershelfSmartItemsIndex($smartItems);
-    $familyStock = static fn(string $generic): float => evershelfFamilyStockQty($db, $generic);
+    $familyUsableQty = static fn(string $generic, string $unit, float $pkgSize, string $pkgUnit): float
+        => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
 
     $toRemove = [];
     foreach ($bringData['purchase'] as $bringItem) {
@@ -16119,7 +16121,7 @@ function bringCleanupObsolete(PDO $db): array {
             continue;
         }
         // Still flagged by the smart cache AND the family is not restocked → keep.
-        if (evershelfShoppingRowStillNeeded($db, $index, $name, $rawName, $familyStock)) {
+        if (evershelfShoppingRowStillNeeded($db, $index, $name, $rawName, $familyUsableQty)) {
             continue;
         }
         $toRemove[] = ['name' => $name, 'rawName' => $rawName];
@@ -16281,7 +16283,8 @@ function internalShoppingCleanupObsolete(PDO $db): array {
     }
 
     $index       = evershelfSmartItemsIndex($smartItems);
-    $familyStock = static fn(string $generic): float => evershelfFamilyStockQty($db, $generic);
+    $familyUsableQty = static fn(string $generic, string $unit, float $pkgSize, string $pkgUnit): float
+        => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $removed     = 0;
     $candidates  = 0;
     $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
@@ -16296,7 +16299,7 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         $name = trim((string)($row['name'] ?? ''));
         $raw  = trim((string)($row['raw_name'] ?? ''));
 
-        if (evershelfShoppingRowStillNeeded($db, $index, $name, $raw, $familyStock)) {
+        if (evershelfShoppingRowStillNeeded($db, $index, $name, $raw, $familyUsableQty)) {
             continue;
         }
 
@@ -16444,7 +16447,9 @@ function shoppingAddDepletedProduct(PDO $db, int $productId): array {
  * Add a depleted product to the active shopping list under its generic shopping_name.
  *
  * - Clears the purchase/remove blocklist for this family (finished again → need to buy).
- * - Skips when another product in the same generic family still has stock.
+ * - ALWAYS adds, even when another product of the same family is still in stock: the
+ *   user just said "I finished this" and an explicit action must not be swallowed by
+ *   the generic-family heuristic (the row is stamped 🛒 Esaurito, so the cleanup keeps it).
  * - Uses shopping_name (or computeShoppingName) as the list row name.
  * - Default target is the EverShelf internal list; Bring! only when mode=bring + credentials.
  */
@@ -16467,12 +16472,11 @@ function bringAddDepletedProduct(PDO $db, int $productId): array {
     // Product finished again — unblock so auto-add / list visibility work.
     bringClearPurchasedForProduct($db, $productId);
 
-    // Generic list philosophy: if the family still has stock, no need to buy again.
-    if (bringShoppingFamilyStockQty($db, $genericName) > 0.001) {
-        $out['skipped'] = true;
-        $out['reason'] = 'family_has_stock';
-        return $out;
-    }
+    // An explicit "I finished this" ALWAYS lands on the list: the user's action must not
+    // be swallowed by the family heuristic ("you still have another jar of jam"), which
+    // is what kept marmellata, dressing and dairy off the list after "usa tutto". The row
+    // is stamped 🛒 Esaurito, so the cleanup never removes it behind the user's back;
+    // duplicates are handled by the generic lookup (already_on_list).
 
     $specificLine = $genericName !== $product['name']
         ? $product['name'] . (!empty($product['brand']) ? ' · ' . $product['brand'] : '')
@@ -17527,9 +17531,14 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     } catch (Throwable $e) { /* ignore */ }
 
     // 4b. Build stockByShoppingName: normalized generic name → total qty.
-    // And freshStockByShoppingName: same but only counting non-expired batches.
+    // And usableStockByShoppingName: the same family, but only stock that can really cover
+    // a purchase — fresh (not expired), above the trace threshold, converted to its BASE
+    // family (g / ml / pz) with the package size (`evershelfBaseQty()`: 3 packs × 1 l = 3 l).
+    // A 0.5 g smear in the jar, an expired pack, or "360 g" of jam against a 620 g jar used
+    // to hide the whole family — that is why finished marmellata/yogurt never reached the
+    // shopping list.
     $stockByShoppingName = [];
-    $freshStockByShoppingName = [];
+    $usableStockByShoppingName = [];
     $familyBuyTotals = []; // shopping_name → [bought, buys] for typical-purchase %
     foreach ($products as $pStock) {
         $sName = strtolower(trim($pStock['shopping_name'] ?? ''));
@@ -17538,8 +17547,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             if ($qty > 0) {
                 $stockByShoppingName[$sName] = ($stockByShoppingName[$sName] ?? 0) + $qty;
                 $fQty = isset($inventory[$pStock['id']]) ? (float)($inventory[$pStock['id']]['fresh_qty'] ?? $qty) : 0;
-                if ($fQty > 0) {
-                    $freshStockByShoppingName[$sName] = ($freshStockByShoppingName[$sName] ?? 0) + $fQty;
+                $stUnit = (string)($pStock['unit'] ?? '');
+                if ($fQty > 0 && evershelfStockRowCoversUnit($fQty, $stUnit, null, $stUnit)) {
+                    $rowBase = evershelfBaseQty(
+                        $fQty,
+                        $stUnit,
+                        (float)($pStock['default_quantity'] ?? 0),
+                        (string)($pStock['package_unit'] ?? '')
+                    );
+                    if ($rowBase['qty'] > 0 && $rowBase['family'] !== '') {
+                        $usableStockByShoppingName[$sName][$rowBase['family']] =
+                            ($usableStockByShoppingName[$sName][$rowBase['family']] ?? 0.0) + $rowBase['qty'];
+                    }
                 }
             }
             $txFam = $txData[$pStock['id']] ?? null;
@@ -17716,6 +17735,28 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $isTopStaple    = $usesPerMonth >= 4.0 && $useCount >= 5 && $dailyRate > 0;
         $isUrgentStaple = ($usesPerMonth >= 3.0 && $useCount >= 5 && $dailyRate > 0) || $isTopStaple;
 
+        // Family stock that can really cover this purchase, expressed in THIS product's
+        // unit. Everything is compared in the base family (g / ml / pz) after expanding
+        // packages with `evershelfBaseQty()`, so "3 packs × 1 l" covers a litre of milk
+        // while "360 g" of jam does not cover a 620 g jar; expired rows and traces
+        // (≤ 0.5 g, 2 g…) never count.
+        $pkgUnit = trim((string)($p['package_unit'] ?? ''));
+        $refBase = evershelfBaseQty(1.0, $unit, $defQty, $pkgUnit);
+        $perUnitBase = $refBase['qty'] > 0 ? $refBase['qty'] : 1.0;
+        $ownBaseQty = evershelfStockRowCoversUnit($freshQty, $unit, null, $unit)
+            ? evershelfBaseQty($freshQty, $unit, $defQty, $pkgUnit)['qty']
+            : 0.0;
+        $familyBaseQty = (float)($usableStockByShoppingName[$sNameForRef][$refBase['family']] ?? 0.0);
+        $familyUsableQty = $familyBaseQty / $perUnitBase;                        // incl. this product
+        $otherFamilyUsableQty = max(0.0, ($familyBaseQty - $ownBaseQty) / $perUnitBase);
+        // "Covered" means the family still holds a usable purchase's worth: a full pack
+        // for anything sold by the pack/piece, half the usual bought quantity for g/ml
+        // (the convention the high-use rule already uses). Half a jar of another flavour
+        // (360 g against the 620 g pack you buy) is a shortfall, not cover — that is the
+        // jam/dairy case that kept finished articles off the list.
+        $refIsPack = in_array(mb_strtolower($unit), ['conf', 'pz', 'busta', 'buste', 'pacco', 'pacchi', 'barattolo', 'barattoli', 'confezione', 'confezioni', 'pezzo', 'pezzi'], true);
+        $coverageNeeded = $refIsPack ? max(1.0, $refQty) : max(1.0, 0.5 * $refQty);
+
         // --- Determine urgency ---
         $urgency = 'none'; // none, low, medium, high, critical
         $reasons = [];
@@ -17728,7 +17769,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             // user still needed on the next trip.
             $coveredByEquivalent = false;
             $sName = strtolower(trim($p['shopping_name'] ?? ''));
-            if ($sName !== '' && ($stockByShoppingName[$sName] ?? 0) > 0) {
+            if ($sName !== '' && $familyUsableQty >= $coverageNeeded) {
                 $coveredByEquivalent = true;
             }
             if ($coveredByEquivalent) continue;
@@ -17757,18 +17798,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Almost finished — only flag if usage frequency justifies it.
         // Suppress if the same shopping_name family has adequate stock from OTHER products
         // (e.g. "Burro g" at 12% but "Burro conf" at 99% → no need to flag).
+        // "Adequate" now means usable (fresh, above the trace threshold, same scale):
+        // an expired pack or a smear no longer counts as butter in the fridge.
         $sNameLow = strtolower(trim($p['shopping_name'] ?? ''));
-        $familyOtherStock = ($sNameLow !== '') ? max(0, ($stockByShoppingName[$sNameLow] ?? 0) - $qty) : 0;
+        $familyOtherStock = $sNameLow !== '' ? $otherFamilyUsableQty : 0.0;
         // For g/ml/kg/l: any conf/pz family stock ≥ 0.5 means a package is available.
         // For conf/pz: needs at least 1 full unit from other family products.
-        $familyCovered = $sNameLow !== '' && $qty > 0 && (
-            (!in_array($unit, ['conf', 'pz']) && $familyOtherStock >= 0.5) ||
-            (in_array($unit, ['conf', 'pz']) && $familyOtherStock >= 1.0)
-        );
+        $familyCovered = $sNameLow !== '' && $qty > 0 && $familyOtherStock >= $coverageNeeded;
         // Family stock vs typical purchase (eggs: 3 left of a 10-pack → 30%).
-        $familyStockQty = ($sNameLow !== '' && isset($stockByShoppingName[$sNameLow]))
-            ? (float)$stockByShoppingName[$sNameLow]
-            : $qty;
+        $familyStockQty = $familyUsableQty > 0 ? $familyUsableQty : $qty;
         $pctOfPurchase = $refQty > 0
             ? min(200.0, ($familyStockQty / $refQty) * 100.0)
             : $pctLeft;
@@ -17819,16 +17857,20 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         // Expiring soon or expired (needs replacement)
         if ($isExpired && $qty > 0) {
-            // Check if the product's shopping_name FAMILY has adequate FRESH stock
-            // from other (non-expired) products. If so, no need to buy more.
-            $sNameKey = strtolower(trim($p['shopping_name'] ?? ''));
-            $familyFreshQty = $sNameKey !== '' ? ($freshStockByShoppingName[$sNameKey] ?? 0) : 0;
+            // Check if the product's shopping_name FAMILY has adequate usable stock
+            // from other (non-expired, same-scale) products. If so, no need to buy more.
+            $familyFreshQty = $familyUsableQty;
             $refQtyLocal = $refQty > 0 ? $refQty : 1;
             $familyFreshPct = min(200, ($familyFreshQty / $refQtyLocal) * 100);
 
             if (($justRestocked && $freshPctLeft >= 50) || $familyFreshPct >= 50) {
                 // Fresh stock from this product or same-family products is adequate.
-                // The expired batch will show in the dashboard expiry banner — don't add to shopping list.
+                // The expired batch will show in the dashboard expiry banner — don't add to
+                // shopping list. Skipping the product (not just the urgency) is what the
+                // comment always promised: the branches below could still flag it, and a
+                // row with no suggested quantity ("3 packs at home, one expired") has no
+                // business on a shopping list.
+                continue;
             } elseif ($isTopStaple) {
                 $urgency = 'critical';
                 $reasons[] = 'expired';
@@ -17994,26 +18036,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             continue;
         }
 
-        // Family stock coverage: suppress items covered by other products in the same generic family.
-        // For non-expired items (including critical/empty): suppress if family has other stock.
-        // For expired items: suppress if the family has FRESH stock from other products.
-        $sNameFamily = strtolower(trim($p['shopping_name'] ?? ''));
-        if ($sNameFamily !== '') {
-            if (!$isExpired) {
-                $familyTotal = $stockByShoppingName[$sNameFamily] ?? 0;
-                $otherFamilyQty = $familyTotal - $qty;
-                if ($otherFamilyQty > 0) {
-                    continue;
-                }
-            } else {
-                // For expired: check if OTHER family members have fresh stock covering the expired amount
-                $familyFreshTotal = $freshStockByShoppingName[$sNameFamily] ?? 0;
-                // freshStockByShoppingName counts this product's fresh_qty too (which is 0 if all expired)
-                // So if familyFreshTotal > 0 it means OTHER products in family have fresh stock
-                if ($familyFreshTotal > 0) {
-                    continue; // family has fresh stock → expired product is covered
-                }
-            }
+        // Family stock coverage: suppress items covered by other products in the same
+        // generic family — but only by stock that can actually cover a purchase
+        // (`$otherFamilyUsableQty`: same scale, fresh, above the trace threshold).
+        // The old check summed grams and packs together, so "360 g" of a different jam
+        // kept every pack of jam off the list, and an expired sibling did the same.
+        if ($sNameForRef !== '' && $otherFamilyUsableQty >= $coverageNeeded) {
+            continue;
         }
         if ($useCount >= 8) $score += 15;
         elseif ($useCount >= 5) $score += 10;
@@ -18060,7 +18089,6 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         );
         $periodSource    = $periodMeta['source'];
 
-        $pkgUnit = trim($p['package_unit'] ?? '');
         $stockBase = smartStockBaseForGap($qty, $unit, $defQty, $pkgUnit);
 
         // Stock at home already covers the planning window: nothing to buy — not

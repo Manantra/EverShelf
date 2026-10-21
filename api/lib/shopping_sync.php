@@ -16,6 +16,13 @@
 /** Urgency / quantity markers EverShelf stamps onto an auto-added row. */
 const EVERSHELF_SYNC_MARKERS = ['⚡', '🟠', '🟡', '🔵', '🛒'];
 
+/**
+ * A quantity at or below this is a trace, not stock (same numbers as
+ * `productQtyThreshold()` in api/index.php, which now reads this table).
+ * Two grams left in a jar must never hide the whole family from the shopping list.
+ */
+const EVERSHELF_TRACE_QTY = ['g' => 2.0, 'ml' => 2.0, 'kg' => 0.002, 'l' => 0.002, 'conf' => 0.05, 'pz' => 0.25];
+
 /** Markers meaning "the user deliberately declared this variant finished". */
 const EVERSHELF_FINISHED_MARKERS = ['🛒 Esaurito', '🛒 Finished'];
 
@@ -29,6 +36,116 @@ function evershelfUrgencyLabel(string $urgency): string
         'low'      => '🔵 Previsione',
         default    => '',
     };
+}
+
+/**
+ * Scale of a pantry unit. Stock of another scale never covers a purchase: 360 g of
+ * jam is not "one jar", and packs of milk are not litres — the family checks used to
+ * add every unit together, so any leftover of any size hid the whole family.
+ *
+ * Mass/volume/count come from `evershelfUnitFamily()` (api/lib/recipe_shopping.php);
+ * containers get their own scale because "1 conf" is not a weight.
+ */
+function evershelfUnitScale(string $unit): string
+{
+    $u = mb_strtolower(trim($unit));
+    if ($u === 'conf' || in_array($u, ['confezione', 'confezioni', 'busta', 'buste', 'pacco', 'pacchi', 'barattolo', 'barattoli'], true)) {
+        return 'pack';
+    }
+    return match (evershelfUnitFamily($u)) {
+        'g' => 'mass',
+        'ml' => 'volume',
+        default => 'piece',
+    };
+}
+
+/** A quantity expressed in the base unit of its scale, so a family can be summed. */
+function evershelfUnitBaseQty(float $qty, string $unit): float
+{
+    return $qty * evershelfUnitFactor($unit);
+}
+
+/** The trace threshold of a unit, in the base unit of its scale. */
+function evershelfUnitTraceQty(string $unit): float
+{
+    $key = mb_strtolower(trim($unit));
+    return (EVERSHELF_TRACE_QTY[$key] ?? 0.5) * evershelfUnitFactor($unit);
+}
+
+/**
+ * Can this stock row cover a purchase of `$unit`?
+ *
+ * Only when it is (a) the same scale, (b) above the trace threshold and (c) not
+ * expired: a 0.5 g smear left in the jar, an expired pack or a family that only has
+ * grams while the finished article is sold by the pack must not hide a restock.
+ */
+function evershelfStockRowCoversUnit(float $qty, string $rowUnit, ?string $expiry, string $unit): bool
+{
+    if ($qty <= evershelfUnitTraceQty($rowUnit)) {
+        return false;
+    }
+    if (evershelfUnitScale($rowUnit) !== evershelfUnitScale($unit)) {
+        return false;
+    }
+    if ($expiry !== null && $expiry !== '' && strtotime($expiry) < strtotime(date('Y-m-d'))) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Family stock that can actually cover a purchase of the reference product, **expressed
+ * in that product's own unit** (a jar, a litre, a pack), so callers can compare it with
+ * a suggested quantity or a period need without converting anything.
+ *
+ * A family member counts only when it is fresh (not expired), above the trace threshold,
+ * and — crucially — measured in the same base family once packages are expanded: 3 packs
+ * of milk × 1 l = 3 l cover a litre of milk, while 360 g of jam do not cover a 620 g jar.
+ * `evershelfBaseQty()` is the app's own converter, so the two cannot drift.
+ */
+function evershelfFamilyUsableStockQty(
+    PDO $db,
+    string $shoppingName,
+    string $unit,
+    float $packageSize = 0.0,
+    string $packageUnit = ''
+): float {
+    $key = mb_strtolower(trim($shoppingName));
+    if ($key === '') {
+        return 0.0;
+    }
+    $ref = evershelfBaseQty(1.0, $unit, $packageSize, $packageUnit);
+    $refBase = $ref['qty'] > 0 ? $ref['qty'] : 1.0;
+    $refFamily = $ref['family'];
+
+    $stmt = $db->prepare("
+        SELECT p.name, p.shopping_name, p.unit, p.default_quantity, p.package_unit,
+               COALESCE(SUM(CASE WHEN i.expiry_date IS NULL OR i.expiry_date >= date('now')
+                                 THEN i.quantity ELSE 0 END), 0) AS fresh_qty
+        FROM products p
+        INNER JOIN inventory i ON p.id = i.product_id AND i.quantity > 0
+        WHERE LOWER(TRIM(COALESCE(NULLIF(p.shopping_name, ''), p.name))) = ?
+        GROUP BY p.id
+    ");
+    $stmt->execute([$key]);
+    $base = 0.0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $sn = trim((string)($row['shopping_name'] ?? '')) ?: (string)$row['name'];
+        if (!productMatchesShoppingFamily((string)$row['name'], $sn)) {
+            continue;
+        }
+        $qty = (float)($row['fresh_qty'] ?? 0);
+        $rowUnit = (string)($row['unit'] ?? '');
+        if ($qty <= evershelfUnitTraceQty($rowUnit)) {
+            continue;
+        }
+        $rowBase = evershelfBaseQty($qty, $rowUnit, (float)($row['default_quantity'] ?? 0), (string)($row['package_unit'] ?? ''));
+        if ($rowBase['qty'] <= 0 || $rowBase['family'] !== $refFamily) {
+            continue;
+        }
+        $base += $rowBase['qty'];
+    }
+    return $base / $refBase;
 }
 
 /** True when the specification carries a marker EverShelf itself wrote. */
@@ -142,14 +259,17 @@ function evershelfSmartItemIsStillNeeded(PDO $db, array $si): bool
  * Single "is this auto-added row still needed?" predicate used by both transports.
  *
  * @param array{exact: array<string,array>, token: array<string,array>} $index
- * @param callable(string):float|null $familyStockQty live stock for a generic family
+ * @param callable(string,string,float,string):float|null $familyUsableQty stock of a
+ *        generic family that can actually cover a purchase, expressed in the reference
+ *        product's unit (args: generic name, unit, package size, package unit). Without
+ *        it, sibling stock is not consulted.
  */
 function evershelfShoppingRowStillNeeded(
     PDO $db,
     array $index,
     string $name,
     string $rawName = '',
-    ?callable $familyStockQty = null
+    ?callable $familyUsableQty = null
 ): bool {
     $si = evershelfSmartItemFor($index, $name, $rawName);
     if ($si === null || !evershelfSmartItemIsStillNeeded($db, $si)) {
@@ -157,10 +277,16 @@ function evershelfShoppingRowStillNeeded(
     }
     // Sibling stock only drops the row when it actually covers the planning need.
     // A few leftover eggs must NOT yank "Uova" off the list while days_left is short.
-    if ($familyStockQty !== null) {
+    if ($familyUsableQty !== null) {
         $generic = computeShoppingName($name !== '' ? $name : $rawName);
         if ($generic !== '') {
-            $famQty = (float)$familyStockQty($generic);
+            $unit = (string)($si['unit'] ?? $si['suggested_unit'] ?? '');
+            $famQty = (float)$familyUsableQty(
+                $generic,
+                $unit,
+                (float)($si['default_qty'] ?? 0),
+                (string)($si['package_unit'] ?? '')
+            );
             if ($famQty > 0.001) {
                 $probe = $si;
                 $probe['current_qty'] = $famQty;
@@ -179,6 +305,27 @@ function evershelfShoppingRowStillNeeded(
         }
     }
     return true;
+}
+
+/**
+ * Memoised family stock that can cover a purchase of `$unit` (see
+ * evershelfFamilyUsableStockQty()): the cleanup loops over every row, so the same
+ * family must not run the same query repeatedly.
+ */
+function evershelfFamilyUsableStockQtyMemo(
+    PDO $db,
+    string $shoppingName,
+    string $unit,
+    float $packageSize = 0.0,
+    string $packageUnit = ''
+): float {
+    static $memo = [];
+    $key = mb_strtolower(trim($shoppingName)) . '|' . mb_strtolower(trim($unit))
+        . '|' . $packageSize . '|' . mb_strtolower(trim($packageUnit));
+    if (!array_key_exists($key, $memo)) {
+        $memo[$key] = evershelfFamilyUsableStockQty($db, $shoppingName, $unit, $packageSize, $packageUnit);
+    }
+    return $memo[$key];
 }
 
 /**
