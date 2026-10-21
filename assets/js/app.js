@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261021c'; // bump when translations change
+const _I18N_VERSION = '20261021d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8201,7 +8201,9 @@ async function loadStaleDashboardItems() {
             const pid = item.product_id;
             const iid = item.inventory_id;
             const loc = (item.location || 'dispensa').replace(/'/g, "\\'");
-            return `<div class="alert-item stale-item">
+            // The row opens the same detail sheet as the other alert lists (it used to be
+            // an inert div: "aperti da troppo tempo non accade nulla nemmeno su desktop").
+            return `<div class="alert-item stale-item alert-item-clickable" data-alert-inv-id="${iid}" data-alert-product-id="${pid}">
                 <div class="alert-item-info">
                     ${_alertItemHead(item)}
                     ${_alertItemMeta(item, unusedLabel)}
@@ -8215,6 +8217,7 @@ async function loadStaleDashboardItems() {
                 </div>
             </div>`;
         }).join('');
+        _bindAlertItemsHoldOpen(list);
     } catch (e) {
         console.warn('[stale]', e);
         section.style.display = 'none';
@@ -10177,7 +10180,22 @@ function _bindRowHoldOpen(el, openFn, opts = {}) {
         }
     };
 
-    const onUp = () => { clear(); };
+    const onUp = (e) => {
+        const wasPending = timer !== null;
+        const isTouch = lastPtr === 'touch' || lastPtr === 'pen';
+        const ignored = !!(ignoreSel && e.target && e.target.closest && e.target.closest(ignoreSel));
+        clear();
+        if (!wasPending || opened || !isTouch || ignored) return;
+        if (opts.tapToOpen === false) return;   // lists that must react to a hold only
+        // A tap is a click on a phone too. Ignoring it (and waiting for a 900 ms hold)
+        // made every alert row feel dead on Android: "tap su qualsiasi elemento non
+        // accade nulla". The synthetic click that follows is swallowed below.
+        opened = true;
+        openFn(e);
+        setTimeout(() => { opened = false; }, 400);
+    };
+
+    const onCancel = () => { clear(); };
 
     const onClick = (e) => {
         if (ignoreSel && e.target.closest(ignoreSel)) return;
@@ -10195,14 +10213,14 @@ function _bindRowHoldOpen(el, openFn, opts = {}) {
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
-    el.addEventListener('pointercancel', onUp);
+    el.addEventListener('pointercancel', onCancel);
     el.addEventListener('click', onClick);
     el._holdOpenTeardown = () => {
         clear();
         el.removeEventListener('pointerdown', onDown);
         el.removeEventListener('pointermove', onMove);
         el.removeEventListener('pointerup', onUp);
-        el.removeEventListener('pointercancel', onUp);
+        el.removeEventListener('pointercancel', onCancel);
         el.removeEventListener('click', onClick);
         el._holdOpenTeardown = null;
     };
@@ -11670,7 +11688,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11680,7 +11698,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261021c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261021d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -20103,13 +20121,14 @@ function _initShopRowSwipe(container) {
     container.addEventListener('touchend', onEnd, { passive: true });
     container.addEventListener('touchcancel', onEnd, { passive: true });
 
-    // Suggest rows: hold to add (short tap would fight with scroll)
+    // Suggest rows: hold to add (a tap is deliberately not an action here: the row
+    // also swipes, and adding by accident while scrolling would be worse).
     container.querySelectorAll('.shop-row-suggest').forEach(row => {
         _bindRowHoldOpen(row, () => {
             if (row._swipeMoved) { row._swipeMoved = false; return; }
             const sidx = parseInt(row.dataset.suggestIdx, 10);
             if (!isNaN(sidx)) addSmartItemQuick(sidx);
-        });
+        }, { tapToOpen: false });
     });
 }
 
