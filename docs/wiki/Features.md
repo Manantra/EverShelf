@@ -222,6 +222,22 @@ sit **side by side** in a wrapping row — never stacked in a column.
 Blocks with more products than the limit show an **“…and N more…”** line that opens the
 full list instead of stretching the dashboard.
 
+**Every row opens.** Tapping (or holding) any row — expiring, expired, opened or
+unused-for-too-long — opens the same product sheet; a scroll never opens anything, and a
+tap on the row's own button (*Extend expiry*) does only what the button says.
+
+### Expiry verdicts
+
+The printed date is a best-before, not a switch:
+
+| Situation | Verdict |
+|---|---|
+| expires **today** | 👀 Check — it is still valid until the end of the day |
+| 1–2 days past the date | 👀 Check, in the fridge and in the pantry alike (quality, not danger) |
+| farther past, perishable | 🚫 **Do not drink** for liquids, **Do not eat** for solid food |
+| farther past, long-life food | ✅ still fine, then 👀, then 🗑️ after six months |
+| frozen | +2 to +6 months of bonus depending on the food |
+
 ### Anomaly Banner
 
 Highlights suspicious quantities (e.g. "You have 0 eggs but used 12 this month"). Actions:
