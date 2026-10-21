@@ -37,7 +37,8 @@ dispensa/
 │   ├── css/
 │   │   ├── style.css           # Base layout
 │   │   ├── corporate.css       # Layer 2 — corporate look
-│   │   └── elegant.css         # Layer 3 — elegant refinements (loaded last; drop the <link> to revert)
+│   │   ├── elegant.css         # Layer 3 — elegant refinements (drop the <link> to revert)
+│   │   └── mobile.css          # Layer 4 — phone geometry, loaded last (no colours)
 │   ├── js/
 │   │   ├── core/               # auth.js, dom.js (loaded before app.js)
 │   │   └── app.js              # SPA logic (domain modules: future split)

@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.14] - 2026-10-21
+
+### The lists are readable on a phone
+Measured at a 360 px viewport with the app's own CSS (Chromium), before the fix:
+`alert-item-name` was cut at **107 px** (“Formaggio spalmabile Philadelphia, Class…”),
+the quantity line wrapped into **six** lines, inventory and product names were clipped,
+recipe titles were clipped and — worst — a shopping row collapsed its title to **0 px**,
+wrapping **one letter per line (43 lines)** because the name is `flex: 1` beside a nowrap
+quantity, an urgency badge and a price cell.
+
+- **New layer `assets/css/mobile.css`** (loaded **last**, after the themes, geometry only):
+  at ≤640 px the text owns the row and the badges/quantities move under it; alert names,
+  inventory/product names and recipe titles wrap instead of truncating; row buttons never
+  break mid-word. At ≤400 px the decorative shopping thumbnail and the swipe hint give
+  their space to the text.
+- **Measured after**: 0 truncated or squeezed elements at 320, 350, 390 and 414 px on all
+  eight row types (dashboard alerts incl. the 4-button “unused” row, inventory, shopping,
+  suggestions, products, log, recipes, smart items).
+- The layer is precached by `sw.js` and is the documented fourth CSS layer
+  (`docs/CODEBASE-MAP.md`, `docs/CORPORATE-UI.md`, `docs/ARCHITECTURE.md`).
+  Guard: `scripts/test-mobile-layout.php`.
+
 ## [1.16.13] - 2026-10-21
 
 ### The dismiss also covers the real-time sync
