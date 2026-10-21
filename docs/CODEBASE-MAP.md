@@ -17,7 +17,8 @@
 | `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
 | `assets/css/style.css` | All styles | ~10.8k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
-| `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded **last**, deletes no selector |
+| `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded before `mobile.css`, deletes no selector |
+| `assets/css/mobile.css` | **Fourth layer: phone geometry only** (no colours) — list rows wrap instead of truncating, badges/quantities move under the text, buttons never break mid-word | ~200 lines; loaded **LAST** so the themes cannot override it; guarded by `scripts/test-mobile-layout.php` |
 | `api/index.php` | **Entire backend**: router + all handlers | ~19.6k lines, 409 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |

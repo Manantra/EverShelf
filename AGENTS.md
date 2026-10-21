@@ -200,6 +200,7 @@ php scripts/test-product-quantity-floor.php # a pantry row below 20 g/ml (or 1 p
 php scripts/test-shopping-restock.php    # a finished product reaches the list (usable family stock, "usa tutto" always adds)
 php scripts/test-expiry-and-plan-days.php # the stored plan window wins, perishables by real location, expires-today ≠ expired
 php scripts/test-tap-open.php            # alert rows: a tap opens on touch (not only a 900 ms hold), stale list bound
+php scripts/test-mobile-layout.php       # mobile.css loaded last, the rules that stop truncation
 php scripts/test-shopping-total-canonical.php # one "Spesa stimata" for app, kiosk and Home Assistant (one basket, one key)
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 php scripts/test-support-monetization.php # optional support: the 2 answers, donation link, parked banner slots, all 6 locales
@@ -270,6 +271,7 @@ npm run build
 | Rate limits (429) | `checkRateLimit()` in `api/index.php` (line 111) + `data/rate_limits/`; the answer carries `error_key: error.rate_limited` + `retry_after` |
 | Alert rows open on tap (phone too) | `_bindAlertItemsHoldOpen()` → `_bindRowHoldOpen()`: a tap opens the sheet, a hold also works, a pointermove > 12 px cancels, a tap on a child button never opens, `tapToOpen: false` for lists where a tap means something else; all four lists incl. `stale-list` are bound — guard test `scripts/test-tap-open.php` |
 | Expiry verdict (safety pill) | `getExpiredSafety()` in `app.js`: the expiry day itself is "Controlla" (server query is date-only), 1–2 days past are "Controlla" everywhere, liquids say "Non bere" (status.dont_drink / status.tip_drink_*) — guard test `scripts/test-expiry-and-plan-days.php` |
+| Mobile layout (list rows) | `assets/css/mobile.css` (layer 4, loaded **last**, geometry only): at ≤640 px the text owns the row and badges/quantities wrap under it, so an alert name is not cut at 107 px and a shopping title does not collapse to 0 px (43 lines, one letter each). Do not put colours there — themes stay in charge; guard test `scripts/test-mobile-layout.php` |
 | Dates / numbers in the UI | `formatDate()` / `formatDateTime()` use `_collationLocale()` (it 19/10/2026, de 19.10.2026, zh 2026/10/19) and every date is formatted — never print the API's raw ISO string; the collation locale also drives number formatting and the TTS voice — guard test `scripts/test-locale-dates.php` |
 | Suggested purchase quantity | `smartResolvePlanDays()` (explicit request → `shopping_plan_days` → inferred cycle) + `smartPurchaseHorizonDays()` (shelf life of the real storage location, not the pantry) + `smartCapPeriodNeed()` — guard test `scripts/test-expiry-and-plan-days.php` |
 | Settings page (sections, accordion, checklist) | `SETTINGS_GROUPS` + `switchSettingsGroup()`, `SETTINGS_CHECKLIST` (~25820), `_initSettingsAccordions()` (~5222), `_openSettingsCardFor()` (~5288), `_checklistNewsItems()` (~25907) |

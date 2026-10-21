@@ -8,7 +8,8 @@ Design tokens live in `assets/css/style.css` (`:root`). **App-wide component sty
 |------|------|
 | `style.css` | Page layout, page-specific rules, dark mode, legacy components, CSS custom properties |
 | `corporate.css` | Unified buttons, cards, forms, modals, tabs, lists, navigation, shopping rows |
-| `elegant.css` | Third layer (v1.9.0): a restyle **and** the dark-mode repairs it caused. Loaded **last**, deletes no selector — removing it restores the previous look |
+| `elegant.css` | Third layer (v1.9.0): a restyle **and** the dark-mode repairs it caused. Loaded before `mobile.css`, deletes no selector — removing it restores the previous look |
+| `mobile.css` | Fourth layer (v1.16.14): **phone geometry only** — the list rows (dashboard alerts, inventory, shopping, products, recipes, log) give the text the full width and move badges/quantities under it. Loaded **last**; no colours, so it cannot fight a theme |
 
 `corporate.css` is a **layer on top** of `style.css` — it standardizes look-and-feel without replacing routing, i18n, or dark-mode logic. `elegant.css` is a layer on top of both, so every rule added to the first two is inherited (and can be overridden there) without touching them.
 
@@ -124,7 +125,7 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 
 - **Do** reuse CSS variables; avoid one-off hex colors.
 - **Do** keep one font family and two weights (600/700 for emphasis).
-- **Do** load `corporate.css` after `style.css` (and `elegant.css` last) when adding new pages.
+- **Do** load `corporate.css` after `style.css`, then `elegant.css`, then `mobile.css` (the responsive layer must stay last) when adding new pages.
 - **Do** give a settings card a heading (`<h4>`) if it should be collapsible — the accordion skips a card without one.
 - **Don’t** mix unrelated button heights on the same row.
 - **Don’t** reintroduce persistent swipe text hints — use the one-time demo instead.
