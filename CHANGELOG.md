@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.13] - 2026-10-21
+
+### The dismiss also covers the real-time sync
+- Verifying v1.16.12 on the live pantry showed a dismissed product coming back through a
+  *different* door: a stock change calls `bringQuickSyncProduct()` /
+  `shoppingSyncProductFromCache()`, which insert straight into the list without going
+  through the cron. Both paths check `shoppingIsDismissed()` now (the log carries
+  `shopping_dismissed_skip`), so “non lo compro” holds whatever moves the stock.
+- The rows that had already been re-added before the fix were removed once with the same
+  rule (app-managed rows of a dismissed family only — user rows are never touched).
+  Guard: `scripts/test-shopping-dismiss.php`, which now also drives
+  `bringQuickSyncProduct()`.
+
 ## [1.16.12] - 2026-10-21
 
 ### “Non lo compro” now survives the 5-minute cron
