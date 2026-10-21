@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.9] - 2026-10-21
+
+### A tap works on the phone, and the last alert list reacts too
+- **Tap-to-open on touch.** `_bindRowHoldOpen()` deliberately ignored the synthetic click
+  on touch/pen and waited for a **900 ms hold**, so on Android a tap on any dashboard alert
+  (scaduti, in scadenza, aperti) did nothing at all. A tap now opens the row; the hold still
+  works, a scroll (pointermove > 12 px) still cancels, a tap on the row button never opens
+  the sheet, and the synthetic click that follows a tap is swallowed. Lists where a tap has
+  another meaning opt out with `tapToOpen: false` (the shopping “suggested” rows, which
+  swipe and would add items by accident).
+- **“Aperti da troppo tempo” is clickable.** Those rows were plain divs without
+  `alert-item-clickable`/`data-alert-inv-id` and were never bound, so nothing happened even
+  on desktop. They now open the same detail sheet as the other three lists.
+  Guard: `scripts/test-tap-open.php` (a fake DOM drives pointerdown/up/click, hold, scroll,
+  mouse and a tap on a child button).
+
 ## [1.16.8] - 2026-10-21
 
 ### Quantities follow the window you chose — and a date is not a death sentence

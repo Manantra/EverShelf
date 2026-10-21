@@ -199,6 +199,7 @@ php scripts/test-ai-product-match.php   # the AI name matches the RIGHT article 
 php scripts/test-product-quantity-floor.php # a pantry row below 20 g/ml (or 1 pz) is refused; tomatoes count by piece
 php scripts/test-shopping-restock.php    # a finished product reaches the list (usable family stock, "usa tutto" always adds)
 php scripts/test-expiry-and-plan-days.php # the stored plan window wins, perishables by real location, expires-today ≠ expired
+php scripts/test-tap-open.php            # alert rows: a tap opens on touch (not only a 900 ms hold), stale list bound
 php scripts/test-shopping-total-canonical.php # one "Spesa stimata" for app, kiosk and Home Assistant (one basket, one key)
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 php scripts/test-support-monetization.php # optional support: the 2 answers, donation link, parked banner slots, all 6 locales
