@@ -89,7 +89,7 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
   `getExpiredSafety()` in app.js: the date is a best-before, so the day itself is
   “Controlla” (the server’s expired query is DATE-ONLY for the same reason), 1–2 days
   past are “Controlla” in the pantry too, and liquids say “Non bere” instead of
-  “Non mangiare”. The insight area rotates `_INSIGHT_PHASES` (8 panels, 60 s each)
+  “Non mangiare”. A shopping row is a FAMILY row: the payload also carries `family_qty` and the row shows it (never the representative product's own stock), while the “Hai già X in dispensa” hint counts the same `shopping_name` family only. The insight area rotates `_INSIGHT_PHASES` (8 panels, 60 s each)
   through `_applyInsightPhase()`, which skips any panel whose body is empty.
 - Settings: `_initSettingsAccordions()` turns every heading-bearing `.settings-card`
   into an accordion (`_toggleSettingsCard`/`_setSettingsCardOpen`/`_closeSettingsCards`,

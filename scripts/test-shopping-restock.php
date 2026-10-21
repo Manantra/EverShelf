@@ -1,22 +1,22 @@
 #!/usr/bin/env php
 <?php
 /**
- * Regression tests: a FINISHED product must reach the shopping list.
+ * Regression tests: a FINISHED product must reach the shopping list, and the row must
+ * report the stock of its FAMILY.
  *
- * The report: "prodotti che sono finiti come marmellata, yogurt, ecc non sono nella
- * lista della spesa". Two independent causes, both fixed here:
- *
- *   1. smartShopping() suppressed a depleted product as soon as any other product of
- *      the same `shopping_name` family had stock — adding grams, packs and pieces
- *      together, counting expired batches and 0.5 g traces. In a real pantry that hid
- *      74 finished products with history: "360 g" of lemon jam kept every jar of jam
- *      off the list, an expired pack kept butter off, a smear kept tomatoes off.
- *      Now the family must still hold a USABLE purchase: fresh, above the trace
- *      threshold, converted to the same base family with the package size
- *      (`evershelfBaseQty()`), and at least one pack / half the usual bought quantity.
- *   2. bringAddDepletedProduct() skipped the add for the same reason. An explicit
- *      "I finished this" (usa tutto) now always lands on the list — the row carries
- *      🛒 Esaurito, so the cleanup never removes it behind the user's back.
+ * The reports:
+ *   * "prodotti che sono finiti come marmellata, yogurt, ecc non sono nella lista":
+ *     smartShopping() suppressed a depleted product as soon as any other product of the
+ *     same `shopping_name` family had stock — adding grams, packs and pieces together and
+ *     counting expired batches and 0.5 g traces. Coverage now needs a USABLE purchase:
+ *     fresh, above the trace threshold, expanded to the same base family with the package
+ *     size (`evershelfBaseQty()`), worth at least one pack (or half the usual buy for g/ml).
+ *   * "usa tutto" (bringAddDepletedProduct) always lands on the list now; it used to skip
+ *     the add for the same family reason.
+ *   * "Zucchero di canna: Esaurito … se ne ho in dispensa??" — the row is ONE buyable
+ *     generic, so it also exposes `family_qty`, and the "Hai già X in dispensa" hint only
+ *     counts the SAME family (the old first-token fallback matched any product starting
+ *     with the same word).
  *
  * Run: php scripts/test-shopping-restock.php
  */
@@ -29,13 +29,50 @@ $fail = 0;
 function assert_true(bool $cond, string $msg): void
 {
     global $fail;
-    if (!$cond) {
-        echo "FAIL: {$msg}\n";
+    if (!$cond) { echo "FAIL: {$msg}\n"; $fail++; } else { echo "OK: {$msg}\n"; }
+}
+
+function assert_same($expected, $actual, string $msg): void
+{
+    global $fail;
+    if ($expected !== $actual) {
+        echo "FAIL: {$msg} (got " . var_export($actual, true) . ", expected " . var_export($expected, true) . ")\n";
         $fail++;
     } else {
         echo "OK: {$msg}\n";
     }
 }
+
+/** Run a slice of the app's own JS in node and return stdout ('' when node is missing). */
+function js_eval(string $source, string $code): string
+{
+    static $node = null;
+    if ($node === null) {
+        $node = trim((string)shell_exec('command -v node 2>/dev/null'));
+    }
+    if ($node === '') {
+        return '';
+    }
+    $file = tempnam(sys_get_temp_dir(), 'evershelf-') . '.js';
+    file_put_contents($file, $source . "\n" . $code . "\n");
+    $out = (string)shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>&1');
+    @unlink($file);
+    return trim($out);
+}
+
+/** A whole top-level JS function: from `function name(` to the closing brace at column 0. */
+function slice_js_function(string $source, string $name): string
+{
+    $start = strpos($source, 'function ' . $name . '(');
+    if ($start === false) {
+        return '';
+    }
+    $end = strpos($source, "\n}\n", $start);
+    return $end === false ? '' : substr($source, $start, $end - $start + 3);
+}
+
+$root = __DIR__ . '/..';
+$js   = (string)file_get_contents($root . '/assets/js/app.js');
 
 // ── Unit helpers: a trace, an expired pack and another scale never cover ---------
 assert_true(!evershelfStockRowCoversUnit(0.3, 'g', null, 'g'), 'a 0.3 g trace is not stock');
@@ -102,6 +139,38 @@ $out = json_decode($raw, true);
 $byName = [];
 foreach (($out['items'] ?? []) as $it) {
     $byName[mb_strtolower((string)$it['shopping_name'])] = $it;
+}
+assert_true(is_array($out), 'smartShopping() answers JSON');
+assert_true(isset($byName['marmellata']), 'a finished jar of jam is predicted when the family has less than a pack');
+assert_true(!isset($byName['yogurt']), 'a finished yogurt stays hidden while 16 packs of the same family are in stock');
+assert_true(isset($byName['caffè']), 'a finished coffee is predicted when the family only has a 0.3 g trace');
+assert_true(isset($byName['tonno']), 'a finished tuna is predicted when the family pack is expired');
+
+// The row is a FAMILY row: it must report the family's stock next to its own, or the UI
+// says "Esaurito" while `pct_left` (family) says 47% — the reported sugar contradiction.
+$jam = $byName['marmellata'] ?? [];
+assert_true(isset($jam['family_qty']), 'the payload exposes family_qty');
+assert_true((float)($jam['current_qty'] ?? -1) === 0.0, 'the finished jar has current_qty 0');
+assert_true((float)($jam['family_qty'] ?? 0) > 0, 'but family_qty reports the 360 g still in the pantry');
+
+// ── "Hai già X in dispensa" must speak about the SAME family ─────────────────
+$hintFn = slice_js_function($js, '_shoppingFamilyInventoryRows');
+assert_true($hintFn !== '', 'app.js: _shoppingFamilyInventoryRows() exists');
+$hintProbe = $hintFn . "\n"
+    . "const inv = [\n"
+    . "  { name: 'Zucchero grezzo di canna', shopping_name: 'Zucchero', quantity: 235 },\n"
+    . "  { name: 'Zucchero di canna', shopping_name: 'Zucchero di canna', quantity: 100 },\n"
+    . "  { name: 'Zucchero di canna', shopping_name: 'Zucchero di canna', quantity: 0 },\n"
+    . "];\n"
+    . "const rows = _shoppingFamilyInventoryRows({ name: 'Zucchero di canna' }, { shopping_name: 'Zucchero di canna' }, inv);\n"
+    . "console.log(JSON.stringify(rows.map(r => r.quantity)));";
+$hintOut  = js_eval('', $hintProbe);
+$hintRows = json_decode($hintOut, true);
+if (!is_array($hintRows)) {
+    echo "SKIP: node is not available — the pantry-hint probe was not run ({$hintOut})\n";
+} else {
+    assert_same([100], $hintRows, 'the pantry hint only counts the same shopping_name family (not "Zucchero grezzo")');
+}
 
 // ── The explicit "usa tutto" must always land on the list ──────────────────────
 if (!isShoppingBringMode()) {
@@ -116,8 +185,7 @@ if (!isShoppingBringMode()) {
     $again = shoppingAddDepletedProduct($db, 3);
     assert_true(empty($again['added']), 'a second product of the same family does not duplicate the row');
 
-    // The cleanup still drops a row left over from a STALE cache when the family is
-    // genuinely stocked (the cache no longer lists it, so the row is obsolete).
+    // The cleanup still drops a row left over from a STALE cache when the family is stocked.
     $idx = evershelfSmartItemsIndex([[
         'name' => 'Yogurt bianco', 'shopping_name' => 'Yogurt', 'unit' => 'conf',
         'urgency' => 'critical', 'current_qty' => 0,
@@ -143,11 +211,7 @@ if (!isShoppingBringMode()) {
     $cacheFile   = __DIR__ . '/../data/smart_shopping_cache.json';
     $cacheBackup = file_exists($cacheFile) ? file_get_contents($cacheFile) : null;
     register_shutdown_function(static function () use ($cacheFile, $cacheBackup): void {
-        if ($cacheBackup === null) {
-            @unlink($cacheFile);
-        } else {
-            @file_put_contents($cacheFile, $cacheBackup);
-        }
+        if ($cacheBackup === null) { @unlink($cacheFile); } else { @file_put_contents($cacheFile, $cacheBackup); }
     });
     file_put_contents($cacheFile, json_encode([
         'success' => true,
@@ -173,10 +237,3 @@ if ($fail === 0) {
     echo "\nAll shopping restock tests passed.\n";
 }
 exit($fail === 0 ? 0 : 1);
-}
-assert_true(is_array($out), 'smartShopping() answers JSON');
-assert_true(isset($byName['marmellata']), 'a finished jar of jam is predicted when the family has less than a pack');
-assert_true(!isset($byName['yogurt']), 'a finished yogurt stays hidden while 16 packs of the same family are in stock');
-assert_true(isset($byName['caffè']), 'a finished coffee is predicted when the family only has a 0.3 g trace');
-assert_true(isset($byName['tonno']), 'a finished tuna is predicted when the family pack is expired');
-
