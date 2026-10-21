@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.8] - 2026-10-21
+
+### Quantities follow the window you chose — and a date is not a death sentence
+- **The planning window is honoured.** Settings → Spesa said “quantità calcolate per 25
+  giorni” (`app_settings.shopping_plan_days`) but `smartResolvePlanDays()` ignored the stored
+  value and used the *inferred* cycle (7 days here), so the cron computed every quantity for
+  a week: 5 lemons a month became “2 pz”. The stored window now wins over the inference (an
+  explicit `plan_days` request still wins over both; “auto” keeps the inferred cycle).
+- **Perishables are planned against the shelf life of where they are actually kept.**
+  `smartPurchaseHorizonDays()` estimated every perishable as if it sat in the pantry, so
+  lemons lived 7 days instead of the 21 the fridge gives them — and the anti-waste cap then
+  asked for half the lemons the household eats. Produce and meat use their real location now;
+  bread keeps its 4-day horizon, so the “never a month of salad” rule still holds.
+- **A product expiring TODAY is not expired.** The dashboard query compared
+  `julianday('now')` (which carries the clock) with the date, so at 00:01 of its own
+  best-before day the milk was already listed as expired with a 🚫 verdict. The comparison is
+  date-only now.
+- **The verdict is proportionate, and drinks are drunk.** Day 0 is “Controlla”, one or two
+  days past the date are “Controlla” in the pantry too (a quality issue, not a danger), and a
+  liquid past its date says “Non bere” instead of “Non mangiare” — three new tips and a new
+  label in all six locales. Guard: `scripts/test-expiry-and-plan-days.php`.
+
 ## [1.16.7] - 2026-10-21
 
 ### The two automations stopped fighting over the same row

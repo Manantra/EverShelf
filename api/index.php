@@ -8047,7 +8047,10 @@ function getStats(PDO $db): void {
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL
-          AND julianday('now') - julianday(i.expiry_date) > CASE WHEN COALESCE(i.vacuum_sealed,0)=1 THEN ? ELSE 0 END
+          -- Date-only on purpose: an item that expires TODAY is valid until the end of
+          -- the day, but julianday('now') carries the clock, so at 00:01 of its own
+          -- best-before date the milk was already listed as expired with a 🚫 verdict.
+          AND julianday(date('now')) - julianday(date(i.expiry_date)) > CASE WHEN COALESCE(i.vacuum_sealed,0)=1 THEN ? ELSE 0 END
           AND i.quantity > 0
         ORDER BY i.expiry_date ASC
         LIMIT 40
@@ -17070,13 +17073,31 @@ function smartDefaultPlanDays(?PDO $db = null): int {
     return 30;
 }
 
-/** Resolve planning horizon (1–30 days). Null/empty → default (30 or inferred). */
+/**
+ * Resolve the planning horizon (1–30 days).
+ *
+ * An explicit request wins. Otherwise the window the user chose in Settings → Spesa
+ * (`shopping_plan_days`) MUST be used: the UI already says "quantità calcolate per N
+ * giorni", and the cron used to compute for the *inferred* cycle instead (7 days in a
+ * pantry that planned 25), so every suggested quantity was a fraction of the truth —
+ * 5 lemons a month came out as "2 pz". Only when the user chose "auto" (no stored
+ * value) do we infer the shopping cycle.
+ */
 function smartResolvePlanDays($requested, ?PDO $db = null): int {
-    if ($requested === null || $requested === '') {
-        return smartDefaultPlanDays($db);
+    if ($requested !== null && $requested !== '') {
+        return max(1, min(30, (int)$requested));
     }
-    $d = (int)$requested;
-    return max(1, min(30, $d));
+    if ($db instanceof PDO) {
+        try {
+            $stored = (int)($db->query("SELECT value FROM app_settings WHERE key = 'shopping_plan_days'")->fetchColumn() ?: 0);
+        } catch (Throwable $e) {
+            $stored = 0;
+        }
+        if ($stored >= 1) {
+            return max(1, min(30, $stored));
+        }
+    }
+    return smartDefaultPlanDays($db);
 }
 
 /**
@@ -17312,8 +17333,13 @@ function smartPurchaseStorageLocation(string $name, string $category, array $was
 
 /**
  * Shopping qty horizon: for perishables, only count days you can finish before spoil.
- * Uses a conservative (non-fridge-boosted) shelf life so we never suggest a month of
- * zucchini just because they "could" last 14 days in the fridge.
+ *
+ * The shelf life comes from the place the household actually stores the item
+ * (`smartPurchaseStorageLocation()`: produce → frigo), NOT from the pantry: the app
+ * already assigns the item there and dates its expiry with that bonus, so planning the
+ * purchase against the pantry estimate asked for half the lemons the household eats
+ * (5 a month planned for 25 days came out as "2 pz"). The estimate is still the sealed,
+ * non-vacuum one, so a month of salad is never suggested.
  *
  * @return array{days:int,shelf_days:int,capped:bool,location:string}
  */
@@ -17325,11 +17351,9 @@ function smartPurchaseHorizonDays(
 ): array {
     $planDays = max(1, min(30, $planDays));
     $loc = smartPurchaseStorageLocation($name, $category, $wasteHint);
-    // Purchase planning: estimate as if stored in pantry/dispensa (no fridge optimism).
-    // Fridge extensions are for opened-stock alerts, not for "how much to buy".
     $shelf = 180;
     if (function_exists('estimateSealedExpiryDaysPHP')) {
-        $shelf = max(1, estimateSealedExpiryDaysPHP($name, $category, 'dispensa'));
+        $shelf = max(1, estimateSealedExpiryDaysPHP($name, $category, $loc));
     }
     // Cap any perishable (≤21d sealed) to what is finishable before spoil.
     // Always mark capped=true for perishables so piece floors use edible use-rate

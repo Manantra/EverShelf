@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261021b'; // bump when translations change
+const _I18N_VERSION = '20261021c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2300,7 +2300,6 @@ function getExpiredSafety(item, daysExpired) {
     const cat = mapToLocalCategory(item.category || '', item.name || '');
     const loc = (item.location || '').toLowerCase();
     const inFreezer = loc === 'freezer';
-    const inFrigo = loc === 'frigo';
 
     // === FREEZER: il congelamento allunga molto la vita ===
     // Carne/pesce in freezer: +3 mesi. Verdura/frutta: +6 mesi. Pane: +2 mesi.
@@ -2328,15 +2327,32 @@ function getExpiredSafety(item, daysExpired) {
     }
 
     // === FRIGO e DISPENSA ===
-    // Labels stay short badges (Va bene / Controlla / Non mangiare / Buttalo); tips are title-only.
+    // The printed date is a best-before, not a switch: the day itself is still valid.
+    // The server keeps such rows out of the expired list now; this guard keeps the
+    // banner honest for any caller that still passes 0 (it used to say "Non mangiare"
+    // on the very day the milk expires).
+    if (daysExpired < 1) {
+        return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_expires_today') };
+    }
+
+    // Liquids are drunk, not eaten: the verdict must say so.
+    const isDrink = cat === 'bevande'
+        || ['ml', 'cl', 'l', 'lt'].includes(String(item.unit || '').toLowerCase());
+
+    // Labels stay short badges (Va bene / Controlla / Non mangiare / Non bere / Buttalo);
+    // tips are title-only.
     const highRisk = ['latticini', 'carne', 'pesce', 'verdura', 'frutta'];
     const medRisk = ['pane', 'surgelati'];
 
     if (highRisk.includes(cat)) {
-        if (inFrigo && daysExpired <= 2) {
-            return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_highRisk_check') };
+        // One or two days past the date are a quality issue, not a danger — in the fridge
+        // as in the pantry (UHT milk, hard cheese, cured meat).
+        if (daysExpired <= 2) {
+            return { level: 'warning', icon: '👀', label: t('status.check'),
+                     tip: t(isDrink ? 'status.tip_drink_check' : 'status.tip_highRisk_check') };
         }
-        return { level: 'danger', icon: '🚫', label: t('status.dont_eat'), tip: t('status.tip_highRisk_danger') };
+        return { level: 'danger', icon: '🚫', label: t(isDrink ? 'status.dont_drink' : 'status.dont_eat'),
+                 tip: t(isDrink ? 'status.tip_drink_danger' : 'status.tip_highRisk_danger') };
     }
 
     if (medRisk.includes(cat)) {
@@ -11654,7 +11670,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11664,7 +11680,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261021b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261021c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
