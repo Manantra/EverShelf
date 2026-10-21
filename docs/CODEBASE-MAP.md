@@ -80,8 +80,17 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
 - Dashboard: the alert blocks are capped per block (`DASHBOARD_EXPIRING_MAX` 3,
   `DASHBOARD_OPENED_MAX` 5, `DASHBOARD_ALERT_MAX` 5 for expired,
   `DASHBOARD_STALE_MAX` 3 with a deterministic 30-minute `_staleRotationPick`). The
-  insight area rotates `_INSIGHT_PHASES` (8 panels, 60 s each) through
-  `_applyInsightPhase()`, which skips any panel whose body is empty.
+  four lists (`expiring-list`, `expired-list`, `opened-list`, `stale-list`) all bind the
+  same way — `_bindAlertItemsHoldOpen()` → `_bindRowHoldOpen()` — and every row carries
+  `alert-item-clickable` + `data-alert-inv-id`: **a tap opens on touch as well as on
+  desktop** (a hold also works; a pointermove > 12 px cancels it, and a tap on a child
+  button never opens the sheet). Lists where a tap has another meaning pass
+  `tapToOpen: false` (the shopping “suggested” rows). The expiry verdict comes from
+  `getExpiredSafety()` in app.js: the date is a best-before, so the day itself is
+  “Controlla” (the server’s expired query is DATE-ONLY for the same reason), 1–2 days
+  past are “Controlla” in the pantry too, and liquids say “Non bere” instead of
+  “Non mangiare”. The insight area rotates `_INSIGHT_PHASES` (8 panels, 60 s each)
+  through `_applyInsightPhase()`, which skips any panel whose body is empty.
 - Settings: `_initSettingsAccordions()` turns every heading-bearing `.settings-card`
   into an accordion (`_toggleSettingsCard`/`_setSettingsCardOpen`/`_closeSettingsCards`,
   one open at a time, `SETTINGS_ACCORDION_SKIP = ['settings-checklist']`), and
