@@ -53,6 +53,19 @@ assert_true($posMobile !== false, 'index.html loads assets/css/mobile.css');
 assert_true($posMobile > $posElegant, 'mobile.css comes AFTER elegant.css (the themes cannot override it)');
 assert_true(str_contains($sw, "BASE + 'assets/css/mobile.css'"), 'sw.js precaches mobile.css');
 
+// Layer 4a (surfaces.css): neutral card chrome + one semantic tone per block. It
+// sits between the themes and mobile.css, so neither of them loses its say.
+$posSurfaces = strpos($html, 'assets/css/surfaces.css');
+assert_true($posSurfaces !== false, 'index.html loads assets/css/surfaces.css');
+assert_true($posSurfaces > $posElegant, 'surfaces.css comes after the themes (it may restyle their cards)');
+assert_true($posSurfaces < $posMobile, 'surfaces.css comes BEFORE mobile.css (phones keep the last word)');
+assert_true(str_contains($sw, "BASE + 'assets/css/surfaces.css'"), 'sw.js precaches surfaces.css');
+$surfaces = (string)file_get_contents($root . '/assets/css/surfaces.css');
+assert_true(str_contains($surfaces, '--tone-danger') && str_contains($surfaces, '[data-theme="dark"]'),
+    'surfaces.css carries semantic tones for both themes');
+assert_true(!preg_match('/\.alert-section\s*\{[^}]*border:\s*2px/', $surfaces),
+    'the calm layer never re-introduces a 2px coloured frame');
+
 // ── The rules that fixed the measured failures ─────────────────────────────
 $rules = [
     '/\.alert-item\s*\{[^}]*flex-wrap:\s*wrap/'                     => 'alert rows wrap instead of squeezing the text',

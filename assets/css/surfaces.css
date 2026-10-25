@@ -1,0 +1,297 @@
+/* ============================================================================
+ * surfaces.css — the "calm surface" layer (loaded AFTER the themes, BEFORE
+ * mobile.css, which stays last so its geometry rules still win on a phone).
+ *
+ * Why this file exists (UI audit, 2026-10-25): the dashboard stacked five
+ * differently coloured borders in one scroll — amber section, red section,
+ * orange gradient CTA, blue value, purple card — so nothing looked more urgent
+ * than anything else ("semaforo" effect). The rule from here on:
+ *
+ *   - the SURFACE is always neutral (one card colour, one hairline border);
+ *   - a semantic tone appears once per block, as a 3px left rail + a small
+ *     coloured title dot, and inside the badges that carry the meaning;
+ *   - primaries are bigger than secondaries (touch targets), never a row of six
+ *     equally-sized micro buttons.
+ *
+ * Colours come from the theme tokens, so dark mode and Corporate/Elegant keep
+ * working: this layer moves the *structure*, not the palette.
+ * ========================================================================== */
+
+:root {
+    --surface-bg: var(--bg-card);
+    --surface-border: color-mix(in srgb, var(--border) 75%, transparent);
+    --surface-radius: var(--radius);
+    --surface-pad: 14px;
+
+    --tone-danger: #dc2626;
+    --tone-danger-soft: rgba(220, 38, 38, 0.10);
+    --tone-soon: #d97706;
+    --tone-soon-soft: rgba(217, 119, 6, 0.10);
+    --tone-info: #2563eb;
+    --tone-info-soft: rgba(37, 99, 235, 0.08);
+    --tone-calm: #0f766e;
+    --tone-calm-soft: rgba(15, 118, 110, 0.08);
+
+    --touch-min: 40px;
+}
+
+[data-theme="dark"] {
+    --surface-bg: var(--bg-card);
+    --surface-border: color-mix(in srgb, var(--border) 90%, transparent);
+    --tone-danger: #f87171;
+    --tone-danger-soft: rgba(248, 113, 113, 0.14);
+    --tone-soon: #fbbf24;
+    --tone-soon-soft: rgba(251, 191, 36, 0.14);
+    --tone-info: #60a5fa;
+    --tone-info-soft: rgba(96, 165, 250, 0.14);
+    --tone-calm: #34d399;
+    --tone-calm-soft: rgba(52, 211, 153, 0.14);
+}
+
+/* ── One neutral surface for every dashboard block ─────────────────────────── */
+.alert-section,
+#waste-chart-section,
+.alert-banner,
+.quick-recipe-bar .btn-quick-recipe,
+.stat-card {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--surface-radius);
+    box-shadow: none;
+}
+
+.alert-section {
+    padding: var(--surface-pad);
+    position: relative;
+    overflow: hidden;
+}
+
+/* The tone is a rail, not a frame: one colour per block, and it never fills the
+   card. `box-shadow` instead of `border-left` keeps the radius clean. */
+.alert-danger,
+.alert-opened,
+.alert-stale,
+#alert-expiring {
+    box-shadow: inset 3px 0 0 var(--rail, var(--tone-soon));
+}
+.alert-danger { --rail: var(--tone-danger); }
+#alert-expiring { --rail: var(--tone-soon); }
+.alert-opened { --rail: var(--tone-info); }
+.alert-stale { --rail: var(--tone-calm); }
+
+/* Section headings: small caps + a tone dot, instead of a coloured sentence. */
+.alert-section h3,
+.alert-danger h3,
+.alert-opened h3,
+.alert-stale h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-light);
+    margin: 0 0 10px;
+}
+.alert-section h3::after,
+.alert-danger h3::after,
+.alert-opened h3::after,
+.alert-stale h3::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rail, var(--tone-soon));
+    opacity: 0.85;
+    flex: 0 0 auto;
+}
+
+/* ── Rows: neutral, one metric, one action ─────────────────────────────────── */
+.alert-item {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 10px 6px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.alert-item + .alert-item { border-top: 1px solid var(--surface-border); border-radius: 0; }
+.alert-item:active { background: var(--tone-info-soft); }
+.alert-item-clickable { cursor: pointer; }
+
+/* Badges: same shape everywhere, the colour is the only difference. */
+.alert-item-badge,
+.alert-item-qty,
+.safety-pill {
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 9px;
+    line-height: 1.5;
+}
+
+/* Actions: secondaries meet the touch minimum and never outgrow a primary. */
+.alert-item-badges .btn-banner,
+.alert-item-badges .btn-alert-extend,
+.btn-alert-extend {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+    border-radius: 10px;
+    padding: 0 10px;
+}
+
+/* The single recipe CTA of the urgency hub: accent, not a full-width gradient. */
+.quick-recipe-bar .btn-quick-recipe {
+    background: var(--tone-calm-soft);
+    color: var(--tone-calm);
+    border-color: color-mix(in srgb, var(--tone-calm) 35%, transparent);
+    box-shadow: none;
+    min-height: var(--touch-min);
+    font-weight: 700;
+}
+.quick-recipe-bar .btn-quick-recipe:active { transform: scale(0.99); }
+
+/* ── Location rail (pill carousel) ─────────────────────────────────────────
+   One horizontal, snapping row instead of a 2x2 grid that pushes the alerts
+   below the fold. Geometry only — colours come from the theme. */
+.location-rail {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 2px 2px 10px;
+    margin-bottom: 6px;
+}
+.location-rail::-webkit-scrollbar { display: none; }
+
+.location-pill {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+}
+.location-pill:active { transform: scale(0.98); }
+.location-pill .loc-icon { font-size: 1.05rem; line-height: 1; }
+.location-pill .loc-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-light);
+    background: color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+.location-pill .loc-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tone-danger);
+    box-shadow: 0 0 0 2px var(--surface-bg);
+    position: absolute;
+    top: 6px;
+    right: 8px;
+}
+.location-pill.is-empty { opacity: 0.55; }
+.location-pill.location-pill-add {
+    border-style: dashed;
+    color: var(--text-light);
+    background: transparent;
+}
+
+/* Compact month strip: the analytic digest that stays on the dashboard. */
+.month-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: var(--touch-min);
+    padding: 8px 14px;
+    margin-bottom: 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text);
+    font-size: 0.82rem;
+    cursor: pointer;
+    text-align: left;
+}
+.month-strip .month-strip-value { font-weight: 700; }
+.month-strip .month-strip-arrow { margin-left: auto; color: var(--text-light); }
+
+/* ── Stock hub: one block, three tabs ─────────────────────────────────────── */
+.stock-hub { margin-bottom: 12px; }
+
+.stock-hub-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 3px;
+    margin-bottom: 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: color-mix(in srgb, var(--border) 30%, transparent);
+}
+.stock-hub-tabs::-webkit-scrollbar { display: none; }
+
+.stock-tab {
+    flex: 1 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.stock-tab .stock-tab-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0 6px;
+    background: color-mix(in srgb, var(--border) 60%, transparent);
+}
+.stock-tab.is-active {
+    background: var(--surface-bg);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.stock-tab[hidden] { display: none; }
+
+.stock-hub-panel[hidden] { display: none; }
+
+/* The row menu: one button instead of a strip of micro actions. */
+.alert-item-menu {
+    flex: 0 0 auto;
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    color: var(--text-light);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.alert-item-menu:active { background: var(--tone-info-soft); }
