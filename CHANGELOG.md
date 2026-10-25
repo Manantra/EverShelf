@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.21] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### The capture sheet finally talks back
+The sheet looked dead: a mic button with no feedback, no transcript, no
+interpretation — so a wrong parse was indistinguishable from a broken app. Now:
+- the mic **fills with the incoming audio level** (`getUserMedia` + `AnalyserNode`,
+  RMS into `--level`) and five bars move with it: “it is listening” is visible even
+  with the sound off;
+- the transcript appears **while it is still guessing** (grey italic) and becomes
+  solid when final;
+- before routing, the sheet shows what it understood as chips — intent · product ·
+  quantity — so a wrong read is visible as a wrong read;
+- an ambiguous product is **asked**, not guessed: the closest pantry rows appear as
+  one-tap chips and the text stays editable;
+- the microphone and the recogniser are released on close/end (no hot mic).
+
+**Internal multilingual model, no external AI.** A lexicon per intent (consume /
+add / recipe / throw) in all six UI languages, scanned together so an Italian
+sentence works on an English UI; Unicode-aware word boundaries (`\p{L}`) so
+“äpfel”, “caffè” and “cucino” match while “tomates” no longer loses “ate”; longest
+word first so “buttato” wins over “butta”; spelled numbers 1–10 in six languages
+(“due mele” → 2); units as standalone tokens (the “l” of “apfel” is not a litre);
+and a similarity scorer (exact > plural/stem > prefix > substring > token overlap)
+that ranks the pantry rows — ≥ 0.75 routes straight, otherwise the sheet asks.
+
+Guard test `scripts/test-capture-parse.php` — **168 checks**: 18 sentences across
+the six languages (intent + product + quantity), the ranking, the meter/interim/
+chips wiring, “no `api()`/`fetch()` in the parser” and the lexicon coverage.
+
 ## [1.16.20] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### UI review round 2 — the three structural fixes and the palette
