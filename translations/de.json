@@ -2025,6 +2025,7 @@
     "backup_no_dir": "Backup-Ordner kann nicht erstellt werden",
     "backup_no_db": "Datenbank nicht gefunden",
     "backup_copy_failed": "Datenbank konnte nicht kopiert werden",
+    "backup_integrity": "Die Sicherung hat die Integritätsprüfung nicht bestanden: es wurde keine Datei erstellt.",
     "backup_invalid_name": "Ungültiger Backup-Name",
     "backup_not_found": "Backup nicht gefunden",
     "backup_delete_failed": "Backup konnte nicht gelöscht werden",

@@ -13940,6 +13940,29 @@ function createLocalBackup(?PDO $db = null): array {
         @unlink($tmpPath);
         $made = @copy($dbFile, $tmpPath);
     }
+    // A snapshot is only a backup if it opens: verify it before it replaces anything
+    // (audit G3). `quick_check` is the cheap structural check (O(pages), no repair);
+    // a truncated or half-copied file fails here instead of being promoted to "the
+    // backup" and discovered on restore day.
+    if ($made) {
+        $integrity = 'unreadable';
+        try {
+            $probe = new PDO('sqlite:' . $tmpPath);
+            $probe->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $integrity = (string)$probe->query('PRAGMA quick_check')->fetchColumn();
+            $probe = null;
+        } catch (Throwable $e) {
+            $integrity = 'unreadable: ' . $e->getMessage();
+        }
+        if ($integrity !== 'ok') {
+            @unlink($tmpPath);
+            EverLog::error('Backup failed its integrity check', [
+                'event'  => 'backup_integrity_failed',
+                'result' => substr($integrity, 0, 200),
+            ]);
+            return ['success' => false, 'error' => 'Backup failed the integrity check', 'error_key' => 'error.backup_integrity'];
+        }
+    }
     if (!$made || !@rename($tmpPath, $destPath)) {
         @unlink($tmpPath);
         return ['success' => false, 'error' => 'Failed to copy database file', 'error_key' => 'error.backup_copy_failed'];

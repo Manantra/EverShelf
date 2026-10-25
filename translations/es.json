@@ -2025,6 +2025,7 @@
     "backup_no_dir": "No se puede crear la carpeta de copias",
     "backup_no_db": "No se encuentra la base de datos",
     "backup_copy_failed": "No se pudo copiar la base de datos",
+    "backup_integrity": "La copia de seguridad no ha superado el control de integridad: no se creó ningún archivo.",
     "backup_invalid_name": "Nombre de copia no válido",
     "backup_not_found": "Copia no encontrada",
     "backup_delete_failed": "No se pudo eliminar la copia",

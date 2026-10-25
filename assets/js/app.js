@@ -14974,6 +14974,7 @@ function _apiErrorText(data) {
     if (key === 'error.backup_no_dir') return t('error.backup_no_dir');
     if (key === 'error.backup_no_db') return t('error.backup_no_db');
     if (key === 'error.backup_copy_failed') return t('error.backup_copy_failed');
+    if (key === 'error.backup_integrity') return t('error.backup_integrity');
     if (key === 'error.backup_invalid_name') return t('error.backup_invalid_name');
     if (key === 'error.backup_not_found') return t('error.backup_not_found');
     if (key === 'error.backup_delete_failed') return t('error.backup_delete_failed');

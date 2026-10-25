@@ -2025,6 +2025,7 @@
     "backup_no_dir": "无法创建备份文件夹",
     "backup_no_db": "找不到数据库",
     "backup_copy_failed": "无法复制数据库",
+    "backup_integrity": "备份未通过完整性检查：未创建文件。",
     "backup_invalid_name": "备份名称无效",
     "backup_not_found": "找不到备份",
     "backup_delete_failed": "无法删除备份",

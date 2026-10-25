@@ -2025,6 +2025,7 @@
     "backup_no_dir": "Cannot create the backup folder",
     "backup_no_db": "Database not found",
     "backup_copy_failed": "Could not copy the database",
+    "backup_integrity": "The backup failed its integrity check: no file was created.",
     "backup_invalid_name": "Invalid backup name",
     "backup_not_found": "Backup not found",
     "backup_delete_failed": "Could not delete the backup",

@@ -2025,6 +2025,7 @@
     "backup_no_dir": "Impossible de créer le dossier de sauvegarde",
     "backup_no_db": "Base de données introuvable",
     "backup_copy_failed": "Impossible de copier la base de données",
+    "backup_integrity": "La sauvegarde n'a pas passé le contrôle d'intégrité : aucun fichier n'a été créé.",
     "backup_invalid_name": "Nom de sauvegarde invalide",
     "backup_not_found": "Sauvegarde introuvable",
     "backup_delete_failed": "Impossible de supprimer la sauvegarde",
