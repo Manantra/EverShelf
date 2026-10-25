@@ -2712,7 +2712,8 @@
     "intent_unknown": "Not recognised",
     "understood": "I understood",
     "which_one": "Which one did you mean?",
-    "throw_hint": "Opening {name}: you can throw it from there."
+    "throw_hint": "Opening {name}: you can throw it from there.",
+    "mic_prompt": "Allow the microphone above, then speak."
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."

@@ -149,6 +149,16 @@ check('opening the sheet starts listening by itself',
 check('the recogniser starts inside the gesture, before any await',
     !str_contains($app, 'await _captureStartMeter()')
     && str_contains($app, "_captureRec.start();\n        _captureStartMeter();"));
+check('the first run explains the permission prompt instead of looking stuck',
+    str_contains($app, "navigator.permissions.query({ name: 'microphone' })")
+    && str_contains($app, "_captureStatus('capture.mic_prompt')"));
+check('the prompt hint exists in all six locales',
+    array_reduce(['it','en','de','fr','es','zh'], function ($ok, $loc) use ($root) {
+        $doc = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);
+        $val = $doc['capture']['mic_prompt'] ?? '';
+        return $ok && is_string($val) && trim($val) !== '';
+    }, true));
+
 check('the idle line no longer asks for a tap',
     !str_contains($html, 'Tocca il microfono e parla'));
 

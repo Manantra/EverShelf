@@ -2712,7 +2712,8 @@
     "intent_unknown": "Non riconosciuto",
     "understood": "Ho capito",
     "which_one": "Quale intendevi?",
-    "throw_hint": "Apro {name}: da lì puoi buttarlo."
+    "throw_hint": "Apro {name}: da lì puoi buttarlo.",
+    "mic_prompt": "Consenti il microfono in alto, poi parla."
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."

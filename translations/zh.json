@@ -2712,7 +2712,8 @@
     "intent_unknown": "未识别",
     "understood": "我理解为",
     "which_one": "你指的是哪一个？",
-    "throw_hint": "正在打开 {name}：可在那里丢弃。"
+    "throw_hint": "正在打开 {name}：可在那里丢弃。",
+    "mic_prompt": "请先在上方允许麦克风，然后说话。"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"

@@ -2712,7 +2712,8 @@
     "intent_unknown": "Nicht erkannt",
     "understood": "Verstanden",
     "which_one": "Welches meintest du?",
-    "throw_hint": "Öffne {name}: dort kannst du es wegwerfen."
+    "throw_hint": "Öffne {name}: dort kannst du es wegwerfen.",
+    "mic_prompt": "Erlaube oben das Mikrofon und sprich dann."
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."

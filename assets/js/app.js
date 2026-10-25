@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025u'; // bump when translations change
+const _I18N_VERSION = '20261025v'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8101,6 +8101,20 @@ function _openCaptureSheet() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (Ctor) {
         _captureStartVoice();
+        // First run: the browser is showing (or about to show) the microphone prompt.
+        // Say it, or "Ti ascolto…" looks stuck while the user has not answered yet.
+        try {
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'microphone' }).then((st) => {
+                    const sheetOpen = document.getElementById('capture-sheet');
+                    const tr = document.getElementById('capture-transcript');
+                    const silent = !tr || tr.hidden || !tr.textContent;
+                    if (st.state === 'prompt' && silent && _captureRec && sheetOpen && sheetOpen.style.display !== 'none') {
+                        _captureStatus('capture.mic_prompt');
+                    }
+                }).catch(() => {});
+            }
+        } catch (e) { /* permissions API missing: nothing to say */ }
     } else if (input) {
         setTimeout(() => { try { input.focus(); } catch (e) {} }, 80);
     }
@@ -12435,7 +12449,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025u';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025v';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12445,7 +12459,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025u';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025v';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

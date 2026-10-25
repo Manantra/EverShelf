@@ -2712,7 +2712,8 @@
     "intent_unknown": "Non reconnu",
     "understood": "J'ai compris",
     "which_one": "Lequel voulais-tu ?",
-    "throw_hint": "J'ouvre {name} : tu peux le jeter depuis là."
+    "throw_hint": "J'ouvre {name} : tu peux le jeter depuis là.",
+    "mic_prompt": "Autorise le micro en haut, puis parle."
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."
