@@ -13,6 +13,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.20] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### UI review round 2 — the three structural fixes and the palette
+- **“Dimenticati” escaped the stock hub.** The stale list is fetched asynchronously and
+  finished *after* the tab was chosen, then set its own panel visible again — so it
+  reappeared under whichever tab was active (the “le liste sotto sono ancora entrambe
+  visibili” report). The loader now re-applies the tab selection like the other two do;
+  exactly one panel is visible whichever request finishes last.
+- **No more duplicated food in “Salva lo spreco”.** The expired products are rows of
+  the hub, and the anomaly banner repeated the same product a few pixels above:
+  `loadBannerAlerts()` now drops expired entries whose product is already listed and
+  keeps the banner for what the list does not show (anomalies, predictions, reviews).
+- **The six pastel buttons are gone.** `[Finito][Usa][Buttato][Modifica][Estendi][Chiudi]`
+  collapsed into one primary action (preferring “Usa”) plus the same 40 px ⋮ menu the
+  stock rows use; the other actions live in a neutral panel under the row. Handlers
+  untouched, all seven banner kinds render through the same helper.
+- **“Fresh & Crisp Slate” palette**: canvas `#F8FAFC`, white cards, hairline `#E2E8F0`,
+  text `#0F172A` / muted `#64748B`, one brand emerald `#059669`; semantic states as
+  light background + dark text + accent line (danger `#FEE2E2/#991B1B/#EF4444`, warning
+  `#FEF3C7/#92400E/#F59E0B`, info `#E0F2FE/#075985/#0284C7`). Blocks are white with a
+  soft shadow and a **4 px left accent line** instead of coloured frames; the header is
+  a white surface with dark icons instead of the deep forest-green bar.
+- **Three text levels**: product title 15 px/600, metadata 13 px/400 muted, badge
+  12 px/600 — the 10-11 px “grey noise” lines are gone.
+- **One relative-date format**: `tra 6 gg` / `36 gg fa` everywhere on the dashboard
+  (`_relativeDaysAhead()` / `_relativeDaysAgo()`, six locales), replacing the mixed
+  “6 giorni”, “8gg”, “Da 36g”.
+- **Centre button**: microphone glyph and “Ascolta”/“Listen” label, emerald fill — the
+  primary action is voice.
+
+Guard tests: `scripts/test-stock-hub.php` (43), `scripts/test-urgency-hub.php` (51) and
+the new `scripts/test-ui-palette.php` (42) lock the behaviour and the palette.
+
 ## [1.16.19] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### The “Altro” location is gone
