@@ -146,6 +146,53 @@ if (is_array($out)) {
     check('an anomaly alone opens the hub', ($out['banner']['hub_hidden'] ?? null) === false);
 }
 
+// ── The banner is one row with two controls, and never repeats a listed product ──
+check('every banner type renders through _collapseBannerActions()',
+    substr_count($app, 'actionsEl.innerHTML = _collapseBannerActions(btns);') === 7);
+$collapse = extract_fn($app, '_collapseBannerActions');
+check('_collapseBannerActions() is extractable', $collapse !== '');
+check('the menu toggle exists', extract_fn($app, '_toggleBannerMenu') !== '');
+check('an expired entry already listed is not shown again',
+    str_contains($app, "document.querySelectorAll('#expired-list .alert-item')")
+    && str_contains($app, "entry.type !== 'expired' || !listedIds.has("));
+check('the menu panel is styled', str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), '.banner-menu-list'));
+
+$harness = $collapse . <<<'JS'
+const t = (k) => ({ 'dashboard.row_actions': 'More actions' }[k] || k);
+const escapeAttr = (s) => String(s);
+const html = [
+    '<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">Finito</button>',
+    '<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">Usa</button>',
+    '<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">Buttato</button>',
+    '<button class="btn-banner btn-banner-edit2" onclick="editReviewItem(1,2)">Modifica</button>',
+    '<button class="btn-banner btn-banner-extend" onclick="bannerExtendExpiry()">Estendi</button>',
+    '<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">Chiudi</button>',
+].join('');
+const out = _collapseBannerActions(html);
+console.log(JSON.stringify({
+    primary: /^<button class="btn-banner btn-banner-use"/.test(out),
+    primary_only_one: (out.match(/btn-banner-use"/g) || []).length === 1,
+    menu_button: out.includes('banner-menu-btn'),
+    menu_items: (out.match(/<button/g) || []).length,
+    keeps_handlers: ['bannerFinishAll', 'bannerThrowAway', 'editReviewItem', 'bannerExtendExpiry', 'dismissBannerExpired'].every(f => out.includes(f)),
+    single: _collapseBannerActions('<button class="btn-banner">Solo</button>').includes('banner-menu-list') === false,
+}));
+JS;
+
+$tmp2 = sys_get_temp_dir() . '/banner_collapse_' . getmypid() . '.js';
+file_put_contents($tmp2, $harness);
+$raw2 = shell_exec('node ' . escapeshellarg($tmp2) . ' 2>/dev/null');
+@unlink($tmp2);
+$out2 = json_decode(trim((string)$raw2), true);
+check('the collapse harness runs in node', is_array($out2), (string)$raw2);
+if (is_array($out2)) {
+    check('"Usa" becomes the primary action', (bool)($out2['primary'] ?? false));
+    check('only one filled action stays visible', (bool)($out2['primary_only_one'] ?? false));
+    check('the rest go behind a 40px menu button', (bool)($out2['menu_button'] ?? false));
+    check('every handler survives the move', (bool)($out2['keeps_handlers'] ?? false));
+    check('a single-action banner gets no empty menu', (bool)($out2['single'] ?? false));
+}
+
 // --------------------------------------------------------------------- i18n
 foreach (['dashboard.urgency_title', 'dashboard.urgency_expired', 'dashboard.urgency_soon', 'dashboard.quick_recipe_short'] as $key) {
     foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {

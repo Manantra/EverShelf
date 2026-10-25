@@ -505,3 +505,33 @@
     text-decoration: underline;
     cursor: pointer;
 }
+
+/* Secondary banner actions: the same 40px \u22ee the stock rows use, with a small
+   neutral panel under it. No rainbow of pastel buttons. */
+.alert-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.alert-banner-actions .btn-banner { min-height: var(--touch-min); }
+.banner-menu-btn { margin-left: auto; }
+.banner-menu-list {
+    flex: 1 1 100%;
+    display: grid;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.banner-menu-list[hidden] { display: none; }
+.banner-menu-list .btn-banner {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: var(--touch-min);
+    background: transparent;
+    border-color: var(--surface-border);
+    color: var(--text);
+}

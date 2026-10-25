@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025m'; // bump when translations change
+const _I18N_VERSION = '20261025n'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9130,6 +9130,19 @@ async function loadBannerAlerts() {
             entry.type !== 'expired' || shouldShowExpiredBanner(entry.data)
         );
 
+        // The urgency hub already lists the expired stock as rows right below: a
+        // banner repeating the same product two centimetres above it is the
+        // duplication the audit flagged. Keep the banner for what the list does not
+        // show — anomalies, predictions, reviews — and drop the expired duplicates.
+        const listedIds = new Set(Array.from(document.querySelectorAll('#expired-list .alert-item'))
+            .map(el => String(el.dataset.alertProductId || ''))
+            .filter(Boolean));
+        if (listedIds.size) {
+            _bannerQueue = _bannerQueue.filter(entry =>
+                entry.type !== 'expired' || !listedIds.has(String(entry.data && entry.data.product_id))
+            );
+        }
+
         // Sort by priority (highest first)
         _bannerQueue.sort((a, b) => _bannerPriority(b) - _bannerPriority(a));
 
@@ -9200,6 +9213,37 @@ function _bannerPriority(entry) {
         default:
             return 0;
     }
+}
+
+/**
+ * One banner row, two controls.
+ *
+ * The expired entry used to expose six pastel buttons (Finito, Usa, Buttato,
+ * Modifica, Estendi, Chiudi) in one row: low contrast, tiny labels and a wrong-tap
+ * trap on a kiosk. The entry keeps exactly one primary action and folds the rest
+ * into the same ⋮ menu the stock rows use — the handlers are untouched, only the
+ * presentation changes.
+ */
+function _collapseBannerActions(html) {
+    const parts = String(html || '').match(/<button[\s\S]*?<\/button>/g) || [];
+    if (parts.length <= 1) return html;
+    const pick = parts.find(b => /btn-banner-use(?!-danger)/.test(b))
+        || parts.find(b => /btn-banner-ok|btn-banner-confirm/.test(b))
+        || parts[0];
+    const rest = parts.filter(b => b !== pick);
+    if (!rest.length) return pick;
+    return pick
+        + `<button type="button" class="alert-item-menu banner-menu-btn" aria-expanded="false" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="_toggleBannerMenu(this)">⋮</button>`
+        + `<div class="banner-menu-list" hidden>${rest.join('')}</div>`;
+}
+
+/** Open/close the secondary actions of the current banner row. */
+function _toggleBannerMenu(btn) {
+    const list = btn && btn.nextElementSibling;
+    if (!list) return;
+    const open = list.hidden;
+    list.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function renderBannerItem() {
@@ -9273,7 +9317,7 @@ function renderBannerItem() {
         if (!isOpenedExpiry) {
             btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
         }
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
 
     } else if (entry.type === 'review') {
         const item = entry.data;
@@ -9314,7 +9358,7 @@ function renderBannerItem() {
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_review_action_weigh')}</button>`;
         }
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
 
     } else if (entry.type === 'prediction') {
         const pred = entry.data;
@@ -9343,7 +9387,7 @@ function renderBannerItem() {
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_prediction_action_weigh')}</button>`;
         }
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
 
     } else if (entry.type === 'finished') {
         const fin = entry.data;
@@ -9375,7 +9419,7 @@ function renderBannerItem() {
         } else {
             btns = yesBtn + restoreBtn + keepBtn;
         }
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
 
     } else if (entry.type === 'anomaly') {
         const an = entry.data;
@@ -9396,7 +9440,7 @@ function renderBannerItem() {
         if (_geminiAvailable) {
             btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="${t('dashboard.banner_explain_title')}">\ud83e\udd16 ${t('dashboard.banner_explain_btn')}</button>`;
         }
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
 
     } else if (entry.type === 'dup_loss_check') {
         const ch = entry.data;
@@ -9420,7 +9464,7 @@ function renderBannerItem() {
             btns += `<button class="btn-banner btn-banner-edit" onclick="openDuplicateLossCheck(${ch.product_id})">${t('dashboard.banner_dup_loss_action_open')}</button>`;
         }
         btns += `<button class="btn-banner btn-banner-ok" onclick="dismissDuplicateLossCheck()">${t('dashboard.banner_dup_loss_action_done')}</button>`;
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
 
     } else if (entry.type === 'no_expiry') {
         const item = entry.data;
@@ -9431,7 +9475,7 @@ function renderBannerItem() {
         const pid = item.product_id || item.id;
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerNoExpiry()">${t('dashboard.banner_no_expiry_action_set')}</button>`;
         btns += `<button class="btn-banner btn-banner-ok" onclick="confirmNoExpiryNeeded(${pid})">${t('dashboard.banner_no_expiry_action_dismiss')}</button>`;
-        actionsEl.innerHTML = btns;
+        actionsEl.innerHTML = _collapseBannerActions(btns);
     }
 
     if (_bannerQueue.length > 1) {
@@ -12108,7 +12152,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025m';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12118,7 +12162,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
