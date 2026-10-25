@@ -269,7 +269,10 @@
     "banner_prediction_confirmed": "✅ Confirmed — forecasts will recalculate from your next entries",
     "banner_anomaly_explain_fail": "Could not get AI explanation",
     "banner_anomaly_dismissed": "Anomaly dismissed",
-    "banner_finished_restore_prompt": "How many {unit} of {name} do you still have? (system estimate: {qty})"
+    "banner_finished_restore_prompt": "How many {unit} of {name} do you still have? (system estimate: {qty})",
+    "locations_aria": "Locations",
+    "add_location": "Add",
+    "location_alerts": "{n} products to check"
   },
   "inventory": {
     "title": "List",

@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261025e">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025e">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025e">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261025f">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025f">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025f">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025e">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025e">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025f">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025f">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261025e"></script>
-    <script src="assets/js/core/auth.js?v=20261025e"></script>
+    <script src="assets/js/core/dom.js?v=20261025f"></script>
+    <script src="assets/js/core/auth.js?v=20261025f"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261025e"></script>
+    <script src="assets/js/core/support.js?v=20261025f"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025f';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025e';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025f';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261025e"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261025f"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -215,29 +215,12 @@
 
     <!-- ===== DASHBOARD ===== -->
     <section class="page active" id="page-dashboard">
-        <div class="dashboard-stats" id="dashboard-stats">
-            <div class="stat-card" onclick="showPage('inventory', 'dispensa')">
-                <span class="stat-icon">🗄️</span>
-                <span class="stat-value" id="stat-dispensa">-</span>
-                <span class="stat-label" data-i18n="locations.dispensa">Dispensa</span>
-            </div>
-            <div class="stat-card" onclick="showPage('inventory', 'frigo')">
-                <span class="stat-icon">🧊</span>
-                <span class="stat-value" id="stat-frigo">-</span>
-                <span class="stat-label" data-i18n="locations.frigo">Frigo</span>
-            </div>
-            <div class="stat-card" onclick="showPage('inventory', 'freezer')">
-                <span class="stat-icon">❄️</span>
-                <span class="stat-value" id="stat-freezer">-</span>
-                <span class="stat-label" data-i18n="locations.freezer">Freezer</span>
-            </div>
-            <div class="stat-card" onclick="showPage('shopping')">
-                <span class="stat-icon">🛒</span>
-                <span class="stat-value" id="stat-spesa">-</span>
-                <span class="stat-label" data-i18n="nav.shopping">Spesa</span>
-                <span class="stat-price-total" id="stat-price-total" style="display:none"></span>
-            </div>
-        </div>
+        <!-- Locations as a snapping pill rail (UI audit, block 1): one horizontal row
+             of dynamic locations — the old 2x2 grid pushed the alerts below the fold
+             and mixed stocking states with the purchase flow (the shopping count now
+             lives as a badge on the Spesa tab). Rendered by renderLocationRail(). -->
+        <div class="location-rail" id="location-rail" role="list"
+             aria-label="Locazioni" data-i18n-aria="dashboard.locations_aria"></div>
 
         <!-- Top notification banner (anomalous qty + consumption predictions) -->
         <div id="alert-banner" class="alert-banner" style="display:none">
@@ -2941,13 +2924,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261025e"></script>
-<script src="assets/js/core/vocab.js?v=20261025e"></script>
-<script src="assets/js/app.js?v=20261025e"></script>
-<script src="assets/js/audit.js?v=20261025e"></script>
-<script src="assets/js/receipt.js?v=20261025e"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261025e"></script>
-<script src="assets/js/settings_search.js?v=20261025e"></script>
+<script src="assets/js/vocab.generated.js?v=20261025f"></script>
+<script src="assets/js/core/vocab.js?v=20261025f"></script>
+<script src="assets/js/app.js?v=20261025f"></script>
+<script src="assets/js/audit.js?v=20261025f"></script>
+<script src="assets/js/receipt.js?v=20261025f"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261025f"></script>
+<script src="assets/js/settings_search.js?v=20261025f"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

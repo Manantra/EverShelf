@@ -269,7 +269,10 @@
     "banner_prediction_confirmed": "✅ 已确认——系统会从下次入库开始重新计算预测",
     "banner_anomaly_explain_fail": "无法获取 AI 解释",
     "banner_anomaly_dismissed": "已忽略异常",
-    "banner_finished_restore_prompt": "{name} 还剩多少 {unit}？（系统估算：{qty}）"
+    "banner_finished_restore_prompt": "{name} 还剩多少 {unit}？（系统估算：{qty}）",
+    "locations_aria": "存放位置",
+    "add_location": "添加",
+    "location_alerts": "需检查 {n} 个产品"
   },
   "inventory": {
     "title": "库存",

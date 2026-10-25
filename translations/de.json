@@ -269,7 +269,10 @@
     "banner_prediction_confirmed": "✅ Bestätigt — Prognosen werden aus den nächsten Einträgen neu berechnet",
     "banner_anomaly_explain_fail": "KI-Erklärung konnte nicht abgerufen werden",
     "banner_anomaly_dismissed": "Anomalie ignoriert",
-    "banner_finished_restore_prompt": "Wie viele {unit} {name} hast du noch? (Systemschätzung: {qty})"
+    "banner_finished_restore_prompt": "Wie viele {unit} {name} hast du noch? (Systemschätzung: {qty})",
+    "locations_aria": "Orte",
+    "add_location": "Hinzufügen",
+    "location_alerts": "{n} Produkte zu prüfen"
   },
   "inventory": {
     "title": "Liste",

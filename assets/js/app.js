@@ -1407,7 +1407,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025e'; // bump when translations change
+const _I18N_VERSION = '20261025f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7833,6 +7833,91 @@ function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
 }
 
 /**
+ * Locations rail (UI audit, block 1).
+ *
+ * One snapping row of pills — icon, name, count — built from the *dynamic* list
+ * (builtin + custom), so a household that keeps a "Cantina" gets a pill instead of
+ * a fixed 2x2 grid. A red dot marks a location that holds something expired or
+ * expiring: the count stays the number of products, the dot carries the urgency.
+ * The last pill leads to the place where locations are added.
+ */
+function renderLocationRail(summary, stats) {
+    const rail = document.getElementById('location-rail');
+    if (!rail) return;
+    const counts = {};
+    for (const row of (summary || [])) {
+        const key = String(row.location || '');
+        if (!key) continue;
+        counts[key] = (counts[key] || 0) + (parseInt(row.product_count, 10) || 0);
+    }
+    const urgent = {};
+    const flag = (items) => {
+        for (const item of (items || [])) {
+            const key = String(item.location || '');
+            if (key) urgent[key] = (urgent[key] || 0) + 1;
+        }
+    };
+    flag(stats && stats.expired);
+    flag(stats && stats.expiring_soon);
+
+    const html = Object.entries(LOCATIONS).map(([key, meta]) => {
+        const count = counts[key] || 0;
+        const alerts = urgent[key] || 0;
+        const dot = alerts
+            ? `<span class="loc-dot" title="${escapeAttr(t('dashboard.location_alerts', { n: alerts }))}"></span>`
+            : '';
+        return `<button type="button" class="location-pill${count === 0 ? ' is-empty' : ''}" role="listitem" data-loc="${escapeAttr(key)}" onclick="showPage('inventory', '${escapeAttr(key)}')">`
+            + `<span class="loc-icon" aria-hidden="true">${meta.icon}</span>`
+            + `<span class="loc-label">${escapeHtml(meta.label)}</span>`
+            + `<span class="loc-count">${count}</span>${dot}</button>`;
+    });
+    html.push(`<button type="button" class="location-pill location-pill-add" role="listitem" onclick="_openLocationsSettings()">`
+        + `<span class="loc-icon" aria-hidden="true">＋</span>`
+        + `<span class="loc-label">${escapeHtml(t('dashboard.add_location'))}</span></button>`);
+    rail.innerHTML = html.join('');
+}
+
+/** First paint: the pills the instance always has, with no invented numbers. */
+function _paintLocationRailSkeleton() {
+    const rail = document.getElementById('location-rail');
+    if (!rail) return;
+    rail.innerHTML = Object.values(LOCATIONS).slice(0, 4).map(meta =>
+        `<span class="location-pill is-empty"><span class="loc-icon" aria-hidden="true">${meta.icon}</span>`
+        + `<span class="loc-count">–</span></span>`
+    ).join('');
+}
+
+/** "+" pill: the existing, tested place where locations are added. */
+function _openLocationsSettings() {
+    showPage('settings');
+    setTimeout(() => {
+        try { _flashSettingsCard('settings.custom_locations.title'); } catch (e) { /* settings not ready */ }
+    }, 250);
+}
+
+/**
+ * Count badge on a bottom-nav tab. The shopping count used to be a dashboard card,
+ * which mixed the purchase flow with the stocking states (audit, block 1).
+ */
+function _setNavBadge(page, count) {
+    const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
+    if (!btn) return;
+    const n = parseInt(count, 10);
+    let badge = btn.querySelector('.nav-badge');
+    if (!n || n <= 0) {
+        if (badge) badge.remove();
+        return;
+    }
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'nav-badge';
+        badge.setAttribute('aria-hidden', 'true');
+        btn.appendChild(badge);
+    }
+    badge.textContent = n > 99 ? '99+' : String(n);
+}
+
+/**
  * Name + brand of a dashboard row on one line (they wrap only when really narrow).
  */
 function _alertItemHead(item) {
@@ -7890,35 +7975,22 @@ function _startStaleRotation() {
 }
 
 async function loadDashboard() {
-    // Show shimmer on stat cards while loading
-    ['stat-dispensa', 'stat-frigo', 'stat-freezer'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('stat-loading');
-    });
+    // The rail keeps its previous pills on a reload (no flash), and shows the
+    // skeleton state only on the very first paint.
+    if (!document.getElementById('location-rail')?.childElementCount) {
+        _paintLocationRailSkeleton();
+    }
 
     try {
         const [summaryData, statsData] = await Promise.all([
             api('inventory_summary'),
             api('stats')
         ]);
-        
-        // Update stat cards
+
+        // Locations: one snapping rail of dynamic pills (stocking states only —
+        // the purchase flow lives in the Spesa tab, with a badge on the nav).
         const summary = summaryData.summary || [];
-        let total = 0;
-        ['dispensa', 'frigo', 'freezer'].forEach(loc => {
-            const s = summary.find(x => x.location === loc);
-            const count = s ? s.product_count : 0;
-            const el = document.getElementById(`stat-${loc}`);
-            el.textContent = count;
-            el.classList.remove('stat-loading');
-            total += count;
-        });
-        // Add non-standard locations
-        summary.forEach(s => {
-            if (!['dispensa', 'frigo', 'freezer'].includes(s.location)) {
-                total += s.product_count;
-            }
-        });
+        renderLocationRail(summary, statsData);
         // Load shopping list count from Bring!
         loadShoppingCount();
         // Show last known total instantly, then refresh from server
@@ -8151,11 +8223,10 @@ async function loadDashboard() {
         
     } catch (err) {
         console.error('Dashboard load error:', err);
-        // Remove shimmer even on error so numbers don't disappear forever
-        ['stat-dispensa', 'stat-frigo', 'stat-freezer'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) { el.classList.remove('stat-loading'); if (el.textContent === '') el.textContent = '-'; }
-        });
+        // Never leave the rail empty on a failed first load, but do not invent counts.
+        if (!document.getElementById('location-rail')?.childElementCount) {
+            renderLocationRail([], {});
+        }
     }
 }
 
@@ -11695,7 +11766,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11705,7 +11776,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19498,23 +19569,12 @@ async function addSmartToBring() {
 
 // Load just the shopping count for dashboard stat card
 async function loadShoppingCount() {
-    const el = document.getElementById('stat-spesa');
-    if (el) el.classList.add('stat-loading');
+    // The count is a badge on the Spesa tab now, not a dashboard card.
     try {
         const data = await api('shopping_list');
-        if (el) {
-            if (data.success && data.purchase) {
-                el.textContent = data.purchase.length;
-            } else {
-                el.textContent = '-';
-            }
-            el.classList.remove('stat-loading');
-        }
+        _setNavBadge('shopping', (data.success && Array.isArray(data.purchase)) ? data.purchase.length : 0);
     } catch {
-        if (el) {
-            el.textContent = '-';
-            el.classList.remove('stat-loading');
-        }
+        _setNavBadge('shopping', 0);
     }
     // Smart urgency badge: always fetch fresh data from server (no browser-side gate)
     try {

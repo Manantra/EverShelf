@@ -269,7 +269,10 @@
     "banner_prediction_confirmed": "✅ Confirmé — les prévisions seront recalculées à partir de vos prochains enregistrements",
     "banner_anomaly_explain_fail": "Impossible d'obtenir l'explication IA",
     "banner_anomaly_dismissed": "Anomalie ignorée",
-    "banner_finished_restore_prompt": "Combien de {unit} de {name} vous reste-t-il ? (estimation : {qty})"
+    "banner_finished_restore_prompt": "Combien de {unit} de {name} vous reste-t-il ? (estimation : {qty})",
+    "locations_aria": "Emplacements",
+    "add_location": "Ajouter",
+    "location_alerts": "{n} produits à vérifier"
   },
   "inventory": {
     "title": "Liste",
