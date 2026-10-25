@@ -9010,7 +9010,12 @@ function getServerSettings(): void {
         'web_push_subscriber_count' => (function () {
             try {
                 $db = getDB();
-                evershelfWebPushEnsureTable($db);
+                // get_settings runs on every boot: ask the catalog before running any
+                // DDL (audit D2), and run it only when the table is really missing.
+                $exists = $db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'webpush_subscriptions'")->fetchColumn();
+                if (!$exists) {
+                    evershelfWebPushEnsureTable($db);
+                }
                 return (int)$db->query('SELECT COUNT(*) FROM webpush_subscriptions')->fetchColumn();
             } catch (Throwable $e) {
                 return 0;
