@@ -524,6 +524,20 @@ body {
     0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone-calm) 14%, transparent); }
     50%      { box-shadow: 0 0 0 14px color-mix(in srgb, var(--tone-calm) 6%, transparent); }
 }
+/* A sonar ring travels outward from the button while the mic records: the level fill
+   alone was easy to miss on a phone at arm's length. Two shadows, so the ring is not
+   clipped by the button's own overflow: hidden (a pseudo-element would be). */
+.capture-mic.is-listening {
+    animation: capture-ping 1.6s ease-out infinite;
+}
+@keyframes capture-ping {
+    0%   { box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone-calm) 30%, transparent), 0 0 0 4px color-mix(in srgb, var(--tone-calm) 22%, transparent); }
+    70%  { box-shadow: 0 0 0 12px color-mix(in srgb, var(--tone-calm) 10%, transparent), 0 0 0 26px transparent; }
+    100% { box-shadow: 0 0 0 12px transparent, 0 0 0 26px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .capture-mic.is-listening { animation: none; box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent); }
+}
 
 .capture-status {
     margin: 0 0 12px;
@@ -535,6 +549,14 @@ body {
 .capture-input-row { display: flex; gap: 8px; align-items: center; }
 .capture-input-row .form-input { flex: 1 1 auto; min-height: var(--touch-min); }
 .capture-input-row .btn { min-height: var(--touch-min); }
+.capture-input-row .btn-accent {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+    font-weight: 700;
+    padding: 0 16px;
+}
+.capture-input-row .btn-accent:active { background: var(--brand-primary-hover); }
 
 .capture-hints {
     display: flex;
@@ -548,14 +570,16 @@ body {
 .capture-hint {
     flex: 0 0 auto;
     min-height: 32px;
-    padding: 4px 12px;
-    border-radius: 999px;
-    border: 1px dashed var(--surface-border);
-    background: transparent;
-    color: var(--text-light);
-    font-size: 0.78rem;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 13px;
     cursor: pointer;
 }
+.capture-hint:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+[data-theme="dark"] .capture-hint { background: #1E293B; color: #CBD5E1; }
 .capture-chat-link {
     display: block;
     margin: 8px auto 0;
@@ -868,28 +892,9 @@ body {
     font-weight: 600;
 }
 
-/* Extend expiry: a real touch target with a dark icon and a label that appears as
-   soon as there is room, so it cannot be confused with the ⋮ next to it. */
+/* Row actions: keep the gap honest now that the row carries "Usa" + ⋮ (the extend
+   pill moved into the detail modal and the banner menu). */
 .alert-item-badges { gap: 8px; }
-.btn-alert-extend {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: var(--touch-min);
-    min-width: var(--touch-min);
-    padding: 0 12px;
-    border-radius: 10px;
-    border: 1px solid var(--surface-border);
-    background: color-mix(in srgb, var(--surface-border) 45%, transparent);
-    color: var(--text-main);
-    font-size: 13px;
-    font-weight: 600;
-}
-.btn-alert-extend:active { background: var(--brand-surface); color: var(--brand-primary); }
-.btn-alert-extend .extend-label { display: none; }
-@media (min-width: 520px) {
-    .btn-alert-extend .extend-label { display: inline; }
-}
 
 /* The system strip keeps its neutral surface whatever kind it is: the amber/orange
    gradients from the theme were designed for a card, not for a one-line alert. */
@@ -911,3 +916,166 @@ body {
 .system-alert .alert-banner-title { color: var(--text-main); }
 .system-alert .alert-banner-detail { color: var(--text-muted); }
 .system-alert .banner-loc { font-size: 13px; }
+
+/* ── Product modal: one primary, one secondary, neutral support (round 4) ────
+   Four saturated colours (orange / green / purple / red) competed in one row; the
+   frequent action had no quantity; barcode and timestamps sat in the middle of the
+   card. Hierarchy now: emerald primary → emerald outline secondary → grey support. */
+.item-detail-section-label {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.item-detail-consume {
+    padding: 12px 0 4px;
+    border-top: 1px solid var(--surface-border);
+}
+.item-detail-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 6px 0 12px;
+}
+.item-detail-step {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+.item-detail-step:active { background: var(--brand-surface); color: var(--brand-primary); }
+.item-detail-step-value {
+    min-width: 120px;
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.item-detail-primary,
+.item-detail-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    border-radius: 12px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.item-detail-primary {
+    min-height: 50px;
+    border: none;
+    background: var(--brand-primary);
+    color: #fff;
+}
+.item-detail-primary:active { background: var(--brand-primary-hover); }
+.item-detail-secondary {
+    min-height: 44px;
+    margin-top: 8px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    background: var(--brand-surface);
+    color: var(--brand-primary-hover);
+}
+.item-detail-secondary:active { background: color-mix(in srgb, var(--brand-primary) 18%, transparent); }
+
+.item-detail-support {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+}
+.item-detail-support .item-detail-section-label { width: 100%; }
+.item-detail-support-btn {
+    flex: 1 1 45%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.item-detail-support-btn:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+[data-theme="dark"] .item-detail-support-btn { background: #1E293B; color: #CBD5E1; }
+
+/* Barcode, timestamps and status live here, one tap away. */
+.item-detail-more {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--surface-border);
+}
+.item-detail-more > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.item-detail-more > summary::-webkit-details-marker { display: none; }
+
+/* Row's frequent action: consumption. Same pill shape as the old extend, emerald. */
+.row-use-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    background: var(--brand-surface);
+    color: var(--brand-primary-hover);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.row-use-btn:active { background: color-mix(in srgb, var(--brand-primary) 22%, transparent); }
+.row-use-btn .row-use-label { display: none; }
+@media (min-width: 520px) {
+    .row-use-btn .row-use-label { display: inline; }
+}
+
+/* The banner's ⋮ menu: real buttons, not a list of naked words. */
+.banner-menu-list .btn-banner {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: var(--touch-min);
+    padding: 0 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+}
+.banner-menu-list .btn-banner:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+[data-theme="dark"] .banner-menu-list .btn-banner { background: #1E293B; color: #CBD5E1; }
+/* The one primary of the strip: solid emerald, no gradient. */
+.alert-banner-actions .btn-banner-use:not(.btn-banner-use-danger) {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+    font-weight: 700;
+    padding: 0 16px;
+}
+.alert-banner-actions .btn-banner-use:not(.btn-banner-use-danger):active { background: var(--brand-primary-hover); }

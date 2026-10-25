@@ -187,7 +187,7 @@
     "banner_sold_date": "scadeva il {date}",
     "banner_expired_action_vacuum": "Sottovuoto",
     "banner_anomaly_action_edit": "Correggi",
-    "banner_anomaly_action_dismiss": "Giusta",
+    "banner_anomaly_action_dismiss": "Ignora",
     "banner_no_expiry_title": "Scadenza mancante: {name}",
     "banner_no_expiry_detail": "Questo prodotto non ha una data di scadenza. Vuoi aggiungerla o confermare che non scade?",
     "banner_no_expiry_action_set": "Scadenza",
@@ -281,7 +281,9 @@
     "tab_stale": "🕰️ Dimenticati",
     "row_actions": "Altre azioni",
     "month_strip": "{used} usati · {wasted} buttati negli ultimi 30 giorni",
-    "banner_location": "Dove: {location}"
+    "banner_location": "Dove: {location}",
+    "banner_anomaly_align": "Aggiorna a {qty} {unit}",
+    "banner_anomaly_aligned": "Scorta allineata a {qty} {unit}"
   },
   "inventory": {
     "title": "Lista",
@@ -325,7 +327,15 @@
     "favorite": "Aggiungi ai preferiti",
     "unfavorite": "Rimuovi dai preferiti",
     "favorites_section": "Preferiti",
-    "opened_section": "Aperti"
+    "opened_section": "Aperti",
+    "detail_qty_label": "Quanto ne hai consumato?",
+    "detail_less": "Meno",
+    "detail_more_qty": "Più",
+    "detail_consume": "Registra consumo",
+    "detail_consume_all": "Ho consumato tutto",
+    "detail_other_actions": "Altre azioni",
+    "detail_more": "Dettagli",
+    "detail_consumed": "{qty} di {name} registrati"
   },
   "scan": {
     "title": "Scansiona",

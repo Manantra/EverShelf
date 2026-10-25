@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025y'; // bump when translations change
+const _I18N_VERSION = '20261025z'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7836,22 +7836,6 @@ function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
 }
 
 /**
- * The row's secondary actions, in the space of one button: extend (calendar glyph,
- * the label stays for screen readers) and the ⋮ that opens the full sheet. The row
- * itself opens the same sheet on tap, but a visible ⋮ is what a thumb looks for —
- * and six equal micro-buttons were the reason for the wrong-tap risk.
- */
-function _rowMenuButtons(item) {
-    const extendKey = t('dashboard.banner_expired_action_extend');
-    const extend = _shouldOfferExtendExpiry(item)
-        ? `<button type="button" class="btn-alert-extend" title="${escapeAttr(extendKey)}" aria-label="${escapeAttr(extendKey)}" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">📅<span class="extend-label">${escapeHtml(extendKey)}</span></button>`
-        : '';
-    const menuKey = t('dashboard.row_actions');
-    return extend
-        + `<button type="button" class="alert-item-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}" onclick="event.stopPropagation(); showAlertItemDetail(${item.id}, ${item.product_id})">⋮</button>`;
-}
-
-/**
  * One-shot notice for a data migration: the "Altro" location was removed and its
  * stock moved to the first location (1.16.19). Shown once per device — the instance
  * keeps the flag, but a phone paired afterwards does not need the history — and it
@@ -7890,6 +7874,20 @@ function _renderMonthStrip(statsData) {
     }
     text.textContent = t('dashboard.month_strip', { used, wasted });
     strip.hidden = false;
+}
+
+/**
+ * The row's actions: one quick "Usa" and the ⋮ that opens the detail modal.
+ *
+ * Extending an expiry is a rare decision, so it left the row (it lives in the modal now
+ * and in the banner menu); the frequent action, consuming, is what a thumb finds first.
+ */
+function _rowMenuButtons(item) {
+    const useKey = t('inventory.item_detail_use');
+    const menuKey = t('dashboard.row_actions');
+    const loc = String(item.location || 'dispensa').replace(/'/g, "\\'");
+    return `<button type="button" class="row-use-btn" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}" onclick="event.stopPropagation(); quickUse(${item.product_id}, '${loc}')">✓<span class="row-use-label">${escapeHtml(useKey)}</span></button>`
+        + `<button type="button" class="alert-item-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}" onclick="event.stopPropagation(); showAlertItemDetail(${item.id}, ${item.product_id})">⋮</button>`;
 }
 
 /**
@@ -9760,10 +9758,13 @@ function renderBannerItem() {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_ghost_title')}`;
             detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty }) + _bannerLocationLine(an);
         }
-        let btns = `<button class="btn-banner btn-banner-finish" onclick="finishBannerAnomaly()">${t('dashboard.banner_expired_action_finished')}</button>`;
+        // Two clear choices: make the stock match the ledger (primary) or leave it
+        // (✕ on the strip, or the durable "ignore" in the menu). The rest is secondary.
+        let btns = `<button class="btn-banner btn-banner-use" onclick="alignBannerAnomaly()">${t('dashboard.banner_anomaly_align', { qty: an.expected_qty, unit: an.unit })}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
+        btns += `<button class="btn-banner btn-banner-finish" onclick="finishBannerAnomaly()">${t('dashboard.banner_expired_action_finished')}</button>`;
         btns += `<button class="btn-banner btn-banner-throw" onclick="throwBannerAnomaly()">${t('dashboard.banner_expired_action_throw')}</button>`;
         btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
         if (_geminiAvailable) {
             btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="${t('dashboard.banner_explain_title')}">\ud83e\udd16 ${t('dashboard.banner_explain_btn')}</button>`;
         }
@@ -9970,6 +9971,30 @@ async function throwBannerAnomaly() {
 }
 
 /** Current inventory qty is correct — align ledger permanently (not just hide). */
+/**
+ * "Aggiorna a N": set the stored quantity to what the ledger says it should be. The old
+ * primary button said "Giusta", which told nobody what it would do.
+ */
+async function alignBannerAnomaly() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'anomaly') return;
+    const an = entry.data;
+    const expected = Number(an.expected_qty);
+    if (!an.inventory_id || !(expected >= 0)) return;
+    try {
+        const res = await api('inventory_update', {}, 'POST', { id: an.inventory_id, quantity: expected });
+        if (res && res.success) {
+            dismissBannerAnomaly();
+            showToast(t('dashboard.banner_anomaly_aligned', { qty: expected, unit: an.unit }), 'success');
+            try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
+        } else {
+            showToast((res && res.error) || t('error.generic'), 'error');
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
 async function dismissBannerAnomaly() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'anomaly') return;
@@ -10484,7 +10509,7 @@ function _bindAlertItemsHoldOpen(container) {
         const productId = parseInt(el.dataset.alertProductId, 10);
         if (isNaN(invId)) return;
         _bindRowHoldOpen(el, () => showAlertItemDetail(invId, productId), {
-            ignoreSelector: '.btn-alert-extend, button',
+            ignoreSelector: '.alert-item-menu, button',
         });
     });
 }
@@ -11564,7 +11589,8 @@ function showItemDetail(inventoryId, productId) {
         return;
     }
 
-    const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+    _itemDetailQtyInit(item);
+    const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
     const chips = [
@@ -11603,22 +11629,32 @@ function showItemDetail(inventoryId, productId) {
                     <div class="item-detail-chips">${chips}</div>
                 </div>
             </div>
-            ${metaRows ? `<div class="item-detail-meta">${metaRows}</div>` : ''}
-            <div class="item-detail-actions">
-                <button type="button" class="item-detail-action item-detail-action--use" onclick="closeModal();quickUse(${item.product_id}, '${item.location}')">
-                    <span class="item-detail-action-icon">📤</span>
-                    <span>${escapeHtml(t('inventory.item_detail_use'))}</span>
+            ${metaRows ? `<details class="item-detail-more"><summary>${t('inventory.detail_more')}</summary><div class="item-detail-meta">${metaRows}</div></details>` : ''}
+            ${_itemDetailQty.max > 0 ? `<div class="item-detail-consume">
+                <p class="item-detail-section-label">${t('inventory.detail_qty_label')}</p>
+                <div class="item-detail-stepper">
+                    <button type="button" class="item-detail-step" onclick="_itemDetailStep(-1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
+                    <span class="item-detail-step-value" id="item-detail-qty-value">${_itemDetailQtyLabel()}</span>
+                    <button type="button" class="item-detail-step" onclick="_itemDetailStep(1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
+                </div>
+                <button type="button" class="item-detail-primary" onclick="_itemDetailConsume()">
+                    <span class="item-detail-action-icon" aria-hidden="true">✓</span>
+                    <span>${escapeHtml(t('inventory.detail_consume'))}</span>
                 </button>
-                <button type="button" class="item-detail-action item-detail-action--all" onclick="itemDetailUseAll(${item.product_id}, '${item.location}')">
-                    <span class="item-detail-action-icon">✅</span>
-                    <span>${escapeHtml(t('inventory.item_detail_use_all'))}</span>
+                <button type="button" class="item-detail-secondary" onclick="itemDetailUseAll(${item.product_id}, '${item.location}')">
+                    <span class="item-detail-action-icon" aria-hidden="true">✓✓</span>
+                    <span>${escapeHtml(t('inventory.detail_consume_all'))}</span>
                 </button>
-                <button type="button" class="item-detail-action item-detail-action--recipe" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
-                    <span class="item-detail-action-icon">🍳</span>
+            </div>` : ''}
+            <div class="item-detail-support">
+                <p class="item-detail-section-label">${t('inventory.detail_other_actions')}</p>
+                ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('dashboard.banner_expired_action_extend'))}</span></button>` : ''}
+                <button type="button" class="item-detail-support-btn" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
+                    <span class="item-detail-action-icon" aria-hidden="true">🍳</span>
                     <span>${escapeHtml(t('inventory.item_detail_recipe'))}</span>
                 </button>
-                <button type="button" class="item-detail-action item-detail-action--throw" onclick="itemDetailThrow(${inventoryId})">
-                    <span class="item-detail-action-icon">🗑️</span>
+                <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
+                    <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
                     <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
                 </button>
             </div>
@@ -11635,6 +11671,72 @@ async function itemDetailUseAll(productId, location) {
     closeModal();
     await _openUsePage(productId, location);
     submitUseAll();
+}
+
+/**
+ * Quantity chooser of the product modal.
+ *
+ * "Usa" used to open a page without saying what it would subtract, and the four action
+ * buttons competed with four different colours. Here the frequent action is a stepper
+ * plus one solid primary; everything else is either a quiet secondary or a neutral
+ * support button (UI review, round 4).
+ */
+let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, location: '', name: '' };
+
+function _itemDetailQtyInit(item) {
+    const unit = String(item.unit || 'pz');
+    const qty = parseFloat(item.quantity) || 0;
+    const step = (unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l')
+        ? (qty >= 100 ? 50 : (qty >= 20 ? 10 : 1))
+        : 1;
+    _itemDetailQty = {
+        value: Math.max(Math.min(step, qty), Math.min(qty, 1)) || qty,
+        max: qty,
+        step,
+        unit,
+        productId: item.product_id,
+        location: item.location || 'dispensa',
+        name: item.name || '',
+    };
+}
+
+function _itemDetailQtyLabel() {
+    const q = _itemDetailQty;
+    const n = Math.round(q.value * 100) / 100;
+    const label = q.unit === 'conf' ? t('units.conf') : (q.unit === 'pz' ? t('units.pz') : q.unit);
+    return `${n} ${label}`;
+}
+
+function _itemDetailStep(dir) {
+    const q = _itemDetailQty;
+    const fallback = q.step <= q.max ? q.step : q.max;
+    const next = Math.round((q.value + dir * q.step) * 100) / 100;
+    q.value = Math.min(q.max, Math.max(fallback || 0.01, next));
+    const el = document.getElementById('item-detail-qty-value');
+    if (el) el.textContent = _itemDetailQtyLabel();
+}
+
+/** Register the chosen quantity: the same endpoint the use form posts to. */
+async function _itemDetailConsume() {
+    const q = _itemDetailQty;
+    if (!q.productId || !(q.value > 0)) return;
+    const label = _itemDetailQtyLabel();
+    closeModal();
+    try {
+        const res = await api('inventory_use', {}, 'POST', {
+            product_id: q.productId,
+            quantity: q.value,
+            location: q.location,
+        });
+        if (res && res.success) {
+            showToast(t('inventory.detail_consumed', { qty: label, name: q.name }), 'success');
+            try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
+        } else {
+            showToast((res && res.error) || t('error.generic'), 'error');
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
 }
 
 function closeModal() {
@@ -12479,7 +12581,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025y';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025z';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12489,7 +12591,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025y';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025z';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -187,7 +187,7 @@
     "banner_sold_date": "MHD war {date}",
     "banner_expired_action_vacuum": "Vakuum",
     "banner_anomaly_action_edit": "Korrigieren",
-    "banner_anomaly_action_dismiss": "Stimmt",
+    "banner_anomaly_action_dismiss": "Ignorieren",
     "banner_no_expiry_title": "Ablaufdatum fehlt: {name}",
     "banner_no_expiry_detail": "Dieses Produkt hat kein Ablaufdatum. Möchten Sie eines hinzufügen oder bestätigen, dass es nicht verfällt?",
     "banner_no_expiry_action_set": "MHD",
@@ -281,7 +281,9 @@
     "tab_stale": "🕰️ Vergessen",
     "row_actions": "Weitere Aktionen",
     "month_strip": "{used} verbraucht · {wasted} weggeworfen in den letzten 30 Tagen",
-    "banner_location": "Wo: {location}"
+    "banner_location": "Wo: {location}",
+    "banner_anomaly_align": "Auf {qty} {unit} setzen",
+    "banner_anomaly_aligned": "Bestand auf {qty} {unit} gesetzt"
   },
   "inventory": {
     "title": "Liste",
@@ -325,7 +327,15 @@
     "favorite": "Zu Favoriten hinzufügen",
     "unfavorite": "Aus Favoriten entfernen",
     "favorites_section": "Favoriten",
-    "opened_section": "Geöffnet"
+    "opened_section": "Geöffnet",
+    "detail_qty_label": "Wie viel hast du verbraucht?",
+    "detail_less": "Weniger",
+    "detail_more_qty": "Mehr",
+    "detail_consume": "Verbrauch erfassen",
+    "detail_consume_all": "Alles verbraucht",
+    "detail_other_actions": "Weitere Aktionen",
+    "detail_more": "Details",
+    "detail_consumed": "{qty} von {name} erfasst"
   },
   "scan": {
     "title": "Scannen",

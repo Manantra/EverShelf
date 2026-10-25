@@ -187,7 +187,7 @@
     "banner_sold_date": "保质期至 {date}",
     "banner_expired_action_vacuum": "真空",
     "banner_anomaly_action_edit": "修正",
-    "banner_anomaly_action_dismiss": "正确",
+    "banner_anomaly_action_dismiss": "忽略",
     "banner_no_expiry_title": "缺少保质期：{name}",
     "banner_no_expiry_detail": "此商品没有到期日期。要添加日期，还是确认它不会过期？",
     "banner_no_expiry_action_set": "保质期",
@@ -281,7 +281,9 @@
     "tab_stale": "🕰️ 被遗忘",
     "row_actions": "更多操作",
     "month_strip": "近 30 天：已用 {used} · 丢弃 {wasted}",
-    "banner_location": "位置：{location}"
+    "banner_location": "位置：{location}",
+    "banner_anomaly_align": "调整为 {qty} {unit}",
+    "banner_anomaly_aligned": "库存已调整为 {qty} {unit}"
   },
   "inventory": {
     "title": "库存",
@@ -325,7 +327,15 @@
     "favorite": "添加到收藏",
     "unfavorite": "取消收藏",
     "favorites_section": "收藏",
-    "opened_section": "已开封"
+    "opened_section": "已开封",
+    "detail_qty_label": "你用了多少？",
+    "detail_less": "减少",
+    "detail_more_qty": "增加",
+    "detail_consume": "记录消耗",
+    "detail_consume_all": "已全部用完",
+    "detail_other_actions": "其他操作",
+    "detail_more": "详情",
+    "detail_consumed": "已记录 {qty} 的 {name}"
   },
   "scan": {
     "title": "扫描",

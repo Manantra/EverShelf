@@ -13,6 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.26] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **The product modal has one hierarchy.** Four saturated buttons (orange *Usa*,
+  green *Usato tutto*, purple *Crea ricetta*, red *Butta*) competed in one row; the
+  frequent action is now a stepper (“Quanto ne hai consumato?”) with a solid emerald
+  “Registra consumo”, an emerald-tinted “Ho consumato tutto” under it, and the support
+  actions (recipe, discard, extend expiry) as neutral grey buttons.
+- **Barcode and timestamps left the middle of the card**: they live in a collapsed
+  *Dettagli* footer, one tap away.
+- **Rows lead with consumption, not with the calendar**: the permanent “Estendi
+  scadenza” pill is gone (it moved into the detail modal); the row carries a quick
+  “Usa” and the ⋮ that opens the modal.
+- **The anomaly banner offers a named action**: “Aggiorna a 2000 ml” (writes the ledger
+  value into the pantry row) instead of the unreadable “Giusta”, with ✕ / *Ignora* to
+  leave it alone; the remaining actions moved into the ⋮ menu, which now renders as
+  real buttons instead of naked centred words.
+- **The capture sheet follows the emerald palette**: “Esegui” is the emerald primary,
+  the suggestion chips are solid neutral pills (a dashed border reads as “drop zone /
+  disabled”) and the microphone shows a sonar ring while it records.
+- The “Altro” buttons left the add/use forms for good: the location was removed in
+  1.16.19 and its key is only a legacy alias now.
+
+### Fixed
+- Two buttons still offered the removed “Altro” location, pointing at a translation
+  key that no longer existed (caught by `scripts/i18n-audit.py`).
+
 ## [1.16.25] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Round 3: the waste block holds food, the alert strip holds errors

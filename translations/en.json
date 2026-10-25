@@ -187,7 +187,7 @@
     "banner_sold_date": "expiry date was {date}",
     "banner_expired_action_vacuum": "Vacuum",
     "banner_anomaly_action_edit": "Fix",
-    "banner_anomaly_action_dismiss": "OK",
+    "banner_anomaly_action_dismiss": "Ignore",
     "banner_no_expiry_title": "Missing expiry: {name}",
     "banner_no_expiry_detail": "This product has no expiry date. Would you like to add one, or confirm it doesn't expire?",
     "banner_no_expiry_action_set": "Expiry",
@@ -281,7 +281,9 @@
     "tab_stale": "🕰️ Forgotten",
     "row_actions": "More actions",
     "month_strip": "{used} used · {wasted} wasted in the last 30 days",
-    "banner_location": "Where: {location}"
+    "banner_location": "Where: {location}",
+    "banner_anomaly_align": "Set to {qty} {unit}",
+    "banner_anomaly_aligned": "Stock set to {qty} {unit}"
   },
   "inventory": {
     "title": "List",
@@ -325,7 +327,15 @@
     "favorite": "Add to favourites",
     "unfavorite": "Remove from favourites",
     "favorites_section": "Favourites",
-    "opened_section": "Opened"
+    "opened_section": "Opened",
+    "detail_qty_label": "How much did you consume?",
+    "detail_less": "Less",
+    "detail_more_qty": "More",
+    "detail_consume": "Log consumption",
+    "detail_consume_all": "I used it all",
+    "detail_other_actions": "Other actions",
+    "detail_more": "Details",
+    "detail_consumed": "{qty} of {name} logged"
   },
   "scan": {
     "title": "Scan",

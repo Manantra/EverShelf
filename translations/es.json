@@ -183,7 +183,7 @@
     "banner_expired_action_throw": "Tirado",
     "banner_expired_action_edit": "Fecha",
     "banner_anomaly_action_edit": "Corregir",
-    "banner_anomaly_action_dismiss": "Correcta",
+    "banner_anomaly_action_dismiss": "Ignorar",
     "banner_no_expiry_title": "Caducidad faltante: {name}",
     "banner_no_expiry_detail": "Este producto no tiene fecha de caducidad. ¿Quieres añadir una o confirmar que no caduca?",
     "banner_no_expiry_action_set": "Caducidad",
@@ -281,7 +281,9 @@
     "tab_stale": "🕰️ Olvidados",
     "row_actions": "Más acciones",
     "month_strip": "{used} usados · {wasted} tirados en los últimos 30 días",
-    "banner_location": "Dónde: {location}"
+    "banner_location": "Dónde: {location}",
+    "banner_anomaly_align": "Ajustar a {qty} {unit}",
+    "banner_anomaly_aligned": "Stock ajustado a {qty} {unit}"
   },
   "inventory": {
     "title": "Lista",
@@ -325,7 +327,15 @@
     "favorite": "Añadir a favoritos",
     "unfavorite": "Quitar de favoritos",
     "favorites_section": "Favoritos",
-    "opened_section": "Abiertos"
+    "opened_section": "Abiertos",
+    "detail_qty_label": "¿Cuánto has consumido?",
+    "detail_less": "Menos",
+    "detail_more_qty": "Más",
+    "detail_consume": "Registrar consumo",
+    "detail_consume_all": "Lo he usado todo",
+    "detail_other_actions": "Otras acciones",
+    "detail_more": "Detalles",
+    "detail_consumed": "{qty} de {name} registrados"
   },
   "scan": {
     "title": "Escáner",

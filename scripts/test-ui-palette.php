@@ -100,10 +100,39 @@ check('the verdict rides on the meta line instead of a full bar',
     str_contains($html, 'alert-item-meta-row') || str_contains($app, 'alert-item-meta-row'));
 check('the verdict chip is compact',
     preg_match('/\.alert-item-meta-row \.safety-pill \{[^}]*font-size: 12px/s', $css) === 1);
-check('extend expiry is a 40px pill with a label on wide screens',
-    preg_match('/\.btn-alert-extend \{[^}]*min-height: var\(--touch-min\)/s', $css) === 1
-    && str_contains($css, '.btn-alert-extend .extend-label { display: inline; }')
-    && str_contains($app, 'class="extend-label"'));
+// ── Round 4: the row's frequent action, one modal hierarchy ─────────────────
+check('the row offers consume + ⋮, not a permanent "extend expiry" pill',
+    str_contains($app, 'class="row-use-btn"')
+    && preg_match('/\.row-use-btn \{[^}]*min-height: var\(--touch-min\)/s', $css) === 1
+    && !str_contains($app, 'btn-alert-extend'));
+check('extending an expiry moved into the detail modal',
+    str_contains($app, 'extendInventoryExpiry(${item.id})') && str_contains($app, 'function _shouldOfferExtendExpiry('));
+check('the product modal has a quantity stepper',
+    str_contains($app, 'function _itemDetailConsume(')
+    && str_contains($app, 'class="item-detail-stepper"')
+    && str_contains($css, '.item-detail-step-value {'));
+check('the product modal has one primary, one secondary, neutral support',
+    str_contains($app, 'class="item-detail-primary"')
+    && str_contains($app, 'class="item-detail-secondary"')
+    && str_contains($app, 'class="item-detail-support-btn')
+    && !str_contains($app, 'item-detail-action--use')
+    && !str_contains($app, 'item-detail-action--recipe'));
+check('barcode and timestamps are collapsed, not in the middle of the card',
+    str_contains($app, 'class="item-detail-more"')
+    && str_contains($css, '.item-detail-more > summary {'));
+check('the anomaly banner offers a named action instead of "Giusta"',
+    str_contains($app, 'function alignBannerAnomaly(')
+    && str_contains($app, "t('dashboard.banner_anomaly_align'")
+    && str_contains($app, 'btn-banner btn-banner-use'));
+check('the banner menu renders as buttons, not naked text',
+    preg_match('/\.banner-menu-list \.btn-banner \{[^}]*background: #F1F5F9/s', $css) === 1);
+check('the capture sheet follows the emerald hierarchy',
+    preg_match('/\.capture-input-row \.btn-accent \{[^}]*background: var\(--brand-primary\)/s', $css) === 1);
+check('capture hints are solid pills, not dashed placeholders',
+    preg_match('/\.capture-hint \{[^}]*border: 1px solid var\(--surface-border\)/s', $css) === 1
+    && !str_contains($css, 'border: 1px dashed var(--surface-border)'));
+check('the mic shows a sonar ring while recording',
+    str_contains($css, '@keyframes capture-ping') && str_contains($css, '.capture-mic.is-listening {'));
 check('the system alert strip is neutral, not an amber card',
     str_contains($css, '.alert-banner.system-alert.banner-anomaly') && str_contains($css, '.system-alert .alert-banner-title'));
 

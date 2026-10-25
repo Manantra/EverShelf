@@ -183,7 +183,7 @@
     "banner_expired_action_throw": "Jeté",
     "banner_expired_action_edit": "Date",
     "banner_anomaly_action_edit": "Corriger",
-    "banner_anomaly_action_dismiss": "Exacte",
+    "banner_anomaly_action_dismiss": "Ignorer",
     "banner_no_expiry_title": "Date manquante : {name}",
     "banner_no_expiry_detail": "Ce produit n'a pas de date de péremption. Voulez-vous en ajouter une ou confirmer qu'il ne périme pas ?",
     "banner_no_expiry_action_set": "DLC",
@@ -281,7 +281,9 @@
     "tab_stale": "🕰️ Oubliés",
     "row_actions": "Autres actions",
     "month_strip": "{used} utilisés · {wasted} jetés ces 30 derniers jours",
-    "banner_location": "Où : {location}"
+    "banner_location": "Où : {location}",
+    "banner_anomaly_align": "Mettre à {qty} {unit}",
+    "banner_anomaly_aligned": "Stock réglé à {qty} {unit}"
   },
   "inventory": {
     "title": "Liste",
@@ -325,7 +327,15 @@
     "favorite": "Ajouter aux favoris",
     "unfavorite": "Retirer des favoris",
     "favorites_section": "Favoris",
-    "opened_section": "Ouverts"
+    "opened_section": "Ouverts",
+    "detail_qty_label": "Combien en as-tu consommé ?",
+    "detail_less": "Moins",
+    "detail_more_qty": "Plus",
+    "detail_consume": "Enregistrer la consommation",
+    "detail_consume_all": "J'ai tout utilisé",
+    "detail_other_actions": "Autres actions",
+    "detail_more": "Détails",
+    "detail_consumed": "{qty} de {name} enregistrés"
   },
   "scan": {
     "title": "Scanner",
