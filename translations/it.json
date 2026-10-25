@@ -1896,7 +1896,9 @@
     "opened_suffix_ok": "— Aperto (ancora ok)",
     "opened_suffix_warning": "— Aperto (controlla)",
     "days_compact": "{n}gg",
-    "badge_check_soon": "Controlla presto"
+    "badge_check_soon": "Controlla presto",
+    "in_days_short": "tra {n} gg",
+    "days_ago_short": "{n} gg fa"
   },
   "status": {
     "ok": "Ancora buono",
@@ -2687,7 +2689,7 @@
   },
   "capture": {
     "title": "Cosa vuoi fare?",
-    "nav_label": "Azioni",
+    "nav_label": "Ascolta",
     "speak": "Parla",
     "idle": "Tocca il microfono e parla, oppure scrivi.",
     "listening": "Ti ascolto…",

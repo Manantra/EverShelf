@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025n'; // bump when translations change
+const _I18N_VERSION = '20261025p'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8254,6 +8254,24 @@ async function _captureSubmit(raw) {
 }
 
 /** Name + brand of a dashboard row on one line (they wrap only when really narrow). */
+/**
+ * One relative-day format for every dashboard row: "tra 6 gg" / "36 gg fa".
+ * The same screen used to say "Da 36g", "6 giorni" and "8gg" in three different
+ * badges, which read as three different things.
+ */
+function _relativeDaysAhead(days) {
+    const d = Math.round(Number(days) || 0);
+    if (d <= 0) return t('expiry.today');
+    if (d === 1) return t('expiry.tomorrow');
+    return t('expiry.in_days_short', { n: d });
+}
+function _relativeDaysAgo(days) {
+    const d = Math.round(Math.abs(Number(days) || 0));
+    if (d === 0) return t('expiry.expired_today');
+    if (d === 1) return t('expiry.expired_yesterday');
+    return t('expiry.days_ago_short', { n: d });
+}
+
 function _alertItemHead(item) {
     if (!item) return '';
     const brand = item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : '';
@@ -8344,12 +8362,9 @@ async function loadDashboard() {
             expiringSection.style.display = 'block';
             expiringList.innerHTML = expiringShown.map(item => {
                 const days = daysUntilExpiry(item.expiry_date);
-                let badgeText, badgeClass;
-                if (days === 0) { badgeText = t('expiry.today'); badgeClass = 'today'; }
-                else if (days === 1) { badgeText = t('expiry.tomorrow'); badgeClass = 'expiring'; }
-                else if (days <= 7) { badgeText = t('expiry.days').replace('{days}', days); badgeClass = 'expiring'; }
-                else if (days <= 30) { badgeText = t('expiry.days_compact').replace('{n}', days); badgeClass = 'expiring-soon'; }
-                else { const m = Math.round(days/30); badgeText = m <= 1 ? t('expiry.days_compact').replace('{n}', days) : t('expiry.months_approx').replace('{n}', m); badgeClass = 'expiring-later'; }
+                const badgeText = _relativeDaysAhead(days);
+                const badgeClass = days === 0 ? 'today'
+                    : (days <= 7 ? 'expiring' : (days <= 30 ? 'expiring-soon' : 'expiring-later'));
                 return `
                 <div class="alert-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
@@ -8382,10 +8397,7 @@ async function loadDashboard() {
             expiredSection.style.display = 'block';
             expiredList.innerHTML = expiredShown.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
-                let daysText;
-                if (days === 0) daysText = t('expiry.expired_today');
-                else if (days === 1) daysText = t('expiry.expired_yesterday');
-                else daysText = t('expiry.expired_days').replace('{days}', days);
+                const daysText = _relativeDaysAgo(days);
                 const safety = getExpiredSafety(item, days);
                 // Short badge only (Controlla / Va bene / Buttalo / Non mangiare) — tip on hover.
                 return `
@@ -8609,7 +8621,7 @@ async function loadStaleDashboardItems() {
             const days = item.days_unused != null ? item.days_unused : '—';
             const unusedLabel = item.never_used
                 ? t('dashboard.stale_never_used')
-                : t('dashboard.stale_days').replace('{n}', String(days));
+                : _relativeDaysAgo(days);
             const openedBadge = item.is_opened
                 ? `<span class="alert-item-badge opened">${escapeHtml(t('dashboard.stale_opened'))}</span>`
                 : '';
@@ -12152,7 +12164,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025p';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12162,7 +12174,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025p';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

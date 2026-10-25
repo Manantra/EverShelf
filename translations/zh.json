@@ -1896,7 +1896,9 @@
     "opened_suffix_ok": "— 已开封（状态尚可）",
     "opened_suffix_warning": "— 已开封（请先检查）",
     "days_compact": "{n} 天",
-    "badge_check_soon": "请尽快检查"
+    "badge_check_soon": "请尽快检查",
+    "in_days_short": "{n} 天后",
+    "days_ago_short": "{n} 天前"
   },
   "status": {
     "ok": "仍可食用",
@@ -2687,7 +2689,7 @@
   },
   "capture": {
     "title": "你想做什么？",
-    "nav_label": "操作",
+    "nav_label": "聆听",
     "speak": "说话",
     "idle": "点麦克风说话，或直接在下方输入。",
     "listening": "我在听…",

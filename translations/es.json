@@ -1896,7 +1896,9 @@
     "opened_suffix_ok": "— Abierto (aún ok)",
     "opened_suffix_warning": "— Abierto (comprobar primero)",
     "days_compact": "{n}d",
-    "badge_check_soon": "Comprobar pronto"
+    "badge_check_soon": "Comprobar pronto",
+    "in_days_short": "en {n} d",
+    "days_ago_short": "hace {n} d"
   },
   "status": {
     "ok": "Aún bueno",
@@ -2687,7 +2689,7 @@
   },
   "capture": {
     "title": "¿Qué quieres hacer?",
-    "nav_label": "Acciones",
+    "nav_label": "Escuchar",
     "speak": "Hablar",
     "idle": "Toca el micrófono y habla, o escribe abajo.",
     "listening": "Te escucho…",

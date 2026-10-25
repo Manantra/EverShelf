@@ -18,34 +18,67 @@
  * ========================================================================== */
 
 :root {
-    --surface-bg: var(--bg-card);
-    --surface-border: color-mix(in srgb, var(--border) 75%, transparent);
+    /* Canvas e superfici ("Fresh & Crisp Slate") */
+    --bg-app: #F8FAFC;
+    --surface-bg: #FFFFFF;
+    --surface-border: #E2E8F0;
     --surface-radius: var(--radius);
     --surface-pad: 14px;
+    --surface-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 
-    --tone-danger: #dc2626;
-    --tone-danger-soft: rgba(220, 38, 38, 0.10);
-    --tone-soon: #d97706;
-    --tone-soon-soft: rgba(217, 119, 6, 0.10);
-    --tone-info: #2563eb;
-    --tone-info-soft: rgba(37, 99, 235, 0.08);
-    --tone-calm: #0f766e;
-    --tone-calm-soft: rgba(15, 118, 110, 0.08);
+    /* Testi: due livelli, non cinque */
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+
+    /* Brand: un solo verde, quello della freschezza */
+    --brand-primary: #059669;
+    --brand-primary-hover: #047857;
+    --brand-surface: #ECFDF5;
+
+    /* Stati semantici: sfondo molto chiaro + testo scuro + linea d’accento */
+    --tone-danger: #EF4444;
+    --tone-danger-text: #991B1B;
+    --tone-danger-soft: #FEE2E2;
+    --tone-soon: #F59E0B;
+    --tone-soon-text: #92400E;
+    --tone-soon-soft: #FEF3C7;
+    --tone-info: #0284C7;
+    --tone-info-text: #075985;
+    --tone-info-soft: #E0F2FE;
+    --tone-calm: #059669;
+    --tone-calm-soft: #ECFDF5;
 
     --touch-min: 40px;
 }
 
 [data-theme="dark"] {
-    --surface-bg: var(--bg-card);
-    --surface-border: color-mix(in srgb, var(--border) 90%, transparent);
-    --tone-danger: #f87171;
-    --tone-danger-soft: rgba(248, 113, 113, 0.14);
-    --tone-soon: #fbbf24;
-    --tone-soon-soft: rgba(251, 191, 36, 0.14);
-    --tone-info: #60a5fa;
-    --tone-info-soft: rgba(96, 165, 250, 0.14);
-    --tone-calm: #34d399;
-    --tone-calm-soft: rgba(52, 211, 153, 0.14);
+    --bg-app: #0B1220;
+    --surface-bg: #111C2E;
+    --surface-border: #1E293B;
+    --surface-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --text-main: #E2E8F0;
+    --text-muted: #94A3B8;
+    --brand-primary: #34D399;
+    --brand-primary-hover: #6EE7B7;
+    --brand-surface: rgba(52, 211, 153, 0.12);
+    --tone-danger: #F87171;
+    --tone-danger-text: #FCA5A5;
+    --tone-danger-soft: rgba(248, 113, 113, 0.16);
+    --tone-soon: #FBBF24;
+    --tone-soon-text: #FCD34D;
+    --tone-soon-soft: rgba(251, 191, 36, 0.16);
+    --tone-info: #38BDF8;
+    --tone-info-text: #7DD3FC;
+    --tone-info-soft: rgba(56, 189, 248, 0.16);
+    --tone-calm: #34D399;
+    --tone-calm-soft: rgba(52, 211, 153, 0.16);
+}
+
+/* The canvas: a neutral slate instead of the greenish tint that made the white
+   cards look dirty. */
+body {
+    background: var(--bg-app);
+    color: var(--text-main);
 }
 
 /* ── One neutral surface for every dashboard block ─────────────────────────── */
@@ -534,4 +567,134 @@
     background: transparent;
     border-color: var(--surface-border);
     color: var(--text);
+}
+
+/* ── Typography: three levels per card, not six ─────────────────────────────
+   Product title 15/600, metadata 13/400 muted, badge 12/600. Everything else in
+   the rows inherits one of the three, so the eye finds the title first. */
+.alert-item-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.alert-item-brand {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+.alert-item-qty,
+.alert-item-meta,
+.alert-item-verdict,
+.alert-section-hint,
+.urgency-sub,
+.banner-fact {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+.alert-item-badge,
+.alert-item-qty,
+.safety-pill,
+.capture-hint,
+.stock-tab .stock-tab-count {
+    font-size: 12px;
+    font-weight: 600;
+}
+.alert-item-badge {
+    padding: 3px 10px;
+    letter-spacing: 0.01em;
+}
+.alert-section h3,
+.alert-danger h3,
+.alert-opened h3,
+.alert-stale h3 {
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+/* ── Cards: white, soft shadow, one accent line on the left ─────────────────
+   A full coloured frame around every block was the "semaforo" effect; a 4px
+   left border says the same thing with a fraction of the ink. */
+.alert-section,
+#waste-chart-section,
+.alert-banner,
+.urgency-hub,
+.stock-hub-tabs,
+.insight-block,
+.month-strip,
+.location-pill {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--surface-shadow);
+}
+.alert-section,
+.alert-danger,
+.alert-opened,
+.alert-stale,
+#alert-expiring,
+.urgency-hub {
+    box-shadow: var(--surface-shadow);
+}
+.alert-danger,
+.urgency-hub { border-left: 4px solid var(--tone-danger); }
+#alert-expiring { border-left: 4px solid var(--tone-soon); }
+.alert-opened { border-left: 4px solid var(--tone-info); }
+.alert-stale { border-left: 4px solid var(--brand-primary); }
+
+/* Section title dots keep the tone, in the muted colour of the text. */
+.alert-section h3::after,
+.alert-danger h3::after,
+.alert-opened h3::after,
+.alert-stale h3::after {
+    background: var(--rail, var(--tone-soon));
+}
+
+/* ── Header: white, dark icons, one hairline. The deep forest green was the
+   heaviest surface on the screen and did not match anything else. */
+.app-header {
+    background: var(--surface-bg);
+    color: var(--text-main);
+    border-bottom: 1px solid var(--surface-border);
+    box-shadow: none;
+}
+.app-header .header-title,
+.app-header .header-title span,
+.app-header .header-version,
+.app-header .header-branch {
+    color: var(--text-main);
+}
+.app-header .header-btn {
+    color: #334155;
+    background: color-mix(in srgb, var(--surface-border) 55%, transparent);
+    border-color: var(--surface-border);
+}
+.app-header .header-btn:active { background: var(--brand-surface); }
+
+/* ── Bottom nav: neutral surface, emerald active state ─────────────────────── */
+.bottom-nav {
+    background: var(--surface-bg);
+    border-top: 1px solid var(--surface-border);
+}
+.nav-btn { color: #94A3B8; }
+.nav-btn {
+    border-radius: 999px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-btn.active {
+    color: var(--brand-primary);
+    background: var(--brand-surface);
+}
+.nav-btn.active .nav-icon { filter: none; }
+.nav-capture-icon-wrap {
+    background: linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, #10B981) 100%);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--brand-primary) 40%, transparent);
+}
+
+/* The recipe CTA: orange is the one "action" colour left, as specified. */
+.quick-recipe-bar .btn-quick-recipe,
+#urgency-recipe-btn {
+    background: #EA580C;
+    color: #FFFFFF;
+    border-color: #EA580C;
 }
