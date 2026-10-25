@@ -1,0 +1,162 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Guard test — the urgency hub.
+ *
+ * Regression history (UI audit, blocks 2 & 3): the anomaly banner, the expired list
+ * and the "quick recipe" CTA were three separate blocks with three frames. The same
+ * product appeared in two of them, and the one action that could save the food sat
+ * in a fourth block. They are one container now whose visibility and subtitle are
+ * decided in exactly one place.
+ *
+ * The function under test is the shipped one, extracted and run in node with stubs.
+ *
+ * Run: php scripts/test-urgency-hub.php
+ */
+
+$root = dirname(__DIR__);
+$html = (string)file_get_contents($root . '/index.html');
+$app  = (string)file_get_contents($root . '/assets/js/app.js');
+$fail = 0;
+$checks = 0;
+
+function check(string $label, bool $ok, string $detail = ''): void
+{
+    global $fail, $checks;
+    $checks++;
+    if ($ok) {
+        echo "ok    {$label}\n";
+    } else {
+        $fail++;
+        echo "FAIL  {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
+    }
+}
+
+/** Pull a top-level function out of app.js by matching braces. */
+function extract_fn(string $src, string $name): string
+{
+    $start = strpos($src, 'function ' . $name . '(');
+    if ($start === false) {
+        return '';
+    }
+    $open = strpos($src, '{', $start);
+    if ($open === false) {
+        return '';
+    }
+    $depth = 0;
+    for ($i = $open, $len = strlen($src); $i < $len; $i++) {
+        if ($src[$i] === '{') {
+            $depth++;
+        } elseif ($src[$i] === '}') {
+            $depth--;
+            if ($depth === 0) {
+                return substr($src, $start, $i - $start + 1);
+            }
+        }
+    }
+    return '';
+}
+
+// ------------------------------------------------------------------- markup
+libxml_use_internal_errors(true);
+$doc = new DOMDocument();
+$doc->loadHTML('<?xml encoding="UTF-8">' . $html);
+$xp = new DOMXPath($doc);
+check('the dashboard has one urgency hub', $xp->query("//*[@id='urgency-hub']")->length === 1);
+check('the anomaly banner lives inside the hub',
+    $xp->query("//*[@id='urgency-hub']//*[@id='alert-banner']")->length === 1);
+check('the expired list lives inside the hub',
+    $xp->query("//*[@id='urgency-hub']//*[@id='expired-list']")->length === 1);
+check('the standalone recipe bar is gone', strpos($html, 'id="quick-recipe-bar"') === false);
+check('the recipe CTA is the hub header button',
+    $xp->query("//*[@id='urgency-hub']//*[@id='urgency-recipe-btn']")->length === 1
+    && strpos($html, 'data-i18n="dashboard.quick_recipe_short"') !== false);
+check('the hub starts hidden (no empty frame on a clean pantry)',
+    $xp->query("//*[@id='urgency-hub'][@hidden]")->length === 1);
+
+// ----------------------------------------------------------------- function
+$src = extract_fn($app, '_syncUrgencyHub');
+check('_syncUrgencyHub() is extractable', $src !== '');
+check('visibility is decided in one place', substr_count($app, 'function _syncUrgencyHub') === 1);
+check('the dashboard and the banner loader both call it', substr_count($app, '_syncUrgencyHub();') >= 2);
+
+$harness = $src . <<<'JS'
+const els = {};
+function mk(id, display, hidden) {
+    els[id] = { id, style: { display: display || '' }, hidden: !!hidden, textContent: '' };
+    return els[id];
+}
+let EXPIRED = 0, EXPIRING = 0;
+const document = {
+    getElementById: (id) => els[id] || null,
+    querySelectorAll: (sel) => {
+        if (sel === '#expired-list .alert-item') return { length: EXPIRED };
+        if (sel === '#expiring-list .alert-item') return { length: EXPIRING };
+        return { length: 0 };
+    },
+};
+const t = (k, p) => k + (p ? JSON.stringify(p) : '');
+
+function scenario(cfg) {
+    for (const k of Object.keys(els)) delete els[k];
+    mk('urgency-hub');
+    mk('urgency-sub');
+    mk('urgency-recipe-btn');
+    mk('alert-banner', cfg.banner ? '' : 'none');
+    mk('alert-expired', cfg.expiredSection ? '' : 'none');
+    mk('alert-expiring', cfg.expiringSection ? '' : 'none');
+    EXPIRED = cfg.expiredRows || 0;
+    EXPIRING = cfg.expiringRows || 0;
+    _syncUrgencyHub();
+    return {
+        hub_hidden: els['urgency-hub'].hidden,
+        cta_hidden: els['urgency-recipe-btn'].hidden,
+        sub: els['urgency-sub'].textContent,
+    };
+}
+
+const out = {};
+out.quiet = scenario({});
+out.expired = scenario({ expiredSection: true, expiredRows: 3, expiringSection: true, expiringRows: 5 });
+out.soon = scenario({ expiringSection: true, expiringRows: 2 });
+out.banner = scenario({ banner: true });
+console.log(JSON.stringify(out));
+JS;
+
+$tmp = sys_get_temp_dir() . '/urgency_' . getmypid() . '.js';
+file_put_contents($tmp, $harness);
+$raw = shell_exec('node ' . escapeshellarg($tmp) . ' 2>/dev/null');
+@unlink($tmp);
+$out = json_decode(trim((string)$raw), true);
+check('the harness runs in node', is_array($out), (string)$raw);
+if (is_array($out)) {
+    check('a clean pantry shows no hub', ($out['quiet']['hub_hidden'] ?? null) === true);
+    check('expired stock opens the hub with its count',
+        ($out['expired']['hub_hidden'] ?? null) === false
+        && str_contains((string)($out['expired']['sub'] ?? ''), '"n":3')
+        && str_contains((string)($out['expired']['sub'] ?? ''), 'dashboard.urgency_expired'));
+    check('expiring stock alone does not open the hub (that is the stock hub)',
+        ($out['soon']['hub_hidden'] ?? null) === true);
+    check('the recipe CTA appears when something is about to expire',
+        ($out['expired']['cta_hidden'] ?? null) === false
+        && ($out['soon']['cta_hidden'] ?? null) === false);
+    check('the recipe CTA stays hidden when nothing is expiring',
+        ($out['quiet']['cta_hidden'] ?? null) === true
+        && ($out['banner']['cta_hidden'] ?? null) === true);
+    check('an anomaly alone opens the hub', ($out['banner']['hub_hidden'] ?? null) === false);
+}
+
+// --------------------------------------------------------------------- i18n
+foreach (['dashboard.urgency_title', 'dashboard.urgency_expired', 'dashboard.urgency_soon', 'dashboard.quick_recipe_short'] as $key) {
+    foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
+        $data = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);
+        $node = $data;
+        foreach (explode('.', $key) as $step) {
+            $node = is_array($node) ? ($node[$step] ?? null) : null;
+        }
+        check("translations/{$loc}.json has {$key}", is_string($node) && trim($node) !== '');
+    }
+}
+
+echo "\n{$checks} checks, {$fail} failed\n";
+exit($fail === 0 ? 0 : 1);

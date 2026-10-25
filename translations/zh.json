@@ -272,7 +272,11 @@
     "banner_finished_restore_prompt": "{name} 还剩多少 {unit}？（系统估算：{qty}）",
     "locations_aria": "存放位置",
     "add_location": "添加",
-    "location_alerts": "需检查 {n} 个产品"
+    "location_alerts": "需检查 {n} 个产品",
+    "urgency_title": "减少浪费",
+    "urgency_expired": "{n} 个已过期产品待处理",
+    "urgency_soon": "{n} 个即将过期：尽快使用或烹饪",
+    "quick_recipe_short": "食谱"
   },
   "inventory": {
     "title": "库存",

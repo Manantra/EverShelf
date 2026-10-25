@@ -272,7 +272,11 @@
     "banner_finished_restore_prompt": "Combien de {unit} de {name} vous reste-t-il ? (estimation : {qty})",
     "locations_aria": "Emplacements",
     "add_location": "Ajouter",
-    "location_alerts": "{n} produits à vérifier"
+    "location_alerts": "{n} produits à vérifier",
+    "urgency_title": "Sauver le gaspillage",
+    "urgency_expired": "{n} produits périmés à sauver",
+    "urgency_soon": "{n} bientôt périmés : à consommer ou cuisiner",
+    "quick_recipe_short": "Recette"
   },
   "inventory": {
     "title": "Liste",

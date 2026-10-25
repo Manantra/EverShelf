@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261025f">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025f">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025f">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261025g">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025g">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025g">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025f">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025f">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025g">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025g">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261025f"></script>
-    <script src="assets/js/core/auth.js?v=20261025f"></script>
+    <script src="assets/js/core/dom.js?v=20261025g"></script>
+    <script src="assets/js/core/auth.js?v=20261025g"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261025f"></script>
+    <script src="assets/js/core/support.js?v=20261025g"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025g';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025f';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025g';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261025f"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261025g"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -222,34 +222,49 @@
         <div class="location-rail" id="location-rail" role="list"
              aria-label="Locazioni" data-i18n-aria="dashboard.locations_aria"></div>
 
-        <!-- Top notification banner (anomalous qty + consumption predictions) -->
-        <div id="alert-banner" class="alert-banner" style="display:none">
-            <div class="alert-banner-inner">
-                <div class="alert-banner-icon" id="alert-banner-icon">⚠️</div>
-                <div class="alert-banner-body">
-                    <div class="alert-banner-title" id="alert-banner-title"></div>
-                    <div class="alert-banner-detail" id="alert-banner-detail"></div>
+        <!-- ── Urgency hub (UI audit, blocks 2 & 3) ─────────────────────────────
+             The anomaly banner, the expired list and the recipe CTA used to be three
+             separate blocks with three different frames, so the same product could
+             appear twice and the action sat away from the problem. They are one
+             container now: a header that states what is at stake and offers the one
+             action that saves it, then the rows. The inner ids are untouched, so the
+             loaders, the swipe-to-open sheet and the existing tests keep working. -->
+        <section class="urgency-hub" id="urgency-hub" hidden>
+            <div class="urgency-head">
+                <div class="urgency-title">
+                    <span class="urgency-icon" aria-hidden="true">🛟</span>
+                    <div class="urgency-title-text">
+                        <h3 data-i18n="dashboard.urgency_title">Salva lo spreco</h3>
+                        <p class="urgency-sub" id="urgency-sub"></p>
+                    </div>
                 </div>
-                <button class="alert-banner-close" id="alert-banner-close" onclick="dismissBannerItem()">✕</button>
+                <button type="button" class="btn-quick-recipe" id="urgency-recipe-btn"
+                        onclick="quickRecipeSuggestion()" hidden>
+                    <span aria-hidden="true">🍳</span>
+                    <span class="quick-recipe-text" data-i18n="dashboard.quick_recipe_short">Ricetta</span>
+                </button>
             </div>
-            <div class="alert-banner-actions" id="alert-banner-actions"></div>
-            <div class="alert-banner-counter" id="alert-banner-counter"></div>
-        </div>
 
-        <!-- Alert for expired items (on top) -->
-        <div class="alert-section alert-danger" id="alert-expired" style="display:none">
-            <h3 data-i18n="dashboard.expired_title">🚫 Scaduti</h3>
-            <div id="expired-list"></div>
-        </div>
+            <!-- Top notification banner (anomalous qty + consumption predictions) -->
+            <div id="alert-banner" class="alert-banner" style="display:none">
+                <div class="alert-banner-inner">
+                    <div class="alert-banner-icon" id="alert-banner-icon">⚠️</div>
+                    <div class="alert-banner-body">
+                        <div class="alert-banner-title" id="alert-banner-title"></div>
+                        <div class="alert-banner-detail" id="alert-banner-detail"></div>
+                    </div>
+                    <button class="alert-banner-close" id="alert-banner-close" onclick="dismissBannerItem()">✕</button>
+                </div>
+                <div class="alert-banner-actions" id="alert-banner-actions"></div>
+                <div class="alert-banner-counter" id="alert-banner-counter"></div>
+            </div>
 
-        <!-- Quick recipe suggestion — sits right under the expired stock it cooks from -->
-        <div class="quick-recipe-bar" id="quick-recipe-bar" style="display:none">
-            <button class="btn-quick-recipe" onclick="quickRecipeSuggestion()">
-                <span>🍳</span>
-                <span class="quick-recipe-text" data-i18n="dashboard.quick_recipe">Ricetta veloce con prodotti in scadenza</span>
-                <span>→</span>
-            </button>
-        </div>
+            <!-- Expired stock: the rows are the recipe's ingredients -->
+            <div class="alert-section alert-danger" id="alert-expired" style="display:none">
+                <h3 data-i18n="dashboard.expired_title">🚫 Scaduti</h3>
+                <div id="expired-list"></div>
+            </div>
+        </section>
 
         <!-- Anti-Waste Report Card + Nutrition Analysis + Monthly Stats (alternating, content rendered by JS) -->
         <div id="dashboard-insight-wrap" style="position:relative">
@@ -2924,13 +2939,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261025f"></script>
-<script src="assets/js/core/vocab.js?v=20261025f"></script>
-<script src="assets/js/app.js?v=20261025f"></script>
-<script src="assets/js/audit.js?v=20261025f"></script>
-<script src="assets/js/receipt.js?v=20261025f"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261025f"></script>
-<script src="assets/js/settings_search.js?v=20261025f"></script>
+<script src="assets/js/vocab.generated.js?v=20261025g"></script>
+<script src="assets/js/core/vocab.js?v=20261025g"></script>
+<script src="assets/js/app.js?v=20261025g"></script>
+<script src="assets/js/audit.js?v=20261025g"></script>
+<script src="assets/js/receipt.js?v=20261025g"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261025g"></script>
+<script src="assets/js/settings_search.js?v=20261025g"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

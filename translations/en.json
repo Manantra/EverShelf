@@ -272,7 +272,11 @@
     "banner_finished_restore_prompt": "How many {unit} of {name} do you still have? (system estimate: {qty})",
     "locations_aria": "Locations",
     "add_location": "Add",
-    "location_alerts": "{n} products to check"
+    "location_alerts": "{n} products to check",
+    "urgency_title": "Save the waste",
+    "urgency_expired": "{n} expired products to rescue",
+    "urgency_soon": "{n} expiring: use or cook them",
+    "quick_recipe_short": "Recipe"
   },
   "inventory": {
     "title": "List",

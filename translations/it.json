@@ -272,7 +272,11 @@
     "banner_finished_restore_prompt": "Quante {unit} di {name} hai ancora? (stima sistema: {qty})",
     "locations_aria": "Locazioni",
     "add_location": "Aggiungi",
-    "location_alerts": "{n} prodotti da controllare"
+    "location_alerts": "{n} prodotti da controllare",
+    "urgency_title": "Salva lo spreco",
+    "urgency_expired": "{n} prodotti scaduti da salvare",
+    "urgency_soon": "{n} in scadenza: usa o cucina",
+    "quick_recipe_short": "Ricetta"
   },
   "inventory": {
     "title": "Lista",

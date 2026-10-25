@@ -1407,7 +1407,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025f'; // bump when translations change
+const _I18N_VERSION = '20261025g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7833,6 +7833,46 @@ function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
 }
 
 /**
+ * Urgency hub (UI audit, blocks 2 & 3).
+ *
+ * The anomaly banner, the expired rows and the recipe CTA were three blocks with
+ * three frames: the same product could appear in two of them and the action was
+ * somewhere else. They are one container now, and this function is the only place
+ * that decides whether it deserves screen space:
+ *   - visible when there is an anomaly to resolve or expired stock to save;
+ *   - the recipe CTA appears only when something is about to expire (that is what a
+ *     recipe can actually save);
+ *   - the subtitle counts what the user can act on, not what the server knows.
+ */
+function _syncUrgencyHub() {
+    const hub = document.getElementById('urgency-hub');
+    if (!hub) return;
+    const shown = (id) => {
+        const el = document.getElementById(id);
+        return !!el && el.style.display !== 'none' && !el.hidden;
+    };
+    const bannerShown = shown('alert-banner');
+    const expiredShown = shown('alert-expired');
+    const expiringShown = shown('alert-expiring');
+    const expiredCount = document.querySelectorAll('#expired-list .alert-item').length;
+    const expiringCount = document.querySelectorAll('#expiring-list .alert-item').length;
+
+    hub.hidden = !(bannerShown || expiredShown);
+    const sub = document.getElementById('urgency-sub');
+    if (sub) {
+        if (expiredCount > 0) {
+            sub.textContent = t('dashboard.urgency_expired', { n: expiredCount });
+        } else if (expiringCount > 0) {
+            sub.textContent = t('dashboard.urgency_soon', { n: expiringCount });
+        } else {
+            sub.textContent = '';
+        }
+    }
+    const cta = document.getElementById('urgency-recipe-btn');
+    if (cta) cta.hidden = !expiringShown;
+}
+
+/**
  * Locations rail (UI audit, block 1).
  *
  * One snapping row of pills — icon, name, count — built from the *dynamic* list
@@ -7997,13 +8037,8 @@ async function loadDashboard() {
         _loadCanonicalTotalFromSession();
         _applyShoppingTotalDisplay();
         
-        // Quick recipe button - show when there are expiring products
-        const recipeBar = document.getElementById('quick-recipe-bar');
-        if (statsData.expiring_soon && statsData.expiring_soon.length > 0) {
-            recipeBar.style.display = 'block';
-        } else {
-            recipeBar.style.display = 'none';
-        }
+        // The recipe CTA lives in the urgency hub header now; _syncUrgencyHub()
+        // decides whether the hub (and that button) is worth showing at all.
         
         // Expiring items — always the 3 closest dates (less noise, more readable)
         const expiringSection = document.getElementById('alert-expiring');
@@ -8073,6 +8108,8 @@ async function loadDashboard() {
         } else {
             expiredSection.style.display = 'none';
         }
+        // The hub decides its own visibility from what is on screen now.
+        _syncUrgencyHub();
         
         // Banner alerts (suspicious quantities + consumption predictions)
         loadBannerAlerts();
@@ -8801,6 +8838,8 @@ async function loadBannerAlerts() {
         console.error('[Banner] loadBannerAlerts error:', e);
     } finally {
         _bannerLoading = false;
+        // The banner lives inside the urgency hub: its visibility changes here.
+        _syncUrgencyHub();
     }
 
     if (_bannerQueue.length > 0) {
@@ -11766,7 +11805,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11776,7 +11815,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

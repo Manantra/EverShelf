@@ -317,3 +317,65 @@
     box-shadow: 0 0 0 2px var(--bg);
     pointer-events: none;
 }
+
+/* ── Urgency hub: one block for the anomaly banner, the expired rows and the CTA ── */
+.urgency-hub {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-left: 3px solid var(--tone-danger);
+    border-radius: var(--surface-radius);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+.urgency-hub[hidden] { display: none; }
+
+.urgency-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+.urgency-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.urgency-icon { font-size: 1.25rem; line-height: 1; }
+.urgency-title-text { min-width: 0; }
+.urgency-title h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.urgency-sub {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+
+#urgency-recipe-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    padding: 0 12px;
+    min-height: var(--touch-min);
+    border-radius: 999px;
+}
+#urgency-recipe-btn[hidden] { display: none; }
+
+/* Inside the hub the children are rows of one card, not cards of their own. */
+.urgency-hub #alert-banner,
+.urgency-hub .alert-section {
+    margin: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 6px 0 0;
+    overflow: visible;
+}
+.urgency-hub .alert-section h3 { display: none; }

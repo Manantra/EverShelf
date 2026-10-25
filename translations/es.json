@@ -272,7 +272,11 @@
     "banner_finished_restore_prompt": "¿Cuántas {unit} de {name} te quedan? (estimación del sistema: {qty})",
     "locations_aria": "Ubicaciones",
     "add_location": "Añadir",
-    "location_alerts": "{n} productos que revisar"
+    "location_alerts": "{n} productos que revisar",
+    "urgency_title": "Salva el desperdicio",
+    "urgency_expired": "{n} productos caducados que rescatar",
+    "urgency_soon": "{n} por caducar: úsalos o cocínalos",
+    "quick_recipe_short": "Receta"
   },
   "inventory": {
     "title": "Lista",
