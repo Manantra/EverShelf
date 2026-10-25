@@ -13,6 +13,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.18] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### The dashboard becomes a triage screen (UI pass, blocks 1-7 + voice)
+Five differently coloured frames in one scroll looked equally urgent, six micro
+buttons sat on every row, and the analytics pushed "what expires tomorrow" below the
+fold. Each change below is one block of the UI audit and has its own guard test.
+
+**One calm surface (new `assets/css/surfaces.css`)**
+- Neutral card chrome everywhere, one semantic tone per block as a 3 px rail + a dot
+  in the title, badges carry the colour. Loaded after the themes, before
+  `mobile.css` (which stays last for phone geometry), with tokens for dark mode.
+- Secondaries meet a 40 px touch minimum; the orange gradient CTA is a calm accent.
+
+**Locations are a rail, the shopping count is a badge**
+- The fixed 2×2 grid (Dispensa/Frigo/Freezer/Spesa) is a snapping row of dynamic
+  pills: icon, name, count, a red dot where something is expired or expiring, empty
+  locations dimmed, and a dashed “+” that opens Settings → Luoghi di conservazione.
+- The purchase flow left the stocking states: the list size is a badge on the Spesa
+  tab, the euro estimate stays in the shopping page header.
+
+**Urgency hub** — the anomaly banner, the expired list and the recipe CTA are one
+container with a header (“Salva lo spreco”, count, 🍳 Ricetta) and one place that
+decides whether it is worth showing.
+
+**Stock hub** — “in scadenza / aperti / dimenticati” are three tabs of one block with
+live counters, instead of three stacked lists. Rows keep a single primary action and
+a 40 px ⋮ opening the full sheet (extend stays as a calendar glyph).
+
+**Analytics moved to Storico** — anti-waste, nutrition, macros, spend, freshness and
+monthly charts live in a collapsible “📊 Statistiche” block at the top of Storico; the
+dashboard keeps one line: “N usati · M buttati negli ultimi 30 giorni”.
+
+**Capture button** — the centre of the nav is a sparkle, not a brand. It opens a sheet
+that accepts a spoken (Web Speech API, on-device) or typed sentence and routes it to
+the flow that already does the job: use → use form, add → add form prefilled, recipe →
+chat. Nothing is applied without confirmation; a missing mic degrades to typing.
+
 ## [1.16.17] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Deep audit pass — the settings API stops leaking, the CI starts testing
