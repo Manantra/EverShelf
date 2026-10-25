@@ -1036,6 +1036,37 @@ function recipesBackfillAndDedupByHash(PDO $db): void {
 
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_content_hash ON recipes(content_hash) WHERE content_hash != ''");
 
+    // --- "Altro" is gone (1.16.19) --------------------------------------------
+    // A generic "Altro" bucket collected whatever did not fit a real place, so stock
+    // hid there instead of living where it belongs. The location is removed from the
+    // app; any row still pointing at it moves to the first location (dispensa), and
+    // the number is recorded so the client can say so once — nothing disappears
+    // silently, and the migration itself is idempotent.
+    $altroFlag = 'migration_location_altro_v1';
+    $altroDone = $db->query("SELECT value FROM app_settings WHERE key = '{$altroFlag}'")->fetchColumn();
+    if ($altroDone === false) {
+        $altroMoved = 0;
+        try {
+            $altroMoved = (int)$db->query("SELECT COUNT(*) FROM inventory WHERE location = 'altro'")->fetchColumn();
+            if ($altroMoved > 0) {
+                $db->exec("UPDATE inventory SET location = 'dispensa' WHERE location = 'altro'");
+            }
+        } catch (Throwable $e) {
+            $altroMoved = 0;
+        }
+        $altroNotice = json_encode(['from' => 'altro', 'to' => 'dispensa', 'moved' => $altroMoved, 'ts' => time()]);
+        $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+                      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+           ->execute([$altroFlag, $altroNotice]);
+        if ($altroMoved > 0 && class_exists('EverLog')) {
+            EverLog::info('The Altro location was removed; its stock moved to dispensa', [
+                'event' => 'location_altro_migrated',
+                'moved' => $altroMoved,
+                'to'    => 'dispensa',
+            ]);
+        }
+    }
+
     // --- Hot-path indexes (audit D1/G2) ---------------------------------------
     // These statements are hit on every dashboard rebuild and by the 5-minute
     // shopping cron, on columns that had no index. Created here as well as in

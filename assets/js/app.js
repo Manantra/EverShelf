@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025k'; // bump when translations change
+const _I18N_VERSION = '20261025l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1715,7 +1715,7 @@ function _showImportModal() {
     const colsHtml = _IMPORT_SCHEMA_COLS.map(c =>
         `<code class="${c === 'Name' ? 'required' : ''}">${escapeHtml(c)}</code>`
     ).join('');
-    const locValues = ['dispensa', 'frigo', 'freezer', 'altro']
+    const locValues = ['dispensa', 'frigo', 'freezer']
         .map(k => `${k} (${_importLocationLabel(k)})`)
         .join(', ');
     const html = `
@@ -1917,13 +1917,22 @@ const BUILTIN_LOCATIONS = {
     'dispensa': { icon: '🗄️', labelKey: 'locations.dispensa' },
     'frigo': { icon: '🧊', labelKey: 'locations.frigo' },
     'freezer': { icon: '❄️', labelKey: 'locations.freezer' },
-    'altro': { icon: '📦', labelKey: 'locations.altro' },
 };
+
+/**
+ * Legacy location keys that no longer exist. "Altro" was a generic bucket that hid
+ * stock instead of placing it (removed in 1.16.19); old rows and old client caches
+ * are read as the first location, exactly like the server-side migration does.
+ */
+const LEGACY_LOCATION_ALIASES = { altro: 'dispensa' };
+function normalizeLocationKey(key) {
+    const k = String(key || '');
+    return LEGACY_LOCATION_ALIASES[k] || k;
+}
 let LOCATIONS = {
     'dispensa': { icon: '🗄️', label: t('locations.dispensa') },
     'frigo': { icon: '🧊', label: t('locations.frigo') },
     'freezer': { icon: '❄️', label: t('locations.freezer') },
-    'altro': { icon: '📦', label: t('locations.altro') },
 };
 
 function slugifyCustomLocation(name) {
@@ -1998,7 +2007,7 @@ function addCustomLocation() {
     if (!name) return;
     const s = getSettings();
     if (!s.custom_locations) s.custom_locations = [];
-    const builtins = ['dispensa', 'frigo', 'freezer', 'altro', t('locations.dispensa'), t('locations.frigo'), t('locations.freezer'), t('locations.altro')];
+    const builtins = ['dispensa', 'frigo', 'freezer', t('locations.dispensa'), t('locations.frigo'), t('locations.freezer')];
     if (builtins.some(b => String(b).toLowerCase() === name.toLowerCase())) {
         showToast(t('settings.custom_locations.reserved'), 'error');
         return;
@@ -7843,6 +7852,24 @@ function _rowMenuButtons(item) {
 }
 
 /**
+ * One-shot notice for a data migration: the "Altro" location was removed and its
+ * stock moved to the first location (1.16.19). Shown once per device — the instance
+ * keeps the flag, but a phone paired afterwards does not need the history — and it
+ * names the destination, so nothing looks lost.
+ */
+function _maybeShowLocationAltroNotice(serverSettings) {
+    const info = serverSettings && serverSettings.location_altro_migration;
+    if (!info || !Number(info.moved)) return;
+    let seen = '';
+    try { seen = localStorage.getItem('evershelf_location_altro_notice') || ''; } catch (e) { return; }
+    const stamp = `${info.moved}:${info.to}`;
+    if (seen === stamp) return;
+    const toLabel = (LOCATIONS[normalizeLocationKey(info.to)] || {}).label || info.to;
+    showToast(t('location_altro.removed', { n: info.moved, to: toLabel }), 'warning', 9000);
+    try { localStorage.setItem('evershelf_location_altro_notice', stamp); } catch (e) { /* quota */ }
+}
+
+/**
  * Compact month strip (UI audit, block 4).
  *
  * The analytics — anti-waste report, nutrition, monthly categories, macros, spend —
@@ -7977,7 +8004,7 @@ function renderLocationRail(summary, stats) {
     if (!rail) return;
     const counts = {};
     for (const row of (summary || [])) {
-        const key = String(row.location || '');
+        const key = normalizeLocationKey(row.location);
         if (!key) continue;
         counts[key] = (counts[key] || 0) + (parseInt(row.product_count, 10) || 0);
     }
@@ -8239,7 +8266,8 @@ function _alertItemHead(item) {
  */
 function _alertItemMeta(item, extra = '') {
     if (!item) return '';
-    const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location || '' };
+    const locKey = normalizeLocationKey(item.location);
+    const locInfo = LOCATIONS[locKey] || { icon: '📦', label: item.location || '' };
     const parts = [];
     if (item.location && locInfo.label) parts.push(`${locInfo.icon} ${locInfo.label}`);
     if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
@@ -12077,7 +12105,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12087,7 +12115,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -21326,13 +21354,14 @@ function showLoading(show) {
     document.getElementById('loading').style.display = show ? 'flex' : 'none';
 }
 
-function showToast(message, type = '') {
+function showToast(message, type = '', duration = 3000) {
     const toast = document.getElementById('toast');
+    if (!toast) return;
     toast.textContent = message;
     toast.className = 'toast show ' + type;
     setTimeout(() => {
         toast.className = 'toast';
-    }, 3000);
+    }, Math.max(1500, Number(duration) || 3000));
 }
 
 function showActionToast(message, actionLabel, onAction, duration = 5000) {
@@ -27535,7 +27564,7 @@ function generateScreensaverFact() {
 
     for (const item of inv) {
         // by location
-        const loc = item.location || 'altro';
+        const loc = normalizeLocationKey(item.location || 'dispensa');
         if (!byLocation[loc]) byLocation[loc] = [];
         byLocation[loc].push(item);
         if (loc === 'freezer') inFreezer.push(item);
@@ -30047,6 +30076,8 @@ async function _initApp() {
         initInactivityWatcher();
     });
     showPage('dashboard');
+    // A removed location is a one-time piece of news: say it after the app is visible.
+    _maybeShowLocationAltroNotice(_serverSettings);
     initSpesaMode();
     initScreensaverShortcuts();
     startBgShoppingRefresh();

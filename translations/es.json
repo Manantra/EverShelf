@@ -111,8 +111,7 @@
   "locations": {
     "dispensa": "Despensa",
     "frigo": "Nevera",
-    "freezer": "Congelador",
-    "altro": "Otro"
+    "freezer": "Congelador"
   },
   "categories": {
     "latticini": "Lácteos",
@@ -1779,7 +1778,7 @@
     "custom_locations": {
       "title": "📍 Ubicaciones personalizadas",
       "hint": "Añade sitios además de Despensa, Nevera, Congelador y Otro (p. ej. Bodega, Garaje). Los nombres se conservan tal cual.",
-      "builtin_hint": "Predefinidos (no eliminables): Despensa, Nevera, Congelador, Otro.",
+      "builtin_hint": "Predefinidos (no eliminables): Despensa, Nevera, Congelador.",
       "placeholder": "Ej.: Bodega, Box garaje…",
       "empty": "Sin ubicaciones personalizadas",
       "added": "Ubicación añadida — pulsa Guardar para sincronizar",
@@ -2704,5 +2703,8 @@
     "no_product": "{name} no está en la despensa: te lo añado.",
     "use_hint": "Abro {name}: confirma la cantidad.",
     "add_hint": "Añado {name}: completa los detalles."
+  },
+  "location_altro": {
+    "removed": "La ubicación «Otro» ya no existe: {n} productos se han movido a «{to}»."
   }
 }

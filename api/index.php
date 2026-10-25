@@ -9060,6 +9060,20 @@ function getServerSettings(): void {
             $v = evershelfSetupLedgerValue('setup_seen');
             return is_array($v) ? $v : [];
         })(),
+        // One-shot data-migration notices. "Altro" was removed as a location
+        // (1.16.19): its stock moved to the first location and the client says so
+        // once per device, with the number and the destination.
+        'location_altro_migration' => (function (): ?array {
+            $v = evershelfSetupLedgerValue('migration_location_altro_v1');
+            if (!is_array($v) || (int)($v['moved'] ?? 0) <= 0) {
+                return null;
+            }
+            return [
+                'from'  => (string)($v['from'] ?? 'altro'),
+                'to'    => (string)($v['to'] ?? 'dispensa'),
+                'moved' => (int)$v['moved'],
+            ];
+        })(),
         // Shopping list
         'shopping_enabled'            => env('SHOPPING_ENABLED', 'true') === 'true',
         'shopping_mode'               => env('SHOPPING_MODE', 'internal'),

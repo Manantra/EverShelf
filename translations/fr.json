@@ -111,8 +111,7 @@
   "locations": {
     "dispensa": "Garde-manger",
     "frigo": "Réfrigérateur",
-    "freezer": "Congélateur",
-    "altro": "Autre"
+    "freezer": "Congélateur"
   },
   "categories": {
     "latticini": "Produits laitiers",
@@ -1779,7 +1778,7 @@
     "custom_locations": {
       "title": "📍 Emplacements personnalisés",
       "hint": "Ajoutez des lieux en plus du Garde-manger, Frigo, Congélateur et Autre (ex. Cave, Garage). Les noms restent tels quels.",
-      "builtin_hint": "Prédéfinis (non supprimables) : Garde-manger, Frigo, Congélateur, Autre.",
+      "builtin_hint": "Prédéfinis (non supprimables) : Garde-manger, Frigo, Congélateur.",
       "placeholder": "Ex. : Cave, Box garage…",
       "empty": "Aucun emplacement personnalisé",
       "added": "Emplacement ajouté — enregistrez pour synchroniser",
@@ -2704,5 +2703,8 @@
     "no_product": "{name} n'est pas dans le garde-manger : je l'ajoute.",
     "use_hint": "J'ouvre {name} : confirme la quantité.",
     "add_hint": "J'ajoute {name} : complète les détails."
+  },
+  "location_altro": {
+    "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."
   }
 }

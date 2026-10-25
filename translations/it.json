@@ -111,8 +111,7 @@
   "locations": {
     "dispensa": "Dispensa",
     "frigo": "Frigo",
-    "freezer": "Freezer",
-    "altro": "Altro"
+    "freezer": "Freezer"
   },
   "categories": {
     "latticini": "Latticini",
@@ -1779,7 +1778,7 @@
     "custom_locations": {
       "title": "📍 Luoghi di conservazione",
       "hint": "Aggiungi posti oltre a Dispensa, Frigo, Freezer e Altro (es. Cantina, Garage). I nomi restano così come li scrivi.",
-      "builtin_hint": "Predefiniti (non rimovibili): Dispensa, Frigo, Freezer, Altro.",
+      "builtin_hint": "Predefiniti (non rimovibili): Dispensa, Frigo, Freezer.",
       "placeholder": "Es: Cantina, Box garage…",
       "empty": "Nessun luogo personalizzato",
       "added": "Luogo aggiunto — premi Salva per sincronizzare",
@@ -2704,5 +2703,8 @@
     "no_product": "{name} non è in dispensa: te lo faccio aggiungere.",
     "use_hint": "Apro {name}: conferma la quantità.",
     "add_hint": "Aggiungo {name}: completa i dettagli."
+  },
+  "location_altro": {
+    "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."
   }
 }

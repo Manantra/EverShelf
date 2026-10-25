@@ -111,8 +111,7 @@
   "locations": {
     "dispensa": "食品柜",
     "frigo": "冰箱",
-    "freezer": "冷冻柜",
-    "altro": "其他"
+    "freezer": "冷冻柜"
   },
   "categories": {
     "latticini": "乳制品",
@@ -1779,7 +1778,7 @@
     "custom_locations": {
       "title": "📍 自定义存放位置",
       "hint": "在食品柜、冰箱、冷冻柜和其他之外添加更多位置（例如地下室、车库）。名称会按你输入的内容保存。",
-      "builtin_hint": "内置位置（不可移除）：食品柜、冰箱、冷冻柜、其他。",
+      "builtin_hint": "内置位置（不可移除）：食品柜、冰箱、冷冻柜。",
       "placeholder": "例如：地下室、车库储物箱…",
       "empty": "暂无自定义位置",
       "added": "位置已添加——点击保存以同步",
@@ -2704,5 +2703,8 @@
     "no_product": "{name} 不在储藏室：我帮你添加。",
     "use_hint": "正在打开 {name}：请确认数量。",
     "add_hint": "正在添加 {name}：请补充细节。"
+  },
+  "location_altro": {
+    "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"
   }
 }

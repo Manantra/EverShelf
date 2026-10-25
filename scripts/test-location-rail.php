@@ -70,13 +70,13 @@ const LOCATIONS = {
     dispensa: { icon: '🗄️', label: 'Dispensa' },
     frigo:    { icon: '🧊', label: 'Frigo' },
     freezer:  { icon: '❄️', label: 'Freezer' },
-    altro:    { icon: '📦', label: 'Altro' },
     custom_cantina: { icon: '📦', label: '<img src=x onerror=alert(1)>Cantina' },
 };
 const rail = { innerHTML: '' };
 const document = { getElementById: (id) => (id === 'location-rail' ? rail : null) };
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const escapeAttr = escapeHtml;
+const normalizeLocationKey = (k) => (String(k || '') === 'altro' ? 'dispensa' : String(k || ''));
 const t = (k, p) => k + (p ? JSON.stringify(p) : '');
 
 renderLocationRail(
@@ -110,7 +110,7 @@ $raw = shell_exec('node ' . escapeshellarg($tmp) . ' 2>/dev/null');
 $out = json_decode(trim((string)$raw), true);
 check('the harness runs in node', is_array($out), (string)$raw);
 if (is_array($out)) {
-    check('one pill per location plus the add pill', (int)($out['pills'] ?? 0) === 6);
+    check('one pill per location plus the add pill', (int)($out['pills'] ?? 0) === 5);
     check('the add pill is the last one', (bool)($out['add_last'] ?? false));
     check('a custom location gets its own pill', (bool)($out['cantina'] ?? false));
     check('a hostile location name is escaped', (bool)($out['escaped'] ?? false));

@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.19] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### The “Altro” location is gone
+“Altro” was a generic bucket: whatever did not fit a real place ended up there, so
+stock hid instead of living where it belongs. It is removed as a **location** —
+Dispensa, Frigo, Freezer plus the custom ones are the real places now.
+- **Nothing is lost:** a one-shot migration moves every row that still pointed at
+  `altro` to the first location (`dispensa`), and the client shows a notice once per
+  device that names the count and the destination: *“La locazione «Altro» non esiste
+  più: N prodotti sono stati spostati in «Dispensa».”* (`location_altro.removed`,
+  six locales). The flag lives in `app_settings` (`migration_location_altro_v1`), so
+  the migration runs exactly once and cannot re-count on the next boot.
+- `get_settings` exposes the record (`location_altro_migration`) so a device that was
+  offline during the upgrade still learns it once; a device paired afterwards is not
+  told about a migration that happened before it existed.
+- The inventory filter tab, the add-location form, the import hints and the location
+  pickers no longer offer it; `settings.custom_locations.builtin_hint` no longer
+  names it either.
+- Old data that still says `altro` (a stale cache, an old export) is read as
+  `dispensa` through `normalizeLocationKey()` — the same destination as the
+  migration — so a product never shows a location that does not exist.
+- The **category** `altro` is a different thing (the classifier's fallback for an
+  unknown name) and stays untouched; the guard test checks both sides.
+
+Guard test `scripts/test-location-altro-removed.php` (34 checks): a real SQLite
+database migrates `altro` → `dispensa`, records `moved: 1`, is one-shot on the next
+boot, keeps other locations intact; the client no longer offers the location, keeps
+the legacy alias, and the six translations carry the notice.
+
 ## [1.16.18] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### The dashboard becomes a triage screen (UI pass, blocks 1-7 + voice)

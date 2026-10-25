@@ -111,8 +111,7 @@
   "locations": {
     "dispensa": "Vorratskammer",
     "frigo": "Kühlschrank",
-    "freezer": "Gefrierschrank",
-    "altro": "Sonstiges"
+    "freezer": "Gefrierschrank"
   },
   "categories": {
     "latticini": "Milchprodukte",
@@ -1779,7 +1778,7 @@
     "custom_locations": {
       "title": "📍 Eigene Lagerorte",
       "hint": "Orte zusätzlich zu Vorrat, Kühlschrank, Gefrierfach und Sonstiges (z. B. Keller, Garage). Namen bleiben unverändert.",
-      "builtin_hint": "Vordefiniert (nicht entfernbar): Vorrat, Kühlschrank, Gefrierfach, Sonstiges.",
+      "builtin_hint": "Vordefiniert (nicht entfernbar): Vorrat, Kühlschrank, Gefrierfach.",
       "placeholder": "Z. B.: Keller, Garage…",
       "empty": "Noch keine eigenen Orte",
       "added": "Ort hinzugefügt — Speichern tippen zum Sync",
@@ -2704,5 +2703,8 @@
     "no_product": "{name} ist nicht im Vorrat: ich füge es hinzu.",
     "use_hint": "Öffne {name}: bestätige die Menge.",
     "add_hint": "Füge {name} hinzu: ergänze die Details."
+  },
+  "location_altro": {
+    "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."
   }
 }
