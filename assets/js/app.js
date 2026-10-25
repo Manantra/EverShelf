@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025zb'; // bump when translations change
+const _I18N_VERSION = '20261025zc'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10000,19 +10000,13 @@ function renderBannerItem() {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_ghost_title')}`;
             detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty }) + _bannerLocationLine(an);
         }
-        // Two clear choices: make the stock match the ledger (primary) or leave it
-        // (✕ on the strip, or the durable "ignore" in the menu). The rest is secondary.
-        let btns = `<button class="btn-banner btn-banner-use" onclick="alignBannerAnomaly()">${t('dashboard.banner_anomaly_align', { qty: an.expected_qty, unit: an.unit })}</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
-        btns += `<button class="btn-banner btn-banner-finish" onclick="finishBannerAnomaly()">${t('dashboard.banner_expired_action_finished')}</button>`;
-        btns += `<button class="btn-banner btn-banner-throw" onclick="throwBannerAnomaly()">${t('dashboard.banner_expired_action_throw')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
-        if (_geminiAvailable) {
-            btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="${t('dashboard.banner_explain_title')}">\ud83e\udd16 ${t('dashboard.banner_explain_btn')}</button>`;
-        }
-        // Inline on purpose: this strip is about one number, and hiding "finito /
-        // buttato / correggi" behind a ⋮ made the ⋮ look broken. Each button keeps its
-        // own colour (emerald finish, soft red discard, sky correct, neutral ignore).
+        // Two answers, and only two: "yes, the difference is mine" (write the ledger value)
+        // or "no, let me correct it" (open the product sheet, where every ordinary action
+        // lives). Finito/Buttato are product actions, Ignora duplicated the ✕, and Spiega
+        // repeated what the sentence above already says: six buttons for one number was a
+        // control panel, not a notice.
+        let btns = `<button class="btn-banner btn-banner-use" onclick="alignBannerAnomaly()">✓ ${escapeHtml(t('dashboard.banner_anomaly_align', { qty: an.expected_qty, unit: an.unit }))}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit-qty" onclick="editBannerAnomalyQuantity()">${escapeHtml(t('dashboard.banner_anomaly_edit_qty'))}</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'dup_loss_check') {
@@ -10064,12 +10058,28 @@ function renderBannerItem() {
     banner.style.display = '';
 }
 
+/**
+ * Persist an anomaly dismissal. Hiding the row only until the next refresh was a
+ * dismissal that dismissed nothing, and the old "Ignora" also posted
+ * `inventory_confirm_finished` — the ✕ must not touch the stock.
+ */
+function _bannerMarkAnomalyDismissed(an) {
+    const key = an && an.dismiss_key;
+    if (!key) return;
+    setReviewConfirmed('an_' + key);
+    api('dismiss_anomaly', {}, 'POST', { dismiss_key: key }).catch(() => {});
+}
+
 function dismissBannerItem() {
     const entry = _bannerQueue[_bannerIndex];
     // ✕ on "è finito?" = accept finished (was only hiding until the next refresh)
     if (entry && entry.type === 'finished') {
         confirmBannerFinished();
         return;
+    }
+    // ✕ on an anomaly = acknowledge it, quietly and for good.
+    if (entry && entry.type === 'anomaly') {
+        _bannerMarkAnomalyDismissed(entry.data);
     }
     _bannerQueue.splice(_bannerIndex, 1);
     if (_bannerQueue.length === 0) {
@@ -10126,93 +10136,27 @@ function editBannerPrediction() {
     editReviewItem(entry.data.inventory_id, entry.data.product_id);
 }
 
-async function explainBannerAnomaly() {
-    if (!_requireGemini()) return;
-    const entry = _bannerQueue[_bannerIndex];
-    if (!entry || entry.type !== 'anomaly') return;
-    const an = entry.data;
-
-    // Show loading inline in the banner detail area
-    const detailEl = document.getElementById('alert-banner-detail');
-    if (!detailEl) return;
-    const originalHtml = detailEl.innerHTML;
-    detailEl.innerHTML = `<em style="opacity:0.7">${t('dashboard.banner_analyzing')}</em>`;
-
-    // Disable the Spiega button to prevent double calls
-    const explainBtn = document.querySelector('#alert-banner .btn-banner-ai');
-    if (explainBtn) explainBtn.disabled = true;
-
-    try {
-        const result = await api('gemini_anomaly_explain', {}, 'POST', {
-            name:         an.name,
-            inv_qty:      an.inv_qty,
-            expected_qty: an.expected_qty,
-            diff:         an.diff,
-            direction:    an.direction,
-            unit:         an.unit,
-            lang:         _currentLang,
-        });
-
-        if (result.success && result.explanation) {
-            detailEl.innerHTML = `<span style="font-size:0.85rem">\ud83e\udd16 ${escapeHtml(result.explanation)}</span>`;
-        } else {
-            detailEl.innerHTML = originalHtml;
-            showToast(t('dashboard.banner_anomaly_explain_fail'), 'error');
-        }
-    } catch (e) {
-        detailEl.innerHTML = originalHtml;
-        showToast(t('error.generic'), 'error');
-    }
-}
-
-function editBannerAnomaly() {
-    const entry = _bannerQueue[_bannerIndex];
-    if (!entry || entry.type !== 'anomaly') return;
-    _bannerEditPending = true;
-    editReviewItem(entry.data.inventory_id, entry.data.product_id);
-}
-
 /** Product is gone — clear stock, reconcile ledger, optionally add to shopping. */
-async function finishBannerAnomaly() {
-    const entry = _bannerQueue[_bannerIndex];
-    if (!entry || entry.type !== 'anomaly') return;
-    const an = entry.data;
-    try {
-        const res = await api('inventory_confirm_finished', {}, 'POST', { product_id: an.product_id });
-        if (res.bring?.added || res.bring?.updated) {
-            showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info');
-            if (typeof loadShoppingList === 'function') loadShoppingList();
-        }
-        setReviewConfirmed('an_' + (an.dismiss_key || an.product_id));
-        showToast(t('toast.product_finished_confirmed'), 'success');
-        dismissBannerItem();
-        if (typeof loadDashboard === 'function') loadDashboard();
-    } catch (e) {
-        showToast(t('error.connection'), 'error');
-    }
-}
-
 /** Product was thrown away — same as finished but logged as waste. */
-async function throwBannerAnomaly() {
+/**
+ * "Modifica quantità": the product sheet, where the real figure can be typed — and where
+ * "Ho consumato tutto" / "Segna buttato" already live as ordinary product actions.
+ * The strip used to try to be all of those at once; this is the single door to them.
+ */
+function editBannerAnomalyQuantity() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'anomaly') return;
     const an = entry.data;
-    try {
-        const res = await api('inventory_confirm_finished', {}, 'POST', {
-            product_id: an.product_id,
-            as_waste: true,
-        });
-        if (res.bring?.added || res.bring?.updated) {
-            showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info');
-            if (typeof loadShoppingList === 'function') loadShoppingList();
-        }
-        setReviewConfirmed('an_' + (an.dismiss_key || an.product_id));
-        showToast(t('toast.thrown_away').replace('{name}', an.name), 'success');
-        dismissBannerItem();
-        if (typeof loadDashboard === 'function') loadDashboard();
-    } catch (e) {
-        showToast(t('error.connection'), 'error');
+    const invId = Number(an.inventory_id) || 0;
+    _bannerEditPending = true;
+    const row = invId > 0 ? _findInventoryItem(invId) : null;
+    if (row) {
+        showItemDetail(invId, Number(an.product_id) || row.product_id);
+        return;
     }
+    // The row is not on screen (a phantom anomaly, or the inventory not loaded yet):
+    // the edit form asks for the same number.
+    editReviewItem(invId, an.product_id);
 }
 
 /** Current inventory qty is correct — align ledger permanently (not just hide). */
@@ -10229,7 +10173,8 @@ async function alignBannerAnomaly() {
     try {
         const res = await api('inventory_update', {}, 'POST', { id: an.inventory_id, quantity: expected });
         if (res && res.success) {
-            dismissBannerAnomaly();
+            _bannerMarkAnomalyDismissed(an);
+            dismissBannerItem();
             showToast(t('dashboard.banner_anomaly_aligned', { qty: expected, unit: an.unit }), 'success');
             try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
         } else {
@@ -10238,24 +10183,6 @@ async function alignBannerAnomaly() {
     } catch (e) {
         showToast(t('error.connection'), 'error');
     }
-}
-
-async function dismissBannerAnomaly() {
-    const entry = _bannerQueue[_bannerIndex];
-    if (!entry || entry.type !== 'anomaly') return;
-    const an = entry.data;
-    const key = an.dismiss_key;
-    try {
-        await api('inventory_confirm_finished', {}, 'POST', {
-            product_id: an.product_id,
-            add_to_shopping: false,
-        });
-    } catch (e) {}
-    setReviewConfirmed('an_' + key);
-    api('dismiss_anomaly', {}, 'POST', { dismiss_key: key }).catch(() => {});
-    showToast(t('dashboard.banner_anomaly_dismissed'), 'info');
-    dismissBannerItem();
-    if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 function dismissDuplicateLossCheck() {
@@ -12618,6 +12545,7 @@ async function submitEditInventory(e, id, productId) {
                 else if (entry.type === 'prediction') setReviewConfirmed('pred_' + entry.data.inventory_id);
                 else if (entry.type === 'expired') setReviewConfirmed('exp_' + entry.data.id);
                 else if (entry.type === 'expiring') setReviewConfirmed('exps_' + entry.data.id);
+                else if (entry.type === 'anomaly') _bannerMarkAnomalyDismissed(entry.data);
             }
             dismissBannerItem();
         }
@@ -12830,7 +12758,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025zb';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025zc';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12840,7 +12768,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025zb';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025zc';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

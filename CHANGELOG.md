@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.29] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **The anomaly banner asks one question and offers two answers**: “✓ Conferma 2000 ml”
+  (solid emerald, writes the ledger value) and “Modifica quantità” (neutral, opens the
+  product sheet, where the real figure can be typed — or the item marked as finished /
+  discarded). “Finito”, “Buttato”, “Correggi”, “Ignora” and “🤖 Spiega” left the strip:
+  the first two are ordinary product actions, “Ignora” duplicated the ✕, and the sentence
+  above already says why. Six pastel buttons for one number is a control panel, not a
+  notice.
+- **The primary never wraps**: “Aggiorna a 3500 / ml” broke in two lines and pulled the
+  whole row out of alignment; the label is “Conferma N unit” with `white-space: nowrap`.
+- **✕ now really dismisses**: closing an anomaly persisted nothing, so the same strip came
+  back on the next refresh. It records the dismissal (`dismiss_anomaly` + review flag) and
+  — unlike the old “Ignora” — never posts `inventory_confirm_finished`.
+- The title uses the amber of its rail (`#92400E`), the description stays slate: one
+  accent per strip.
+
+### Removed
+- `finishBannerAnomaly()`, `throwBannerAnomaly()`, `explainBannerAnomaly()`,
+  `editBannerAnomaly()`, `dismissBannerAnomaly()` and their translation keys: dead code
+  once the strip has two choices, because the product sheet already does all of it.
+
 ## [1.16.28] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed

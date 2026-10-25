@@ -186,6 +186,29 @@ check('the collapsed banner types still go through _collapseBannerActions()',
 check('the anomaly banner keeps its actions inline',
     str_contains($app, 'actionsEl.innerHTML = btns;')
     && str_contains($app, 'btn-banner btn-banner-use" onclick="alignBannerAnomaly()"'));
+// Round 6: six buttons for one number was a control panel. Two answers only, plus the ✕.
+check('the anomaly strip offers exactly two choices',
+    str_contains($app, 'btn-banner btn-banner-edit-qty" onclick="editBannerAnomalyQuantity()"')
+    && !str_contains($app, 'onclick="dismissBannerAnomaly()"')
+    && !str_contains($app, 'onclick="finishBannerAnomaly()"')
+    && !str_contains($app, 'onclick="throwBannerAnomaly()"')
+    && !str_contains($app, 'onclick="explainBannerAnomaly()"'));
+check('the anomaly primary names the number it writes',
+    str_contains($app, "t('dashboard.banner_anomaly_align', { qty: an.expected_qty, unit: an.unit })"));
+check('the second choice opens the product sheet',
+    str_contains($app, 'function editBannerAnomalyQuantity(')
+    && str_contains($app, 'showItemDetail(invId, Number(an.product_id) || row.product_id)'));
+check('✕ dismisses an anomaly for good and never touches the stock',
+    preg_match('/function dismissBannerItem\(\)[\s\S]{0,900}entry\.type === .anomaly.[\s\S]{0,200}_bannerMarkAnomalyDismissed/', $app) === 1
+    && !preg_match('/function _bannerMarkAnomalyDismissed[\s\S]{0,500}inventory_confirm_finished/', $app));
+foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
+    $doc = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);
+    $align = (string)($doc['dashboard']['banner_anomaly_align'] ?? '');
+    check("translations/{$loc}.json says confirm-N-unit",
+        str_contains($align, '{qty}') && str_contains($align, '{unit}'));
+    check("translations/{$loc}.json has the second choice",
+        isset($doc['dashboard']['banner_anomaly_edit_qty']) && $doc['dashboard']['banner_anomaly_edit_qty'] !== '');
+}
 $collapse = extract_fn($app, '_collapseBannerActions');
 check('_collapseBannerActions() is extractable', $collapse !== '');
 check('the menu toggle exists', extract_fn($app, '_toggleBannerMenu') !== '');

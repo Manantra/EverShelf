@@ -1227,3 +1227,22 @@ body {
     background: color-mix(in srgb, var(--tone-soon) 24%, transparent);
     color: #FDE68A;
 }
+
+/* Anomaly strip: the primary never breaks in two lines ("Conferma 3500 / ml" pushed the
+   whole row out of line) and the second button is the neutral "correct it" door. */
+.alert-banner-actions .btn-banner { white-space: nowrap; }
+.alert-banner-actions .btn-banner-edit-qty {
+    background: #F1F5F9;
+    border: 1px solid #CBD5E1;
+    color: #334155;
+    font-weight: 500;
+}
+.alert-banner-actions .btn-banner-edit-qty:active { background: #E2E8F0; }
+[data-theme="dark"] .alert-banner-actions .btn-banner-edit-qty {
+    background: #1E293B;
+    border-color: #334155;
+    color: #CBD5E1;
+}
+/* Title in the dark amber of the rail, text in slate: one accent per strip. */
+.system-alert.banner-anomaly .alert-banner-title { color: var(--tone-soon-text); }
+[data-theme="dark"] .system-alert.banner-anomaly .alert-banner-title { color: #FCD34D; }
