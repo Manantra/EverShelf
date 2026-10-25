@@ -1964,6 +1964,7 @@
     "badge_better": "低于平均值"
   },
   "error": {
+    "settings_missing": "请求中没有设置数据。",
     "receipt_disabled": "小票识别已在设置中关闭。",
     "receipt_failed": "无法读取这张小票。",
     "family_disabled": "产品系列已在设置中关闭。",

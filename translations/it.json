@@ -1964,6 +1964,7 @@
     "badge_better": "in meno vs media"
   },
   "error": {
+    "settings_missing": "Dati di configurazione mancanti nella richiesta.",
     "receipt_disabled": "La lettura degli scontrini è disattivata nelle impostazioni.",
     "receipt_failed": "Non sono riuscito a leggere lo scontrino.",
     "family_disabled": "Le famiglie di prodotti sono disattivate nelle impostazioni.",

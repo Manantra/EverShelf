@@ -1964,6 +1964,7 @@
     "badge_better": "moins que la moy."
   },
   "error": {
+    "settings_missing": "La requête ne contenait aucune donnée de configuration.",
     "receipt_disabled": "La lecture de tickets est désactivée dans les paramètres.",
     "receipt_failed": "Je n'ai pas pu lire le ticket.",
     "family_disabled": "Les familles de produits sont désactivées dans les paramètres.",

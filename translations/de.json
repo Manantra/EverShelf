@@ -1964,6 +1964,7 @@
     "badge_better": "weniger als Ø"
   },
   "error": {
+    "settings_missing": "Die Anfrage enthielt keine Einstellungsdaten.",
     "receipt_disabled": "Die Bon-Erkennung ist in den Einstellungen deaktiviert.",
     "receipt_failed": "Der Bon konnte nicht gelesen werden.",
     "family_disabled": "Produktfamilien sind in den Einstellungen deaktiviert.",

@@ -1964,6 +1964,7 @@
     "badge_better": "menos que la media"
   },
   "error": {
+    "settings_missing": "La petición no incluía datos de configuración.",
     "receipt_disabled": "La lectura de tickets está desactivada en los ajustes.",
     "receipt_failed": "No he podido leer el ticket.",
     "family_disabled": "Las familias de productos están desactivadas en los ajustes.",

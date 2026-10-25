@@ -1964,6 +1964,7 @@
     "badge_better": "less than avg"
   },
   "error": {
+    "settings_missing": "The request carried no settings data.",
     "receipt_disabled": "Receipt scanning is switched off in the settings.",
     "receipt_failed": "I could not read the receipt.",
     "family_disabled": "Product families are switched off in the settings.",

@@ -176,6 +176,10 @@ let _demoMode = false;
 // Last `get_settings` payload: the single source of truth for the Settings
 // checklist ("is this option configured?") and for the guided assistant.
 let _serverSettings = {};
+/** Verbose console output for field debugging: opt in with localStorage.evershelf_debug = '1'. */
+const _everDebug = (() => {
+    try { return localStorage.getItem('evershelf_debug') === '1'; } catch (e) { return false; }
+})();
 
 function _requireRecipeEngine() {
     if (_geminiAvailable || _mealieAvailable) return true;
@@ -4181,11 +4185,12 @@ function debounce(fn, ms) {
     let t; return function(...args) { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-async function syncSettingsFromDB() {
+async function syncSettingsFromDB(serverSettings) {
     try {
-        // Primary: load from server .env (only when not already done via _applySyncedSettings)
-        const serverSettings = await api('get_settings');
-        _applySyncedSettings(serverSettings);
+        // Reuse the payload the boot already fetched: a second full get_settings
+        // round-trip per start only slowed the kiosk down (audit A3).
+        const settings = serverSettings || await api('get_settings');
+        _applySyncedSettings(settings);
         // Load all server-persisted user data from SQLite app_settings
         const res = await api('app_settings_get');
         if (res.success && res.settings) {
@@ -8717,7 +8722,9 @@ async function loadBannerAlerts() {
         // Sort by priority (highest first)
         _bannerQueue.sort((a, b) => _bannerPriority(b) - _bannerPriority(a));
 
-        console.log(`[Banner] queue ready: ${_bannerQueue.length} items (${items.length} inv, ${predictions.length} pred, ${Object.keys(confirmed).length} confirmed)`);
+        if (_everDebug) {
+            console.log(`[Banner] queue ready: ${_bannerQueue.length} items (${items.length} inv, ${predictions.length} pred, ${Object.keys(confirmed).length} confirmed)`);
+        }
 
     } catch (e) {
         console.error('[Banner] loadBannerAlerts error:', e);
@@ -11504,7 +11511,7 @@ function scanLog(msg) {
         el.textContent += `[${ts}] ${msg}\n`;
         el.scrollTop = el.scrollHeight;
     }
-    console.log('[ScanDebug]', msg);
+    if (_everDebug) console.log('[ScanDebug]', msg);
     // Buffer for remote send
     _scanLogBuffer.push(msg);
     if (!_scanLogTimer) {
@@ -29639,7 +29646,7 @@ async function _initApp() {
         localStorage.setItem('_bgBringSyncReset_v1', '1');
     }
     // syncSettingsFromDB only needs to fetch app_settings_get for review flags now
-    syncSettingsFromDB().then(() => {
+    syncSettingsFromDB(Object.keys(_serverSettings || {}).length ? _serverSettings : null).then(() => {
         scaleInit(); // connect to smart scale gateway if configured (needs settings)
         initInactivityWatcher();
     });

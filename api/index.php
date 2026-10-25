@@ -114,11 +114,15 @@ function checkRateLimit(string $action): void {
         mkdir($rateLimitDir, 0755, true);
     }
 
-    // Determine limit based on action
+    // Determine limit based on action. Buckets are named after the *abuse profile*
+    // they protect, not after the action: two actions with the same profile share a
+    // counter on purpose (price lookups), two with different profiles never do.
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr', 'gemini_barcode_visual', 'parse_receipt'];
-    $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
-    $errorActions = ['report_error', 'check_update'];
+    // Public client telemetry: the kiosk APK reports a failure and probes for an
+    // update, so they share a bucket — both are cheap JSON answers a broken client
+    // can send in a loop.
+    $clientTelemetryActions = ['report_error', 'check_update'];
     $bugActions   = ['report_bug'];
     $priceActions = ['get_shopping_price', 'get_all_shopping_prices'];
 
@@ -145,14 +149,10 @@ function checkRateLimit(string $action): void {
         $limit = 5;
         $window = 60;
         $bucket = 'recipe';
-    } elseif (in_array($action, $errorActions)) {
+    } elseif (in_array($action, $clientTelemetryActions)) {
         $limit = 20;
         $window = 60;
-        $bucket = 'error_report';
-    } elseif (in_array($action, $loginActions)) {
-        $limit = 5;
-        $window = 60;
-        $bucket = 'login';
+        $bucket = 'client_telemetry';
     } else {
         $limit = 120;
         $window = 60;
@@ -19572,17 +19572,23 @@ function appSettingsGet(PDO $db): void {
     $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
     $settings = [];
     foreach ($rows as $row) {
-        EverLog::debug('appSettingsGet');
         $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
     }
+    EverLog::debug('app_settings_get served', ['event' => 'app_settings_get', 'rows' => count($settings)]);
     echo json_encode(['success' => true, 'settings' => $settings]);
 }
 
 function appSettingsSave(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || !is_array($input['settings'] ?? null)) {
-        EverLog::debug('appSettingsSave');
-        echo json_encode(['error' => 'Missing settings object']);
+        // Same contract as every other handler: `api()` must be able to tell a
+        // failure from a save, and the client resolves the key through t().
+        EverLog::warn('app_settings_save without a settings object', ['event' => 'app_settings_save_invalid']);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Missing settings object',
+            'error_key' => 'error.settings_missing',
+        ]);
         return;
     }
     $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
