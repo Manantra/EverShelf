@@ -90,6 +90,23 @@ check('blocks carry a 4px accent line instead of a coloured frame',
     && str_contains($css, 'border-left: 4px solid var(--tone-soon)')
     && str_contains($css, 'border-left: 4px solid var(--tone-info)'));
 
+// ── Round 3: no cabins, slim verdict, tappable extend ──────────────────────
+check('semantic blocks reset all four sides to one hairline',
+    preg_match('/\.alert-danger,\s*\.alert-opened,[\s\S]{0,200}\.system-alert \{[^}]*border: 1px solid var\(--surface-border\)/s', $css) === 1);
+check('the tone survives only as a 4px left rail',
+    preg_match('/\.alert-danger, \.urgency-hub \{ border-left: 4px solid var\(--tone-danger\)/', $css) === 1
+    && str_contains($css, '#alert-expiring            { border-left: 4px solid var(--tone-soon); }'));
+check('the verdict rides on the meta line instead of a full bar',
+    str_contains($html, 'alert-item-meta-row') || str_contains($app, 'alert-item-meta-row'));
+check('the verdict chip is compact',
+    preg_match('/\.alert-item-meta-row \.safety-pill \{[^}]*font-size: 12px/s', $css) === 1);
+check('extend expiry is a 40px pill with a label on wide screens',
+    preg_match('/\.btn-alert-extend \{[^}]*min-height: var\(--touch-min\)/s', $css) === 1
+    && str_contains($css, '.btn-alert-extend .extend-label { display: inline; }')
+    && str_contains($app, 'class="extend-label"'));
+check('the system alert strip is neutral, not an amber card',
+    str_contains($css, '.alert-banner.system-alert.banner-anomaly') && str_contains($css, '.system-alert .alert-banner-title'));
+
 // ── Three text levels ──────────────────────────────────────────────────────
 check('product title is 15px / 600', preg_match('/\.alert-item-name \{[^}]*font-size: 15px[^}]*font-weight: 600/s', $css) === 1);
 check('metadata is 13px muted', preg_match('/\.alert-item-qty,[\s\S]{0,400}\.alert-section-hint[\s\S]{0,400}font-size: 13px/s', $css) === 1);

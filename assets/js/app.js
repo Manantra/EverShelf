@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025w'; // bump when translations change
+const _I18N_VERSION = '20261025y'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7844,7 +7844,7 @@ function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
 function _rowMenuButtons(item) {
     const extendKey = t('dashboard.banner_expired_action_extend');
     const extend = _shouldOfferExtendExpiry(item)
-        ? `<button type="button" class="btn-alert-extend" title="${escapeAttr(extendKey)}" aria-label="${escapeAttr(extendKey)}" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">📅</button>`
+        ? `<button type="button" class="btn-alert-extend" title="${escapeAttr(extendKey)}" aria-label="${escapeAttr(extendKey)}" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">📅<span class="extend-label">${escapeHtml(extendKey)}</span></button>`
         : '';
     const menuKey = t('dashboard.row_actions');
     return extend
@@ -7969,13 +7969,14 @@ function _syncUrgencyHub() {
         const el = document.getElementById(id);
         return !!el && el.style.display !== 'none' && !el.hidden;
     };
-    const bannerShown = shown('alert-banner');
     const expiredShown = shown('alert-expired');
     const expiringShown = shown('alert-expiring');
     const expiredCount = document.querySelectorAll('#expired-list .alert-item').length;
     const expiringCount = document.querySelectorAll('#expiring-list .alert-item').length;
 
-    hub.hidden = !(bannerShown || expiredShown);
+    // The hub is the FOOD to save; the anomaly/prediction banner lives above it now,
+    // so an inventory error can never make it look like wasted food.
+    hub.hidden = !expiredShown;
     const sub = document.getElementById('urgency-sub');
     if (sub) {
         if (expiredCount > 0) {
@@ -8689,8 +8690,10 @@ async function loadDashboard() {
                 <div class="alert-item expired-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         ${_alertItemHead(item)}
-                        ${_alertItemMeta(item)}
-                        <span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>
+                        <div class="alert-item-meta-row">
+                            ${_alertItemMeta(item)}
+                            <span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>
+                        </div>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
@@ -12476,7 +12479,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025w';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025y';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12486,7 +12489,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025w';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025y';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

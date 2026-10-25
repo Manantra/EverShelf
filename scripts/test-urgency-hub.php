@@ -64,8 +64,13 @@ $doc = new DOMDocument();
 $doc->loadHTML('<?xml encoding="UTF-8">' . $html);
 $xp = new DOMXPath($doc);
 check('the dashboard has one urgency hub', $xp->query("//*[@id='urgency-hub']")->length === 1);
-check('the anomaly banner lives inside the hub',
-    $xp->query("//*[@id='urgency-hub']//*[@id='alert-banner']")->length === 1);
+// Round 3: an inventory anomaly is not food to save, so the banner left the hub.
+check('the system banner is NOT inside the hub',
+    $xp->query("//*[@id='urgency-hub']//*[@id='alert-banner']")->length === 0);
+check('the system banner sits above the hub',
+    strpos($html, 'id="alert-banner"') < strpos($html, 'id="urgency-hub"'));
+check('the banner is a dismissible system strip',
+    $xp->query("//*[@id='alert-banner'][@class='alert-banner system-alert']")->length === 1);
 check('the expired list lives inside the hub',
     $xp->query("//*[@id='urgency-hub']//*[@id='expired-list']")->length === 1);
 check('the standalone recipe bar is gone', strpos($html, 'id="quick-recipe-bar"') === false);
@@ -144,7 +149,8 @@ if (is_array($out)) {
     check('the recipe CTA stays hidden when nothing is expiring',
         ($out['quiet']['cta_hidden'] ?? null) === true
         && ($out['banner']['cta_hidden'] ?? null) === true);
-    check('an anomaly alone opens the hub', ($out['banner']['hub_hidden'] ?? null) === false);
+    check('an anomaly alone does NOT open the food hub (it is a system strip now)',
+        ($out['banner']['hub_hidden'] ?? null) === true);
 }
 
 // ── Every banner entry says WHERE the product is ────────────────────────────

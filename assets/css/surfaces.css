@@ -834,3 +834,85 @@ body {
     font-size: 13px;
     color: var(--text-muted);
 }
+
+/* ── Round 3: no "cabins", a slim verdict, a tappable extend ────────────────
+   A coloured frame on four sides boxes a block in like an old dialog. One hairline
+   plus a 4px left rail says the same thing and lets the page breathe. */
+.alert-danger,
+.alert-opened,
+.alert-stale,
+#alert-expiring,
+.urgency-hub,
+.system-alert {
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--surface-shadow);
+}
+.alert-danger, .urgency-hub { border-left: 4px solid var(--tone-danger); }
+#alert-expiring            { border-left: 4px solid var(--tone-soon); }
+.alert-opened              { border-left: 4px solid var(--tone-info); }
+.alert-stale               { border-left: 4px solid var(--brand-primary); }
+/* System/inventory alerts (anomalies, predictions) are information, not danger. */
+.system-alert {
+    border-left: 4px solid var(--tone-info);
+    margin-bottom: 12px;
+}
+
+/* The safety verdict rides on the metadata line instead of stretching a full bar
+   under the name, which doubled the height of those rows. */
+.alert-item-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.alert-item-meta-row .alert-item-qty { margin: 0; }
+.alert-item-meta-row .safety-pill {
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Extend expiry: a real touch target with a dark icon and a label that appears as
+   soon as there is room, so it cannot be confused with the ⋮ next to it. */
+.alert-item-badges { gap: 8px; }
+.btn-alert-extend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: color-mix(in srgb, var(--surface-border) 45%, transparent);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 600;
+}
+.btn-alert-extend:active { background: var(--brand-surface); color: var(--brand-primary); }
+.btn-alert-extend .extend-label { display: none; }
+@media (min-width: 520px) {
+    .btn-alert-extend .extend-label { display: inline; }
+}
+
+/* The system strip keeps its neutral surface whatever kind it is: the amber/orange
+   gradients from the theme were designed for a card, not for a one-line alert. */
+.alert-banner.system-alert,
+.alert-banner.system-alert.banner-anomaly,
+.alert-banner.system-alert.banner-dup-loss,
+.alert-banner.system-alert.banner-no-expiry,
+.alert-banner.system-alert.banner-expired-danger,
+.alert-banner.system-alert.banner-expired-warning,
+.alert-banner.system-alert.banner-expired-ok,
+.alert-banner.system-alert.banner-review,
+.alert-banner.system-alert.banner-prediction,
+.alert-banner.system-alert.banner-finished {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-left: 4px solid var(--tone-soon);
+    box-shadow: var(--surface-shadow);
+}
+.system-alert .alert-banner-title { color: var(--text-main); }
+.system-alert .alert-banner-detail { color: var(--text-muted); }
+.system-alert .banner-loc { font-size: 13px; }

@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.25] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Round 3: the waste block holds food, the alert strip holds errors
+- **A data error is not wasted food.** The anomaly banner (“Quantità insolitamente
+  alta: … 250000 g, confermi?”) lived *inside* “Salva lo spreco”. It now sits in its own
+  dismissible strip **above** the hub (`#alert-banner` → `.system-alert`, neutral surface
+  with an amber left rail, ✕ to dismiss). The hub is shown only when there is expired
+  food — an inventory anomaly can no longer make it look like something to cook.
+- **No more full-width “Controlla” bar.** The safety verdict was a `inline-flex` chip
+  inside a stretching column, so it drew a yellow bar as tall as a row. It now rides on
+  the metadata line (`alert-item-meta-row`, wrap when narrow) at 12 px: one slim row per
+  product, like the lower lists.
+- **No more “cabins”.** Every semantic block resets all four sides to the 1 px hairline
+  and keeps the colour only as a 4 px left rail (danger / warning / info / brand); the
+  system strip stays neutral whatever kind it is, so the amber and orange gradients from
+  the theme no longer come back through `.banner-anomaly` / `.banner-expired-*`.
+- **The calendar icon is a real target.** “Estendi scadenza” is a 40 px pill with a dark
+  icon, 8 px away from the ⋮ and with its label visible from 520 px up — no more
+  guessing which of the two a thumb will hit.
+
+Guard tests: `scripts/test-urgency-hub.php` (66 checks — the banner is outside the hub,
+above it, and an anomaly alone no longer opens the food hub) and
+`scripts/test-ui-palette.php` (53 checks — the four-side reset, the 4 px rail, the meta
+row, the compact verdict, the extend pill and the neutral system strip).
+
 ## [1.16.24] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Banners now say **where** the product is
