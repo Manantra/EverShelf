@@ -197,17 +197,11 @@ function _requireGemini() {
     return false;
 }
 
-// Update Gemini button visual state to signal no key configured
+// The centre of the nav is the capture button now: use and add work locally, and the
+// recipe intent asks for AI only when it is chosen. Nothing to grey out — the helper
+// stays because the boot still calls it after get_settings.
 function _updateGeminiButtonState() {
-    const btn = document.getElementById('nav-gemini-btn');
-    if (!btn) return;
-    if (_geminiAvailable) {
-        btn.classList.remove('nav-btn-no-ai');
-        btn.setAttribute('title', t('gemini.chat_title'));
-    } else {
-        btn.classList.add('nav-btn-no-ai');
-        btn.setAttribute('title', t('gemini.not_configured'));
-    }
+    return;
 }
 
 function _openGeminiChat() {
@@ -1407,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025i'; // bump when translations change
+const _I18N_VERSION = '20261025j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8054,9 +8048,185 @@ function _setNavBadge(page, count) {
     badge.textContent = n > 99 ? '99+' : String(n);
 }
 
+// ===== CAPTURE: one sentence in, one confirmed action out =====
+/** Live recogniser instance (null when idle). */
+let _captureRec = null;
+
+function _openCaptureSheet() {
+    const sheet = document.getElementById('capture-sheet');
+    if (!sheet) return;
+    sheet.style.display = '';
+    const input = document.getElementById('capture-input');
+    if (input) {
+        input.value = '';
+        setTimeout(() => { try { input.focus(); } catch (e) {} }, 60);
+    }
+    _captureStatus('capture.idle');
+    _captureSyncMicAvailability();
+}
+
+function _closeCaptureSheet() {
+    try { if (_captureRec) { _captureRec.stop(); _captureRec = null; } } catch (e) { /* already stopped */ }
+    const sheet = document.getElementById('capture-sheet');
+    if (sheet) sheet.style.display = 'none';
+}
+
+function _captureStatus(key, params) {
+    const el = document.getElementById('capture-status');
+    if (el) el.textContent = t(key, params);
+}
+
+/** The mic is offered only where the browser can actually listen (audit: no fake CTA). */
+function _captureSyncMicAvailability() {
+    const mic = document.getElementById('capture-mic');
+    if (!mic) return;
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    mic.hidden = !Ctor;
+    if (!Ctor) _captureStatus('capture.unsupported');
+}
+
+/** Web Speech API: on-device, free, no server round-trip for the transcript. */
+function _captureStartVoice() {
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Ctor) { _captureStatus('capture.unsupported'); return; }
+    try {
+        _captureRec = new Ctor();
+        _captureRec.lang = _collationLocale();
+        _captureRec.interimResults = false;
+        _captureRec.maxAlternatives = 1;
+        _captureStatus('capture.listening');
+        _captureRec.onresult = (ev) => {
+            const res = ev && ev.results && ev.results[0] && ev.results[0][0];
+            const text = res ? String(res.transcript || '') : '';
+            if (text.trim()) _captureSubmit(text);
+            else _captureStatus('capture.not_understood');
+        };
+        _captureRec.onerror = (ev) => {
+            const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
+            _captureStatus(denied ? 'capture.mic_denied' : 'capture.not_understood');
+        };
+        _captureRec.onend = () => { _captureRec = null; };
+        _captureRec.start();
+    } catch (e) {
+        _captureStatus('capture.not_understood');
+    }
+}
+
 /**
- * Name + brand of a dashboard row on one line (they wrap only when really narrow).
+ * Parse one sentence into an action. Deterministic, offline, no AI call: the three
+ * verbs a pantry needs are recognised in the six UI languages, the quantity is the
+ * first number (words for "one" included), and what is left is the product name the
+ * existing flows already know how to handle.
+ *
+ * It is deliberately conservative: when a product is named but no verb is
+ * recognised, the intent falls back to `consume`, because the next step opens the
+ * use form — the user confirms there, so a wrong guess costs one tap and never
+ * mutates the pantry silently.
  */
+function _captureParse(raw) {
+    const text = String(raw || '').trim();
+    const lower = text.toLowerCase();
+    const out = { intent: '', product: '', qty: 1, unit: '' };
+    if (!lower) return out;
+
+    if (/(cosa (cucino|cucinare|faccio)|che cosa|cucino|ricetta|recipe|rezept|recette|receta|食谱|用什么做)/.test(lower)) {
+        out.intent = 'recipe';
+        return out;
+    }
+    const consumeRe = /(ho usato|usato|consumato|mangiato|finito|consum\w*|used|ate|eaten|verwendet|verbraucht|aufgebraucht|gegessen|benutzt|utilis[eé]?|consomm\w*|mang[eé]|usado|consumido|comido|用了|吃了)/;
+    const addRe = /(aggiungi|aggiungere|metti in|compra|add|buy|hinzuf|kaufen|ajout|achet|a[ñn]ad|添加|买)/;
+    if (consumeRe.test(lower)) out.intent = 'consume';
+    else if (addRe.test(lower)) out.intent = 'add';
+
+    // Quantity: digits first (comma or dot), then the unit when it is spelled.
+    const num = lower.match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l|pz|pezzi|conf|confezioni)?/);
+    if (num) {
+        out.qty = parseFloat(String(num[1]).replace(',', '.')) || 1;
+        if (num[2]) out.unit = num[2];
+    } else if (/(\bun[oa]?\b|\bone\b|\bein[e]?\b|\bune?\b|\buno\b|一)/.test(lower)) {
+        out.qty = 1;
+    }
+
+    // Product: drop the verb phrase, the quantity and the articles.
+    let product = lower;
+    product = product.replace(new RegExp(consumeRe.source, 'g'), ' ');
+    product = product.replace(new RegExp(addRe.source, 'g'), ' ');
+    product = product.replace(/\b\d+(?:[.,]\d+)?\b/g, ' ');
+    product = product.replace(/\b(kg|gr|g|ml|cl|l|pz|pezzi|conf|confezioni)\b/g, ' ');
+    product = product.replace(/\b(ich|habe|ho|he|j|ai|have|me|my|mio|mia|il|lo|la|i|gli|le|un|uno|una|dei|delle|del|della|di|the|a|an|some|der|die|das|ein|eine|le|les|des|une|el|los|las|unos|unas)\b/g, ' ');
+    // Pronouns/measure words that have no Latin word boundaries (CJK) and the
+    // leftovers of an apostrophe (`j'ai` → `j`, `ai`).
+    product = product.replace(/[我了一个個个]/g, ' ');
+    product = product.replace(/[?!.,;:'’]+/g, ' ');
+    out.product = product.replace(/\s+/g, ' ').trim();
+    if (!out.intent && out.product) out.intent = 'consume';
+    return out;
+}
+
+/**
+ * Find the pantry row a spoken/typed product name refers to: exact match first, then
+ * a prefix, then a substring, always among the rows that still have stock.
+ */
+async function _captureFindProduct(name) {
+    const needle = String(name || '').toLowerCase().trim();
+    if (!needle) return null;
+    let list = Array.isArray(currentInventory) ? currentInventory : [];
+    if (!list.length) {
+        try {
+            const data = await api('inventory_list');
+            currentInventory = (data && data.inventory) || [];
+            list = currentInventory;
+        } catch (e) {
+            return null;
+        }
+    }
+    const live = list.filter(i => !isInventoryDepleted(i));
+    const nameOf = (i) => String(i.name || '').toLowerCase();
+    return live.find(i => nameOf(i) === needle)
+        || live.find(i => nameOf(i).startsWith(needle))
+        || live.find(i => nameOf(i).includes(needle))
+        || null;
+}
+
+/**
+ * Route one captured sentence to the flow that already does the job — nothing is
+ * applied here: the use form, the add form and the chat all make the user confirm.
+ */
+async function _captureSubmit(raw) {
+    const text = String(raw || '').trim();
+    if (!text) { _captureStatus('capture.idle'); return; }
+    const parsed = _captureParse(text);
+    _closeCaptureSheet();
+
+    if (parsed.intent === 'recipe') {
+        showPage('chat');
+        setTimeout(() => {
+            const input = document.getElementById('chat-input');
+            if (input) input.value = text;
+            sendChatMessage();
+        }, 400);
+        return;
+    }
+    if (parsed.intent === 'add') {
+        showAddForm();
+        const nameEl = document.getElementById('pf-name');
+        if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
+        showToast(t('capture.add_hint', { name: parsed.product || text }), 'success');
+        return;
+    }
+    const item = await _captureFindProduct(parsed.product);
+    if (!item) {
+        showToast(t('capture.no_product', { name: parsed.product || text }), 'warning');
+        showAddForm();
+        const nameEl = document.getElementById('pf-name');
+        if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
+        return;
+    }
+    await quickUse(item.product_id, item.location);
+    showToast(t('capture.use_hint', { name: item.name }), 'success');
+}
+
+/** Name + brand of a dashboard row on one line (they wrap only when really narrow). */
 function _alertItemHead(item) {
     if (!item) return '';
     const brand = item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : '';
@@ -11907,7 +12077,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11917,7 +12087,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

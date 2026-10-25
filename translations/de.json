@@ -2685,5 +2685,24 @@
     "trip_complete_title": "✅ Einkauf erledigt",
     "trip_complete_message": "Liste geleert: {n} Artikel.",
     "weekly_digest_title": "📊 EverShelf Wochenübersicht"
+  },
+  "capture": {
+    "title": "Was möchtest du tun?",
+    "nav_label": "Aktionen",
+    "speak": "Sprechen",
+    "idle": "Tippe auf das Mikrofon und sprich, oder schreibe unten.",
+    "listening": "Ich höre zu…",
+    "unsupported": "Dieser Browser kann keine Spracherkennung: schreibe unten.",
+    "mic_denied": "Mikrofon nicht erlaubt: du kannst unten schreiben.",
+    "not_understood": "Nicht verstanden: versuche „Ich habe 1 Apfel verbraucht“.",
+    "placeholder": "z. B. Ich habe eine Orange verbraucht",
+    "run": "Ausführen",
+    "example_use": "Ich habe 1 Orange verbraucht",
+    "example_add": "Milch hinzufügen",
+    "example_recipe": "Was kann ich mit Eiern kochen?",
+    "open_chat": "Vollständigen Chat öffnen",
+    "no_product": "{name} ist nicht im Vorrat: ich füge es hinzu.",
+    "use_hint": "Öffne {name}: bestätige die Menge.",
+    "add_hint": "Füge {name} hinzu: ergänze die Details."
   }
 }

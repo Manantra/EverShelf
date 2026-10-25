@@ -2685,5 +2685,24 @@
     "trip_complete_title": "✅ 购物完成",
     "trip_complete_message": "清单已清空：{n} 项。",
     "weekly_digest_title": "📊 EverShelf 每周摘要"
+  },
+  "capture": {
+    "title": "你想做什么？",
+    "nav_label": "操作",
+    "speak": "说话",
+    "idle": "点麦克风说话，或直接在下方输入。",
+    "listening": "我在听…",
+    "unsupported": "此浏览器不支持语音识别：请在下方输入。",
+    "mic_denied": "麦克风未授权：可以在下方输入。",
+    "not_understood": "没听懂：试试「我用了一个橙子」。",
+    "placeholder": "例如：我用了一个橙子",
+    "run": "执行",
+    "example_use": "我用了一个橙子",
+    "example_add": "添加牛奶",
+    "example_recipe": "鸡蛋能做什么？",
+    "open_chat": "打开完整对话",
+    "no_product": "{name} 不在储藏室：我帮你添加。",
+    "use_hint": "正在打开 {name}：请确认数量。",
+    "add_hint": "正在添加 {name}：请补充细节。"
   }
 }

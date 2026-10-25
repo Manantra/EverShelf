@@ -2685,5 +2685,24 @@
     "trip_complete_title": "✅ Shopping trip done",
     "trip_complete_message": "List cleared: {n} items.",
     "weekly_digest_title": "📊 EverShelf weekly digest"
+  },
+  "capture": {
+    "title": "What do you want to do?",
+    "nav_label": "Actions",
+    "speak": "Speak",
+    "idle": "Tap the microphone and speak, or type below.",
+    "listening": "Listening…",
+    "unsupported": "This browser has no speech recognition: type below.",
+    "mic_denied": "Microphone not allowed: you can type below.",
+    "not_understood": "I did not get that: try \"I used 1 apple\".",
+    "placeholder": "e.g. I used an orange",
+    "run": "Run",
+    "example_use": "I used 1 orange",
+    "example_add": "Add the milk",
+    "example_recipe": "What can I cook with eggs?",
+    "open_chat": "Open the full chat",
+    "no_product": "{name} is not in the pantry: I will add it for you.",
+    "use_hint": "Opening {name}: confirm the quantity.",
+    "add_hint": "Adding {name}: complete the details."
   }
 }

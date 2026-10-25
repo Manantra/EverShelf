@@ -2685,5 +2685,24 @@
     "trip_complete_title": "✅ Compra hecha",
     "trip_complete_message": "Lista vaciada: {n} artículos.",
     "weekly_digest_title": "📊 Resumen semanal EverShelf"
+  },
+  "capture": {
+    "title": "¿Qué quieres hacer?",
+    "nav_label": "Acciones",
+    "speak": "Hablar",
+    "idle": "Toca el micrófono y habla, o escribe abajo.",
+    "listening": "Te escucho…",
+    "unsupported": "Este navegador no tiene reconocimiento de voz: escribe abajo.",
+    "mic_denied": "Micrófono no permitido: puedes escribir abajo.",
+    "not_understood": "No lo he entendido: prueba con «he usado 1 manzana».",
+    "placeholder": "Ej.: he usado una naranja",
+    "run": "Ejecutar",
+    "example_use": "He usado 1 naranja",
+    "example_add": "Añade la leche",
+    "example_recipe": "¿Qué cocino con huevos?",
+    "open_chat": "Abrir el chat completo",
+    "no_product": "{name} no está en la despensa: te lo añado.",
+    "use_hint": "Abro {name}: confirma la cantidad.",
+    "add_hint": "Añado {name}: completa los detalles."
   }
 }

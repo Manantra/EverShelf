@@ -2685,5 +2685,24 @@
     "trip_complete_title": "✅ Courses terminées",
     "trip_complete_message": "Liste vidée : {n} articles.",
     "weekly_digest_title": "📊 Résumé hebdomadaire EverShelf"
+  },
+  "capture": {
+    "title": "Que veux-tu faire ?",
+    "nav_label": "Actions",
+    "speak": "Parler",
+    "idle": "Touche le micro et parle, ou écris ci-dessous.",
+    "listening": "Je t'écoute…",
+    "unsupported": "Ce navigateur n'a pas la reconnaissance vocale : écris ci-dessous.",
+    "mic_denied": "Micro non autorisé : tu peux écrire ci-dessous.",
+    "not_understood": "Je n'ai pas compris : essaie « j'ai utilisé 1 pomme ».",
+    "placeholder": "Ex. : j'ai utilisé une orange",
+    "run": "Exécuter",
+    "example_use": "J'ai utilisé 1 orange",
+    "example_add": "Ajouter le lait",
+    "example_recipe": "Que cuisiner avec des œufs ?",
+    "open_chat": "Ouvrir la discussion complète",
+    "no_product": "{name} n'est pas dans le garde-manger : je l'ajoute.",
+    "use_hint": "J'ouvre {name} : confirme la quantité.",
+    "add_hint": "J'ajoute {name} : complète les détails."
   }
 }

@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261025i">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025i">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025i">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261025j">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025j">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025j">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025i">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025i">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025j">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025j">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261025i"></script>
-    <script src="assets/js/core/auth.js?v=20261025i"></script>
+    <script src="assets/js/core/dom.js?v=20261025j"></script>
+    <script src="assets/js/core/auth.js?v=20261025j"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261025i"></script>
+    <script src="assets/js/core/support.js?v=20261025j"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025j';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025i';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025j';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261025i"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261025j"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -2732,12 +2732,16 @@
         <span class="nav-icon" aria-hidden="true">🍳</span>
         <span class="nav-label" data-i18n="nav.recipes">Ricette</span>
     </button>
-    <button class="nav-btn nav-gemini-btn" id="nav-gemini-btn" onclick="_openGeminiChat()" data-page="chat"
-            title="Gemini Chef" data-i18n-title="chat.title" aria-label="Gemini Chef" data-i18n-aria="nav.gemini">
-        <span class="nav-gemini-icon-wrap" aria-hidden="true">
-            <svg class="nav-gemini-icon" viewBox="0 0 24 24" width="26" height="26" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373 12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+    <!-- Capture button (UI audit, voice block): the centre of the nav is not a
+         product name any more. It opens one sheet that accepts a sentence — spoken
+         or typed — and routes it to the flow that already does the job (use, add,
+         recipe). A sparkle, not "Gemini". -->
+    <button class="nav-btn nav-capture-btn" id="nav-capture-btn" onclick="_openCaptureSheet()" data-page="capture"
+            title="Cosa vuoi fare?" data-i18n-title="capture.title" aria-label="Cosa vuoi fare?" data-i18n-aria="capture.title">
+        <span class="nav-capture-icon-wrap" aria-hidden="true">
+            <svg class="nav-capture-icon" viewBox="0 0 24 24" width="26" height="26" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373 12 12-12-6.627 0-12-5.373-12-12z"/></svg>
         </span>
-        <span class="nav-label" data-i18n="nav.gemini">Gemini</span>
+        <span class="nav-label" data-i18n="capture.nav_label">Azioni</span>
     </button>
     <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping" aria-label="Spesa" data-i18n-aria="nav.shopping">
         <span class="nav-icon" aria-hidden="true">🛒</span>
@@ -2888,6 +2892,33 @@
 </div>
 
 <!-- Toast notification -->
+<!-- Capture sheet: one sentence in, one confirmed action out. Web Speech API when
+     the browser has it, the text field always. Nothing is applied until the user
+     confirms it in the flow it opens. -->
+<div class="modal-overlay" id="capture-sheet" style="display:none" role="dialog" aria-modal="true" aria-labelledby="capture-title">
+    <div class="modal-content capture-sheet" onclick="event.stopPropagation()">
+        <div class="capture-head">
+            <h3 id="capture-title" data-i18n="capture.title">Cosa vuoi fare?</h3>
+            <button type="button" class="modal-close" onclick="_closeCaptureSheet()" aria-label="Chiudi" data-i18n-aria="btn.close">✕</button>
+        </div>
+        <button type="button" class="capture-mic" id="capture-mic" onclick="_captureStartVoice()" aria-label="Parla" data-i18n-aria="capture.speak">
+            <span class="capture-mic-icon" aria-hidden="true">🎙️</span>
+        </button>
+        <p class="capture-status" id="capture-status" role="status" aria-live="polite" data-i18n="capture.idle">Tocca il microfono e parla, oppure scrivi.</p>
+        <div class="capture-input-row">
+            <input type="text" id="capture-input" class="form-input" data-i18n-placeholder="capture.placeholder" placeholder="Es: ho usato un'arancia" autocomplete="off"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();_captureSubmit(this.value)}">
+            <button type="button" class="btn btn-accent" onclick="_captureSubmit(document.getElementById('capture-input').value)" data-i18n="capture.run">Esegui</button>
+        </div>
+        <div class="capture-hints">
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_use">Ho usato 1 arancia</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_add">Aggiungi il latte</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_recipe">Cosa cucino con le uova?</button>
+        </div>
+        <button type="button" class="capture-chat-link" onclick="_closeCaptureSheet();_openGeminiChat()" data-i18n="capture.open_chat">Apri la chat completa</button>
+    </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- Loading Overlay -->
@@ -2979,13 +3010,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261025i"></script>
-<script src="assets/js/core/vocab.js?v=20261025i"></script>
-<script src="assets/js/app.js?v=20261025i"></script>
-<script src="assets/js/audit.js?v=20261025i"></script>
-<script src="assets/js/receipt.js?v=20261025i"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261025i"></script>
-<script src="assets/js/settings_search.js?v=20261025i"></script>
+<script src="assets/js/vocab.generated.js?v=20261025j"></script>
+<script src="assets/js/core/vocab.js?v=20261025j"></script>
+<script src="assets/js/app.js?v=20261025j"></script>
+<script src="assets/js/audit.js?v=20261025j"></script>
+<script src="assets/js/receipt.js?v=20261025j"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261025j"></script>
+<script src="assets/js/settings_search.js?v=20261025j"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

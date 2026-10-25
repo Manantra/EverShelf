@@ -408,3 +408,100 @@
 .insight-block > summary::-webkit-details-marker { display: none; }
 .insight-block > summary::after { content: "▾"; margin-left: auto; opacity: 0.7; }
 .insight-block[open] > summary::after { content: "▴"; }
+
+/* ── Capture button (centre of the nav) ───────────────────────────────────
+   Same geometry as the button it replaces, one colour from the calm palette: the
+   centre of the nav is an action, not a product name. */
+.nav-capture-btn { margin-top: -10px; min-width: 0; }
+.nav-capture-icon-wrap {
+    width: clamp(34px, 9.6vw, 50px);
+    height: clamp(34px, 9.6vw, 50px);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--tone-calm) 0%, color-mix(in srgb, var(--tone-calm) 65%, white) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--tone-calm) 45%, transparent);
+    border: 3px solid var(--bg-card);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.nav-capture-icon { width: clamp(18px, 5.2vw, 26px); height: clamp(18px, 5.2vw, 26px); }
+.nav-capture-btn:active .nav-capture-icon-wrap { transform: scale(0.94); }
+
+/* ── Capture sheet ───────────────────────────────────────────────────────── */
+.capture-sheet {
+    max-width: 520px;
+    padding: 16px 18px 18px;
+    border-radius: 18px 18px 0 0;
+}
+.capture-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.capture-head h3 { margin: 0; font-size: 1.02rem; font-weight: 800; flex: 1 1 auto; }
+
+.capture-mic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 84px;
+    height: 84px;
+    margin: 6px auto 10px;
+    border: none;
+    border-radius: 50%;
+    background: var(--tone-calm-soft);
+    color: var(--tone-calm);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.capture-mic:active { transform: scale(0.96); }
+.capture-mic.is-listening {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--tone-calm) 18%, transparent);
+    animation: capture-pulse 1.4s ease-in-out infinite;
+}
+.capture-mic[hidden] { display: none; }
+.capture-mic-icon { font-size: 2.1rem; line-height: 1; }
+@keyframes capture-pulse {
+    0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone-calm) 14%, transparent); }
+    50%      { box-shadow: 0 0 0 14px color-mix(in srgb, var(--tone-calm) 6%, transparent); }
+}
+
+.capture-status {
+    margin: 0 0 12px;
+    min-height: 1.2em;
+    text-align: center;
+    font-size: 0.84rem;
+    color: var(--text-light);
+}
+.capture-input-row { display: flex; gap: 8px; align-items: center; }
+.capture-input-row .form-input { flex: 1 1 auto; min-height: var(--touch-min); }
+.capture-input-row .btn { min-height: var(--touch-min); }
+
+.capture-hints {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 10px 0 6px;
+    padding-bottom: 2px;
+}
+.capture-hints::-webkit-scrollbar { display: none; }
+.capture-hint {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px dashed var(--surface-border);
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.capture-chat-link {
+    display: block;
+    margin: 8px auto 0;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.78rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
