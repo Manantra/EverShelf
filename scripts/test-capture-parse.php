@@ -65,8 +65,9 @@ check('the capture sheet is a dialog',
     str_contains($html, 'id="capture-sheet"') && str_contains($html, 'aria-modal="true"'));
 check('the sheet accepts typed input too (no speech API required)',
     str_contains($html, 'id="capture-input"') && str_contains($html, '_captureSubmit('));
-check('the sheet offers three examples and the full chat',
-    substr_count($html, 'class="capture-hint"') === 3 && str_contains($html, 'capture.open_chat'));
+check('the sheet offers examples (and the whole lexicon) plus the full chat',
+    substr_count($html, 'class="capture-hint"') >= 5 && str_contains($html, 'capture.open_chat')
+    && str_contains($html, 'capture-examples-btn'));
 
 // ------------------------------------------------------------------ wiring
 check('_captureParse() is extractable', extract_fn($app, '_captureParse') !== '');
@@ -106,6 +107,13 @@ const cases = [
     ["zwei Äpfel", "consume", "äpfel", 2],
     ["deux tomates", "consume", "tomates", 2],
     ["tres naranjas", "consume", "naranjas", 3],
+    // Round 5: fractions, grams written without a space, "I finished it all".
+    ["ho usato mezza mela", "consume", "mela", 0.5],
+    ["ho usato un quarto di torta", "consume", "torta", 0.25],
+    ["ho usato 300gr di fusilli", "consume", "fusilli", 300],
+    ["I used half an apple", "consume", "apple", 0.5],
+    ["ho finito tutti i fusilli", "consume", "fusilli", 0],
+    ["he usado todo el pan", "consume", "pan", 0],
 ];
 const out = cases.map(([text]) => _captureParse(text));
 console.log(JSON.stringify(out));
@@ -122,9 +130,11 @@ if (is_array($out)) {
         ['consume', 'arancia', 1], ['consume', 'pasta', 250], ['add', 'latte', 1],
         ['recipe', '', 1], ['consume', 'apples', 2], ['add', 'milk', 1],
         ['consume', 'apfel', 1], ['consume', 'orange', 1], ['consume', 'naranja', 1],
-        ['consume', '橙子', 1], ['consume', 'latte', 1],
+        ['consume', '橙子', 1], ['consume', 'latte', 0],
         ['throw', 'pane', 1], ['consume', 'mele', 2], ['consume', 'eggs', 3],
         ['consume', 'äpfel', 2], ['consume', 'tomates', 2], ['consume', 'naranjas', 3],
+        ['consume', 'mela', 0.5], ['consume', 'torta', 0.25], ['consume', 'fusilli', 300],
+        ['consume', 'apple', 0.5], ['consume', 'fusilli', 0], ['consume', 'pan', 0],
     ];
     foreach ($expect as $i => [$intent, $product, $qty]) {
         $row = $out[$i] ?? [];
@@ -135,6 +145,38 @@ if (is_array($out)) {
         check("case {$i}: qty {$qty}", (float)($row['qty'] ?? 0) === (float)$qty, json_encode($row));
     }
 }
+
+// ── Round 5: the parser knows fractions, units and "all of it" ────────────
+check('fractions are quantities', str_contains($app, 'const _CAPTURE_FRACTIONS')
+    && str_contains($app, "['mezza', 0.5]"));
+check('spoken units have one canonical form', str_contains($app, 'const _CAPTURE_UNIT_ALIASES')
+    && str_contains($app, "gr: 'g'"));
+check('"ho finito tutti" sets use_all', str_contains($app, 'const _CAPTURE_ALL_WORDS')
+    && str_contains($app, 'out.use_all = true'));
+check('a dictated quantity opens the sheet on that number',
+    str_contains($app, 'function _captureQtyFor(')
+    && str_contains($app, 'showItemDetail(best.item.id, best.item.product_id, preset)'));
+check('"ho finito" opens the sheet to confirm, it never writes by itself',
+    str_contains($app, "t('capture.use_all_hint'")
+    && str_contains($app, 'showItemDetail(best.item.id, best.item.product_id);
+            });'));
+
+// ── Round 5: the session listens long enough, then talks back ───────────────
+check('listening survives the recogniser timeouts',
+    str_contains($app, '_captureRec.continuous = true;')
+    && str_contains($app, '_CAPTURE_VOICE_MAX_RESTARTS')
+    && str_contains($app, "_captureStatus('capture.still_listening')"));
+check('voice feedback is spoken only for dictated sentences',
+    str_contains($app, 'function _captureSpeak(')
+    && str_contains($app, '_captureSubmit(finalText.trim(), { voice: true })')
+    && str_contains($app, 'if (fromVoice) _captureSpeak(_captureVoiceSay(parsed));'));
+check('the speaker toggle is remembered per device',
+    str_contains($app, "localStorage.setItem('evershelf_capture_voice'")
+    && str_contains($html, 'id="capture-voice-toggle"'));
+check('"Cosa posso dire" lists the whole lexicon',
+    str_contains($html, 'id="capture-examples-btn"')
+    && str_contains($app, 'function _captureRenderExamples(')
+    && str_contains($app, "'capture.example_use_grams'"));
 
 // ── Feedback: level meter, live transcript, "what I understood", choices ─────
 check('the mic button fills with the incoming level',

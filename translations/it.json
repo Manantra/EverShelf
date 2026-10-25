@@ -252,7 +252,7 @@
     "trend_wasted": "Prodotti buttati",
     "trend_source": "Confronto con i 30 giorni precedenti",
     "stale_title": "🕰️ Da troppo che non usi",
-    "stale_hint": "Priorità alle confezioni aperte ferme da più tempo — ricetta, usa, modifica o butta.",
+    "stale_hint": "I 5 prodotti con la scadenza più vicina che non usi (o non hai mai usato) — ricetta, usa, modifica o butta.",
     "stale_days": "non usato da {n} giorni",
     "stale_never_used": "mai usato dalla data di ingresso",
     "stale_recipe": "Ricetta",
@@ -283,7 +283,8 @@
     "month_strip": "{used} usati · {wasted} buttati negli ultimi 30 giorni",
     "banner_location": "Dove: {location}",
     "banner_anomaly_align": "Aggiorna a {qty} {unit}",
-    "banner_anomaly_aligned": "Scorta allineata a {qty} {unit}"
+    "banner_anomaly_aligned": "Scorta allineata a {qty} {unit}",
+    "stale_expiry_label": "Scadenza"
   },
   "inventory": {
     "title": "Lista",
@@ -2724,7 +2725,29 @@
     "understood": "Ho capito",
     "which_one": "Quale intendevi?",
     "throw_hint": "Apro {name}: da lì puoi buttarlo.",
-    "mic_prompt": "Consenti il microfono in alto, poi parla."
+    "mic_prompt": "Consenti il microfono in alto, poi parla.",
+    "example_use_half": "Ho usato mezza mela",
+    "example_use_grams": "Ho usato 300 g di fusilli",
+    "example_all": "Ho finito tutti i fusilli",
+    "example_throw": "Butta il pane",
+    "examples_use": "Consumare",
+    "examples_stock": "Dispensa",
+    "examples_ask": "Idee",
+    "examples_intro": "Parla o scrivi come ti viene: quantità, metà, grammi, «ho finito tutto».",
+    "examples_confirm": "Niente viene applicato senza una conferma: prima vedi cosa ho capito.",
+    "what_can_i_say": "Cosa posso dire?",
+    "feedback_on": "Voce attiva",
+    "feedback_off": "Voce disattivata",
+    "voice_ready": "Voce attiva.",
+    "voice_use": "Hai usato {qty} {unit} di {name}. Confermi?",
+    "voice_all": "Hai finito {name}. Confermi?",
+    "voice_add": "Aggiungo {name} alla dispensa.",
+    "voice_throw": "Apro {name} per buttarlo.",
+    "voice_recipe": "Cerco una ricetta.",
+    "voice_unknown": "Non ho capito. Riprova o scrivi la frase.",
+    "still_listening": "Ti ascolto ancora…",
+    "use_all_hint": "Ho capito: hai finito {name}. Conferma con «Ho consumato tutto».",
+    "qty_hint": "{qty} {unit} di {name}: conferma nella scheda."
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."

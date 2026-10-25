@@ -19422,8 +19422,16 @@ function seasonalShoppingReviewAction(PDO $db): void {
 function staleInventoryItemsAction(PDO $db): void {
     $limit = (int)($_GET['limit'] ?? 3);
     $minDays = (int)($_GET['min_days'] ?? 21);
+    $mode = strtolower(trim((string)($_GET['mode'] ?? 'idle')));
+    // "expiry": the forgotten stock closest to its expiry date (what the dashboard shows
+    // now: a yoghurt expiring tomorrow matters more than a sealed box of salt).
+    if ($mode === 'expiry') {
+        $items = forgottenExpiringItems($db, $limit, $minDays);
+        echo json_encode(['success' => true, 'mode' => 'expiry', 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
+        return;
+    }
     $items = staleInventoryItems($db, $limit, $minDays);
-    echo json_encode(['success' => true, 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => true, 'mode' => 'idle', 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
 }
 
 /**

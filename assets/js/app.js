@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025z'; // bump when translations change
+const _I18N_VERSION = '20261025za'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7828,7 +7828,7 @@ const DASHBOARD_ALERT_MAX = 5;
 /** Vertical-space budget per dashboard block: only the most urgent rows are shown. */
 const DASHBOARD_EXPIRING_MAX = 3;   // closest expiry dates only
 const DASHBOARD_OPENED_MAX = 5;     // longest-open packages only
-const DASHBOARD_STALE_MAX = 3;      // rarely used stock, rotated over time
+const DASHBOARD_STALE_MAX = 5;      // forgotten stock closest to its expiry
 function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
     const all = Array.isArray(items) ? items : [];
     const shown = all.slice(0, max);
@@ -8093,6 +8093,7 @@ function _openCaptureSheet() {
     const understood = document.getElementById('capture-understood');
     if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureSyncMicAvailability();
+    _captureSyncVoiceToggle();
     // Listening starts by itself: the tap that opened the sheet is the gesture that
     // allows it, so asking for a second tap was pointless. Without the API (or with the
     // microphone denied) the text field takes over — and only then it gets focus,
@@ -8120,8 +8121,7 @@ function _openCaptureSheet() {
 }
 
 function _closeCaptureSheet() {
-    try { if (_captureRec) { _captureRec.stop(); _captureRec = null; } } catch (e) { /* already stopped */ }
-    _captureStopMeter();
+    _captureVoiceStop();
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
 }
@@ -8244,22 +8244,135 @@ function _captureShowChoices(rows) {
     el.hidden = false;
 }
 
+/**
+ * Voice session state.
+ *
+ * `continuous: false` made the recogniser end after the first pause and the sheet
+ * immediately said "non ho capito" while the user was still thinking. The session now
+ * survives the recogniser's own timeouts (it is restarted while the sheet is open) and
+ * the error only appears after several silent seconds.
+ */
+let _captureVoice = { active: false, finals: '', restarts: 0, graceTimer: null };
+const _CAPTURE_VOICE_MAX_RESTARTS = 6;
+
+/** Audio feedback (TTS) is on unless the user turned it off in the sheet. */
+function _captureVoiceEnabled() {
+    try { return localStorage.getItem('evershelf_capture_voice') !== '0'; } catch (e) { return true; }
+}
+
+/** Speaker toggle in the capture sheet: same localStorage flag, per device. */
+function _captureToggleVoice() {
+    const on = !_captureVoiceEnabled();
+    try { localStorage.setItem('evershelf_capture_voice', on ? '1' : '0'); } catch (e) { /* private mode */ }
+    const btn = document.getElementById('capture-voice-toggle');
+    if (btn) {
+        btn.textContent = on ? '🔊' : '🔇';
+        btn.title = t(on ? 'capture.feedback_on' : 'capture.feedback_off');
+        btn.setAttribute('aria-label', btn.title);
+    }
+    if (on) {
+        _captureSpeak(t('capture.voice_ready'));
+    } else {
+        try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* no TTS */ }
+    }
+    showToast(t(on ? 'capture.feedback_on' : 'capture.feedback_off'), 'info', 1800);
+}
+
+/** Speak one sentence with the UI voice. No-op when TTS is missing or muted. */
+function _captureSpeak(text) {
+    if (!text || !_captureVoiceEnabled()) return;
+    if (!('speechSynthesis' in window)) return;
+    try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(String(text));
+        u.lang = _collationLocale();
+        u.rate = 1.02;
+        window.speechSynthesis.speak(u);
+    } catch (e) { /* no TTS: the text on screen says the same */ }
+}
+
+/** Stop listening and clear every timer of the session. */
+function _captureVoiceStop() {
+    _captureVoice.active = false;
+    if (_captureVoice.graceTimer) { clearTimeout(_captureVoice.graceTimer); _captureVoice.graceTimer = null; }
+    try {
+        if (_captureRec) { _captureRec.onend = null; _captureRec.onerror = null; _captureRec.stop(); }
+    } catch (e) { /* already stopped */ }
+    _captureRec = null;
+    _captureStopMeter();
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+}
+
+/** The speaker button says what it will do (and survives a reload). */
+function _captureSyncVoiceToggle() {
+    const btn = document.getElementById('capture-voice-toggle');
+    if (!btn) return;
+    const on = _captureVoiceEnabled();
+    btn.textContent = on ? '🔊' : '🔇';
+    btn.title = t(on ? 'capture.feedback_on' : 'capture.feedback_off');
+    btn.setAttribute('aria-label', btn.title);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
+/**
+ * "Cosa posso dire": the sheet's own manual.
+ *
+ * A lexicon nobody can discover is a lexicon nobody uses: every supported shape is
+ * listed as a tappable example (tapping runs it), grouped by intent.
+ */
+function _captureExamples() {
+    return [
+        { group: 'capture.examples_use', items: [
+            'capture.example_use', 'capture.example_use_half', 'capture.example_use_grams', 'capture.example_all',
+        ] },
+        { group: 'capture.examples_stock', items: ['capture.example_add', 'capture.example_throw'] },
+        { group: 'capture.examples_ask', items: ['capture.example_recipe'] },
+    ];
+}
+
+function _captureRenderExamples() {
+    const box = document.getElementById('capture-examples');
+    if (!box) return;
+    box.innerHTML = `<p class="capture-examples-intro">${escapeHtml(t('capture.examples_intro'))}</p>`
+        + _captureExamples().map(({ group, items }) => `
+            <p class="capture-examples-group">${escapeHtml(t(group))}</p>
+            <div class="capture-examples-list">${items.map(key =>
+                `<button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)">${escapeHtml(t(key))}</button>`
+            ).join('')}</div>`).join('')
+        + `<p class="capture-examples-note">${escapeHtml(t('capture.examples_confirm'))}</p>`;
+}
+
+function _captureToggleExamples() {
+    const box = document.getElementById('capture-examples');
+    if (!box) return;
+    const open = box.hidden;
+    if (open) _captureRenderExamples();
+    box.hidden = !open;
+    const btn = document.getElementById('capture-examples-btn');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
 /** Web Speech API: on-device, free, no server round-trip, interim results on. */
-async function _captureStartVoice() {
+async function _captureStartVoice(resume) {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { _captureStatus('capture.unsupported'); return; }
-    _captureShowChoices(null);
-    const tr = document.getElementById('capture-transcript');
-    if (tr) { tr.hidden = true; tr.textContent = ''; }
-    const un = document.getElementById('capture-understood');
-    if (un) un.hidden = true;
-    _captureStatus('capture.listening');
-    _captureSetState('listening');
+    if (!resume) {
+        _captureVoiceStop();      // a manual tap restarts the session, it does not stack it
+        _captureShowChoices(null);
+        _captureVoice = { active: true, finals: '', restarts: 0, graceTimer: null };
+        const tr = document.getElementById('capture-transcript');
+        if (tr) { tr.hidden = true; tr.textContent = ''; }
+        const un = document.getElementById('capture-understood');
+        if (un) un.hidden = true;
+        _captureStatus('capture.listening');
+        _captureSetState('listening');
+    }
     try {
         _captureRec = new Ctor();
         _captureRec.lang = _collationLocale();
         _captureRec.interimResults = true;
-        _captureRec.continuous = false;
+        // Continuous: a pause between words is not the end of the sentence.
+        _captureRec.continuous = true;
         _captureRec.maxAlternatives = 1;
         let finalText = '';
         _captureRec.onresult = (ev) => {
@@ -8272,28 +8385,71 @@ async function _captureStartVoice() {
             const shown = (finalText || interim).trim();
             if (shown) _captureShowTranscript(shown, !!finalText.trim());
             if (finalText.trim()) {
+                _captureVoice.finals = finalText.trim();
+                _captureVoice.active = false;
+                if (_captureVoice.graceTimer) { clearTimeout(_captureVoice.graceTimer); _captureVoice.graceTimer = null; }
+                try { _captureRec.stop(); } catch (e) { /* already stopped */ }
                 _captureStopMeter();
-                _captureSubmit(finalText.trim());
+                _captureSubmit(finalText.trim(), { voice: true });
             }
         };
         _captureRec.onerror = (ev) => {
-            _captureStopMeter();
             const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
-            _captureStatus(denied ? 'capture.mic_denied' : 'capture.not_understood');
+            if (denied) {
+                _captureVoiceStop();
+                _captureStatus('capture.mic_denied');
+                return;
+            }
+            // "no-speech"/"aborted" are normal while waiting: onend restarts the session.
         };
         _captureRec.onend = () => {
             _captureRec = null;
             _captureStopMeter();
-            if (!finalText.trim()) _captureStatus('capture.not_understood');
+            if (!_captureVoice.active || _captureVoice.finals.trim()) return;
+            if (_captureVoice.restarts < _CAPTURE_VOICE_MAX_RESTARTS) {
+                _captureVoice.restarts++;
+                // Give the user time: "ti ascolto ancora" instead of an error after 1 s.
+                _captureStatus('capture.still_listening');
+                setTimeout(() => {
+                    if (_captureVoice.active) _captureStartVoice(true);
+                }, 350);
+                return;
+            }
+            _captureVoice.active = false;
+            _captureStatus('capture.not_understood');
+            _captureSpeak(t('capture.voice_unknown'));
+            _captureSetState('idle');
         };
         // Started inside the user gesture (the tap that opened the sheet), before any
         // await: Safari and stricter browsers refuse a recogniser started later.
         _captureRec.start();
         _captureStartMeter();   // cosmetic, fire-and-forget
+        if (!resume && _captureVoice.graceTimer) clearTimeout(_captureVoice.graceTimer);
+        if (_captureVoice.active) {
+            // Nothing heard after a few seconds: say we are still there, not "non ho capito".
+            _captureVoice.graceTimer = setTimeout(() => {
+                if (_captureVoice.active && !_captureVoice.finals.trim()) _captureStatus('capture.still_listening');
+            }, 4000);
+        }
     } catch (e) {
         _captureStopMeter();
         _captureStatus('capture.not_understood');
     }
+}
+
+/**
+ * The sentence the voice says back: what it understood, asked as a confirmation.
+ * Silent when the user typed instead of speaking.
+ */
+function _captureVoiceSay(parsed, productName) {
+    const name = productName || parsed.product || '';
+    const qty = parsed.qty > 0 ? String(Math.round(parsed.qty * 100) / 100) : '';
+    const unit = parsed.unit || '';
+    if (parsed.intent === 'add') return t('capture.voice_add', { name });
+    if (parsed.intent === 'throw') return t('capture.voice_throw', { name });
+    if (parsed.intent === 'recipe') return t('capture.voice_recipe');
+    if (parsed.use_all) return t('capture.voice_all', { name });
+    return t('capture.voice_use', { qty: qty || '1', unit, name });
 }
 
 // ===== CAPTURE: the internal, offline "model" =====
@@ -8315,7 +8471,26 @@ const _CAPTURE_NUMBER_WORDS = {
     '一': 1, '两': 2, '二': 2, '三': 3, '四': 4, '五': 5,
 };
 const _CAPTURE_UNITS = 'kg|gr|g|ml|cl|l|pz|pezzi|pezzo|conf|confezioni|confezione';
-const _CAPTURE_STOP = /\b(il|lo|la|i|gli|le|un|uno|una|dei|delle|del|della|di|the|a|an|some|of|der|die|das|ein|eine|dem|den|les|des|du|de|el|los|las|unos|unas|une|mi|mio|mia|me|my|ich|habe|ho|he|j|ai|have|i)\b/g;
+/** Spoken weights are written in many ways: one canonical unit each. */
+const _CAPTURE_UNIT_ALIASES = {
+    kg: 'kg', gr: 'g', grammi: 'g', grammo: 'g', g: 'g',
+    ml: 'ml', cl: 'ml', l: 'l', lt: 'l', litri: 'l', litro: 'l',
+    pz: 'pz', pezzo: 'pz', pezzi: 'pz',
+    conf: 'conf', confezione: 'conf', confezioni: 'conf',
+};
+/**
+ * "Mezza mela", "un quarto di torta": a fraction is a quantity, not a word.
+ * Longest phrase first, so "tre quarti" is not read as "quarti" + 3.
+ */
+const _CAPTURE_FRACTIONS = [
+    ['tre quarti', 0.75], ['three quarters', 0.75], ['dreiviertel', 0.75],
+    ['un quarto', 0.25], ['one quarter', 0.25], ['ein viertel', 0.25], ['un cuarto', 0.25],
+    ['mezza', 0.5], ['mezzo', 0.5], ['metà', 0.5], ['half', 0.5], ['halb', 0.5],
+    ['demi', 0.5], ['media', 0.5], ['medio', 0.5], ['mitad', 0.5], ['一半', 0.5], ['半个', 0.5],
+];
+/** "Ho finito TUTTI i fusilli": the sentence consumes the whole row, not 1 piece. */
+const _CAPTURE_ALL_WORDS = ['tutti', 'tutte', 'tutto', 'tutta', 'tutte le', 'finito', 'finita', 'finiti', 'esaurito', 'esaurita', 'used up', 'all of', 'the whole', 'alles', 'tout', 'toute', 'todo', 'todos', 'toda', '全部', '都', '用完'];
+const _CAPTURE_STOP = /\b(con|avec|mit|with|para|il|lo|la|i|gli|le|un|uno|una|dei|delle|del|della|di|the|a|an|some|of|der|die|das|ein|eine|dem|den|les|des|du|de|el|los|las|unos|unas|une|mi|mio|mia|me|my|ich|habe|ho|he|j|ai|have|i)\b/g;
 const _CAPTURE_CJK_FILLER = /[我你他她它了一个個个这那的]/g;
 
 /** One word/phrase as a standalone token, Unicode-aware ("äpfel", "caffè", "cucino"). */
@@ -8360,20 +8535,36 @@ function _captureMatchIntent(lower) {
 function _captureParse(raw) {
     const text = String(raw || '').trim();
     const lower = text.toLowerCase();
-    const out = { intent: '', product: '', qty: 1, unit: '', confidence: 0 };
+    const out = { intent: '', product: '', qty: 1, unit: '', confidence: 0, use_all: false };
     if (!lower) return out;
 
     out.intent = _captureMatchIntent(lower);
 
-    // Quantity: digits first, then a spelled number in any of the six languages.
+    // Quantity: digits first, then a fraction ("mezza mela"), then a spelled number.
     const num = lower.match(/(\d+(?:[.,]\d+)?)\s*/);
     if (num) {
         out.qty = parseFloat(String(num[1]).replace(',', '.')) || 1;
     } else {
-        for (const [word, value] of Object.entries(_CAPTURE_NUMBER_WORDS)) {
-            if (_captureWordRe(word, 'i').test(lower)) { out.qty = value; break; }
+        let matched = 0;
+        for (const [word, value] of _CAPTURE_FRACTIONS) {
+            if (_captureHasWord(lower, word)) { matched = value; break; }
+        }
+        if (matched) {
+            out.qty = matched;
+        } else {
+            for (const [word, value] of Object.entries(_CAPTURE_NUMBER_WORDS)) {
+                if (_captureWordRe(word, 'i').test(lower)) { out.qty = value; break; }
+            }
         }
     }
+    // "ho finito tutti i fusilli": the whole row goes, whatever the number says.
+    for (const word of _CAPTURE_ALL_WORDS) {
+        if (_captureHasWord(lower, word)) {
+            out.use_all = true;
+            break;
+        }
+    }
+    if (out.use_all && !num) out.qty = 0;
     const unitRe = new RegExp('(?:^|[^\\p{L}])(?:' + _CAPTURE_UNITS + ')(?=$|[^\\p{L}])', 'iu');
     const unit = lower.match(unitRe);
 
@@ -8382,8 +8573,15 @@ function _captureParse(raw) {
     for (const words of Object.values(_captureIntentWords())) {
         for (const word of words) product = _captureStripWord(product, word);
     }
+    if (num) product = product.split(num[1]).join(' ');
     product = product.replace(/\b\d+(?:[.,]\d+)?\b/g, ' ');
     product = product.replace(new RegExp('(^|[^\\p{L}])(?:' + _CAPTURE_UNITS + ')(?=$|[^\\p{L}])', 'giu'), '$1 ');
+    for (const [word] of _CAPTURE_FRACTIONS.slice().sort((a, b) => b[0].length - a[0].length)) {
+        product = _captureStripWord(product, word);
+    }
+    for (const word of _CAPTURE_ALL_WORDS.slice().sort((a, b) => b.length - a.length)) {
+        product = _captureStripWord(product, word);
+    }
     for (const word of Object.keys(_CAPTURE_NUMBER_WORDS).sort((a, b) => b.length - a.length)) {
         product = product.replace(_captureWordRe(word, 'gi'), ' ');
     }
@@ -8394,7 +8592,8 @@ function _captureParse(raw) {
 
     if (unit) {
         const m = unit[0].toLowerCase().match(new RegExp('(?:' + _CAPTURE_UNITS + ')$'));
-        out.unit = m ? m[0] : '';
+        const raw = m ? m[0] : '';
+        out.unit = _CAPTURE_UNIT_ALIASES[raw] || raw;
     }
     if (out.intent) out.confidence = 1;
     else if (out.product) { out.intent = 'consume'; out.confidence = 0.6; }
@@ -8403,6 +8602,8 @@ function _captureParse(raw) {
 
 /** Pantry rows offered when the spoken name is ambiguous (session only). */
 let _captureChoicesCache = [];
+/** Last parsed sentence: the choice buttons reuse its quantity and "use it all". */
+let _capturePending = { qty: 0, unit: '', use_all: false, intent: '', product: '' };
 
 /** 0..1 similarity between a spoken product and a pantry name. */
 function _captureScoreName(needle, name) {
@@ -8451,12 +8652,38 @@ async function _captureFindProduct(name) {
     return rows.length ? rows[0].item : null;
 }
 
+/**
+ * Parsed quantity expressed in the row's own unit (0 when they cannot be compared:
+ * "300 g" against "2 confezioni" leaves the row alone instead of guessing).
+ */
+function _captureQtyFor(parsed, item) {
+    const qty = Number(parsed && parsed.qty) || 0;
+    if (!(qty > 0)) return 0;
+    const unit = String((item && item.unit) || 'pz');
+    const said = String((parsed && parsed.unit) || '');
+    if (!said) return (unit === 'pz' || unit === 'conf') ? qty : 0;
+    const mass = ['g', 'ml', 'kg', 'l'];
+    const inMass = mass.includes(said);
+    const targetMass = mass.includes(unit);
+    if (inMass !== targetMass) return 0;
+    if (said === unit) return qty;
+    const toBase = { g: 1, kg: 1000, ml: 1, l: 1000 };
+    const fromBase = { g: 1, kg: 0.001, ml: 1, l: 0.001 };
+    return Math.round(qty * (toBase[said] || 1) * (fromBase[unit] || 1) * 100) / 100;
+}
+
 /** One of the offered rows: route it exactly like a confident match. */
 function _captureChoose(index) {
     const row = _captureChoicesCache[index];
     _captureShowChoices(null);
     if (!row) return;
+    const preset = _captureQtyFor(_capturePending, row.item);
     _closeCaptureSheet();
+    if (preset > 0) {
+        // The dictated amount travels with the choice: the stepper opens on it.
+        showItemDetail(row.item.id, row.item.product_id, preset);
+        return;
+    }
     quickUse(row.item.product_id, row.item.location);
     showToast(t('capture.use_hint', { name: row.item.name }), 'success');
 }
@@ -8467,18 +8694,24 @@ function _captureChoose(index) {
  * flow that already does the job opens: use form, add form, item sheet or chat.
  * Nothing is applied without confirmation in that flow.
  */
-async function _captureSubmit(raw) {
+async function _captureSubmit(raw, opts) {
     const text = String(raw || '').trim();
     if (!text) { _captureStatus('capture.idle'); return; }
+    const fromVoice = !!(opts && opts.voice);
     const parsed = _captureParse(text);
+    _capturePending = parsed;
     _captureShowTranscript(text, true);
     _captureShowUnderstood(parsed);
     _captureShowChoices(null);
 
     if (!parsed.intent && !parsed.product) {
         _captureStatus('capture.not_understood');
+        if (fromVoice) _captureSpeak(t('capture.voice_unknown'));
         return;                       // keep the sheet open: the user can retype
     }
+    // Spoken input gets a spoken answer: "hai usato 1 mela, confermi?" — a dictation
+    // nobody reads back is a dictation nobody trusts.
+    if (fromVoice) _captureSpeak(_captureVoiceSay(parsed));
 
     const go = (fn) => setTimeout(() => { _closeCaptureSheet(); fn(); }, 650);
 
@@ -8515,8 +8748,26 @@ async function _captureSubmit(raw) {
         return;
     }
 
-    // Consume is the default when only a product was named.
     if (best && best.score >= 0.75) {
+        // "Ho finito tutti i fusilli": the sheet of that row opens; one tap on
+        // "Ho consumato tutto" is the confirmation. The sentence alone never writes.
+        if (parsed.use_all) {
+            go(() => {
+                showToast(t('capture.use_all_hint', { name: best.item.name }), 'info', 5000);
+                showItemDetail(best.item.id, best.item.product_id);
+            });
+            return;
+        }
+        // "Ho usato 300 g di fusilli": same sheet, stepper already on 300 g.
+        const preset = _captureQtyFor(parsed, best.item);
+        if (preset > 0) {
+            go(() => {
+                showToast(t('capture.qty_hint', { qty: preset, unit: best.item.unit || '', name: best.item.name }), 'info', 5000);
+                showItemDetail(best.item.id, best.item.product_id, preset);
+            });
+            return;
+        }
+        // Consume is the default when only a product was named.
         go(() => {
             quickUse(best.item.product_id, best.item.location);
             showToast(t('capture.use_hint', { name: best.item.name }), 'success');
@@ -8580,29 +8831,11 @@ function _alertItemMeta(item, extra = '') {
     return parts.length ? `<span class="alert-item-qty">${escapeHtml(parts.join(' · '))}</span>` : '';
 }
 
-/**
- * Deterministic 30-minute rotation: the same window always shows the same slice
- * of rarely-used stock, and every half hour the slice changes.
- */
-function _staleRotationPick(items, n) {
-    const arr = (items || []).slice();
-    const slot = Math.floor(Date.now() / (30 * 60 * 1000));
-    let seed = (slot ^ 0x9e3779b9) >>> 0;
-    const rnd = () => {
-        seed = (seed + 0x6D2B79F5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(rnd() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr.slice(0, n);
-}
-
 let _staleRotateTimer = null;
-/** Re-pick the rarely-used slice when the 30-minute window rolls over. */
+/**
+ * Refresh the forgotten list every half hour: the panel now ranks by expiry, and a
+ * countdown that only updates on reload would be wrong after midnight.
+ */
 function _startStaleRotation() {
     if (_staleRotateTimer) return;
     _staleRotateTimer = setInterval(() => {
@@ -8885,16 +9118,20 @@ function quickRecipeSuggestion() {
     }, 500);
 }
 
-/** Dashboard: top 3 stock items unused for a long time. */
+/**
+ * Dashboard: the forgotten stock closest to its expiry date.
+ *
+ * It used to be a rotation of the longest-idle packs, so a sealed box of salt could sit
+ * in the list while the yoghurt expiring tomorrow was nowhere: the list is now "the N
+ * nearest expiry dates among the rows you never use", and each row says its date.
+ */
 async function loadStaleDashboardItems() {
     const section = document.getElementById('alert-stale');
     const list = document.getElementById('stale-list');
     if (!section || !list) return;
     try {
-        const data = await api('stale_inventory_items', { limit: 24, min_days: 21 });
-        // Rotate the visible slice every 30 minutes: same window = same items,
-        // next window = another slice of the long-unused stock.
-        const items = _staleRotationPick(data.items || [], DASHBOARD_STALE_MAX);
+        const data = await api('stale_inventory_items', { limit: DASHBOARD_STALE_MAX, min_days: 21, mode: 'expiry' });
+        const items = data.items || [];
         _startStaleRotation();
         if (!items.length) {
             section.style.display = 'none';
@@ -8911,6 +9148,10 @@ async function loadStaleDashboardItems() {
             const openedBadge = item.is_opened
                 ? `<span class="alert-item-badge opened">${escapeHtml(t('dashboard.stale_opened'))}</span>`
                 : '';
+            // The expiry date itself, plus how close it is: that is why the row is here.
+            const expiryBadge = item.expiry_date
+                ? `<span class="alert-item-badge stale-expiry" title="${escapeAttr(formatDate(item.expiry_date))}">📅 ${escapeHtml(formatDate(item.expiry_date))} · ${escapeHtml(_relativeDaysAhead(item.days_to_expiry))}</span>`
+                : '';
             const pid = item.product_id;
             const iid = item.inventory_id;
             const loc = (item.location || 'dispensa').replace(/'/g, "\\'");
@@ -8923,7 +9164,8 @@ async function loadStaleDashboardItems() {
                 </div>
                 <div class="alert-item-badges stale-actions">
                     ${openedBadge}
-                    <button type="button" class="btn-banner btn-banner-use" onclick="quickUse(${pid}, '${loc}')">${t('dashboard.stale_use')}</button>
+                    ${expiryBadge}
+                    <button type="button" class="row-use-btn" onclick="quickUse(${pid}, '${loc}')">✓<span class="row-use-label">${t('dashboard.stale_use')}</span></button>
                     <button type="button" class="alert-item-menu" title="${escapeAttr(t('dashboard.row_actions'))}" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="event.stopPropagation(); showAlertItemDetail(${iid}, ${pid})">⋮</button>
                 </div>
             </div>`;
@@ -9768,7 +10010,10 @@ function renderBannerItem() {
         if (_geminiAvailable) {
             btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="${t('dashboard.banner_explain_title')}">\ud83e\udd16 ${t('dashboard.banner_explain_btn')}</button>`;
         }
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        // Inline on purpose: this strip is about one number, and hiding "finito /
+        // buttato / correggi" behind a ⋮ made the ⋮ look broken. Each button keeps its
+        // own colour (emerald finish, soft red discard, sky correct, neutral ignore).
+        actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'dup_loss_check') {
         const ch = entry.data;
@@ -11581,7 +11826,7 @@ function _itemDetailExpiryChip(item) {
     return `<span class="item-detail-chip ${cls}">${escapeHtml(expiryText)}</span>`;
 }
 
-function showItemDetail(inventoryId, productId) {
+function showItemDetail(inventoryId, productId, presetQty) {
     const item = _findInventoryItem(inventoryId);
     if (!item) {
         if (productId) _showExhaustedProductModal(productId);
@@ -11589,7 +11834,7 @@ function showItemDetail(inventoryId, productId) {
         return;
     }
 
-    _itemDetailQtyInit(item);
+    _itemDetailQtyInit(item, presetQty);
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
@@ -11683,14 +11928,18 @@ async function itemDetailUseAll(productId, location) {
  */
 let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, location: '', name: '' };
 
-function _itemDetailQtyInit(item) {
+function _itemDetailQtyInit(item, presetQty) {
     const unit = String(item.unit || 'pz');
     const qty = parseFloat(item.quantity) || 0;
     const step = (unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l')
         ? (qty >= 100 ? 50 : (qty >= 20 ? 10 : 1))
         : 1;
+    // A dictated quantity ("ho usato 300 g di fusilli") arrives here already converted:
+    // the sheet opens with the number in the stepper, so the tap is the confirmation.
+    const preset = Number(presetQty);
+    const value = preset > 0 ? Math.min(qty, preset) : (Math.max(Math.min(step, qty), Math.min(qty, 1)) || qty);
     _itemDetailQty = {
-        value: Math.max(Math.min(step, qty), Math.min(qty, 1)) || qty,
+        value,
         max: qty,
         step,
         unit,
@@ -12581,7 +12830,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025z';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025za';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12591,7 +12840,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025z';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025za';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

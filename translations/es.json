@@ -248,7 +248,7 @@
     "trend_wasted": "Productos tirados",
     "trend_source": "Comparado con los 30 días anteriores",
     "stale_title": "🕰️ Sin usar desde hace tiempo",
-    "stale_hint": "Los 3 productos de la despensa más tiempo sin usar — receta, usar, editar o tirar.",
+    "stale_hint": "Los 5 productos más cercanos a caducar que no usas (o no has usado nunca) — receta, usar, editar o tirar.",
     "stale_days": "sin usar desde hace {n} días",
     "stale_never_used": "nunca usado desde que se añadió",
     "stale_recipe": "Receta",
@@ -283,7 +283,8 @@
     "month_strip": "{used} usados · {wasted} tirados en los últimos 30 días",
     "banner_location": "Dónde: {location}",
     "banner_anomaly_align": "Ajustar a {qty} {unit}",
-    "banner_anomaly_aligned": "Stock ajustado a {qty} {unit}"
+    "banner_anomaly_aligned": "Stock ajustado a {qty} {unit}",
+    "stale_expiry_label": "Caducidad"
   },
   "inventory": {
     "title": "Lista",
@@ -2724,7 +2725,29 @@
     "understood": "He entendido",
     "which_one": "¿Cuál querías?",
     "throw_hint": "Abro {name}: desde ahí puedes tirarlo.",
-    "mic_prompt": "Permite el micrófono arriba y luego habla."
+    "mic_prompt": "Permite el micrófono arriba y luego habla.",
+    "example_use_half": "He usado media manzana",
+    "example_use_grams": "He usado 300 g de fusilli",
+    "example_all": "He terminado todos los fusilli",
+    "example_throw": "Tira el pan",
+    "examples_use": "Consumir",
+    "examples_stock": "Despensa",
+    "examples_ask": "Ideas",
+    "examples_intro": "Habla o escribe como te salga: cantidades, medias, gramos, «lo he terminado todo».",
+    "examples_confirm": "Nada se aplica sin confirmación: primero ves lo que he entendido.",
+    "what_can_i_say": "¿Qué puedo decir?",
+    "feedback_on": "Voz activada",
+    "feedback_off": "Voz desactivada",
+    "voice_ready": "Voz activada.",
+    "voice_use": "Has usado {qty} {unit} de {name}. ¿Confirmas?",
+    "voice_all": "Has terminado {name}. ¿Confirmas?",
+    "voice_add": "Añado {name} a la despensa.",
+    "voice_throw": "Abro {name} para tirarlo.",
+    "voice_recipe": "Busco una receta.",
+    "voice_unknown": "No lo he entendido. Inténtalo otra vez o escribe la frase.",
+    "still_listening": "Sigo escuchando…",
+    "use_all_hint": "Entendido: {name} está terminado. Confirma con «Lo he usado todo».",
+    "qty_hint": "{qty} {unit} de {name}: confirma en la ficha."
   },
   "location_altro": {
     "removed": "La ubicación «Otro» ya no existe: {n} productos se han movido a «{to}»."

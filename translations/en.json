@@ -252,7 +252,7 @@
     "trend_wasted": "Products thrown away",
     "trend_source": "Compared with the previous 30 days",
     "stale_title": "🕰️ Unused for a while",
-    "stale_hint": "Opened packs left unused the longest first — recipe, use, edit, or discard.",
+    "stale_hint": "The 5 products closest to expiry that you never use (or have not used in a while) — recipe, use, edit or discard.",
     "stale_days": "unused for {n} days",
     "stale_never_used": "never used since added",
     "stale_recipe": "Recipe",
@@ -283,7 +283,8 @@
     "month_strip": "{used} used · {wasted} wasted in the last 30 days",
     "banner_location": "Where: {location}",
     "banner_anomaly_align": "Set to {qty} {unit}",
-    "banner_anomaly_aligned": "Stock set to {qty} {unit}"
+    "banner_anomaly_aligned": "Stock set to {qty} {unit}",
+    "stale_expiry_label": "Expiry"
   },
   "inventory": {
     "title": "List",
@@ -2724,7 +2725,29 @@
     "understood": "I understood",
     "which_one": "Which one did you mean?",
     "throw_hint": "Opening {name}: you can throw it from there.",
-    "mic_prompt": "Allow the microphone above, then speak."
+    "mic_prompt": "Allow the microphone above, then speak.",
+    "example_use_half": "I used half an apple",
+    "example_use_grams": "I used 300 g of fusilli",
+    "example_all": "I finished all the fusilli",
+    "example_throw": "Throw away the bread",
+    "examples_use": "Consume",
+    "examples_stock": "Pantry",
+    "examples_ask": "Ideas",
+    "examples_intro": "Speak or type naturally: amounts, halves, grams, “I finished it all”.",
+    "examples_confirm": "Nothing is applied without a confirmation: you see what I understood first.",
+    "what_can_i_say": "What can I say?",
+    "feedback_on": "Voice on",
+    "feedback_off": "Voice off",
+    "voice_ready": "Voice on.",
+    "voice_use": "You used {qty} {unit} of {name}. Confirm?",
+    "voice_all": "You finished {name}. Confirm?",
+    "voice_add": "Adding {name} to the pantry.",
+    "voice_throw": "Opening {name} to discard it.",
+    "voice_recipe": "Looking for a recipe.",
+    "voice_unknown": "I did not understand. Try again or type the sentence.",
+    "still_listening": "Still listening…",
+    "use_all_hint": "Understood: {name} is finished. Confirm with “I used it all”.",
+    "qty_hint": "{qty} {unit} of {name}: confirm in the sheet."
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."

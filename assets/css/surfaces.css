@@ -1070,3 +1070,160 @@ body {
     padding: 0 16px;
 }
 .alert-banner-actions .btn-banner-use:not(.btn-banner-use-danger):active { background: var(--brand-primary-hover); }
+
+/* ── Round 5 ──────────────────────────────────────────────────────────────── */
+
+/* Banner actions live inline next to the primary and keep their own colour:
+   finishing is emerald, discarding is a soft red, correcting stock is sky, ignoring
+   is neutral. Collapsing them behind a ⋮ hid the very actions the strip exists for. */
+.alert-banner-actions .btn-banner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: var(--touch-min);
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+}
+.alert-banner-actions .btn-banner-finish {
+    background: var(--brand-surface);
+    border-color: color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    color: var(--brand-primary-hover);
+}
+.alert-banner-actions .btn-banner-throw {
+    background: var(--tone-danger-soft);
+    border-color: color-mix(in srgb, var(--tone-danger) 35%, transparent);
+    color: var(--tone-danger-text);
+}
+.alert-banner-actions .btn-banner-edit {
+    background: var(--tone-info-soft);
+    border-color: color-mix(in srgb, var(--tone-info) 35%, transparent);
+    color: var(--tone-info-text);
+}
+.alert-banner-actions .btn-banner-ok {
+    background: #F1F5F9;
+    border-color: var(--surface-border);
+    color: #475569;
+}
+.alert-banner-actions .btn-banner-ai {
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
+    color: var(--text-muted);
+}
+[data-theme="dark"] .alert-banner-actions .btn-banner { background: #1E293B; color: #CBD5E1; }
+[data-theme="dark"] .alert-banner-actions .btn-banner-finish { background: color-mix(in srgb, var(--brand-primary) 22%, transparent); color: #A7F3D0; }
+[data-theme="dark"] .alert-banner-actions .btn-banner-throw { background: color-mix(in srgb, var(--tone-danger) 22%, transparent); color: #FCA5A5; }
+[data-theme="dark"] .alert-banner-actions .btn-banner-edit { background: color-mix(in srgb, var(--tone-info) 22%, transparent); color: #7DD3FC; }
+
+/* "Dimenticati" was still painted purple by the theme while "In scadenza" was a white
+   card: same component, two looks. Same surface now, and the tone stays on the rail. */
+.alert-stale,
+[data-theme="dark"] .alert-stale {
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
+}
+.alert-stale h3,
+[data-theme="dark"] .alert-stale h3 { color: var(--text-light); }
+
+/* Inside the hub the three lists are panels of one card: flat, no frame, but each keeps
+   its own 4px rail — and enough left padding that the text never touches it (the hint
+   was clipped because the panel had padding-left 0). */
+.stock-hub .alert-section {
+    border: 0;
+    border-left: 4px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 4px 0 0 10px;
+}
+.stock-hub #alert-expiring { border-left-color: var(--tone-soon); }
+.stock-hub #alert-opened   { border-left-color: var(--tone-info); }
+.stock-hub .alert-stale    { border-left-color: var(--tone-calm); }
+[data-theme="dark"] .stock-hub .alert-section { background: transparent; }
+
+/* The capture mic looks clickable even at rest: a slow aura breathes around it, so the
+   button reads as a live control and not as a decoration. */
+.capture-mic {
+    animation: capture-aura 2.8s ease-in-out infinite;
+    cursor: pointer;
+}
+@keyframes capture-aura {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone-calm) 24%, transparent), 0 6px 18px color-mix(in srgb, var(--tone-calm) 18%, transparent); }
+    50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--tone-calm) 10%, transparent), 0 8px 22px color-mix(in srgb, var(--tone-calm) 24%, transparent); }
+}
+.capture-mic:hover { background: color-mix(in srgb, var(--tone-calm) 22%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+    .capture-mic { animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone-calm) 14%, transparent); }
+}
+
+/* Capture sheet: head buttons + the "what can I say" manual. */
+.capture-head-btn {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.capture-head-btn[aria-pressed="false"] { opacity: 0.6; }
+[data-theme="dark"] .capture-head-btn { background: #1E293B; }
+
+.capture-examples-btn {
+    display: block;
+    margin: 10px auto 0;
+    min-height: var(--touch-min);
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    background: var(--brand-surface);
+    color: var(--brand-primary-hover);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.capture-examples {
+    margin-top: 8px;
+    max-height: 42vh;
+    overflow-y: auto;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.capture-examples[hidden] { display: none; }
+.capture-examples-intro,
+.capture-examples-note {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.capture-examples-note { margin: 8px 0 0; font-style: italic; }
+.capture-examples-group {
+    margin: 10px 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.capture-examples-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The forgotten row says WHEN it expires: that date is the reason it is on screen. */
+.alert-item-badge.stale-expiry {
+    background: var(--tone-soon-soft);
+    color: var(--tone-soon-text);
+    font-variant-numeric: tabular-nums;
+}
+[data-theme="dark"] .alert-item-badge.stale-expiry {
+    background: color-mix(in srgb, var(--tone-soon) 24%, transparent);
+    color: #FDE68A;
+}

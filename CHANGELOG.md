@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.27] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **The anomaly banner shows its actions inline, each with its own colour**: “Aggiorna a
+  2000 ml” (solid emerald), “Finito” (emerald tint), “Buttato” (soft red), “Correggi”
+  (sky), “Ignora” (neutral). Collapsing them behind a ⋮ made the ⋮ look like a broken
+  list of centred words.
+- **“Dimenticati” is the same card as “In scadenza”**: the theme still painted it purple
+  with a violet frame, and inside the hub it had lost its left padding, which clipped the
+  hint. Same surface now, one 4px rail per tab (amber expiring, sky opened, emerald
+  forgotten).
+- **“Dimenticati” ranks by expiry**: the 5 products closest to their expiry date among
+  the rows that were never used or idle for 21+ days, each with the date and its
+  countdown (`forgottenExpiringItems()`, `stale_inventory_items&mode=expiry`). The
+  30-minute rotation is gone: a sealed box of salt no longer outranks tomorrow's yoghurt.
+- **The capture mic breathes at rest** (slow aura + hover): it now reads as a button that
+  wants to be tapped.
+- **The capture session listens long enough**: `continuous = true` with restarts while the
+  sheet is open, “Ti ascolto ancora…” instead of “non ho capito” after the first pause, and
+  the error only after several silent seconds.
+- **The capture understands more**: fractions (“mezza mela”, “un quarto di torta”), weights
+  written without a space (“300gr”), canonical units (`gr` → `g`) and “ho finito tutti i
+  fusilli” (`use_all`). A dictated quantity opens the product sheet with the stepper
+  already on that number; “ho finito” opens the same sheet, where “Ho consumato tutto” is
+  the confirmation — the sentence alone never writes.
+- **The capture talks back**: on-device TTS reads what it understood and asks for the
+  confirmation, only for dictated sentences, with a speaker toggle in the sheet.
+- **“Cosa posso dire”** lists the whole lexicon as tappable examples, in all six locales.
+
 ## [1.16.26] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed

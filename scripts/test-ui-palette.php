@@ -131,6 +131,23 @@ check('the capture sheet follows the emerald hierarchy',
 check('capture hints are solid pills, not dashed placeholders',
     preg_match('/\.capture-hint \{[^}]*border: 1px solid var\(--surface-border\)/s', $css) === 1
     && !str_contains($css, 'border: 1px dashed var(--surface-border)'));
+// ── Round 5: colours that mean something, one card per tab ──────────────────
+check('the banner actions are inline, each with its own colour',
+    str_contains($app, 'actionsEl.innerHTML = btns;')
+    && preg_match('/\.alert-banner-actions \.btn-banner-finish \{[^}]*var\(--brand-surface\)/s', $css) === 1
+    && preg_match('/\.alert-banner-actions \.btn-banner-throw \{[^}]*var\(--tone-danger-soft\)/s', $css) === 1
+    && preg_match('/\.alert-banner-actions \.btn-banner-edit \{[^}]*var\(--tone-info-soft\)/s', $css) === 1);
+check('"Dimenticati" is the same card as "In scadenza"',
+    preg_match('/\.alert-stale,\s*\[data-theme="dark"\] \.alert-stale \{[^}]*background: var\(--surface-bg\)/s', $css) === 1
+    && preg_match('/\.alert-stale h3,\s*\[data-theme="dark"\] \.alert-stale h3 \{ color: var\(--text-light\)/s', $css) === 1);
+check('each hub panel keeps its own rail and its own left padding',
+    str_contains($css, '.stock-hub #alert-expiring { border-left-color: var(--tone-soon); }')
+    && str_contains($css, '.stock-hub .alert-stale    { border-left-color: var(--tone-calm); }')
+    && preg_match('/\.stock-hub \.alert-section \{[^}]*padding: 4px 0 0 10px/s', $css) === 1);
+check('the capture mic breathes at rest, so it reads as a button',
+    preg_match('/\.capture-mic \{[^}]*animation: capture-aura/s', $css) === 1
+    && str_contains($css, '@keyframes capture-aura')
+    && str_contains($css, '.capture-mic:hover'));
 check('the mic shows a sonar ring while recording',
     str_contains($css, '@keyframes capture-ping') && str_contains($css, '.capture-mic.is-listening {'));
 check('the system alert strip is neutral, not an amber card',

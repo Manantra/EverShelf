@@ -252,7 +252,7 @@
     "trend_wasted": "Weggeworfene Produkte",
     "trend_source": "Vergleich mit den vorherigen 30 Tagen",
     "stale_title": "🕰️ Lange ungenutzt",
-    "stale_hint": "Die 3 Vorräte, die am längsten ungenutzt sind — Rezept, nutzen, bearbeiten oder wegwerfen.",
+    "stale_hint": "Die 5 Produkte mit dem nächsten Ablaufdatum, die du nie (oder lange nicht) benutzt hast — Rezept, verbrauchen, bearbeiten oder wegwerfen.",
     "stale_days": "seit {n} Tagen ungenutzt",
     "stale_never_used": "seit dem Hinzufügen nie benutzt",
     "stale_recipe": "Rezept",
@@ -283,7 +283,8 @@
     "month_strip": "{used} verbraucht · {wasted} weggeworfen in den letzten 30 Tagen",
     "banner_location": "Wo: {location}",
     "banner_anomaly_align": "Auf {qty} {unit} setzen",
-    "banner_anomaly_aligned": "Bestand auf {qty} {unit} gesetzt"
+    "banner_anomaly_aligned": "Bestand auf {qty} {unit} gesetzt",
+    "stale_expiry_label": "Ablauf"
   },
   "inventory": {
     "title": "Liste",
@@ -2724,7 +2725,29 @@
     "understood": "Verstanden",
     "which_one": "Welches meintest du?",
     "throw_hint": "Öffne {name}: dort kannst du es wegwerfen.",
-    "mic_prompt": "Erlaube oben das Mikrofon und sprich dann."
+    "mic_prompt": "Erlaube oben das Mikrofon und sprich dann.",
+    "example_use_half": "Ich habe einen halben Apfel verwendet",
+    "example_use_grams": "Ich habe 300 g Fusilli verwendet",
+    "example_all": "Ich habe alle Fusilli aufgebraucht",
+    "example_throw": "Wirf das Brot weg",
+    "examples_use": "Verbrauchen",
+    "examples_stock": "Vorrat",
+    "examples_ask": "Ideen",
+    "examples_intro": "Sprich oder schreibe einfach: Mengen, Hälften, Gramm, „alles aufgebraucht“.",
+    "examples_confirm": "Nichts wird ohne Bestätigung ausgeführt: du siehst zuerst, was ich verstanden habe.",
+    "what_can_i_say": "Was kann ich sagen?",
+    "feedback_on": "Stimme an",
+    "feedback_off": "Stimme aus",
+    "voice_ready": "Stimme an.",
+    "voice_use": "Du hast {qty} {unit} {name} verbraucht. Bestätigen?",
+    "voice_all": "Du hast {name} aufgebraucht. Bestätigen?",
+    "voice_add": "Ich füge {name} zum Vorrat hinzu.",
+    "voice_throw": "Ich öffne {name} zum Wegwerfen.",
+    "voice_recipe": "Ich suche ein Rezept.",
+    "voice_unknown": "Das habe ich nicht verstanden. Versuche es erneut oder tippe den Satz.",
+    "still_listening": "Ich höre noch zu…",
+    "use_all_hint": "Verstanden: {name} ist aufgebraucht. Bestätige mit „Alles verbraucht“.",
+    "qty_hint": "{qty} {unit} {name}: in der Karte bestätigen."
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."

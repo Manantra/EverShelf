@@ -248,7 +248,7 @@
     "trend_wasted": "Produits jetés",
     "trend_source": "Comparé aux 30 jours précédents",
     "stale_title": "🕰️ Inutilisés depuis longtemps",
-    "stale_hint": "Les 3 produits du garde-manger inutilisés depuis le plus longtemps — recette, utiliser, modifier ou jeter.",
+    "stale_hint": "Les 5 produits les plus proches de la péremption que tu n'utilises pas (ou plus) — recette, utiliser, modifier ou jeter.",
     "stale_days": "inutilisé depuis {n} jours",
     "stale_never_used": "jamais utilisé depuis l'ajout",
     "stale_recipe": "Recette",
@@ -283,7 +283,8 @@
     "month_strip": "{used} utilisés · {wasted} jetés ces 30 derniers jours",
     "banner_location": "Où : {location}",
     "banner_anomaly_align": "Mettre à {qty} {unit}",
-    "banner_anomaly_aligned": "Stock réglé à {qty} {unit}"
+    "banner_anomaly_aligned": "Stock réglé à {qty} {unit}",
+    "stale_expiry_label": "Péremption"
   },
   "inventory": {
     "title": "Liste",
@@ -2724,7 +2725,29 @@
     "understood": "J'ai compris",
     "which_one": "Lequel voulais-tu ?",
     "throw_hint": "J'ouvre {name} : tu peux le jeter depuis là.",
-    "mic_prompt": "Autorise le micro en haut, puis parle."
+    "mic_prompt": "Autorise le micro en haut, puis parle.",
+    "example_use_half": "J'ai utilisé une demi-pomme",
+    "example_use_grams": "J'ai utilisé 300 g de fusilli",
+    "example_all": "J'ai fini tous les fusilli",
+    "example_throw": "Jette le pain",
+    "examples_use": "Consommer",
+    "examples_stock": "Garde-manger",
+    "examples_ask": "Idées",
+    "examples_intro": "Parle ou écris naturellement : quantités, moitiés, grammes, « j'ai tout fini ».",
+    "examples_confirm": "Rien n'est appliqué sans confirmation : tu vois d'abord ce que j'ai compris.",
+    "what_can_i_say": "Que puis-je dire ?",
+    "feedback_on": "Voix activée",
+    "feedback_off": "Voix désactivée",
+    "voice_ready": "Voix activée.",
+    "voice_use": "Tu as utilisé {qty} {unit} de {name}. Tu confirmes ?",
+    "voice_all": "Tu as fini {name}. Tu confirmes ?",
+    "voice_add": "J'ajoute {name} au garde-manger.",
+    "voice_throw": "J'ouvre {name} pour le jeter.",
+    "voice_recipe": "Je cherche une recette.",
+    "voice_unknown": "Je n'ai pas compris. Réessaie ou écris la phrase.",
+    "still_listening": "Je t'écoute encore…",
+    "use_all_hint": "Compris : {name} est fini. Confirme avec « J'ai tout utilisé ».",
+    "qty_hint": "{qty} {unit} de {name} : confirme dans la fiche."
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."

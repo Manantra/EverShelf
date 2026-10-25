@@ -179,8 +179,13 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
 }
 
 // ── The banner is one row with two controls, and never repeats a listed product ──
-check('every banner type renders through _collapseBannerActions()',
-    substr_count($app, 'actionsEl.innerHTML = _collapseBannerActions(btns);') === 7);
+check('the collapsed banner types still go through _collapseBannerActions()',
+    substr_count($app, 'actionsEl.innerHTML = _collapseBannerActions(btns);') === 6);
+// The quantity anomaly is the one strip whose actions stay inline: "Aggiorna a N" needs
+// its siblings visible, each with its own colour (round 5).
+check('the anomaly banner keeps its actions inline',
+    str_contains($app, 'actionsEl.innerHTML = btns;')
+    && str_contains($app, 'btn-banner btn-banner-use" onclick="alignBannerAnomaly()"'));
 $collapse = extract_fn($app, '_collapseBannerActions');
 check('_collapseBannerActions() is extractable', $collapse !== '');
 check('the menu toggle exists', extract_fn($app, '_toggleBannerMenu') !== '');

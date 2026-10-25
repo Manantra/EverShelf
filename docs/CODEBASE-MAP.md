@@ -80,7 +80,11 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
   `_stripLeadingEmoji()` (`scripts/test-i18n-icons.php` enforces it in all six locales).
 - Dashboard: the alert blocks are capped per block (`DASHBOARD_EXPIRING_MAX` 3,
   `DASHBOARD_OPENED_MAX` 5, `DASHBOARD_ALERT_MAX` 5 for expired,
-  `DASHBOARD_STALE_MAX` 3 with a deterministic 30-minute `_staleRotationPick`). The
+  `DASHBOARD_STALE_MAX` 5). "Dimenticati" ranks by expiry, not by rotation:
+  `forgottenExpiringItems()` (`api/lib/seasonal.php`, reached with
+  `stale_inventory_items&mode=expiry`) returns the nearest expiry dates among the rows
+  that were never used or have been idle for `min_days`, each with `expiry_date` and
+  `days_to_expiry` so the row can print the date. The
   four lists (`expiring-list`, `expired-list`, `opened-list`, `stale-list`) all bind the
   same way — `_bindAlertItemsHoldOpen()` → `_bindRowHoldOpen()` — and every row carries
   `alert-item-clickable` + `data-alert-inv-id`: **a tap opens on touch as well as on
