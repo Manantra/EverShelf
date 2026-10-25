@@ -280,7 +280,8 @@
     "tab_opened": "📦 已开封",
     "tab_stale": "🕰️ 被遗忘",
     "row_actions": "更多操作",
-    "month_strip": "近 30 天：已用 {used} · 丢弃 {wasted}"
+    "month_strip": "近 30 天：已用 {used} · 丢弃 {wasted}",
+    "banner_location": "位置：{location}"
   },
   "inventory": {
     "title": "库存",

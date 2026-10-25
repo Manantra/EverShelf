@@ -280,7 +280,8 @@
     "tab_opened": "📦 Geöffnet",
     "tab_stale": "🕰️ Vergessen",
     "row_actions": "Weitere Aktionen",
-    "month_strip": "{used} verbraucht · {wasted} weggeworfen in den letzten 30 Tagen"
+    "month_strip": "{used} verbraucht · {wasted} weggeworfen in den letzten 30 Tagen",
+    "banner_location": "Wo: {location}"
   },
   "inventory": {
     "title": "Liste",

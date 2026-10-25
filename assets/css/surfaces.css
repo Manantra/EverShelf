@@ -827,3 +827,10 @@ body {
 }
 .cu-chip.cu-intent { background: var(--brand-surface); color: var(--brand-primary); }
 .cu-chip.cu-qty { font-variant-numeric: tabular-nums; }
+
+/* "Where" line under a banner entry: same 13px muted level as the row metadata. */
+.banner-loc {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--text-muted);
+}

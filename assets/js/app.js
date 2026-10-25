@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025v'; // bump when translations change
+const _I18N_VERSION = '20261025w'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9513,6 +9513,33 @@ function _bannerPriority(entry) {
 }
 
 /**
+ * "Where it is" for every banner entry that points at an inventory row.
+ *
+ * The anomaly banner asked whether 250000 g were right without saying which shelf to
+ * look at — and a product can sit in more than one place, so the SQL payload carries
+ * the whole list (`locations`).
+ */
+function _bannerLocationParts(item) {
+    if (!item) return [];
+    const keys = (Array.isArray(item.locations) && item.locations.length)
+        ? item.locations
+        : [item.location].filter(Boolean);
+    return keys.map((key) => {
+        const meta = LOCATIONS[normalizeLocationKey(key)];
+        return meta ? `${meta.icon} ${meta.label}` : String(key);
+    });
+}
+function _bannerLocationLine(item) {
+    const parts = _bannerLocationParts(item);
+    if (!parts.length) return '';
+    return `<div class="banner-loc">${escapeHtml(t('dashboard.banner_location', { location: parts.join(' · ') }))}</div>`;
+}
+function _bannerLocationText(item) {
+    const parts = _bannerLocationParts(item);
+    return parts.length ? ' · ' + parts.join(' · ') : '';
+}
+
+/**
  * One banner row, two controls.
  *
  * The expired entry used to expose six pastel buttons (Finito, Usa, Buttato,
@@ -9646,7 +9673,7 @@ function renderBannerItem() {
             detailText = t('dashboard.banner_review_high_qty_detail', { qty: qtyDisplay });
         }
         titleEl.textContent = titleText;
-        detailEl.textContent = detailText;
+        detailEl.textContent = detailText + _bannerLocationText(item);
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
         if (isLow) {
             btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_review_action_finish')}</button>`;
@@ -9678,7 +9705,7 @@ function renderBannerItem() {
         } else {
             diffText = t('dashboard.banner_prediction_less', { expected: pred.expected_qty, unit: pred.unit, time: timeText, actual: pred.actual_qty });
         }
-        detailEl.innerHTML = rateText ? `${rateText}: ${diffText}` : diffText.charAt(0).toUpperCase() + diffText.slice(1);
+        detailEl.innerHTML = (rateText ? `${rateText}: ${diffText}` : diffText.charAt(0).toUpperCase() + diffText.slice(1)) + _bannerLocationLine(pred);
         let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">${t('dashboard.banner_prediction_action_confirm', { qty: pred.actual_qty, unit: pred.unit })}</button>`;
         btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerPrediction()">${t('dashboard.banner_prediction_action_edit')}</button>`;
         if (hasScale) {
@@ -9701,7 +9728,7 @@ function renderBannerItem() {
         } else if (fin.stock_qty > 0) {
             baseText = t('dashboard.banner_finished_crumb', { qty: fin.stock_qty, unit: fin.unit });
         }
-        detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check');
+        detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check') + _bannerLocationLine(item);
         // Vanished with a large ledger gap: put restore first so a hasty “Finished”
         // does not wipe a full pack that only disappeared from the inventory row.
         const restoreFirst = !!(fin.vanished && fin.expected_qty);
@@ -9725,10 +9752,10 @@ function renderBannerItem() {
         iconEl.textContent = '🔍';
         if (isPhantom) {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_phantom_title')}`;
-            detailEl.innerHTML = t('dashboard.banner_anomaly_phantom_detail', { inv_qty: an.inv_qty, unit: an.unit, expected_qty: an.expected_qty });
+            detailEl.innerHTML = t('dashboard.banner_anomaly_phantom_detail', { inv_qty: an.inv_qty, unit: an.unit, expected_qty: an.expected_qty }) + _bannerLocationLine(an);
         } else {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_ghost_title')}`;
-            detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty });
+            detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty }) + _bannerLocationLine(an);
         }
         let btns = `<button class="btn-banner btn-banner-finish" onclick="finishBannerAnomaly()">${t('dashboard.banner_expired_action_finished')}</button>`;
         btns += `<button class="btn-banner btn-banner-throw" onclick="throwBannerAnomaly()">${t('dashboard.banner_expired_action_throw')}</button>`;
@@ -9768,7 +9795,7 @@ function renderBannerItem() {
         banner.className = 'alert-banner banner-no-expiry';
         iconEl.textContent = '📅';
         titleEl.textContent = t('dashboard.banner_no_expiry_title').replace('{name}', item.name + (item.brand ? ' (' + item.brand + ')' : ''));
-        detailEl.textContent = t('dashboard.banner_no_expiry_detail');
+        detailEl.textContent = t('dashboard.banner_no_expiry_detail') + _bannerLocationText(item);
         const pid = item.product_id || item.id;
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerNoExpiry()">${t('dashboard.banner_no_expiry_action_set')}</button>`;
         btns += `<button class="btn-banner btn-banner-ok" onclick="confirmNoExpiryNeeded(${pid})">${t('dashboard.banner_no_expiry_action_dismiss')}</button>`;
@@ -12449,7 +12476,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025v';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025w';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12459,7 +12486,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025v';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025w';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

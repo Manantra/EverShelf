@@ -7796,6 +7796,9 @@ function getInventoryAnomalies(PDO $db): void {
         SELECT p.id AS product_id, p.name, p.brand, p.unit,
                p.default_quantity, p.package_unit,
                MIN(i.id) AS inventory_id,
+               -- Where the stock actually is: an anomaly without the shelf to look at
+               -- is unusable, and a product can sit in more than one place.
+               GROUP_CONCAT(DISTINCT i.location) AS locations,
                SUM(i.quantity) AS inv_qty,
                COALESCE(tx_in.tot, 0)  AS total_in,
                COALESCE(tx_out.tot, 0) AS total_out
@@ -7859,6 +7862,10 @@ function getInventoryAnomalies(PDO $db): void {
             'default_quantity' => $r['default_quantity'],
             'package_unit' => $r['package_unit'],
             'inv_qty'      => round($invQty, 2),
+            // `locations` is the full list (comma separated by SQLite), `location` the
+            // first one, so old clients and the icon keep working.
+            'locations'    => array_values(array_filter(array_map('trim', explode(',', (string)($r['locations'] ?? ''))))),
+            'location'     => trim((string)(explode(',', (string)($r['locations'] ?? ''))[0] ?? '')),
             'expected_qty' => round($expected, 2),
             'diff'         => round($diff, 2),
             'direction'    => $direction,

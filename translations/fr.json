@@ -280,7 +280,8 @@
     "tab_opened": "📦 Ouverts",
     "tab_stale": "🕰️ Oubliés",
     "row_actions": "Autres actions",
-    "month_strip": "{used} utilisés · {wasted} jetés ces 30 derniers jours"
+    "month_strip": "{used} utilisés · {wasted} jetés ces 30 derniers jours",
+    "banner_location": "Où : {location}"
   },
   "inventory": {
     "title": "Liste",

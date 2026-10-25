@@ -17,6 +17,7 @@
 $root = dirname(__DIR__);
 $html = (string)file_get_contents($root . '/index.html');
 $app  = (string)file_get_contents($root . '/assets/js/app.js');
+$api  = (string)file_get_contents($root . '/api/index.php');
 $fail = 0;
 $checks = 0;
 
@@ -144,6 +145,31 @@ if (is_array($out)) {
         ($out['quiet']['cta_hidden'] ?? null) === true
         && ($out['banner']['cta_hidden'] ?? null) === true);
     check('an anomaly alone opens the hub', ($out['banner']['hub_hidden'] ?? null) === false);
+}
+
+// ── Every banner entry says WHERE the product is ────────────────────────────
+check('the anomaly payload carries the locations',
+    str_contains($api, 'GROUP_CONCAT(DISTINCT i.location) AS locations')
+    && str_contains($api, "'locations'") && str_contains($api, "'location'"));
+check('one helper builds the "where" line',
+    str_contains($app, 'function _bannerLocationParts(')
+    && str_contains($app, 'function _bannerLocationLine(')
+    && str_contains($app, 'function _bannerLocationText('));
+check('a product in two places shows both',
+    str_contains($app, 'Array.isArray(item.locations) && item.locations.length'));
+foreach ([
+    '_bannerLocationLine(an)'                       => 'anomaly (both directions use it)',
+    '+ _bannerLocationText(item)'                   => 'review and no-expiry rows',
+    '_bannerLocationLine(pred)'                     => 'consumption prediction',
+    "banner_finished_check') + _bannerLocationLine" => 'finished / vanished row',
+] as $needle => $label) {
+    check("the location is shown on: {$label}", str_contains($app, $needle));
+}
+foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
+    $doc = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);
+    $val = $doc['dashboard']['banner_location'] ?? '';
+    check("translations/{$loc}.json has dashboard.banner_location with {location}",
+        is_string($val) && str_contains($val, '{location}'));
 }
 
 // ── The banner is one row with two controls, and never repeats a listed product ──
