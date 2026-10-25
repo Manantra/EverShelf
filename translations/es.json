@@ -2704,7 +2704,15 @@
     "open_chat": "Abrir el chat completo",
     "no_product": "{name} no está en la despensa: te lo añado.",
     "use_hint": "Abro {name}: confirma la cantidad.",
-    "add_hint": "Añado {name}: completa los detalles."
+    "add_hint": "Añado {name}: completa los detalles.",
+    "intent_consume": "Usar",
+    "intent_add": "Añadir",
+    "intent_recipe": "Receta",
+    "intent_throw": "Tirar",
+    "intent_unknown": "No reconocido",
+    "understood": "He entendido",
+    "which_one": "¿Cuál querías?",
+    "throw_hint": "Abro {name}: desde ahí puedes tirarlo."
   },
   "location_altro": {
     "removed": "La ubicación «Otro» ya no existe: {n} productos se han movido a «{to}»."

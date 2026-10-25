@@ -2704,7 +2704,15 @@
     "open_chat": "Vollständigen Chat öffnen",
     "no_product": "{name} ist nicht im Vorrat: ich füge es hinzu.",
     "use_hint": "Öffne {name}: bestätige die Menge.",
-    "add_hint": "Füge {name} hinzu: ergänze die Details."
+    "add_hint": "Füge {name} hinzu: ergänze die Details.",
+    "intent_consume": "Verbrauchen",
+    "intent_add": "Hinzufügen",
+    "intent_recipe": "Rezept",
+    "intent_throw": "Wegwerfen",
+    "intent_unknown": "Nicht erkannt",
+    "understood": "Verstanden",
+    "which_one": "Welches meintest du?",
+    "throw_hint": "Öffne {name}: dort kannst du es wegwerfen."
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."

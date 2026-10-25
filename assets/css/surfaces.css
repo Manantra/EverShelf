@@ -710,3 +710,86 @@ body {
 }
 .app-header img,
 .app-header .nav-logo-icon { filter: none; }
+
+/* ── Capture: the mic shows the incoming level, the sheet shows what it heard ──
+   Feedback was the missing half: a silent button looked broken. `--level` is set by
+   the AnalyserNode (0..1) and fills the button from the bottom. */
+.capture-mic {
+    position: relative;
+    overflow: hidden;
+    --level: 0;
+}
+.capture-mic-level {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--level) * 100%);
+    background: color-mix(in srgb, var(--brand-primary) 30%, transparent);
+    transition: height 80ms linear;
+    pointer-events: none;
+}
+.capture-mic-icon { position: relative; z-index: 1; }
+
+.capture-bars {
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    height: 26px;
+    margin: -2px auto 8px;
+}
+.capture-bars.is-listening { display: flex; }
+.capture-bars span {
+    width: 5px;
+    height: calc(var(--bar, 0.15) * 26px);
+    min-height: 3px;
+    border-radius: 999px;
+    background: var(--brand-primary);
+    opacity: 0.75;
+    transition: height 90ms ease-out;
+}
+
+.capture-transcript {
+    margin: 0 0 8px;
+    min-height: 1.2em;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--text-muted);
+    font-style: italic;
+}
+.capture-transcript.is-final {
+    color: var(--text-main);
+    font-style: normal;
+    font-weight: 600;
+}
+
+.capture-understood,
+.capture-choices {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 10px;
+}
+.capture-understood[hidden],
+.capture-choices[hidden] { display: none; }
+.cu-label {
+    width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.cu-chip {
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--surface-border) 55%, transparent);
+    color: var(--text-main);
+}
+.cu-chip.cu-intent { background: var(--brand-surface); color: var(--brand-primary); }
+.cu-chip.cu-qty { font-variant-numeric: tabular-nums; }

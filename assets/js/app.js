@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025r'; // bump when translations change
+const _I18N_VERSION = '20261025s'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8089,11 +8089,16 @@ function _openCaptureSheet() {
         setTimeout(() => { try { input.focus(); } catch (e) {} }, 60);
     }
     _captureStatus('capture.idle');
+    _captureShowTranscript('', false);
+    _captureShowChoices(null);
+    const understood = document.getElementById('capture-understood');
+    if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureSyncMicAvailability();
 }
 
 function _closeCaptureSheet() {
     try { if (_captureRec) { _captureRec.stop(); _captureRec = null; } } catch (e) { /* already stopped */ }
+    _captureStopMeter();
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
 }
@@ -8112,91 +8117,291 @@ function _captureSyncMicAvailability() {
     if (!Ctor) _captureStatus('capture.unsupported');
 }
 
-/** Web Speech API: on-device, free, no server round-trip for the transcript. */
-function _captureStartVoice() {
+/** Audio level meter (getUserMedia + AnalyserNode): the mic fills while you talk. */
+let _captureMeter = null;
+
+function _captureSetState(state) {
+    const mic = document.getElementById('capture-mic');
+    const bars = document.getElementById('capture-bars');
+    const on = state === 'listening';
+    if (mic) mic.classList.toggle('is-listening', on);
+    if (bars) bars.classList.toggle('is-listening', on);
+    if (!on) {
+        if (mic) mic.style.setProperty('--level', '0');
+        if (bars) bars.querySelectorAll('span').forEach(b => b.style.setProperty('--bar', '0.15'));
+    }
+}
+
+/** Start the level meter. Silent failure: the transcript still works without it. */
+async function _captureStartMeter() {
+    _captureStopMeter();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx || !navigator.mediaDevices?.getUserMedia) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const ctx = new AudioCtx();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        const buf = new Uint8Array(analyser.fftSize);
+        const mic = document.getElementById('capture-mic');
+        const bars = document.getElementById('capture-bars');
+        const tick = () => {
+            analyser.getByteTimeDomainData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) {
+                const v = (buf[i] - 128) / 128;
+                sum += v * v;
+            }
+            // RMS, boosted: speech sits around 0.1-0.3, so a linear bar barely moves.
+            const level = Math.min(1, Math.sqrt(sum / buf.length) * 4.5);
+            if (mic) mic.style.setProperty('--level', level.toFixed(3));
+            if (bars) {
+                bars.querySelectorAll('span').forEach((b, i) => {
+                    const wobble = 0.55 + 0.45 * Math.abs(Math.sin(Date.now() / 180 + i));
+                    b.style.setProperty('--bar', Math.max(0.12, level * wobble).toFixed(3));
+                });
+            }
+            _captureMeter.raf = requestAnimationFrame(tick);
+        };
+        _captureMeter = { stream, ctx, raf: 0 };
+        tick();
+    } catch (e) {
+        _captureMeter = null;   // permission denied or no device: the recogniser still works
+    }
+}
+
+function _captureStopMeter() {
+    if (!_captureMeter) return;
+    try { cancelAnimationFrame(_captureMeter.raf); } catch (e) {}
+    try { _captureMeter.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    try { _captureMeter.ctx.close(); } catch (e) {}
+    _captureMeter = null;
+    _captureSetState('idle');
+}
+
+/** Live transcript: grey while it is still guessing, solid once it is final. */
+function _captureShowTranscript(text, isFinal) {
+    const el = document.getElementById('capture-transcript');
+    if (!el) return;
+    const value = String(text || '').trim();
+    el.hidden = !value;
+    el.textContent = value;
+    el.classList.toggle('is-final', !!isFinal);
+}
+
+/**
+ * "This is what I understood" — the sentence plus the three fields the action uses.
+ * Without it a wrong parse looked like a broken app.
+ */
+function _captureShowUnderstood(parsed) {
+    const el = document.getElementById('capture-understood');
+    if (!el) return;
+    const intentKey = { consume: 'capture.intent_consume', add: 'capture.intent_add', recipe: 'capture.intent_recipe', throw: 'capture.intent_throw' }[parsed.intent];
+    const bits = [];
+    bits.push(`<span class="cu-chip cu-intent">${escapeHtml(intentKey ? t(intentKey) : t('capture.intent_unknown'))}</span>`);
+    if (parsed.product) bits.push(`<span class="cu-chip">${escapeHtml(parsed.product)}</span>`);
+    if (parsed.intent !== 'recipe' && parsed.qty) {
+        const unit = parsed.unit ? ` ${escapeHtml(parsed.unit)}` : '';
+        bits.push(`<span class="cu-chip cu-qty">×${escapeHtml(String(parsed.qty))}${unit}</span>`);
+    }
+    el.innerHTML = `<span class="cu-label">${escapeHtml(t('capture.understood'))}</span>${bits.join('')}`;
+    el.hidden = false;
+}
+
+/** Ambiguous product: offer the closest pantry rows instead of guessing. */
+function _captureShowChoices(rows) {
+    const el = document.getElementById('capture-choices');
+    if (!el) return;
+    if (!rows || !rows.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.innerHTML = `<span class="cu-label">${escapeHtml(t('capture.which_one'))}</span>` + rows.map(({ item, index }) =>
+        `<button type="button" class="capture-hint" onclick="_captureChoose(${index})">${escapeHtml(item.name)}</button>`
+    ).join('');
+    el.hidden = false;
+}
+
+/** Web Speech API: on-device, free, no server round-trip, interim results on. */
+async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { _captureStatus('capture.unsupported'); return; }
+    _captureShowChoices(null);
+    const tr = document.getElementById('capture-transcript');
+    if (tr) { tr.hidden = true; tr.textContent = ''; }
+    const un = document.getElementById('capture-understood');
+    if (un) un.hidden = true;
+    _captureStatus('capture.listening');
+    _captureSetState('listening');
+    await _captureStartMeter();
     try {
         _captureRec = new Ctor();
         _captureRec.lang = _collationLocale();
-        _captureRec.interimResults = false;
+        _captureRec.interimResults = true;
+        _captureRec.continuous = false;
         _captureRec.maxAlternatives = 1;
-        _captureStatus('capture.listening');
+        let finalText = '';
         _captureRec.onresult = (ev) => {
-            const res = ev && ev.results && ev.results[0] && ev.results[0][0];
-            const text = res ? String(res.transcript || '') : '';
-            if (text.trim()) _captureSubmit(text);
-            else _captureStatus('capture.not_understood');
+            let interim = '';
+            for (let i = ev.resultIndex || 0; i < ev.results.length; i++) {
+                const res = ev.results[i];
+                const chunk = res[0] ? String(res[0].transcript || '') : '';
+                if (res.isFinal) finalText += chunk; else interim += chunk;
+            }
+            const shown = (finalText || interim).trim();
+            if (shown) _captureShowTranscript(shown, !!finalText.trim());
+            if (finalText.trim()) {
+                _captureStopMeter();
+                _captureSubmit(finalText.trim());
+            }
         };
         _captureRec.onerror = (ev) => {
+            _captureStopMeter();
             const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
             _captureStatus(denied ? 'capture.mic_denied' : 'capture.not_understood');
         };
-        _captureRec.onend = () => { _captureRec = null; };
+        _captureRec.onend = () => {
+            _captureRec = null;
+            _captureStopMeter();
+            if (!finalText.trim()) _captureStatus('capture.not_understood');
+        };
         _captureRec.start();
     } catch (e) {
+        _captureStopMeter();
         _captureStatus('capture.not_understood');
     }
 }
 
+// ===== CAPTURE: the internal, offline "model" =====
+// A lexicon, not a neural network: the six UI languages are scanned together, so an
+// Italian sentence works on an English UI (and vice versa), nothing leaves the
+// device, and a new synonym is one word in a list.
+const _CAPTURE_INTENT_WORDS = {
+    recipe: ['cosa cucino', 'che cosa', 'cosa posso', 'cucino', 'ricetta', 'recipe', 'rezept', 'recette', 'receta', '食谱', '用什么做'],
+    throw: ['butta', 'buttato', 'buttare', 'gettato', 'getta', 'throw away', 'throw', 'wegwerfen', 'weggeworfen', 'jeter', 'jeté', 'jette', 'tirar', 'tirado', 'tira', '扔掉', '丢'],
+    consume: ['ho usato', 'usato', 'consumato', 'mangiato', 'finito', 'consum', 'used up', 'used', 'eaten', 'ate', 'verwendet', 'verbraucht', 'aufgebraucht', 'gegessen', 'benutzt', 'utilisé', 'utilise', 'utiliser', 'utilisée', 'consommé', 'consomme', 'mangé', 'mange', 'usado', 'consumido', 'comido', '用了', '吃了', '用完'],
+    add: ['aggiungi', 'aggiungere', 'metti in', 'compra', 'add', 'buy', 'hinzuf', 'kaufen', 'ajout', 'ajouter', 'achet', 'a[ñn]ad', '添加', '买'],
+};
+const _CAPTURE_NUMBER_WORDS = {
+    uno: 1, una: 1, un: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10,
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    ein: 1, eine: 1, zwei: 2, drei: 3, vier: 4, fünf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10,
+    une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, sept: 7, huit: 8, neuf: 9, dix: 10,
+    dos: 2, tres: 3, cuatro: 4, cinco: 5, siete: 7, ocho: 8, nueve: 9, diez: 10,
+    '一': 1, '两': 2, '二': 2, '三': 3, '四': 4, '五': 5,
+};
+const _CAPTURE_UNITS = 'kg|gr|g|ml|cl|l|pz|pezzi|pezzo|conf|confezioni|confezione';
+const _CAPTURE_STOP = /\b(il|lo|la|i|gli|le|un|uno|una|dei|delle|del|della|di|the|a|an|some|of|der|die|das|ein|eine|dem|den|les|des|du|de|el|los|las|unos|unas|une|mi|mio|mia|me|my|ich|habe|ho|he|j|ai|have|i)\b/g;
+const _CAPTURE_CJK_FILLER = /[我你他她它了一个個个这那的]/g;
+
+/** One word/phrase as a standalone token, Unicode-aware ("äpfel", "caffè", "cucino"). */
+function _captureWordRe(word, flags) {
+    const escaped = String(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const edge = '[^\\p{L}\\p{N}]';
+    return new RegExp('(?:^|' + edge + ')' + escaped + '(?=$|' + edge + ')', flags + 'u');
+}
+
+/** Intent words, longest first: "buttato" must win over "butta", "consumato" over "consum". */
+function _captureIntentWords() {
+    const out = {};
+    for (const [intent, words] of Object.entries(_CAPTURE_INTENT_WORDS)) {
+        out[intent] = words.slice().sort((a, b) => b.length - a.length);
+    }
+    return out;
+}
+
+/** CJK has no word boundaries: those phrases are matched as plain substrings. */
+function _captureHasWord(hay, word) {
+    return /[\u3400-\u9FFF]/.test(word) ? hay.includes(word) : _captureWordRe(word, 'i').test(hay);
+}
+function _captureStripWord(hay, word) {
+    return /[\u3400-\u9FFF]/.test(word) ? hay.split(word).join(' ') : hay.replace(_captureWordRe(word, 'gi'), ' ');
+}
+
+/** First intent whose words appear in the sentence (recipe first: "cosa cucino"). */
+function _captureMatchIntent(lower) {
+    for (const [intent, words] of Object.entries(_captureIntentWords())) {
+        for (const word of words) {
+            if (_captureHasWord(lower, word)) return intent;
+        }
+    }
+    return '';
+}
+
 /**
- * Parse one sentence into an action. Deterministic, offline, no AI call: the three
- * verbs a pantry needs are recognised in the six UI languages, the quantity is the
- * first number (words for "one" included), and what is left is the product name the
- * existing flows already know how to handle.
- *
- * It is deliberately conservative: when a product is named but no verb is
- * recognised, the intent falls back to `consume`, because the next step opens the
- * use form — the user confirms there, so a wrong guess costs one tap and never
- * mutates the pantry silently.
+ * Parse one sentence into an action: intent, product, quantity, unit + a confidence
+ * that says whether the sentence was understood at all (used to keep the sheet open
+ * instead of routing a guess).
  */
 function _captureParse(raw) {
     const text = String(raw || '').trim();
     const lower = text.toLowerCase();
-    const out = { intent: '', product: '', qty: 1, unit: '' };
+    const out = { intent: '', product: '', qty: 1, unit: '', confidence: 0 };
     if (!lower) return out;
 
-    if (/(cosa (cucino|cucinare|faccio)|che cosa|cucino|ricetta|recipe|rezept|recette|receta|食谱|用什么做)/.test(lower)) {
-        out.intent = 'recipe';
-        return out;
-    }
-    const consumeRe = /(ho usato|usato|consumato|mangiato|finito|consum\w*|used|ate|eaten|verwendet|verbraucht|aufgebraucht|gegessen|benutzt|utilis[eé]?|consomm\w*|mang[eé]|usado|consumido|comido|用了|吃了)/;
-    const addRe = /(aggiungi|aggiungere|metti in|compra|add|buy|hinzuf|kaufen|ajout|achet|a[ñn]ad|添加|买)/;
-    if (consumeRe.test(lower)) out.intent = 'consume';
-    else if (addRe.test(lower)) out.intent = 'add';
+    out.intent = _captureMatchIntent(lower);
 
-    // Quantity: digits first (comma or dot), then the unit when it is spelled.
-    const num = lower.match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|g|ml|cl|l|pz|pezzi|conf|confezioni)?/);
+    // Quantity: digits first, then a spelled number in any of the six languages.
+    const num = lower.match(/(\d+(?:[.,]\d+)?)\s*/);
     if (num) {
         out.qty = parseFloat(String(num[1]).replace(',', '.')) || 1;
-        if (num[2]) out.unit = num[2];
-    } else if (/(\bun[oa]?\b|\bone\b|\bein[e]?\b|\bune?\b|\buno\b|一)/.test(lower)) {
-        out.qty = 1;
+    } else {
+        for (const [word, value] of Object.entries(_CAPTURE_NUMBER_WORDS)) {
+            if (_captureWordRe(word, 'i').test(lower)) { out.qty = value; break; }
+        }
     }
+    const unitRe = new RegExp('(?:^|[^\\p{L}])(?:' + _CAPTURE_UNITS + ')(?=$|[^\\p{L}])', 'iu');
+    const unit = lower.match(unitRe);
 
-    // Product: drop the verb phrase, the quantity and the articles.
+    // Product: drop the intent words (longest first), numbers, units, articles, filler.
     let product = lower;
-    product = product.replace(new RegExp(consumeRe.source, 'g'), ' ');
-    product = product.replace(new RegExp(addRe.source, 'g'), ' ');
+    for (const words of Object.values(_captureIntentWords())) {
+        for (const word of words) product = _captureStripWord(product, word);
+    }
     product = product.replace(/\b\d+(?:[.,]\d+)?\b/g, ' ');
-    product = product.replace(/\b(kg|gr|g|ml|cl|l|pz|pezzi|conf|confezioni)\b/g, ' ');
-    product = product.replace(/\b(ich|habe|ho|he|j|ai|have|me|my|mio|mia|il|lo|la|i|gli|le|un|uno|una|dei|delle|del|della|di|the|a|an|some|der|die|das|ein|eine|le|les|des|une|el|los|las|unos|unas)\b/g, ' ');
-    // Pronouns/measure words that have no Latin word boundaries (CJK) and the
-    // leftovers of an apostrophe (`j'ai` → `j`, `ai`).
-    product = product.replace(/[我了一个個个]/g, ' ');
-    product = product.replace(/[?!.,;:'’]+/g, ' ');
+    product = product.replace(new RegExp('(^|[^\\p{L}])(?:' + _CAPTURE_UNITS + ')(?=$|[^\\p{L}])', 'giu'), '$1 ');
+    for (const word of Object.keys(_CAPTURE_NUMBER_WORDS).sort((a, b) => b.length - a.length)) {
+        product = product.replace(_captureWordRe(word, 'gi'), ' ');
+    }
+    product = product.replace(_CAPTURE_STOP, ' ');
+    product = product.replace(_CAPTURE_CJK_FILLER, ' ');
+    product = product.replace(/[?!.,;:'’"“”]+/g, ' ');
     out.product = product.replace(/\s+/g, ' ').trim();
-    if (!out.intent && out.product) out.intent = 'consume';
+
+    if (unit) {
+        const m = unit[0].toLowerCase().match(new RegExp('(?:' + _CAPTURE_UNITS + ')$'));
+        out.unit = m ? m[0] : '';
+    }
+    if (out.intent) out.confidence = 1;
+    else if (out.product) { out.intent = 'consume'; out.confidence = 0.6; }
     return out;
 }
 
-/**
- * Find the pantry row a spoken/typed product name refers to: exact match first, then
- * a prefix, then a substring, always among the rows that still have stock.
- */
-async function _captureFindProduct(name) {
+/** Pantry rows offered when the spoken name is ambiguous (session only). */
+let _captureChoicesCache = [];
+
+/** 0..1 similarity between a spoken product and a pantry name. */
+function _captureScoreName(needle, name) {
+    const a = String(name || '').toLowerCase().trim();
+    const b = String(needle || '').toLowerCase().trim();
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.startsWith(b)) return 0.9;
+    if (a.includes(b)) return 0.78;
+    // A plural/singular pair ("arance" / "arancia") shares the stem: compare all but
+    // the last character, so speech does not need the exact dictionary form.
+    const shortLen = Math.min(a.length, b.length);
+    if (shortLen >= 4 && a.slice(0, shortLen - 1) === b.slice(0, shortLen - 1)) return 0.7;
+    const at = new Set(a.split(/\s+/));
+    const bt = new Set(b.split(/\s+/));
+    let shared = 0;
+    for (const token of bt) if (at.has(token)) shared++;
+    return (shared / Math.max(at.size, bt.size)) * 0.7;
+}
+
+/** Pantry rows matching a spoken name, best first (rows with stock only). */
+async function _captureFindProducts(name) {
     const needle = String(name || '').toLowerCase().trim();
-    if (!needle) return null;
+    if (!needle) return [];
     let list = Array.isArray(currentInventory) ? currentInventory : [];
     if (!list.length) {
         try {
@@ -8204,53 +8409,107 @@ async function _captureFindProduct(name) {
             currentInventory = (data && data.inventory) || [];
             list = currentInventory;
         } catch (e) {
-            return null;
+            return [];
         }
     }
-    const live = list.filter(i => !isInventoryDepleted(i));
-    const nameOf = (i) => String(i.name || '').toLowerCase();
-    return live.find(i => nameOf(i) === needle)
-        || live.find(i => nameOf(i).startsWith(needle))
-        || live.find(i => nameOf(i).includes(needle))
-        || null;
+    return list
+        .filter(i => !isInventoryDepleted(i))
+        .map((item, index) => ({ item, index, score: _captureScoreName(needle, item.name) }))
+        .filter(row => row.score >= 0.45)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+}
+
+/** Backwards-compatible single result (best match, or null). */
+async function _captureFindProduct(name) {
+    const rows = await _captureFindProducts(name);
+    return rows.length ? rows[0].item : null;
+}
+
+/** One of the offered rows: route it exactly like a confident match. */
+function _captureChoose(index) {
+    const row = _captureChoicesCache[index];
+    _captureShowChoices(null);
+    if (!row) return;
+    _closeCaptureSheet();
+    quickUse(row.item.product_id, row.item.location);
+    showToast(t('capture.use_hint', { name: row.item.name }), 'success');
 }
 
 /**
- * Route one captured sentence to the flow that already does the job — nothing is
- * applied here: the use form, the add form and the chat all make the user confirm.
+ * Route one captured sentence. The transcript and the interpretation are shown
+ * first (a wrong parse must look like a wrong parse, not like a dead app), then the
+ * flow that already does the job opens: use form, add form, item sheet or chat.
+ * Nothing is applied without confirmation in that flow.
  */
 async function _captureSubmit(raw) {
     const text = String(raw || '').trim();
     if (!text) { _captureStatus('capture.idle'); return; }
     const parsed = _captureParse(text);
-    _closeCaptureSheet();
+    _captureShowTranscript(text, true);
+    _captureShowUnderstood(parsed);
+    _captureShowChoices(null);
+
+    if (!parsed.intent && !parsed.product) {
+        _captureStatus('capture.not_understood');
+        return;                       // keep the sheet open: the user can retype
+    }
+
+    const go = (fn) => setTimeout(() => { _closeCaptureSheet(); fn(); }, 650);
 
     if (parsed.intent === 'recipe') {
-        showPage('chat');
-        setTimeout(() => {
-            const input = document.getElementById('chat-input');
-            if (input) input.value = text;
-            sendChatMessage();
-        }, 400);
+        go(() => {
+            showPage('chat');
+            setTimeout(() => {
+                const input = document.getElementById('chat-input');
+                if (input) input.value = text;
+                sendChatMessage();
+            }, 350);
+        });
         return;
     }
     if (parsed.intent === 'add') {
+        go(() => {
+            showAddForm();
+            const nameEl = document.getElementById('pf-name');
+            if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
+            showToast(t('capture.add_hint', { name: parsed.product || text }), 'success');
+        });
+        return;
+    }
+
+    const rows = await _captureFindProducts(parsed.product);
+    const best = rows[0] || null;
+
+    if (parsed.intent === 'throw') {
+        if (!best) { _captureStatus('capture.no_product', { name: parsed.product || text }); return; }
+        go(() => {
+            showToast(t('capture.throw_hint', { name: best.item.name }), 'success');
+            showAlertItemDetail(best.item.inventory_id || best.item.id, best.item.product_id);
+        });
+        return;
+    }
+
+    // Consume is the default when only a product was named.
+    if (best && best.score >= 0.75) {
+        go(() => {
+            quickUse(best.item.product_id, best.item.location);
+            showToast(t('capture.use_hint', { name: best.item.name }), 'success');
+        });
+        return;
+    }
+    if (rows.length) {
+        _captureChoicesCache = rows;
+        _captureShowChoices(rows);
+        _captureStatus('capture.which_one');
+        return;                       // the user picks; nothing is guessed
+    }
+    _captureStatus('capture.no_product', { name: parsed.product || text });
+    go(() => {
         showAddForm();
         const nameEl = document.getElementById('pf-name');
         if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
-        showToast(t('capture.add_hint', { name: parsed.product || text }), 'success');
-        return;
-    }
-    const item = await _captureFindProduct(parsed.product);
-    if (!item) {
-        showToast(t('capture.no_product', { name: parsed.product || text }), 'warning');
-        showAddForm();
-        const nameEl = document.getElementById('pf-name');
-        if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
-        return;
-    }
-    await quickUse(item.product_id, item.location);
-    showToast(t('capture.use_hint', { name: item.name }), 'success');
+    });
 }
 
 /** Name + brand of a dashboard row on one line (they wrap only when really narrow). */
@@ -12164,7 +12423,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025r';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025s';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12174,7 +12433,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025r';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025s';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -2704,7 +2704,15 @@
     "open_chat": "Apri la chat completa",
     "no_product": "{name} non è in dispensa: te lo faccio aggiungere.",
     "use_hint": "Apro {name}: conferma la quantità.",
-    "add_hint": "Aggiungo {name}: completa i dettagli."
+    "add_hint": "Aggiungo {name}: completa i dettagli.",
+    "intent_consume": "Usare",
+    "intent_add": "Aggiungere",
+    "intent_recipe": "Ricetta",
+    "intent_throw": "Buttare",
+    "intent_unknown": "Non riconosciuto",
+    "understood": "Ho capito",
+    "which_one": "Quale intendevi?",
+    "throw_hint": "Apro {name}: da lì puoi buttarlo."
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."

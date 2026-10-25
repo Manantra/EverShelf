@@ -2704,7 +2704,15 @@
     "open_chat": "Ouvrir la discussion complète",
     "no_product": "{name} n'est pas dans le garde-manger : je l'ajoute.",
     "use_hint": "J'ouvre {name} : confirme la quantité.",
-    "add_hint": "J'ajoute {name} : complète les détails."
+    "add_hint": "J'ajoute {name} : complète les détails.",
+    "intent_consume": "Utiliser",
+    "intent_add": "Ajouter",
+    "intent_recipe": "Recette",
+    "intent_throw": "Jeter",
+    "intent_unknown": "Non reconnu",
+    "understood": "J'ai compris",
+    "which_one": "Lequel voulais-tu ?",
+    "throw_hint": "J'ouvre {name} : tu peux le jeter depuis là."
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."

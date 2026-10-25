@@ -2704,7 +2704,15 @@
     "open_chat": "Open the full chat",
     "no_product": "{name} is not in the pantry: I will add it for you.",
     "use_hint": "Opening {name}: confirm the quantity.",
-    "add_hint": "Adding {name}: complete the details."
+    "add_hint": "Adding {name}: complete the details.",
+    "intent_consume": "Use",
+    "intent_add": "Add",
+    "intent_recipe": "Recipe",
+    "intent_throw": "Throw away",
+    "intent_unknown": "Not recognised",
+    "understood": "I understood",
+    "which_one": "Which one did you mean?",
+    "throw_hint": "Opening {name}: you can throw it from there."
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."

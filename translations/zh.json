@@ -2704,7 +2704,15 @@
     "open_chat": "打开完整对话",
     "no_product": "{name} 不在储藏室：我帮你添加。",
     "use_hint": "正在打开 {name}：请确认数量。",
-    "add_hint": "正在添加 {name}：请补充细节。"
+    "add_hint": "正在添加 {name}：请补充细节。",
+    "intent_consume": "使用",
+    "intent_add": "添加",
+    "intent_recipe": "食谱",
+    "intent_throw": "丢弃",
+    "intent_unknown": "未识别",
+    "understood": "我理解为",
+    "which_one": "你指的是哪一个？",
+    "throw_hint": "正在打开 {name}：可在那里丢弃。"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"
