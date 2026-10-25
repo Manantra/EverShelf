@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025zd'; // bump when translations change
+const _I18N_VERSION = '20261025ze'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2360,6 +2360,19 @@ function getExpiredSafety(item, daysExpired) {
         }
         return { level: 'danger', icon: '🚫', label: t(isDrink ? 'status.dont_drink' : 'status.dont_eat'),
                  tip: t(isDrink ? 'status.tip_drink_danger' : 'status.tip_highRisk_danger') };
+    }
+
+    // Drinks and soluble preparations: milk, juice, cocoa. They sat in the low-risk group,
+    // so a carton past its date said "Va bene" for a whole month — and that verdict is also
+    // what kept the row off the dashboard. Quality drops fast, so 30 days is the whole
+    // window here.
+    if (cat === 'bevande') {
+        if (daysExpired <= 30) {
+            return { level: 'warning', icon: '👀', label: t('status.check'),
+                     tip: t(isDrink ? 'status.tip_drink_check' : 'status.tip_medRisk_check1') };
+        }
+        return { level: 'danger', icon: '🚫', label: t(isDrink ? 'status.dont_drink' : 'status.dont_eat'),
+                 tip: t(isDrink ? 'status.tip_drink_danger' : 'status.tip_medRisk_danger') };
     }
 
     if (medRisk.includes(cat)) {
@@ -8907,14 +8920,22 @@ async function loadDashboard() {
         // One block, three tabs: repaint the segmented control from what is on screen.
         _syncStockHub();
         
-        // Expired items — items in the freezer that are still within the safety window are hidden
+        // Every row past its date is listed: the verdict pill says whether it is still
+        // usable ("Va bene"), it never decides whether to mention it. Filtering on
+        // `level !== 'ok'` meant a soluble preparation five days past its date was dropped
+        // here *and* from the banner (the low-risk rule answers "ok" for the first 30
+        // days): the app knew and stayed silent.
         const expiredSection = document.getElementById('alert-expired');
         const expiredList = document.getElementById('expired-list');
-        const visibleExpired = (statsData.expired || []).filter(item => {
-            if (isInventoryDepleted(item)) return false;
-            const days = Math.abs(daysUntilExpiry(item.expiry_date));
-            return getExpiredSafety(item, days).level !== 'ok';
-        });
+        const _daysPast = (it) => {
+            const d = daysUntilExpiry(it.expiry_date);
+            return Number.isFinite(d) ? d : -9999;
+        };
+        const visibleExpired = (statsData.expired || [])
+            .filter(item => !isInventoryDepleted(item))
+            // Most recent expiry first: those are the rows you can still save, and the cap
+            // can never hide the one that just expired behind a box from six months ago.
+            .sort((a, b) => _daysPast(b) - _daysPast(a));
         if (visibleExpired.length > 0) {
             const { shown: expiredShown, extra: expiredExtra } = _dashboardAlertCap(visibleExpired);
             expiredSection.style.display = 'block';
@@ -12764,7 +12785,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025zd';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025ze';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12774,7 +12795,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025zd';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025ze';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

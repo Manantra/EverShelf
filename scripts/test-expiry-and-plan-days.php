@@ -157,6 +157,9 @@ $probe = "function mapToLocalCategory(cat) { return cat || 'altro'; }\n"
     . "  ['meat 1 day',        {category:'carne',     location:'frigo',    unit:'g'},  1],\n"
     . "  ['bread 10 days',     {category:'pane',      location:'dispensa', unit:'g'}, 10],\n"
     . "  ['pasta 10 days',     {category:'pasta',     location:'dispensa', unit:'g'}, 10],\n"
+    . "  ['juice 5 days',      {category:'bevande',   location:'frigo',    unit:'ml'}, 5],\n"
+    . "  ['cocoa 5 days',      {category:'bevande',   location:'dispensa', unit:'g'},  5],\n"
+    . "  ['juice 40 days',     {category:'bevande',   location:'frigo',    unit:'ml'}, 40],\n"
     . "  ['milk in freezer',   {category:'latticini', location:'freezer',  unit:'ml'}, 10]\n"
     . "];\n"
     . "console.log(JSON.stringify(cases.map(([n,i,d]) => { const r = getExpiredSafety(i,d); return [n, r.level, r.label, r.tip]; })));";
@@ -179,7 +182,24 @@ if (!is_array($rows)) {
     assert_same('warning', $byCase['bread 10 days'][1], 'bread at 10 days is still "Controlla"');
     assert_same('ok', $byCase['pasta 10 days'][1], 'dry pasta at 10 days stays "Ancora buono"');
     assert_same('ok', $byCase['milk in freezer'][1], 'the freezer bonus still applies');
+    // Regression (reported: "Preparato solubile Ovomaltine era scaduto e non me lo hai
+    // detto"): a beverage past its date used to fall in the low-risk group and answer
+    // "Va bene" for 30 days — which is also what kept it off the dashboard.
+    assert_same(['warning', 'status.check', 'status.tip_drink_check'], array_slice($byCase['juice 5 days'], 1),
+        'a drink five days past its date is "Controlla", never "Va bene"');
+    assert_same('warning', $byCase['cocoa 5 days'][1], 'a soluble preparation is a drink too');
+    assert_same('danger', $byCase['juice 40 days'][1], 'after a month a drink is a discard');
 }
+
+// ── The dashboard lists every past-date row, whatever its verdict ──────────
+assert_true(str_contains($js, 'const _daysPast = (it) => {'),
+    'the expired list sorts on a date-only distance');
+assert_true(!preg_match('/visibleExpired = [\s\S]{0,500}getExpiredSafety/', $js),
+    'the expired list is never filtered by the verdict (a "Va bene" row is still past its date)');
+assert_true(str_contains($js, '.sort((a, b) => _daysPast(b) - _daysPast(a));'),
+    'the newest expiry comes first, so the cap cannot hide the row that just expired');
+assert_true(str_contains($js, "const visibleExpired = (statsData.expired || [])"),
+    'the expired list starts from the server payload');
 
 // ── The new labels exist in all six locales ────────────────────────────────
 $required = ['status.dont_drink', 'status.tip_expires_today', 'status.tip_drink_check', 'status.tip_drink_danger'];

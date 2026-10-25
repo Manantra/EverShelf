@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.31] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Fixed
+- **A product past its expiry date can no longer go unmentioned.** Reported with
+  “Preparato solubile Ovomaltine”, expired 5 days earlier and never listed: the server
+  returned it in `stats.expired` all along, and the dashboard dropped it because the
+  *verdict* (`getExpiredSafety`) answered “ok / Va bene” for anything in the low-risk
+  group within 30 days. A safety opinion was being used as a visibility filter. The
+  expired list is now filtered by the date only (a depleted trace still isn’t stock), and
+  the pill keeps saying whether the row is still usable — “Va bene” on a past-date item
+  is information, not a reason to hide it.
+- **Drinks are no longer “fine for a month”.** Beverages and soluble preparations
+  (`bevande`: juice, milk, cocoa…) fell in the low-risk group, so a carton past its date
+  said “Va bene” for 30 days. They now get “Controlla” up to 30 days (with the drink
+  wording) and “Non bere” after that.
+- **The newest expiry is listed first** (the block used to sort oldest-first and cap at
+  five rows, so a box from six months ago could push out the product that expired
+  yesterday).
+
 ## [1.16.30] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed
