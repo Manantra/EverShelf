@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025l'; // bump when translations change
+const _I18N_VERSION = '20261025m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8631,6 +8631,9 @@ async function loadStaleDashboardItems() {
             </div>`;
         }).join('');
         _bindAlertItemsHoldOpen(list);
+        // This loader is async and finishes after the tab selection: re-apply it, or
+        // the "dimenticati" panel reappears under whichever tab is active.
+        _syncStockHub();
     } catch (e) {
         console.warn('[stale]', e);
         section.style.display = 'none';
@@ -12105,7 +12108,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12115,7 +12118,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -79,7 +79,9 @@ $select = extract_fn($app, '_stockHubSelect');
 check('_stockHubCounts() is extractable', $counts !== '');
 check('_syncStockHub() is extractable', $sync !== '');
 check('_stockHubSelect() is extractable', $select !== '');
-check('the dashboard repaints the hub after every list', substr_count($app, '_syncStockHub();') >= 3);
+check('the dashboard repaints the hub after every list', substr_count($app, '_syncStockHub();') >= 4);
+check('the async stale loader re-applies the tab selection (it used to escape the hub)',
+    str_contains($app, "_bindAlertItemsHoldOpen(list);\n        // This loader is async and finishes after the tab selection: re-apply it, or"));
 
 $harness = "let _stockHubTab = 'expiring';\n\n" . $counts . "\n\n" . $sync . "\n\n" . $select . <<<'JS'
 const els = {};
