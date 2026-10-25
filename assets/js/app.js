@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025za'; // bump when translations change
+const _I18N_VERSION = '20261025zb'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8278,16 +8278,15 @@ function _captureToggleVoice() {
     showToast(t(on ? 'capture.feedback_on' : 'capture.feedback_off'), 'info', 1800);
 }
 
-/** Speak one sentence with the UI voice. No-op when TTS is missing or muted. */
+/**
+ * Speak one sentence with the app voice — the same one the cooking steps use
+ * (`_speakBrowser`), so the capture never sounds like a second assistant. Local only:
+ * no cloud TTS endpoint is involved, whatever Settings says about the recipes engine.
+ */
 function _captureSpeak(text) {
     if (!text || !_captureVoiceEnabled()) return;
-    if (!('speechSynthesis' in window)) return;
     try {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(String(text));
-        u.lang = _collationLocale();
-        u.rate = 1.02;
-        window.speechSynthesis.speak(u);
+        _speakBrowser(String(text), { lang: _collationLocale() });
     } catch (e) { /* no TTS: the text on screen says the same */ }
 }
 
@@ -8300,7 +8299,8 @@ function _captureVoiceStop() {
     } catch (e) { /* already stopped */ }
     _captureRec = null;
     _captureStopMeter();
-    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    // The spoken confirmation belongs to the app, not to the session: closing the sheet
+    // right after "Hai usato 1 mela. Confermi?" must not cut the sentence.
 }
 
 /** The speaker button says what it will do (and survives a reload). */
@@ -12830,7 +12830,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025za';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025zb';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12840,7 +12840,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025za';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025zb';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -25893,13 +25893,44 @@ function _initBrowserTtsVoices(selectedVoice) {
     }, 200);
 }
 
-/** Speak text using the browser Web Speech API (offline).
- *  When running inside the EverShelf Kiosk Android app the native TTS bridge
- *  is preferred — it bypasses Web Speech API voice limitations on Android. */
-function _speakBrowser(text) {
+/**
+ * Which installed voice reads this text: the one chosen in Settings *when it speaks
+ * that language*, else an offline voice of that language, else any offline voice, else
+ * the first one. Pure on purpose — the rule is tested without a browser and it is the
+ * only place that decides, for cooking steps and for the capture alike.
+ */
+function _pickTtsVoice(voices, wantLang, selectedName) {
+    const list = (Array.isArray(voices) ? voices : [])
+        .filter(v => v && typeof v.lang === 'string' && v.lang.length > 0);
+    if (!list.length) return null;
+    const base = String(wantLang || '').slice(0, 2).toLowerCase();
+    const speaks = (v) => base !== '' && v.lang.toLowerCase().startsWith(base);
+    const selected = selectedName ? list.find(v => v.name === selectedName) : null;
+    if (selected && speaks(selected)) return selected;
+    return list.find(v => speaks(v) && v.localService)
+        || list.find(speaks)
+        || list.find(v => v.localService)
+        || list[0];
+}
+
+/**
+ * Speak text using the browser Web Speech API (offline).
+ *
+ * The one voice of the app: cooking steps and the capture sheet both come here, so
+ * they cannot sound like two different assistants. When running inside the EverShelf
+ * Kiosk Android app the native TTS bridge is preferred — it bypasses the Web Speech
+ * API voice limits on Android.
+ *
+ * `opts.lang` says which language the text is in (default: the interface language).
+ * The voice is picked for that language — local (offline) engines first — so a German
+ * UI never reads German with an Italian voice; the voice chosen in Settings wins only
+ * when it actually speaks that language.
+ */
+function _speakBrowser(text, opts) {
     const s = getSettings();
     const rate  = parseFloat(s.tts_rate)  || 1;
     const pitch = parseFloat(s.tts_pitch) || 1;
+    const wantLang = String((opts && opts.lang) || _collationLocale());
 
     // ── Native Android TTS bridge (kiosk WebView) ──────────────────────
     if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
@@ -25915,26 +25946,13 @@ function _speakBrowser(text) {
         const utt = new SpeechSynthesisUtterance(text);
         utt.rate  = rate;
         utt.pitch = pitch;
-        const voices = window.speechSynthesis.getVoices();
-        // 1. User-selected voice by name
-        const preferred = s.tts_voice ? voices.find(v => v.name === s.tts_voice) : null;
-        if (preferred) {
-            utt.voice = preferred;
-            utt.lang  = preferred.lang;
+        const chosen = _pickTtsVoice(window.speechSynthesis.getVoices(), wantLang, s.tts_voice);
+        if (chosen) {
+            utt.voice = chosen;
+            utt.lang  = chosen.lang;
         } else {
-            // Prefer offline (localService) voices to avoid silent failure when no internet.
-            // Priority: local Italian → any Italian → local any-lang → first available → lang-only
-            const itLocal  = voices.find(v => v.lang && v.lang.startsWith('it') && v.localService);
-            const itCloud  = voices.find(v => v.lang && v.lang.startsWith('it'));
-            const anyLocal = voices.find(v => v.localService);
-            const chosen   = itLocal || itCloud || anyLocal || voices[0];
-            if (chosen) {
-                utt.voice = chosen;
-                utt.lang  = chosen.lang;
-            } else {
-                // No voices loaded yet — set lang and let the browser decide
-                utt.lang = _collationLocale();   // a French UI must not speak Italian
-            }
+            // No voices loaded yet — set the language and let the browser decide
+            utt.lang = wantLang;
         }
         // Chrome quirks:
         // 1. cancel() + immediate speak() is silently dropped → 50 ms gap fixes it
@@ -26057,10 +26075,13 @@ async function testTTS() {
             if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.no_voice_package'); }
             return;
         }
-        // Warn if only cloud voices are available (won't work offline)
-        const itLocal  = voices.find(v => v.lang && v.lang.startsWith('it') && v.localService);
+        // Warn if only cloud voices are available (won't work offline). The check is for
+        // the INTERFACE language: an Italian-only check called a German UI broken.
+        const wantLang = _collationLocale();
+        const wantBase = wantLang.slice(0, 2).toLowerCase();
+        const mineLocal = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(wantBase) && v.localService);
         const anyLocal = voices.find(v => v.localService);
-        if (!itLocal && !anyLocal) {
+        if (!mineLocal && !anyLocal) {
             if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = t('tts.cloud_only'); }
             return;
         }
@@ -26072,9 +26093,9 @@ async function testTTS() {
         const testUtt = new SpeechSynthesisUtterance(t('tts.test_phrase'));
         testUtt.rate  = s.tts_rate;
         testUtt.pitch = s.tts_pitch;
-        const chosenVoice = s.tts_voice ? voices.find(v => v.name === s.tts_voice) : null;
-        const fallbackVoice = itLocal || voices.find(v => v.lang && v.lang.startsWith('it')) || anyLocal || voices[0];
-        const testVoice = chosenVoice || fallbackVoice;
+        // Same rule as everywhere else: the Settings voice when it speaks this language,
+        // else an offline voice of this language, else any offline voice.
+        const testVoice = _pickTtsVoice(voices, wantLang, s.tts_voice);
         if (testVoice) { testUtt.voice = testVoice; testUtt.lang = testVoice.lang; }
         testUtt.onerror = _ttsErrHandler;
         testUtt.onstart = () => {

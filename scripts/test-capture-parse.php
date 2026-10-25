@@ -178,6 +178,52 @@ check('"Cosa posso dire" lists the whole lexicon',
     && str_contains($app, 'function _captureRenderExamples(')
     && str_contains($app, "'capture.example_use_grams'"));
 
+// ── Round 6: the capture speaks with the SAME voice as the cooking steps ─────
+check('the capture uses the app voice, not a second engine',
+    str_contains($app, '_speakBrowser(String(text), { lang: _collationLocale() })')
+    && !preg_match('/function _captureSpeak\([\s\S]{0,700}new SpeechSynthesisUtterance/', $app));
+check('the voice is chosen for the interface language (no hardcoded Italian)',
+    str_contains($app, 'function _pickTtsVoice(') && !str_contains($app, "startsWith('it')"));
+check('closing the sheet does not cut the spoken confirmation',
+    !preg_match('/function _captureVoiceStop\([\s\S]{0,900}speechSynthesis\.cancel/', $app));
+
+// The picker itself, in node, with a fake voice list covering all six languages.
+$pickSrc = extract_fn($app, '_pickTtsVoice');
+check('_pickTtsVoice() is extractable', $pickSrc !== '');
+$voiceHarness = $pickSrc . <<<'JS'
+const V = [
+    { name: 'Alice IT', lang: 'it-IT', localService: true },
+    { name: 'Anna DE', lang: 'de-DE', localService: true },
+    { name: 'Amelie FR', lang: 'fr-FR', localService: false },
+    { name: 'Tingting ZH', lang: 'zh-CN', localService: true },
+    { name: 'Daniel EN', lang: 'en-GB', localService: true },
+];
+const pick = (lang, sel) => { const v = _pickTtsVoice(V, lang, sel); return v ? v.lang : null; };
+console.log(JSON.stringify({
+    it: pick('it-IT', ''), de: pick('de-DE', ''), fr: pick('fr-FR', ''),
+    zh: pick('zh-CN', ''), en: pick('en-GB', ''), es: pick('es-ES', ''),
+    mismatch: pick('fr-FR', 'Anna DE'), match: pick('de-DE', 'Anna DE'),
+    empty: _pickTtsVoice([], 'it-IT', '') === null,
+}));
+JS;
+$tmpVoice = sys_get_temp_dir() . '/voice_' . getmypid() . '.js';
+file_put_contents($tmpVoice, $voiceHarness);
+$rawVoice = shell_exec('node ' . escapeshellarg($tmpVoice) . ' 2>/dev/null');
+@unlink($tmpVoice);
+$voice = json_decode(trim((string)$rawVoice), true);
+check('the voice picker runs in node', is_array($voice), (string)$rawVoice);
+if (is_array($voice)) {
+    check('Italian text gets an Italian voice', ($voice['it'] ?? '') === 'it-IT', json_encode($voice));
+    check('German text gets a German voice', ($voice['de'] ?? '') === 'de-DE', json_encode($voice));
+    check('French text gets a French voice', ($voice['fr'] ?? '') === 'fr-FR', json_encode($voice));
+    check('Chinese text gets a Chinese voice', ($voice['zh'] ?? '') === 'zh-CN', json_encode($voice));
+    check('English text gets an English voice', ($voice['en'] ?? '') === 'en-GB', json_encode($voice));
+    check('a missing language falls back to an offline voice', ($voice['es'] ?? '') !== null, json_encode($voice));
+    check('a Settings voice that speaks another language is not used', ($voice['mismatch'] ?? '') === 'fr-FR', json_encode($voice));
+    check('a Settings voice for the right language wins', ($voice['match'] ?? '') === 'de-DE', json_encode($voice));
+    check('no voice at all is null, not a crash', ($voice['empty'] ?? false) === true);
+}
+
 // ── Feedback: level meter, live transcript, "what I understood", choices ─────
 check('the mic button fills with the incoming level',
     str_contains($app, 'analyser.getByteTimeDomainData(buf)')

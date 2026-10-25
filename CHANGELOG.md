@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.28] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **One voice for the whole app.** The capture sheet built its own
+  `SpeechSynthesisUtterance` (locale only, rate 1.02), so it sounded different from the
+  cooking steps. It now speaks through `_speakBrowser()` — the same on-device engine, the
+  same Settings voice, rate and pitch, the same kiosk native bridge — and stays local: no
+  cloud TTS endpoint is ever called from the capture, whatever the recipes engine is set
+  to.
+- **The voice is picked for the language of the text.** `_pickTtsVoice()` is the one rule:
+  the voice chosen in Settings when it speaks that language, else an offline
+  (`localService`) voice of that language, else any offline voice, else the first. The old
+  fallback preferred any Italian voice, so a German or French interface could read its own
+  language with an Italian engine; Settings → TTS test had the same hardcoded Italian and
+  now follows the interface language too.
+
+### Fixed
+- Closing the capture sheet cancelled `speechSynthesis`, cutting the confirmation sentence
+  (“Hai usato 1 mela. Confermi?”) a fraction of a second after it started.
+
 ## [1.16.27] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed
