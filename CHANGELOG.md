@@ -13,6 +13,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.17] - 2026-10-25
+
+### Deep audit pass — the settings API stops leaking, the CI starts testing
+The full audit is `todo/AUDIT-2026-10-25.md` (internal, lettered sections A–M).
+
+**Security**
+- `app_settings_get` returned **every** row of `app_settings`, including
+  `env_overrides` — the fallback copy of environment values that holds the real
+  `GEMINI_API_KEY`, `BRING_PASSWORD`, TTS token and, on some installs, `API_TOKEN`
+  when `.env` is read-only (issue #298). It is also on the DEMO read-only allowlist.
+  Both handlers now share one allowlist (`evershelfClientSettingsKeys()`): reading
+  hides the internals (`hidden` is reported), writing refuses them
+  (`error.settings_key_not_allowed`), all-or-nothing, with a 1 MB body cap
+  (`error.settings_too_large`).
+- The three new error keys exist in all six locales; `app_settings_save` answers the
+  same `success:false` contract as the rest of the API.
+- Guard test: `scripts/test-app-settings-api.php` (59 checks) also asserts that every
+  key the frontend writes is on the allowlist.
+
+**Backups**
+- `createLocalBackup()` now runs `PRAGMA quick_check` on the `.part` file **before**
+  the rename: a truncated snapshot can no longer be promoted to “the backup” and
+  discovered on restore day (`error.backup_integrity`, `event=backup_integrity_failed`).
+  Guard test: `scripts/test-backup-integrity.php`.
+
+**Performance**
+- Five indexes for the hot read paths (`inventory.added_at`, `products.lower(name)`,
+  the three shopping key expressions), created idempotently in `initializeDB()` and
+  `migrateDB()`; `scripts/test-db-indexes.php` proves with `EXPLAIN QUERY PLAN` that
+  they are used and that no statement scans the tables wholesale.
+- One full `get_settings` round-trip removed from every boot (`syncSettingsFromDB()`
+  reuses the payload `_initApp()` already fetched) and the web-push DDL is gone from
+  that path.
+
+**Accessibility / UX**
+- `#toast` is `role="status" aria-live="polite"`, so “Salvato”/“Errore” are announced;
+  `#setup-wizard` and `#support-modal` are real dialogs (`role`, `aria-modal`,
+  `aria-labelledby` pointing at their translated heading).
+- The offline banner tooltip says when the server last answered, so a kiosk can tell
+  “no network” from “stale data”.
+- The offline queue keeps its 100-operation cap but no longer drops work silently:
+  the drop is logged and shown once per session (`error.offline_queue_full`).
+
+**Translations**
+- The Mealie wizard (~59 keys) and the recipe preferences (~25 keys) were never
+  translated: French and Spanish users saw the whole panel in English. Both blocks are
+  now translated in fr and es, plus the recipe input hints in de. Identical-to-English
+  values: 497 → 339, and every remaining one is a brand, a token, a URL example, a unit
+  or a country name.
+
+**CI**
+- New jobs: **PHP Regression Tests** (all 55 `scripts/test-*.php` — they never ran in
+  CI), **Shell Scripts** (`shellcheck`), **Generated Files** (settings schema + code
+  indexes drift), and the JS lint now covers `sw.js`, `core/*.js`, the other browser
+  scripts and the ESM `mcp-server`.
+- The “translation completeness” step compared only top-level JSON keys, so it could
+  never fail: it now runs `scripts/i18n-audit.py`.
+- Pull requests against `develop` run the same gates, and `auto-merge-to-main` waits
+  for all of them.
+
 ## [1.16.16] - 2026-10-25
 
 ### The setup wizard obeys the server (not every new browser)
