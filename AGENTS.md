@@ -188,6 +188,11 @@ php scripts/test-notify.php
 php scripts/test-healthcheck.php
 php scripts/test-settings-nav.php      # settings sections ↔ tabs ↔ panels ↔ locales
 php scripts/test-setup-wizard-config.php # wizard obeys the server: GDRIVE_ENABLED=false, APP_LANG, instance ledger
+php scripts/test-app-settings-api.php  # app_settings is a client store: allowlist both ways, no env_overrides leak
+php scripts/test-db-indexes.php        # hot queries use an index (EXPLAIN QUERY PLAN, expression indexes)
+php scripts/test-backup-integrity.php  # a backup is promoted only after PRAGMA quick_check passes
+php scripts/test-a11y-overlays.php     # toast/dialogs announced, reduced motion, banner freshness
+php scripts/test-offline-queue.php     # the offline queue is capped and a drop is never silent
 php scripts/test-setup-assistant.php    # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
 php scripts/test-i18n-icons.php         # no label prints its icon twice (all locales)
 php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (screensaver facts)

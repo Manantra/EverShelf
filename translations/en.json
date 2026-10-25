@@ -2036,7 +2036,8 @@
     "gdrive_not_authorized": "Authorize Google Drive first",
     "gdrive_code_missing": "Paste the authorization code",
     "rate_limited": "Too many requests. Please try again later.",
-    "offline_last_sync": "Last data from the server: {time}"
+    "offline_last_sync": "Last data from the server: {time}",
+    "offline_queue_full": "Offline queue full: {n} of the oldest operation(s) were dropped."
   },
   "confirm": {
     "remove_item": "Do you really want to remove this product from inventory?",

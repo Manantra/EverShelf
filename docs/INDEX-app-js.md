@@ -963,115 +963,115 @@ Use with: `sed -n "<line>p" assets/js/app.js` to jump to a function.
 26412:function _shoppingSectionsCollapsedGet
 26415:function _shoppingSectionsCollapsedSet
 26418:function toggleShoppingSection
-26424:function _offlineQueuePush
-26433:function _handleOfflineApi
-26553:function _applyOptimisticUpdate
-26582:function _applyShoppingOptimisticUpdate
-26603:function _enterOfflineMode
-26620:async function _exitOfflineMode
-26635:function _renderOfflineBanner
-26658:async function _syncOfflineQueue
-26685:function _showNetworkOverlay
-26722:function _hideNetworkOverlay
-26751:async function _networkPingOnce
-26791:function _resetAutoHomeTimer
-26797:function _cancelAutoHomeTimer
-26802:function _triggerAutoHome
-26819:function _screensaverTimeoutMs
-26824:function resetInactivityTimer
-26831:function activateScreensaver
-26855:function updateScreensaverClock
-26866:function updateScreensaverShopping
-26895:function updateScreensaverMealPlan
-26912:function dismissScreensaver
-26945:function _startScreensaverRotation
-26955:function _showScreensaverSlot
-26984:function _renderScreensaverNutrition
-27043:function _ssDonut
-27053:async function loadScreensaverData
-27082:async function _screensaverAutoAddItems
-27115:function showNextScreensaverFact
-27126:function generateScreensaverFact
-27447:function _spesaScanUiBlocked
-27454:function _clearSpesaAiFallbackTimers
-27466:function _maybeStartSpesaAiFallbackTimer
-27470:function _showSpesaAiFallbackModal
-27475:function _spesaAiFallbackCancel
-27484:function toggleSpesaMode
-27489:function toggleSpesaModeFromCamera
-27494:function _spesaModeHasShoppingItem
-27514:function _syncSpesaQuickBtn
-27524:function _spesaCurrencySymbol
-27529:function _spesaPromptOptionalSpend
-27572:function _spesaBeginScanning
-27586:async function _spesaSpendSave
-27606:function _spesaSpendSkip
-27610:function initSpesaMode
-27641:async function startSpesaMode
-27670:function endSpesaMode
-27685:function updateSpesaBanner
-27697:function _applySpesaScanUI
-27719:function _renderSpesaSessionList
-27754:async function _spesaSessionFieldChange
-27791:function _applyShoppingListRemovals
-27810:async function shoppingBoughtAfterAdd
-27842:async function spesaModeAfterAdd
-27900:async function _spesaRemovePurchasedFromList
-27941:function _familySiblingConfirmKey
-27945:function _getFamilySiblingConfirmed
-27959:function _isFamilySiblingRecentlyConfirmed
-27966:function _recordFamilySiblingConfirmed
-27976:function _dismissFamilySiblingPrompt
-27983:function _formatFamilySiblingDate
-27992:function _inferPackageSizeFromName
-28003:function _formatFamilySiblingStockLine
-28024:function _showFamilySiblingSuggest
-28084:function _spesaBannerStat
-28105:function _initScreensaverShortcutBtn
-28139:function initScreensaverShortcuts
-28146:function initInactivityWatcher
-28303:function _setupSeen
-28314:function _markSetupSeen
-28327:function _checklistPendingBeforeSave
-28338:function _ackSavedChecklistItems
-28351:function _checklistItemForStep
-28355:function _checklistState
-28366:function _checklistTodoItems
-28382:function _checklistNewsItems
-28394:function _assistantPendingSteps
-28413:function _renderSettingsChecklist
-28462:function _syncChecklistToggle
-28467:function _toggleChecklistItems
-28477:function _checklistGoTo
-28486:function _flashSettingsCard
-28503:function startSetupAssistant
-28521:function _setupDoneStep
-28528:function _getMissingSetupSteps
-28571:function _gdriveWizardNeeded
-28577:function _setupSteps
-28791:function showSetupWizard
-28808:function _renderSetupStep
-28839:function _setupSelectLang
-28846:function _setupGenerateTopic
-28852:function _setupPaint
-28864:async function _setupTestNotify
-28899:async function _setupTestHealthcheck
-28923:function _setupSkipStep
-28932:function _setupCollectCurrent
-28991:function setupWizardNav
-29022:async function _finishSetup
-29108:async function _runHeartbeat
-29124:function _setServerOffline
-29149:async function _flushOfflineReports
-29175:async function _handleServerRestored
-29190:function _heartbeatRetry
-29250:function _preloaderStage
-29270:async function _runStartupCheck
-29533:function _startupHintText
-29541:function _showStartupWarningPopup
-29586:function _showStartupErrorPopup
-29594:function _startupRetry
-29599:function startHeartbeat
-29603:async function _initApp
-29790:async function _backgroundBringSync
+26428:function _offlineQueuePush
+26448:function _handleOfflineApi
+26568:function _applyOptimisticUpdate
+26597:function _applyShoppingOptimisticUpdate
+26618:function _enterOfflineMode
+26635:async function _exitOfflineMode
+26650:function _renderOfflineBanner
+26673:async function _syncOfflineQueue
+26700:function _showNetworkOverlay
+26737:function _hideNetworkOverlay
+26766:async function _networkPingOnce
+26806:function _resetAutoHomeTimer
+26812:function _cancelAutoHomeTimer
+26817:function _triggerAutoHome
+26834:function _screensaverTimeoutMs
+26839:function resetInactivityTimer
+26846:function activateScreensaver
+26870:function updateScreensaverClock
+26881:function updateScreensaverShopping
+26910:function updateScreensaverMealPlan
+26927:function dismissScreensaver
+26960:function _startScreensaverRotation
+26970:function _showScreensaverSlot
+26999:function _renderScreensaverNutrition
+27058:function _ssDonut
+27068:async function loadScreensaverData
+27097:async function _screensaverAutoAddItems
+27130:function showNextScreensaverFact
+27141:function generateScreensaverFact
+27462:function _spesaScanUiBlocked
+27469:function _clearSpesaAiFallbackTimers
+27481:function _maybeStartSpesaAiFallbackTimer
+27485:function _showSpesaAiFallbackModal
+27490:function _spesaAiFallbackCancel
+27499:function toggleSpesaMode
+27504:function toggleSpesaModeFromCamera
+27509:function _spesaModeHasShoppingItem
+27529:function _syncSpesaQuickBtn
+27539:function _spesaCurrencySymbol
+27544:function _spesaPromptOptionalSpend
+27587:function _spesaBeginScanning
+27601:async function _spesaSpendSave
+27621:function _spesaSpendSkip
+27625:function initSpesaMode
+27656:async function startSpesaMode
+27685:function endSpesaMode
+27700:function updateSpesaBanner
+27712:function _applySpesaScanUI
+27734:function _renderSpesaSessionList
+27769:async function _spesaSessionFieldChange
+27806:function _applyShoppingListRemovals
+27825:async function shoppingBoughtAfterAdd
+27857:async function spesaModeAfterAdd
+27915:async function _spesaRemovePurchasedFromList
+27956:function _familySiblingConfirmKey
+27960:function _getFamilySiblingConfirmed
+27974:function _isFamilySiblingRecentlyConfirmed
+27981:function _recordFamilySiblingConfirmed
+27991:function _dismissFamilySiblingPrompt
+27998:function _formatFamilySiblingDate
+28007:function _inferPackageSizeFromName
+28018:function _formatFamilySiblingStockLine
+28039:function _showFamilySiblingSuggest
+28099:function _spesaBannerStat
+28120:function _initScreensaverShortcutBtn
+28154:function initScreensaverShortcuts
+28161:function initInactivityWatcher
+28318:function _setupSeen
+28329:function _markSetupSeen
+28342:function _checklistPendingBeforeSave
+28353:function _ackSavedChecklistItems
+28366:function _checklistItemForStep
+28370:function _checklistState
+28381:function _checklistTodoItems
+28397:function _checklistNewsItems
+28409:function _assistantPendingSteps
+28428:function _renderSettingsChecklist
+28477:function _syncChecklistToggle
+28482:function _toggleChecklistItems
+28492:function _checklistGoTo
+28501:function _flashSettingsCard
+28518:function startSetupAssistant
+28536:function _setupDoneStep
+28543:function _getMissingSetupSteps
+28586:function _gdriveWizardNeeded
+28592:function _setupSteps
+28806:function showSetupWizard
+28823:function _renderSetupStep
+28854:function _setupSelectLang
+28861:function _setupGenerateTopic
+28867:function _setupPaint
+28879:async function _setupTestNotify
+28914:async function _setupTestHealthcheck
+28938:function _setupSkipStep
+28947:function _setupCollectCurrent
+29006:function setupWizardNav
+29037:async function _finishSetup
+29123:async function _runHeartbeat
+29139:function _setServerOffline
+29164:async function _flushOfflineReports
+29190:async function _handleServerRestored
+29205:function _heartbeatRetry
+29265:function _preloaderStage
+29285:async function _runStartupCheck
+29548:function _startupHintText
+29556:function _showStartupWarningPopup
+29601:function _showStartupErrorPopup
+29609:function _startupRetry
+29614:function startHeartbeat
+29618:async function _initApp
+29805:async function _backgroundBringSync
 ```

@@ -2036,7 +2036,8 @@
     "gdrive_not_authorized": "Autorisez d’abord Google Drive",
     "gdrive_code_missing": "Collez le code d’autorisation",
     "rate_limited": "Trop de requêtes. Veuillez réessayer dans un instant.",
-    "offline_last_sync": "Dernières données du serveur : {time}"
+    "offline_last_sync": "Dernières données du serveur : {time}",
+    "offline_queue_full": "File hors ligne pleine : {n} opération(s) les plus anciennes ont été perdues."
   },
   "confirm": {
     "remove_item": "Voulez-vous vraiment supprimer ce produit de l'inventaire ?",

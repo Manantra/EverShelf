@@ -26421,11 +26421,26 @@ function toggleShoppingSection(secKey) {
     _shoppingSectionsCollapsedSet(m);
     renderShoppingItems();
 }
+/** Most offline operations kept: the queue shares localStorage with the caches. */
+const _OFFLINE_QUEUE_MAX = 100;
+let _offlineQueueFullNotified = false;
+
 function _offlineQueuePush(action, body) {
     const q = _offlineQueueGet();
-    if (q.length >= 100) q.shift(); // cap at 100
+    let dropped = 0;
+    // The cap protects localStorage (a full quota silently kills every write). The
+    // drop is still data loss, so it is logged and the user is told once per session
+    // instead of finding out when an operation is missing (audit B1).
+    while (q.length >= _OFFLINE_QUEUE_MAX) { q.shift(); dropped++; }
     q.push({ action, body: body ? { ...body } : null, ts: Date.now() });
     _offlineQueueSet(q);
+    if (dropped > 0) {
+        console.warn(`[Offline] queue full: dropped ${dropped} oldest operation(s)`);
+        if (!_offlineQueueFullNotified) {
+            _offlineQueueFullNotified = true;
+            showToast(t('error.offline_queue_full', { n: dropped }), 'warning');
+        }
+    }
     _renderOfflineBanner();
 }
 
