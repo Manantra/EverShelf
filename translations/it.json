@@ -2035,7 +2035,8 @@
     "gdrive_not_configured": "Configura Client ID e Client Secret nelle impostazioni",
     "gdrive_not_authorized": "Autorizza prima Google Drive",
     "gdrive_code_missing": "Incolla il codice di autorizzazione",
-    "rate_limited": "Troppe richieste. Riprova tra qualche istante."
+    "rate_limited": "Troppe richieste. Riprova tra qualche istante.",
+    "offline_last_sync": "Ultimi dati dal server: {time}"
   },
   "confirm": {
     "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",

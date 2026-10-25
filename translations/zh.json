@@ -2035,7 +2035,8 @@
     "gdrive_not_configured": "请在设置中配置 Client ID 和 Client Secret",
     "gdrive_not_authorized": "请先授权 Google Drive",
     "gdrive_code_missing": "请粘贴授权码",
-    "rate_limited": "请求过多，请稍后再试。"
+    "rate_limited": "请求过多，请稍后再试。",
+    "offline_last_sync": "最后一次从服务器获取数据：{time}"
   },
   "confirm": {
     "remove_item": "确定要从库存中移除该商品吗？",

@@ -1407,7 +1407,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025a'; // bump when translations change
+const _I18N_VERSION = '20261025b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11695,7 +11695,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11705,7 +11705,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -26646,6 +26646,12 @@ function _renderOfflineBanner(loading = false) {
         const msg = t('error.offline_cache_ready').replace('{n}', n);
         textEl.innerHTML = msg;
     }
+    // "No network" and "stale data" are different problems for a kiosk: the tooltip
+    // says when the server last answered, so the data on screen has a date (audit H3).
+    try {
+        const when = new Date(_lastServerOkTs).toLocaleTimeString(_collationLocale(), { hour: '2-digit', minute: '2-digit' });
+        banner.title = t('error.offline_last_sync', { time: when });
+    } catch (e) { banner.title = ''; }
     banner.style.display = '';
 }
 
@@ -29094,6 +29100,8 @@ async function _finishSetup() {
 
 let _serverOffline = false;
 let _heartbeatTimer = null;
+/** Last time the server answered (ms) — shown in the offline banner tooltip (audit H3). */
+let _lastServerOkTs = Date.now();
 const _HB_INTERVAL_ONLINE  = 20_000; // ms — normal polling interval
 const _HB_INTERVAL_OFFLINE =  5_000; // ms — faster retry when unreachable
 
@@ -29121,6 +29129,7 @@ function _setServerOffline(offline) {
         return;
     }
     _serverOffline = offline;
+    if (!offline) _lastServerOkTs = Date.now();
     document.body.classList.toggle('server-offline', offline);
     if (offline) {
         if (!_offlineMode) {
