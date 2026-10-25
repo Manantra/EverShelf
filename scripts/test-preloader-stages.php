@@ -213,6 +213,40 @@ $bump = (string)file_get_contents($root . '/scripts/bump-version.sh');
 assert_true(preg_match('/s\/\(preloader-version\\\\">v\)\[0-9\]\+/', $bump) === 1,
     'bump-version.sh and the markup still agree on the splash badge');
 
+// ── [6b] the branch label sits beside the version, in small ─────────────────
+// It answers "which line of work is this build from?" next to the semver, and it
+// is refreshed from git by bump-version.sh so it cannot go stale.
+$branchLabel = '';
+$headerLabel = '';
+$aboutLabel  = '';
+if (preg_match('/id="preloader-branch"[^>]*>([^<]*)</', $html, $m)) {
+    $branchLabel = trim($m[1]);
+}
+if (preg_match('/id="header-branch"[^>]*>([^<]*)</', $html, $m)) {
+    $headerLabel = trim($m[1]);
+}
+if (preg_match('/id="about-branch-label"[^>]*>([^<]*)</', $html, $m)) {
+    $aboutLabel = trim($m[1]);
+}
+assert_true($branchLabel !== '', 'the splash names the branch beside the version');
+assert_true($headerLabel !== '', 'the header names the branch beside the version');
+assert_true($aboutLabel !== '', 'Settings → Info names the branch beside the version');
+assert_true($branchLabel === $headerLabel && $headerLabel === $aboutLabel,
+    'splash, header and Info show the same branch');
+assert_true(preg_match('/app-preloader-verchip-branch \{[^}]*font-size: 0\.6[0-9]?rem/s', $css) === 1,
+    'the splash branch label is smaller than the version it sits beside');
+assert_true(preg_match('/\.header-branch \{[^}]*font-size: 0\.5[0-9]?rem/s', $css) === 1,
+    'the header branch label is smaller than the version it sits beside');
+// reportError() reads .header-version as the app version: the branch must NOT be
+// inside it, or every bug report would carry "v1.2.3 refactor_x".
+assert_true(preg_match('/class="header-version">v\d+\.\d+\.\d+</', $html) === 1,
+    '.header-version still holds only the semver (reportError reads it as the app version)');
+assert_true(str_contains($bump, 'rev-parse --abbrev-ref HEAD')
+    && str_contains($bump, 'id=\"header-branch\"[^>]*>')
+    && str_contains($bump, 'id=\"preloader-branch\"[^>]*>')
+    && str_contains($bump, 'id=\"about-branch-label\"[^>]*>'),
+    'bump-version.sh refreshes all three branch labels from git');
+
 // ── [7] every label exists in all six locales ───────────────────────────────
 $locales = ['it', 'en', 'de', 'fr', 'es', 'zh'];
 $needed  = array_values($mapped);

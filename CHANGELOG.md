@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
-## [1.16.17] - 2026-10-25
+## [1.16.17] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Deep audit pass — the settings API stops leaking, the CI starts testing
 The full audit is `todo/AUDIT-2026-10-25.md` (internal, lettered sections A–M).
