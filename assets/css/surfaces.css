@@ -99,14 +99,9 @@ body {
     overflow: hidden;
 }
 
-/* The tone is a rail, not a frame: one colour per block, and it never fills the
-   card. `box-shadow` instead of `border-left` keeps the radius clean. */
-.alert-danger,
-.alert-opened,
-.alert-stale,
-#alert-expiring {
-    box-shadow: inset 3px 0 0 var(--rail, var(--tone-soon));
-}
+/* The tone is a rail, not a frame. Round 3 moved the accent to a real
+   `border-left` (further down) — the inset shadow that used to draw it is gone, so the
+   left edge is one 4px line and not two. `--rail` still colours the title dot. */
 .alert-danger { --rail: var(--tone-danger); }
 #alert-expiring { --rail: var(--tone-soon); }
 .alert-opened { --rail: var(--tone-info); }
