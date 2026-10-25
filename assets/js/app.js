@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025zc'; // bump when translations change
+const _I18N_VERSION = '20261025zd'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8137,6 +8137,10 @@ function _captureSyncMicAvailability() {
     if (!mic) return;
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     mic.hidden = !Ctor;
+    // The animated border lives on the wrapper: hiding only the button would leave a
+    // ring spinning around nothing.
+    const wrap = document.getElementById('capture-mic-wrap');
+    if (wrap) wrap.hidden = !Ctor;
     if (!Ctor) _captureStatus('capture.unsupported');
 }
 
@@ -8145,9 +8149,11 @@ let _captureMeter = null;
 
 function _captureSetState(state) {
     const mic = document.getElementById('capture-mic');
+    const wrap = document.getElementById('capture-mic-wrap');
     const bars = document.getElementById('capture-bars');
     const on = state === 'listening';
     if (mic) mic.classList.toggle('is-listening', on);
+    if (wrap) wrap.classList.toggle('is-listening', on);
     if (bars) bars.classList.toggle('is-listening', on);
     if (!on) {
         if (mic) mic.style.setProperty('--level', '0');
@@ -12758,7 +12764,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025zc';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025zd';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12768,7 +12774,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025zc';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025zd';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

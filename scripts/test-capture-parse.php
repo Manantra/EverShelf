@@ -178,6 +178,25 @@ check('"Cosa posso dire" lists the whole lexicon',
     && str_contains($app, 'function _captureRenderExamples(')
     && str_contains($app, "'capture.example_use_grams'"));
 
+// ── Round 7: the mic really has an animated border ───────────────────────────
+$css = (string)file_get_contents($root . '/assets/css/surfaces.css');
+check('the mic sits in a wrapper so the border can be drawn outside it',
+    str_contains($html, 'class="capture-mic-wrap" id="capture-mic-wrap"')
+    && str_contains($css, '.capture-mic-wrap::before {')
+    && str_contains($css, '.capture-mic-wrap .capture-mic {'));
+check('the border is a ring that turns (not a static edge)',
+    str_contains($css, 'conic-gradient(')
+    && str_contains($css, '@keyframes capture-ring-turn { to { transform: rotate(1turn); } }')
+    && str_contains($css, 'animation: capture-ring-turn 3.6s linear infinite;')
+    && str_contains($css, 'mask: radial-gradient(farthest-side'));
+check('a halo breathes behind the button', str_contains($css, '@keyframes capture-mic-halo'));
+check('recording makes the ring turn faster',
+    str_contains($css, '.capture-mic-wrap.is-listening::before { animation-duration: 1.1s; }')
+    && str_contains($app, "if (wrap) wrap.classList.toggle('is-listening', on);"));
+check('the ring is hidden with the button and still without motion',
+    str_contains($app, 'if (wrap) wrap.hidden = !Ctor;')
+    && preg_match('/prefers-reduced-motion: reduce\) \{\s*\.capture-mic-wrap::before \{ animation: none;/s', $css) === 1);
+
 // ── Round 6: the capture speaks with the SAME voice as the cooking steps ─────
 check('the capture uses the app voice, not a second engine',
     str_contains($app, '_speakBrowser(String(text), { lang: _collationLocale() })')

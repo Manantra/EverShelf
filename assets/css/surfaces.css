@@ -1146,20 +1146,14 @@ body {
 .stock-hub .alert-stale    { border-left-color: var(--tone-calm); }
 [data-theme="dark"] .stock-hub .alert-section { background: transparent; }
 
-/* The capture mic looks clickable even at rest: a slow aura breathes around it, so the
-   button reads as a live control and not as a decoration. */
+/* The capture mic looks clickable even at rest (the animated border lives on the
+   wrapper, see below): its own surface keeps a soft shadow and a hover response. */
 .capture-mic {
-    animation: capture-aura 2.8s ease-in-out infinite;
     cursor: pointer;
-}
-@keyframes capture-aura {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone-calm) 24%, transparent), 0 6px 18px color-mix(in srgb, var(--tone-calm) 18%, transparent); }
-    50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--tone-calm) 10%, transparent), 0 8px 22px color-mix(in srgb, var(--tone-calm) 24%, transparent); }
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--tone-calm) 22%, transparent);
 }
 .capture-mic:hover { background: color-mix(in srgb, var(--tone-calm) 22%, transparent); }
-@media (prefers-reduced-motion: reduce) {
-    .capture-mic { animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone-calm) 14%, transparent); }
-}
+.capture-mic:focus-visible { outline: 2px solid var(--tone-calm); outline-offset: 4px; }
 
 /* Capture sheet: head buttons + the "what can I say" manual. */
 .capture-head-btn {
@@ -1246,3 +1240,65 @@ body {
 /* Title in the dark amber of the rail, text in slate: one accent per strip. */
 .system-alert.banner-anomaly .alert-banner-title { color: var(--tone-soon-text); }
 [data-theme="dark"] .system-alert.banner-anomaly .alert-banner-title { color: #FCD34D; }
+
+/* ── The capture mic has an animated border ─────────────────────────────────
+   A border declares "this is a control", but a static one disappears next to the
+   status line; a turning gradient ring says it without a label. The button keeps
+   `overflow: hidden` for the level fill, which is why the ring lives on the wrapper:
+   a pseudo-element inside the button would be clipped at its own edge. */
+.capture-mic-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 96px;
+    height: 96px;
+    margin: 6px auto 10px;
+}
+.capture-mic-wrap[hidden] { display: none; }
+/* The ring: a 3px slice of a conic gradient, turning slowly. */
+.capture-mic-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 0deg,
+        transparent 0deg 40deg,
+        color-mix(in srgb, var(--tone-calm) 90%, transparent) 110deg,
+        transparent 180deg 220deg,
+        color-mix(in srgb, var(--tone-calm) 90%, transparent) 290deg,
+        transparent 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    animation: capture-ring-turn 3.6s linear infinite;
+    pointer-events: none;
+}
+/* The aura: a soft halo behind the button, breathing out of phase with the ring. */
+.capture-mic-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    box-shadow: 0 0 16px 3px color-mix(in srgb, var(--tone-calm) 26%, transparent);
+    animation: capture-mic-halo 2.8s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes capture-ring-turn { to { transform: rotate(1turn); } }
+@keyframes capture-mic-halo {
+    0%, 100% { opacity: 0.45; transform: scale(0.97); }
+    50%      { opacity: 0.9;  transform: scale(1.05); }
+}
+.capture-mic-wrap .capture-mic {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    border: 2px solid color-mix(in srgb, var(--tone-calm) 45%, transparent);
+}
+/* Recording: the ring turns faster, the halo tightens. */
+.capture-mic-wrap.is-listening::before { animation-duration: 1.1s; }
+.capture-mic-wrap.is-listening::after  { animation-duration: 1.1s; }
+@media (prefers-reduced-motion: reduce) {
+    .capture-mic-wrap::before { animation: none; }
+    .capture-mic-wrap::after  { animation: none; opacity: 0.6; }
+}

@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.30] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **The capture microphone has a real animated border.** A static edge (and a quiet
+  box-shadow) was not enough to read “this is tappable”, and the button keeps
+  `overflow: hidden` for the level fill, so the border could not be drawn on the button
+  itself — a pseudo-element inside it would be clipped. The button now sits in
+  `.capture-mic-wrap`, which draws a **turning gradient ring** (a 3px slice of a conic
+  gradient, masked to a ring, `capture-ring-turn` 3.6 s linear) plus a **breathing halo**
+  (`capture-mic-halo`, out of phase with the ring). While the app records, both speed up
+  to 1.1 s; with `prefers-reduced-motion` the ring is static and the halo stays lit. The
+  button also gained a 2px emerald edge and a `:focus-visible` outline.
+- The wrapper is hidden with the button when the browser has no speech recognition, so
+  a ring never spins around nothing.
+
 ## [1.16.29] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed

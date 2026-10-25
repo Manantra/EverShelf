@@ -144,9 +144,9 @@ check('each hub panel keeps its own rail and its own left padding',
     str_contains($css, '.stock-hub #alert-expiring { border-left-color: var(--tone-soon); }')
     && str_contains($css, '.stock-hub .alert-stale    { border-left-color: var(--tone-calm); }')
     && preg_match('/\.stock-hub \.alert-section \{[^}]*padding: 4px 0 0 10px/s', $css) === 1);
-check('the capture mic breathes at rest, so it reads as a button',
-    preg_match('/\.capture-mic \{[^}]*animation: capture-aura/s', $css) === 1
-    && str_contains($css, '@keyframes capture-aura')
+check('the capture mic wears an animated border at rest',
+    str_contains($css, '@keyframes capture-ring-turn')
+    && str_contains($css, '.capture-mic-wrap::before {')
     && str_contains($css, '.capture-mic:hover'));
 check('the mic shows a sonar ring while recording',
     str_contains($css, '@keyframes capture-ping') && str_contains($css, '.capture-mic.is-listening {'));
