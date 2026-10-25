@@ -19569,17 +19569,42 @@ function familySiblingSuggest(PDO $db): void {
 // ===== SHARED APP DATA FUNCTIONS =====
 
 function appSettingsGet(PDO $db): void {
+    // Only the client-owned keys: the table also holds `env_overrides` (which can
+    // carry real API keys when .env is read-only), the migration flags and the
+    // pairing state. See evershelfClientSettingsKeys().
+    $allowed = array_flip(evershelfClientSettingsKeys());
     $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
     $settings = [];
+    $hidden = 0;
     foreach ($rows as $row) {
+        if (!isset($allowed[$row['key']])) {
+            $hidden++;
+            continue;
+        }
         $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
     }
-    EverLog::debug('app_settings_get served', ['event' => 'app_settings_get', 'rows' => count($settings)]);
+    EverLog::debug('app_settings_get served', [
+        'event'  => 'app_settings_get',
+        'rows'   => count($settings),
+        'hidden' => $hidden,
+    ]);
     echo json_encode(['success' => true, 'settings' => $settings]);
 }
 
 function appSettingsSave(PDO $db): void {
-    $input = json_decode(file_get_contents('php://input'), true);
+    $raw = (string)file_get_contents('php://input');
+    // A client-owned blob is small (the biggest one, waste_learning, lives server
+    // side). Refuse anything larger instead of storing it.
+    if (strlen($raw) > 1048576) {
+        EverLog::warn('app_settings_save payload too large', ['event' => 'app_settings_save_too_large', 'bytes' => strlen($raw)]);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Payload too large',
+            'error_key' => 'error.settings_too_large',
+        ]);
+        return;
+    }
+    $input = json_decode($raw, true);
     if (!$input || !is_array($input['settings'] ?? null)) {
         // Same contract as every other handler: `api()` must be able to tell a
         // failure from a save, and the client resolves the key through t().
@@ -19591,12 +19616,34 @@ function appSettingsSave(PDO $db): void {
         ]);
         return;
     }
+    // All-or-nothing: one refused key cancels the whole request, so a client can
+    // never end up with half of a save applied. Keys are logged, values never.
+    $allowed = array_flip(evershelfClientSettingsKeys());
+    $rejected = [];
+    foreach ($input['settings'] as $key => $value) {
+        if (!is_string($key) || !isset($allowed[$key])) {
+            $rejected[] = (string)$key;
+        }
+    }
+    if ($rejected) {
+        EverLog::warn('app_settings_save refused keys', [
+            'event' => 'app_settings_key_rejected',
+            'keys'  => array_slice($rejected, 0, 20),
+        ]);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Settings key not allowed',
+            'error_key' => 'error.settings_key_not_allowed',
+            'keys'      => array_slice($rejected, 0, 20),
+        ]);
+        return;
+    }
     $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
                           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
     foreach ($input['settings'] as $key => $value) {
         $stmt->execute([$key, json_encode($value)]);
     }
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => true, 'stored' => count($input['settings'])]);
 }
 
 function recipesList(PDO $db): void {

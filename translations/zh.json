@@ -1965,6 +1965,8 @@
   },
   "error": {
     "settings_missing": "请求中没有设置数据。",
+    "settings_key_not_allowed": "无法从客户端保存此设置。",
+    "settings_too_large": "要保存的数据太大。",
     "receipt_disabled": "小票识别已在设置中关闭。",
     "receipt_failed": "无法读取这张小票。",
     "family_disabled": "产品系列已在设置中关闭。",

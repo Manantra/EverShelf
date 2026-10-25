@@ -1965,6 +1965,8 @@
   },
   "error": {
     "settings_missing": "Dati di configurazione mancanti nella richiesta.",
+    "settings_key_not_allowed": "Questa impostazione non si può salvare dal client.",
+    "settings_too_large": "I dati da salvare sono troppo grandi.",
     "receipt_disabled": "La lettura degli scontrini è disattivata nelle impostazioni.",
     "receipt_failed": "Non sono riuscito a leggere lo scontrino.",
     "family_disabled": "Le famiglie di prodotti sono disattivate nelle impostazioni.",

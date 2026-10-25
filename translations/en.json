@@ -1965,6 +1965,8 @@
   },
   "error": {
     "settings_missing": "The request carried no settings data.",
+    "settings_key_not_allowed": "This setting cannot be saved from the client.",
+    "settings_too_large": "The data to save is too large.",
     "receipt_disabled": "Receipt scanning is switched off in the settings.",
     "receipt_failed": "I could not read the receipt.",
     "family_disabled": "Product families are switched off in the settings.",

@@ -1965,6 +1965,8 @@
   },
   "error": {
     "settings_missing": "La requête ne contenait aucune donnée de configuration.",
+    "settings_key_not_allowed": "Ce réglage ne peut pas être enregistré depuis le client.",
+    "settings_too_large": "Les données à enregistrer sont trop volumineuses.",
     "receipt_disabled": "La lecture de tickets est désactivée dans les paramètres.",
     "receipt_failed": "Je n'ai pas pu lire le ticket.",
     "family_disabled": "Les familles de produits sont désactivées dans les paramètres.",

@@ -1965,6 +1965,8 @@
   },
   "error": {
     "settings_missing": "La petición no incluía datos de configuración.",
+    "settings_key_not_allowed": "Este ajuste no se puede guardar desde el cliente.",
+    "settings_too_large": "Los datos que hay que guardar son demasiado grandes.",
     "receipt_disabled": "La lectura de tickets está desactivada en los ajustes.",
     "receipt_failed": "No he podido leer el ticket.",
     "family_disabled": "Las familias de productos están desactivadas en los ajustes.",

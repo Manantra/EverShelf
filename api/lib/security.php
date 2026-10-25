@@ -231,6 +231,46 @@ function evershelfSendSecurityHeaders(): void {
     }
 }
 
+/**
+ * `app_settings` keys the client owns (shared across devices).
+ *
+ * The table also holds instance internals: `env_overrides` (a fallback copy of
+ * environment values — real API keys and passwords once `.env` is read-only,
+ * issue #298), the `migration_*` flags and the pairing state. Those must never
+ * leave the server through `app_settings_get`, and a client must not be able to
+ * write them through `app_settings_save`: rewriting `env_overrides` would change
+ * what `env()` returns (provider, shopping mode, `API_TOKEN`), and clearing a
+ * `migration_*` flag re-runs a data migration on the next boot.
+ *
+ * One list, read by both directions, so a new internal row cannot leak by default.
+ * `scripts/test-app-settings-api.php` also asserts that every key the frontend
+ * writes is listed here, so the two sides cannot drift.
+ */
+function evershelfClientSettingsKeys(): array
+{
+    return [
+        // Settings page state
+        'review_confirmed',
+        'meal_plan',
+        'tts_voice',
+        'user_prefs',
+        // User data that used to live in localStorage (one-time migration + sync)
+        'scan_history',
+        'shopping_tags',
+        'pinned_bring',
+        'pref_use_loc',
+        'pref_move_loc',
+        'auto_added_bring',
+        'bring_blocklist',
+        'no_expiry_dismissed',
+        'family_sibling_confirmed',
+        'shopping_plan_days',
+        // Guided setup ledger (issue #301): answered once per instance, not per browser
+        'setup_done',
+        'setup_seen',
+    ];
+}
+
 function evershelfSendCorsHeaders(): void {
     $configured = env('CORS_ORIGIN', '');
     if ($configured === '') {
