@@ -613,14 +613,22 @@ body {
     background: var(--surface-bg);
 }
 .banner-menu-list[hidden] { display: none; }
+/* Menu items are buttons, not a list of naked centred words. */
 .banner-menu-list .btn-banner {
     justify-content: flex-start;
     width: 100%;
     min-height: var(--touch-min);
-    background: transparent;
-    border-color: var(--surface-border);
-    color: var(--text);
+    padding: 0 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: #F1F5F9;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
 }
+.banner-menu-list .btn-banner:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+[data-theme="dark"] .banner-menu-list .btn-banner { background: #1E293B; color: #CBD5E1; }
 
 /* ── Typography: three levels per card, not six ─────────────────────────────
    Product title 15/600, metadata 13/400 muted, badge 12/600. Everything else in
@@ -1053,23 +1061,6 @@ body {
 @media (min-width: 520px) {
     .row-use-btn .row-use-label { display: inline; }
 }
-
-/* The banner's ⋮ menu: real buttons, not a list of naked words. */
-.banner-menu-list .btn-banner {
-    justify-content: flex-start;
-    width: 100%;
-    min-height: var(--touch-min);
-    padding: 0 12px;
-    border: 1px solid var(--surface-border);
-    border-radius: 10px;
-    background: #F1F5F9;
-    color: #334155;
-    font-size: 13px;
-    font-weight: 600;
-    text-align: left;
-}
-.banner-menu-list .btn-banner:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
-[data-theme="dark"] .banner-menu-list .btn-banner { background: #1E293B; color: #CBD5E1; }
 /* The one primary of the strip: solid emerald, no gradient. */
 .alert-banner-actions .btn-banner-use:not(.btn-banner-use-danger) {
     background: var(--brand-primary);

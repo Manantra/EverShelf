@@ -99,6 +99,18 @@ check('the client shows it once per device',
 check('the notice is shown after the app is visible',
     str_contains($app, '_maybeShowLocationAltroNotice(_serverSettings);'));
 
+// ── 4b. A stale client cache cannot print a key that no longer exists ──────
+// The migration rewrites the rows, but a phone holding an old payload (or a browser
+// cache from before 1.16.19) would still carry "altro": every label lookup normalises
+// the legacy key, so the UI never shows a raw "altro" or an empty icon.
+preg_match_all('/LOCATIONS\[([^\]]+)\]/', $app, $m);
+$raw = array_filter($m[1] ?? [], fn($k) => !str_starts_with(ltrim($k), 'normalizeLocationKey(')
+    && !in_array(ltrim($k), ['cur', 'hidden.value', '$key', 'key', 'name'], true));
+check('every LOCATIONS lookup normalises legacy keys', $raw === [], implode(', ', $raw));
+check('the add/use forms no longer offer the removed location',
+    !str_contains((string)file_get_contents($root . '/index.html'), "locations.altro")
+    && !str_contains($app, "selectLocation(this, 'altro')"));
+
 // ── 5. i18n: the notice exists in six languages, the old label is gone ─────
 foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
     $doc = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);

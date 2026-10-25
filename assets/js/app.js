@@ -3538,8 +3538,8 @@ function _renderAiCandidateThumb(item) {
 }
 function _renderAiCandidateRow(item, idx, kind) {
     const locInfo = item.locations
-        ? String(item.locations).split(',').map(l => (LOCATIONS[l.trim()] || { label: l.trim() }).label).join(', ')
-        : (LOCATIONS[item.location]?.label || item.location || '');
+        ? String(item.locations).split(',').map(l => (LOCATIONS[normalizeLocationKey(l.trim())] || { label: l.trim() }).label).join(', ')
+        : (LOCATIONS[normalizeLocationKey(item.location)]?.label || item.location || '');
     let meta = item.brand || '';
     if (kind === 'stock' && item.total_qty != null) {
         meta = [meta, `${parseFloat(item.total_qty)} ${item.unit || ''}`.trim(), locInfo].filter(Boolean).join(' · ');
@@ -7572,7 +7572,7 @@ function _renderOverviewSection(stats, summary) {
     const locations = (summary || [])
         .filter(row => (row.product_count || 0) > 0)
         .map(row => {
-            const info = LOCATIONS[row.location] || { icon: '📦', label: row.location };
+            const info = LOCATIONS[normalizeLocationKey(row.location)] || { icon: '📦', label: row.location };
             return `${info.icon} ${info.label} ${row.product_count}`;
         })
         .join(' · ');
@@ -8569,7 +8569,7 @@ function _alertItemHead(item) {
 function _alertItemMeta(item, extra = '') {
     if (!item) return '';
     const locKey = normalizeLocationKey(item.location);
-    const locInfo = LOCATIONS[locKey] || { icon: '📦', label: item.location || '' };
+    const locInfo = LOCATIONS[normalizeLocationKey(locKey)] || { icon: '📦', label: item.location || '' };
     const parts = [];
     if (item.location && locInfo.label) parts.push(`${locInfo.icon} ${locInfo.label}`);
     if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
@@ -8759,7 +8759,7 @@ async function loadDashboard() {
                 .sort((a, b) => String(a.opened_at || '9999').localeCompare(String(b.opened_at || '9999')));
             const { shown: visible, extra } = _dashboardAlertCap(openedVisible, DASHBOARD_OPENED_MAX);
             openedList.innerHTML = visible.map(item => {
-                const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+                const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
                 const unitLabels = { 'ml': 'ml', 'g': 'g', 'pz': t('units.pz') };
@@ -9775,7 +9775,7 @@ function renderBannerItem() {
         banner.className = 'alert-banner banner-dup-loss';
         iconEl.textContent = '🧪';
 
-        const locInfo = LOCATIONS[ch.location] || { icon: '📦', label: ch.location || '—' };
+        const locInfo = LOCATIONS[normalizeLocationKey(ch.location)] || { icon: '📦', label: ch.location || '—' };
         const locText = `${locInfo.icon} ${locInfo.label}`;
         const qtyPair = `${ch.q1} + ${ch.q2}`;
 
@@ -10885,7 +10885,7 @@ function renderInventoryItem(item, opts = {}) {
     const tagPills = (Array.isArray(item.tags) && item.tags.length)
         ? `<span class="inv-tag-list">${item.tags.map(tg => `<button type="button" class="inv-tag-pill" onclick="toggleInventoryTagFilter('${escapeHtml(String(tg)).replace(/'/g, '&#39;')}')">${escapeHtml(String(tg))}</button>`).join('')}</span>`
         : '';
-    const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+    const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
@@ -11807,7 +11807,7 @@ function showInvActionChooser(productId, location, invId) {
     const brand = item?.brand || '';
     const img = item?.image_url || '';
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item?.category || '', name)] || '📦';
-    const locInfo = LOCATIONS[location] || { icon: '📦', label: location };
+    const locInfo = LOCATIONS[normalizeLocationKey(location)] || { icon: '📦', label: location };
     // Plain text: this value is escaped into the modal markup below (escapeHtml) and shown
     // in a <p>, so the <span class="conf-size-info"> produced by formatQuantity() for
     // "conf" units would be printed as a literal tag instead of a quantity.
@@ -14289,7 +14289,7 @@ function showProductAction() {
             const defQty = inventoryItems[0].default_quantity || 0;
             const pkgUnit = inventoryItems[0].package_unit || '';
             const invHtml = inventoryItems.map(inv => {
-                const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+                const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
                 const qtyStr = formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit);
                 const pkgF = formatPackageFraction(inv.quantity, inv.default_quantity);
                 totalQty += parseFloat(inv.quantity);
@@ -14378,7 +14378,7 @@ function showProductAction() {
                 }
                 const parts = Object.values(grouped).map(({ item, qty }) => {
                     const qtyStr = formatQuantity(qty, item.unit, item.default_quantity, item.package_unit);
-                    const locIcon = (LOCATIONS[item.location] || { icon: '📦' }).icon;
+                    const locIcon = (LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦' }).icon;
                     const label = item.name + (item.brand ? ` (${item.brand})` : '');
                     return `<span class="related-stock-item">${escapeHtml(label)}: <strong>${qtyStr}</strong> ${locIcon}</span>`;
                 }).join('');
@@ -14525,7 +14525,7 @@ function openInventoryEdit() {
         <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 12px">${t('edit.choose_location_hint')}</p>
         <div style="display:flex;flex-direction:column;gap:8px">
             ${items.map(inv => {
-                const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+                const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
                 const qtyStr = formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit);
                 let expiryStr = '';
                 if (inv.expiry_date) {
@@ -14701,7 +14701,7 @@ function showThrowForm() {
         const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit);
         
         let locOptionsHtml = items.map(inv => {
-            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+            const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
             return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)}</span></div>`;
         }).join('');
         
@@ -14733,7 +14733,7 @@ function showThrowForm() {
                     <label>${t('use.location_label')}</label>
                     <div class="location-selector" id="throw-location-selector">
                         ${items.map((inv, idx) => {
-                            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+                            const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
                             return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
                         }).join('')}
                     </div>
@@ -16238,7 +16238,7 @@ function _renderUseExpiryHint(items) {
     const today = new Date(); today.setHours(0,0,0,0);
     const diffDays = Math.round((expDate - today) / 86400000);
 
-    const locInfo  = LOCATIONS[soonest.location] || { icon: '📦', label: soonest.location };
+    const locInfo  = LOCATIONS[normalizeLocationKey(soonest.location)] || { icon: '📦', label: soonest.location };
     const dateStr  = expDate.toLocaleDateString(_collationLocale(), { day: '2-digit', month: '2-digit' });
 
     let whenStr;
@@ -16326,7 +16326,7 @@ async function loadUseInventoryInfo() {
 
         // Builder for the full set of location buttons
         const buildLocButtons = (active) => productLocations.map(loc => {
-            const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
+            const locInfo = LOCATIONS[normalizeLocationKey(loc)] || { icon: '📦', label: loc };
             const locItems = items.filter(i => i.location === loc);
             const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const u = locItems[0].unit || 'pz';
@@ -16339,7 +16339,7 @@ async function loadUseInventoryInfo() {
 
         if (prefLoc && productLocations.includes(prefLoc) && productLocations.length > 1) {
             // Confirmed preference → show collapsed row + hidden full picker
-            const locInfo = LOCATIONS[prefLoc] || { icon: '📦', label: prefLoc };
+            const locInfo = LOCATIONS[normalizeLocationKey(prefLoc)] || { icon: '📦', label: prefLoc };
             locSelector.innerHTML = `
                 <div class="pref-loc-info" id="pref-loc-info">
                     <span class="pref-loc-name">${locInfo.icon} ${locInfo.label}</span>
@@ -16368,7 +16368,7 @@ async function loadUseInventoryInfo() {
 
             // Show inventory info with sub-unit total
             infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
-                const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
+                const loc = LOCATIONS[normalizeLocationKey(i.location)] || { icon: '📦', label: i.location };
                 const confQty = parseFloat(i.quantity);
                 const subQty = Math.round(confQty * pkgSize);
                 const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
@@ -16413,7 +16413,7 @@ async function loadUseInventoryInfo() {
             if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
             
             infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
-                const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
+                const loc = LOCATIONS[normalizeLocationKey(i.location)] || { icon: '📦', label: i.location };
                 const qLabel = formatQuantity(parseFloat(i.quantity), i.unit, i.default_quantity, i.package_unit);
                 return `${loc.icon} ${loc.label}: ${qLabel}`;
             }).join(' · ');
@@ -17293,7 +17293,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
             <p style="margin-bottom:12px">${t('move.question').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')).replace('{name}', `<strong>${escapeHtml(product.name)}</strong>`)}</p>
             <div class="location-selector">${locButtons}</div>
             ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0});">${t('move.stay_btn').replace('{location}', LOCATIONS[fromLoc]?.label || fromLoc)}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0});">${t('move.stay_btn').replace('{location}', LOCATIONS[normalizeLocationKey(fromLoc)]?.label || fromLoc)}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -17344,7 +17344,7 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
                 payload.expiry_date = addDays(estimateOpenedExpiryDays(product, toLoc));
             }
             await api('inventory_update', {}, 'POST', payload);
-            showToast(t('move.moved_toast').replace('{location}', LOCATIONS[toLoc]?.label || toLoc), 'success');
+            showToast(t('move.moved_toast').replace('{location}', LOCATIONS[normalizeLocationKey(toLoc)]?.label || toLoc), 'success');
         } else {
             const item = invRows.find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
             if (item) {
@@ -17361,7 +17361,7 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
                     payload.expiry_date = addDays(days);
                 }
                 await api('inventory_update', {}, 'POST', payload);
-                showToast(t('move.moved_simple', { location: LOCATIONS[toLoc]?.label || toLoc }), 'success');
+                showToast(t('move.moved_simple', { location: LOCATIONS[normalizeLocationKey(toLoc)]?.label || toLoc }), 'success');
             }
         }
     } catch (e) {
@@ -17608,7 +17608,7 @@ function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
         || 'dispensa';
 
     const locButtons = openedItems.map(item => {
-        const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+        const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
         const qtyStr = stripHtml(formatQuantity(parseFloat(item.quantity), item.unit, item.default_quantity, item.package_unit));
         return `<button class="btn btn-warning full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
             onclick="closeModal(); _confirmThenSubmitUseAllAt('${item.location}', true)">
@@ -23243,7 +23243,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
         // Build location buttons
         const productLocations = [...new Set(items.map(i => i.location))];
         const locButtons = productLocations.map(loc => {
-            const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
+            const locInfo = LOCATIONS[normalizeLocationKey(loc)] || { icon: '📦', label: loc };
             const locItems = items.filter(i => i.location === loc);
             const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const qtyLabel = formatQuantity(locQty, unit, pkgSize, pkgUnit);
@@ -23313,7 +23313,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             : `${_fmtRecipeUseQty(targetQty)} ${targetUnit}`;
 
         const availInfo = items.map(i => {
-            const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
+            const loc = LOCATIONS[normalizeLocationKey(i.location)] || { icon: '📦', label: i.location };
             return `${loc.icon} ${formatQuantity(i.quantity, i.unit, i.default_quantity, i.package_unit)}`;
         }).join(' · ');
 
@@ -23481,7 +23481,7 @@ async function submitRecipeUse(useAll) {
     const totalAtLoc = locItems.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
     const consumesAllAtLoc = totalAtLoc > 0 && qty >= totalAtLoc * 0.999;
     if (useAll || consumesAllAtLoc) {
-        const locInfo = LOCATIONS[location] || { label: location };
+        const locInfo = LOCATIONS[normalizeLocationKey(location)] || { label: location };
         const qtyLabel = stripHtml(formatQuantity(qty, unit, pkgSize, pkgUnit));
         const confirmed = await new Promise(resolve => {
             document.getElementById('modal-content').innerHTML = `
@@ -23528,8 +23528,8 @@ async function submitRecipeUse(useAll) {
             showToast(t('recipes.ingredient_scaled_toast'), 'success');
             maybeAutoLogRecipeMeal();
             if (result.location_fallback && result.requested_location && result.used_location) {
-                const usedLoc = LOCATIONS[result.used_location] || { label: result.used_location };
-                const reqLoc = LOCATIONS[result.requested_location] || { label: result.requested_location };
+                const usedLoc = LOCATIONS[normalizeLocationKey(result.used_location)] || { label: result.used_location };
+                const reqLoc = LOCATIONS[normalizeLocationKey(result.requested_location)] || { label: result.requested_location };
                 setTimeout(() => showToast(
                     t('recipes.location_fallback_toast', { location: usedLoc.label, requested: reqLoc.label }),
                     'info'
@@ -23596,7 +23596,7 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
             <p style="margin-bottom:12px">${t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))}</p>
             <div class="location-selector">${locButtons}</div>
             ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_recipeMoveCancelStay(${productId}, '${fromLoc}', ${openedId || 0})">${t('move.stay_btn').replace('{location}', LOCATIONS[fromLoc]?.label || fromLoc)}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_recipeMoveCancelStay(${productId}, '${fromLoc}', ${openedId || 0})">${t('move.stay_btn').replace('{location}', LOCATIONS[normalizeLocationKey(fromLoc)]?.label || fromLoc)}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -23650,7 +23650,7 @@ async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacu
                 await api('inventory_update', {}, 'POST', payload);
             }
         }
-        showToast(t('move.moved_simple', { location: LOCATIONS[toLoc]?.label || toLoc }), 'success');
+        showToast(t('move.moved_simple', { location: LOCATIONS[normalizeLocationKey(toLoc)]?.label || toLoc }), 'success');
     } catch (e) {
         console.error('Recipe move error:', e);
     }
@@ -28115,7 +28115,7 @@ function generateScreensaverFact() {
         facts.push(() => {
             const item = rItem(expiringThisWeek);
             const days = daysUntilExpiry(item.expiry_date);
-            const locLabel = LOCATIONS[item.location]?.label || item.location;
+            const locLabel = LOCATIONS[normalizeLocationKey(item.location)]?.label || item.location;
             return t('facts.expiring_item_loc').replace('{name}', item.name).replace('{loc}', locLabel).replace('{days}', days).replace('{dayslabel}', days === 1 ? t('facts.day') : t('facts.days'));
         });
     }
@@ -28188,7 +28188,7 @@ function generateScreensaverFact() {
     if (inv.length > 0) {
         facts.push(() => {
             const item = rItem(inv);
-            return t('facts.item_random').replace('{name}', item.name).replace('{loc}', LOCATIONS[item.location]?.label || item.location);
+            return t('facts.item_random').replace('{name}', item.name).replace('{loc}', LOCATIONS[normalizeLocationKey(item.location)]?.label || item.location);
         });
         facts.push(() => {
             const item = rItem(inv);
@@ -28302,7 +28302,7 @@ function generateScreensaverFact() {
     if (locCount > 1) {
         facts.push(() => {
             const parts = Object.entries(byLocation).map(([loc, items]) => 
-                `${LOCATIONS[loc]?.icon || '📦'} ${items.length}`
+                `${LOCATIONS[normalizeLocationKey(loc)]?.icon || '📦'} ${items.length}`
             );
             return t('facts.location_distribution').replace('{parts}', parts.join('  ·  '));
         });
@@ -28923,7 +28923,7 @@ function _showFamilySiblingSuggest(productId, location) {
         if (_isFamilySiblingRecentlyConfirmed(s.family, loc)) return;
         if (!(await _productHasLiveStock(s.product_id))) return;
         const locKey = s.location || loc;
-        const locInfo = LOCATIONS[locKey] || LOCATIONS.altro;
+        const locInfo = LOCATIONS[normalizeLocationKey(locKey)] || LOCATIONS.altro;
         const stockLine = _formatFamilySiblingStockLine(s);
         const purchaseRaw = s.last_purchase_at || s.added_at;
         const purchaseDate = _formatFamilySiblingDate(purchaseRaw);
