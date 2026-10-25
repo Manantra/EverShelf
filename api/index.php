@@ -8908,6 +8908,32 @@ function getKioskUpdate(): void {
     ], JSON_UNESCAPED_UNICODE);
 }
 
+/**
+ * One value of the instance-wide setup ledger (`app_settings.setup_done` /
+ * `app_settings.setup_seen`).
+ *
+ * The first-run wizard and the assistant's "already asked" ledger used to live in
+ * localStorage only, so every new browser profile or Kiosk WebView repeated the
+ * questions the household had already answered (issue #301). The client writes the
+ * ledger to app_settings through app_settings_save and get_settings hands it back.
+ */
+function evershelfSetupLedgerValue(string $key): mixed
+{
+    try {
+        $stmt = getDB()->prepare('SELECT value FROM app_settings WHERE key = ?');
+        $stmt->execute([$key]);
+        $raw = $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return null;
+    }
+    if ($raw === false || $raw === null || $raw === '') {
+        return null;
+    }
+    // Stored as JSON by appSettingsSave(); legacy rows may hold a bare string.
+    $decoded = json_decode((string)$raw, true);
+    return $decoded ?? (string)$raw;
+}
+
 function getServerSettings(): void {
     EverLog::debug('getServerSettings');
     $bringEmail = env('BRING_EMAIL');
@@ -9010,6 +9036,25 @@ function getServerSettings(): void {
         'gdrive_retention_days' => (int)env('GDRIVE_RETENTION_DAYS', '30'),
         'gdrive_client_id_set'    => !empty(env('GDRIVE_CLIENT_ID')),
         'gdrive_refresh_token_set'=> !empty(env('GDRIVE_REFRESH_TOKEN')),
+        // `GDRIVE_ENABLED=false` is the .env default *and* the way an operator says
+        // "I do not want Drive": without this flag the two cases look identical and
+        // the setup wizard kept asking for OAuth data on an instance that had
+        // switched the feature off (issue #301).
+        'gdrive_enabled_set'      => env('GDRIVE_ENABLED', '') !== '',
+        // Instance language decided by the operator. Empty = never decided, so the
+        // wizard still asks a fresh install for its language.
+        'app_lang'                => (string)env('APP_LANG', ''),
+        // Setup ledger, instance-wide (issue #301): a completed setup — and every
+        // question the assistant already asked — follows the instance, not the
+        // browser that answered it.
+        'setup_done'              => (function (): bool {
+            $v = evershelfSetupLedgerValue('setup_done');
+            return $v === true || $v === 1 || $v === '1' || $v === 'true';
+        })(),
+        'setup_seen'              => (function (): array {
+            $v = evershelfSetupLedgerValue('setup_seen');
+            return is_array($v) ? $v : [];
+        })(),
         // Shopping list
         'shopping_enabled'            => env('SHOPPING_ENABLED', 'true') === 'true',
         'shopping_mode'               => env('SHOPPING_MODE', 'internal'),

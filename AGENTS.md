@@ -187,6 +187,7 @@ php scripts/test-internal-shopping-cleanup.php
 php scripts/test-notify.php
 php scripts/test-healthcheck.php
 php scripts/test-settings-nav.php      # settings sections ↔ tabs ↔ panels ↔ locales
+php scripts/test-setup-wizard-config.php # wizard obeys the server: GDRIVE_ENABLED=false, APP_LANG, instance ledger
 php scripts/test-setup-assistant.php    # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
 php scripts/test-i18n-icons.php         # no label prints its icon twice (all locales)
 php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (screensaver facts)
@@ -274,7 +275,8 @@ npm run build
 | Mobile layout (list rows) | `assets/css/mobile.css` (layer 4, loaded **last**, geometry only): at ≤640 px the text owns the row and badges/quantities wrap under it, so an alert name is not cut at 107 px and a shopping title does not collapse to 0 px (43 lines, one letter each). Do not put colours there — themes stay in charge; guard test `scripts/test-mobile-layout.php` |
 | Dates / numbers in the UI | `formatDate()` / `formatDateTime()` use `_collationLocale()` (it 19/10/2026, de 19.10.2026, zh 2026/10/19) and every date is formatted — never print the API's raw ISO string; the collation locale also drives number formatting and the TTS voice — guard test `scripts/test-locale-dates.php` |
 | Suggested purchase quantity | `smartResolvePlanDays()` (explicit request → `shopping_plan_days` → inferred cycle) + `smartPurchaseHorizonDays()` (shelf life of the real storage location, not the pantry) + `smartCapPeriodNeed()` — guard test `scripts/test-expiry-and-plan-days.php` |
-| Settings page (sections, accordion, checklist) | `SETTINGS_GROUPS` + `switchSettingsGroup()`, `SETTINGS_CHECKLIST` (~25820), `_initSettingsAccordions()` (~5222), `_openSettingsCardFor()` (~5288), `_checklistNewsItems()` (~25907) |
+| Settings page (sections, accordion, checklist) | `SETTINGS_GROUPS` + `switchSettingsGroup()`, `SETTINGS_CHECKLIST`, `_initSettingsAccordions()`, `_openSettingsCardFor()`, `_checklistNewsItems()` — `scripts/gen-code-index.sh` keeps the line numbers |
+| Setup wizard / assistant ledger | `_getMissingSetupSteps()` + `_gdriveWizardNeeded()` + `_setupSeen()` in app.js; the ledger (`setup_done`, `setup_seen`) lives in `app_settings` and `get_settings` hands it to every device, so a new browser profile is not re-asked (issue #301); `GDRIVE_ENABLED=false` and `APP_LANG` hide the Drive/language steps — guard test `scripts/test-setup-wizard-config.php` |
 | Dashboard panels & limits | `DASHBOARD_*_MAX` (~6623), `_dashboardAlertCap()`, `_staleRotationPick()`, `_INSIGHT_PHASES` (~6529) / `_applyInsightPhase()` (~6544); bars are drawn at 0% and filled from `data-target` on reveal — guard test `scripts/test-dashboard-panels.php` |
 | Emoji-before-translated-label bug | `iconLabel()` / `_stripLeadingEmoji()`; guard test `scripts/test-i18n-icons.php` |
 | HTML printed as text (screensaver fact, alert banner, chooser modal) | `formatQuantity()` returns `<span class="conf-size-info">`; text-only callers use `_formatQtyPlain()` / `stripHtml()`; guard test `scripts/test-html-in-text.php` |

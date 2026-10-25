@@ -183,16 +183,30 @@ something needs attention.
 through the open options — ntfy notifications and the cron watchdog can be tested from
 inside the wizard, before anything is saved — and can be left at any step.
 
-An option is asked **once**. The ledger is stored per item in `evershelf_setup_seen`
-(keyed by the item's `askVersion` in `SETTINGS_CHECKLIST`), while the *Novità* group
-covers what the ledger cannot: an option that was already configured but gained a new
-question. Adding a new integration means adding one entry to that registry — the card
-and the assistant pick it up automatically, and raising `askVersion` asks again.
+An option is asked **once**. The ledger is stored per item (keyed by the item's
+`askVersion` in `SETTINGS_CHECKLIST`) and it belongs to the **instance**, not to the
+browser that answered: the client keeps a copy in `localStorage` and writes it to
+`app_settings.setup_seen` — plus `app_settings.setup_done` once the wizard is finished —
+and `get_settings` hands both back to every device. A new phone, a fresh browser profile
+or the Kiosk WebView therefore no longer re-asks what the household already answered
+(issue #301). The *Novità* group covers what the ledger cannot: an option that was
+already configured but gained a new question. Adding a new integration means adding one
+entry to that registry — the card and the assistant pick it up automatically, and raising
+`askVersion` asks again.
+
+The **first-run wizard** only offers what the server has not already decided: the AI key
+(`GEMINI_API_KEY`), the Bring! login, the language step (`APP_LANG`) and the Google Drive
+step — `GDRIVE_ENABLED=false` hides it, because switching the feature off is a decision,
+while the `.env` default (key absent) still offers it as a discovery step.
 
 `scripts/test-setup-assistant.php` fails if a row points at a tab that does not exist,
 if an `ask` item names a wizard step outside `_setupSteps()`, if a label is missing in
 any of the six locales, if the card starts listing configured options again, or if the
 wizard goes back to a hardcoded closing step.
+`scripts/test-setup-wizard-config.php` runs the shipped `_getMissingSetupSteps()` in node
+and fails if a new device is asked again on a configured instance, if an explicit
+`GDRIVE_ENABLED=false` keeps the Drive step, or if the instance ledger stops being read
+and written.
 
 ---
 

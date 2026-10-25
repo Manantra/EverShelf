@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261021k'; // bump when translations change
+const _I18N_VERSION = '20261025a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11688,7 +11688,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261021k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11698,7 +11698,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261021k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28261,7 +28261,10 @@ const SETTINGS_CHECKLIST = [
     {
         id: 'gdrive', tab: 'tab-backup', level: 'optional',
         titleKey: 'settings.backup.gdrive_title', hintKey: 'settings.backup.gdrive_hint',
-        state: (srv) => ((srv.gdrive_refresh_token_set || srv.gdrive_client_id_set) ? 'ok' : 'todo'),
+        // Credentials present, or Drive switched off on purpose (GDRIVE_ENABLED=false):
+        // either way there is nothing left to decide (issue #301).
+        state: (srv) => ((srv.gdrive_refresh_token_set || srv.gdrive_client_id_set
+            || (srv.gdrive_enabled_set && srv.gdrive_enabled === false)) ? 'ok' : 'todo'),
     },
     {
         id: 'scale', tab: 'tab-scale', level: 'optional',
@@ -28275,9 +28278,23 @@ const SETTINGS_CHECKLIST = [
     },
 ];
 
-/** Ledger of what the assistant already asked, per item and version. */
+/**
+ * Ledger of what the assistant already asked, per item and version.
+ *
+ * The instance's copy wins over the device's: `get_settings` returns the ledger
+ * stored in app_settings, so a question answered on the phone is not asked again
+ * on a new browser profile or on the Kiosk WebView (issue #301). Entries are merged
+ * by highest version, so an `askVersion` bump is never hidden by a stale answer.
+ */
 function _setupSeen() {
-    try { return JSON.parse(localStorage.getItem('evershelf_setup_seen') || '{}') || {}; } catch (e) { return {}; }
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem('evershelf_setup_seen') || '{}') || {}; } catch (e) { local = {}; }
+    const shared = (_serverSettings && typeof _serverSettings.setup_seen === 'object' && _serverSettings.setup_seen) || {};
+    for (const [id, version] of Object.entries(shared)) {
+        const v = Number(version) || 0;
+        if (v > (Number(local[id]) || 0)) local[id] = v;
+    }
+    return local;
 }
 
 function _markSetupSeen(ids) {
@@ -28287,6 +28304,9 @@ function _markSetupSeen(ids) {
         if (item) seen[id] = item.askVersion || 1;
     }
     try { localStorage.setItem('evershelf_setup_seen', JSON.stringify(seen)); } catch (e) {}
+    // The ledger belongs to the instance: without this write a second device asked
+    // the same questions again, which is the bug reported in #301.
+    api('app_settings_save', {}, 'POST', { settings: { setup_seen: seen } }).catch(() => {});
 }
 
 /** Ask items that were not configured when the save started (captured first). */
@@ -28495,13 +28515,19 @@ function _getMissingSetupSteps(serverSettings) {
     const missing = [];
     const s = getSettings();
     const srv = serverSettings || {};
-    const setupDone = localStorage.getItem('evershelf_setup_done');
+    // The assistant ledger (_setupSeen) reads the same payload from the global.
+    if (serverSettings) _serverSettings = serverSettings;
+    // The setup is an instance decision, not a browser one: get_settings carries
+    // app_settings' setup_done, so a device that never ran the wizard does not
+    // reopen it when another one already finished (issue #301).
+    const setupDone = localStorage.getItem('evershelf_setup_done') || (srv.setup_done ? '1' : '');
 
-    // Step 0 — language: missing only if never set at all (fresh install)
-    if (!localStorage.getItem('evershelf_lang') && !setupDone) {
+    // Step 0 — language: missing only if never set at all (fresh install) and the
+    // operator did not decide the instance language (APP_LANG).
+    if (!localStorage.getItem('evershelf_lang') && !srv.app_lang && !setupDone) {
         missing.push(0);
     }
-    // Steps 1 & 2 only show on first run (before setup is completed/skipped)
+    // Steps 1..3 only show on first run (before setup is completed/skipped)
     if (!setupDone) {
         // Step 1 — Gemini API key (check both localStorage and server .env)
         if (!s.gemini_key && !srv.gemini_key_set) missing.push(1);
@@ -28511,14 +28537,27 @@ function _getMissingSetupSteps(serverSettings) {
             && ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password_set))) {
             missing.push(2);
         }
-        // Step 3 — Google Drive backup (always optional on first run, skippable)
-        if (!srv.gdrive_refresh_token_set && !srv.gdrive_folder_id) missing.push(3);
+        // Step 3 — Google Drive backup: the step *enables* the feature, so it has
+        // nothing to offer on an instance that already said GDRIVE_ENABLED=false.
+        if (_gdriveWizardNeeded(srv)) missing.push(3);
     }
     // Note: step 6 (done screen) gets appended automatically when there are missing steps.
     // Steps 4 & 5 (notifications, watchdog) come from the shared checklist registry:
     // they are offered while unconfigured and asked at most once per askVersion, so a
     // new option cannot silently ship unnoticed. Works after the first run too.
     return missing.concat(_assistantPendingSteps());
+}
+
+/**
+ * Does the wizard's Drive step have anything to do? No when credentials or the
+ * folder already exist, and no when the operator explicitly disabled Drive: asking
+ * for OAuth data there contradicted the .env (issue #301). Left undecided, the step
+ * stays, so a fresh install can still discover the feature.
+ */
+function _gdriveWizardNeeded(srv) {
+    srv = srv || {};
+    if (srv.gdrive_refresh_token_set || srv.gdrive_folder_id || srv.gdrive_client_id_set) return false;
+    return !(srv.gdrive_enabled_set && srv.gdrive_enabled === false);
 }
 
 function _setupSteps() {
@@ -29025,6 +29064,9 @@ async function _finishSetup() {
     _markSetupSeen(_setupPendingSteps.map(st => (_checklistItemForStep(st) || {}).id).filter(Boolean));
 
     localStorage.setItem('evershelf_setup_done', '1');
+    // One finished setup covers the whole instance, not just this browser: the next
+    // device (new profile, Kiosk WebView) must not open the wizard again (#301).
+    api('app_settings_save', {}, 'POST', { settings: { setup_done: true } }).catch(() => {});
     localStorage.removeItem('evershelf_setup_step');
     localStorage.removeItem('evershelf_setup_data');
     document.getElementById('setup-wizard').style.display = 'none';
