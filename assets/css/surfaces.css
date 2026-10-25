@@ -445,21 +445,55 @@ body {
 /* ── Capture button (centre of the nav) ───────────────────────────────────
    Same geometry as the button it replaces, one colour from the calm palette: the
    centre of the nav is an action, not a product name. */
-.nav-capture-btn { margin-top: -10px; min-width: 0; }
+/* ── Capture button: the primary control, so it is bigger than the others, has no
+   text label (the microphone is the label) and **always** breathes — a still button
+   in the middle of the bar reads as decoration. Nothing here references a brand. */
+.nav-capture-btn {
+    margin-top: -18px;
+    min-width: 0;
+    background: transparent;
+}
 .nav-capture-icon-wrap {
-    width: clamp(34px, 9.6vw, 50px);
-    height: clamp(34px, 9.6vw, 50px);
+    width: clamp(48px, 13vw, 64px);
+    height: clamp(48px, 13vw, 64px);
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--tone-calm) 0%, color-mix(in srgb, var(--tone-calm) 65%, white) 100%);
+    background: linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 65%, #10B981) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 14px color-mix(in srgb, var(--tone-calm) 45%, transparent);
-    border: 3px solid var(--bg-card);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    border: 3px solid var(--surface-bg);
     transition: transform 0.15s, box-shadow 0.15s;
+    animation: capture-breathe 4.2s ease-in-out infinite;
+    position: relative;
 }
-.nav-capture-icon { width: clamp(18px, 5.2vw, 26px); height: clamp(18px, 5.2vw, 26px); }
-.nav-capture-btn:active .nav-capture-icon-wrap { transform: scale(0.94); }
+.nav-capture-icon { width: clamp(24px, 6.4vw, 32px); height: clamp(24px, 6.4vw, 32px); }
+
+/* A slow halo, one step behind the breathing, so the button looks alive without
+   turning into a blinking light on a kiosk. */
+.nav-capture-icon-wrap::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    animation: capture-halo 4.2s ease-out infinite;
+    pointer-events: none;
+}
+@keyframes capture-breathe {
+    0%, 100% { transform: scale(1); box-shadow: 0 6px 18px color-mix(in srgb, var(--brand-primary) 40%, transparent); }
+    50%      { transform: scale(1.05); box-shadow: 0 8px 26px color-mix(in srgb, var(--brand-primary) 60%, transparent); }
+}
+@keyframes capture-halo {
+    0%   { transform: scale(0.94); opacity: 0.55; }
+    70%  { transform: scale(1.22); opacity: 0; }
+    100% { transform: scale(1.22); opacity: 0; }
+}
+.nav-capture-btn:active .nav-capture-icon-wrap { transform: scale(0.94); animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+    .nav-capture-icon-wrap,
+    .nav-capture-icon-wrap::after { animation: none; }
+}
 
 /* ── Capture sheet ───────────────────────────────────────────────────────── */
 .capture-sheet {

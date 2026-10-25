@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261025s">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025s">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025s">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261025t">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025t">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025t">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025s">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025s">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025t">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025t">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261025s"></script>
-    <script src="assets/js/core/auth.js?v=20261025s"></script>
+    <script src="assets/js/core/dom.js?v=20261025t"></script>
+    <script src="assets/js/core/auth.js?v=20261025t"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261025s"></script>
+    <script src="assets/js/core/support.js?v=20261025t"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025s';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025t';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025s';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025t';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261025s"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261025t"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -114,7 +114,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.16.21</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.16.22</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -175,7 +175,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.16.21</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.16.22</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -2731,16 +2731,19 @@
         <span class="nav-icon" aria-hidden="true">🍳</span>
         <span class="nav-label" data-i18n="nav.recipes">Ricette</span>
     </button>
-    <!-- Capture button (UI audit, voice block): the centre of the nav is not a
-         product name any more. It opens one sheet that accepts a sentence — spoken
-         or typed — and routes it to the flow that already does the job (use, add,
-         recipe). A sparkle, not "Gemini". -->
+    <!-- Capture button: the centre of the nav is an action, not a brand. No text
+         label (the microphone is the label), always breathing so it reads as the
+         primary control, and a plain mic glyph — nothing that looks like a logo. -->
     <button class="nav-btn nav-capture-btn" id="nav-capture-btn" onclick="_openCaptureSheet()" data-page="capture"
             title="Cosa vuoi fare?" data-i18n-title="capture.title" aria-label="Cosa vuoi fare?" data-i18n-aria="capture.title">
         <span class="nav-capture-icon-wrap" aria-hidden="true">
-            <svg class="nav-capture-icon" viewBox="0 0 24 24" width="26" height="26" fill="white"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5.5a3.5 3.5 0 1 0-7 0V11a3.5 3.5 0 0 0 3.5 3.5Z"/><path d="M18.2 11a.9.9 0 1 1 1.8 0 8 8 0 0 1-7.1 7.94V21a.9.9 0 1 1-1.8 0v-2.06A8 8 0 0 1 4 11a.9.9 0 1 1 1.8 0 6.2 6.2 0 0 0 12.4 0Z"/></svg>
+            <svg class="nav-capture-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2.5" width="6" height="11.5" rx="3"/>
+                <path d="M5.5 11a6.5 6.5 0 0 0 13 0"/>
+                <path d="M12 17.5V21"/>
+                <path d="M8.5 21h7"/>
+            </svg>
         </span>
-        <span class="nav-label" data-i18n="capture.nav_label">Ascolta</span>
     </button>
     <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping" aria-label="Spesa" data-i18n-aria="nav.shopping">
         <span class="nav-icon" aria-hidden="true">🛒</span>
@@ -3019,13 +3022,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261025s"></script>
-<script src="assets/js/core/vocab.js?v=20261025s"></script>
-<script src="assets/js/app.js?v=20261025s"></script>
-<script src="assets/js/audit.js?v=20261025s"></script>
-<script src="assets/js/receipt.js?v=20261025s"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261025s"></script>
-<script src="assets/js/settings_search.js?v=20261025s"></script>
+<script src="assets/js/vocab.generated.js?v=20261025t"></script>
+<script src="assets/js/core/vocab.js?v=20261025t"></script>
+<script src="assets/js/app.js?v=20261025t"></script>
+<script src="assets/js/audit.js?v=20261025t"></script>
+<script src="assets/js/receipt.js?v=20261025t"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261025t"></script>
+<script src="assets/js/settings_search.js?v=20261025t"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

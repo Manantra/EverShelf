@@ -5343,42 +5343,10 @@ body:has(#page-scan.active) .app-content {
 }
 
 /* Gemini — center tab, elevated like mobile FAB */
-.nav-gemini-btn {
-    margin-top: -10px;
-    min-width: 0;
-}
-.nav-gemini-icon-wrap {
-    width: clamp(34px, 9.6vw, 50px);
-    height: clamp(34px, 9.6vw, 50px);
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
-    border: 3px solid var(--bg-card);
-    transition: transform 0.15s, box-shadow 0.15s;
-}
-.nav-gemini-icon {
-    /* The inline width/height on the <svg> are the desktop size; this lets the
-       FAB shrink inside a narrow slot on a phone. */
-    width: clamp(18px, 5.2vw, 26px);
-    height: clamp(18px, 5.2vw, 26px);
-}
-.nav-gemini-btn:active .nav-gemini-icon-wrap {
-    transform: scale(0.94);
-}
-.nav-gemini-btn.active .nav-gemini-icon-wrap {
-    box-shadow: 0 4px 18px rgba(99, 102, 241, 0.65);
-}
-.nav-gemini-btn.active {
-    color: #6366f1;
-}
-.nav-gemini-btn.nav-btn-no-ai .nav-gemini-icon-wrap {
-    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
-    box-shadow: none;
-    opacity: 0.65;
-}
+/* The centre of the nav is the capture button now (assets/css/surfaces.css):
+   it carries no brand and stays visible offline, because "use" and "add" work
+   without a server. */
+
 
 /* ===== TOAST ===== */
 .toast {
@@ -11400,7 +11368,6 @@ body.cooking-mode-active .app-header {
 body.offline-mode #waste-chart-section,
 body.offline-mode #nutrition-section,
 body.offline-mode #quick-recipe-bar,
-body.offline-mode .nav-gemini-btn,
 body.offline-mode #btn-suggest,
 body.offline-mode #btn-fetch-prices,
 body.offline-mode .recipe-generate-btn {

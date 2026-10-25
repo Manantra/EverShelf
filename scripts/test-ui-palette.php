@@ -71,8 +71,20 @@ if (preg_match('/id="nav-capture-btn".*?<\/button>/s', $html, $m)) {
 check('the centre button exists', $navBlock !== '');
 check('the centre button is a microphone, not the old sparkle',
     str_contains($navBlock, 'nav-capture-icon') && !str_contains($navBlock, 'M12 0C12 6.627'));
-check('the centre button label follows the voice action',
-    str_contains($html, 'data-i18n="capture.nav_label"'));
+check('the centre button carries no text label',
+    !preg_match('/id="nav-capture-btn".*?class="nav-label"/s', $navBlock));
+check('the centre button is bigger than the other tabs',
+    preg_match('/\.nav-capture-icon-wrap \{[^}]*width: clamp\(48px/s', $css) === 1);
+check('the centre button always breathes (a still FAB reads as decoration)',
+    str_contains($css, 'animation: capture-breathe') && str_contains($css, '@keyframes capture-breathe')
+    && str_contains($css, '@keyframes capture-halo'));
+check('the animation respects reduced motion',
+    preg_match('/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.nav-capture-icon-wrap/s', $css) === 1);
+check('no Gemini branding survives in the nav (markup or CSS)',
+    !str_contains($html, 'nav-gemini') && !str_contains($css, 'nav-gemini')
+    && !str_contains((string)file_get_contents($root . '/assets/css/style.css'), 'nav-gemini'));
+check('the capture button stays available offline (use/add work locally)',
+    !str_contains((string)file_get_contents($root . '/assets/css/style.css'), 'offline-mode .nav-gemini'));
 check('blocks carry a 4px accent line instead of a coloured frame',
     str_contains($css, 'border-left: 4px solid var(--tone-danger)')
     && str_contains($css, 'border-left: 4px solid var(--tone-soon)')

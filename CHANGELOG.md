@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.22] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### The centre button: no label, bigger, alive, and no brand
+- The text label under the centre button is gone: the microphone **is** the label
+  (the accessible name stays `capture.title`, six locales).
+- It is bigger than the other tabs (48–64 px, icon 24–32 px, lifted 18 px) so the
+  primary action reads as the primary action.
+- It **always** breathes: a 4.2 s scale+glow cycle with a halo one step behind, and
+  the halo/breathing stop under `prefers-reduced-motion`. It used to be still — a
+  still button in the middle of a bar looks like decoration.
+- Every trace of the old product branding is gone from the shell: the dead
+  `.nav-gemini-*` rules were removed from `style.css` (the indigo sparkle, its
+  no-AI greying and its offline hiding). The capture button stays available offline
+  on purpose — “use” and “add” work without a server.
+- The glyph is a plain stroke microphone (capsule, arc, stem), not a sparkle: the
+  AI chat keeps its own Gemini mark on the chat page, where it belongs.
+
+Guard test: `scripts/test-ui-palette.php` (47 checks) now also asserts no label, the
+bigger clamp, both keyframes, the reduced-motion guard, no `nav-gemini` anywhere and
+that the button is not hidden offline.
+
 ## [1.16.21] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### The capture sheet finally talks back
