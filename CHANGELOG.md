@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.16] - 2026-10-25
+
+### The setup wizard obeys the server (not every new browser)
+Reported as issue #301: an instance fully configured through a **read-only `.env`**
+still opened the first-run wizard on every new device, and it started with the
+Google Drive step even though `GDRIVE_ENABLED=false`.
+- The Drive step now disappears when Drive is switched off **on purpose**:
+  `get_settings` gained `gdrive_enabled_set`, so an explicit `false` is no longer
+  indistinguishable from "never decided". Left unset, the step stays for a fresh
+  install (`_gdriveWizardNeeded()`), and the Settings → Backup row reports it as
+  decided instead of "Da decidere".
+- The setup **is an instance decision now**: `evershelf_setup_done` and the
+  assistant's `evershelf_setup_seen` ledger are stored in `app_settings`
+  (`setup_done` / `setup_seen`) and handed back by `get_settings`, so a phone, a
+  new browser profile or the Kiosk WebView stops asking what the household already
+  answered. Entries merge by highest `askVersion`, so a genuinely new option is
+  still asked once.
+- The language step is skipped when the operator decided the instance language
+  (`APP_LANG`, now exposed by `get_settings`).
+- Guard test: `php scripts/test-setup-wizard-config.php` runs the shipped
+  `_getMissingSetupSteps()` / `_gdriveWizardNeeded()` / `_setupSeen()` in node.
+
 ## [1.16.15] - 2026-10-21
 
 ### The smaller lists follow the phone pass

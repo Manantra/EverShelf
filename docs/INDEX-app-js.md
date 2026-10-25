@@ -1030,47 +1030,48 @@ Use with: `sed -n "<line>p" assets/js/app.js` to jump to a function.
 28091:function _initScreensaverShortcutBtn
 28125:function initScreensaverShortcuts
 28132:function initInactivityWatcher
-28279:function _setupSeen
-28283:function _markSetupSeen
-28293:function _checklistPendingBeforeSave
-28304:function _ackSavedChecklistItems
-28317:function _checklistItemForStep
-28321:function _checklistState
-28332:function _checklistTodoItems
-28348:function _checklistNewsItems
-28360:function _assistantPendingSteps
-28379:function _renderSettingsChecklist
-28428:function _syncChecklistToggle
-28433:function _toggleChecklistItems
-28443:function _checklistGoTo
-28452:function _flashSettingsCard
-28469:function startSetupAssistant
-28487:function _setupDoneStep
-28494:function _getMissingSetupSteps
-28524:function _setupSteps
-28738:function showSetupWizard
-28755:function _renderSetupStep
-28786:function _setupSelectLang
-28793:function _setupGenerateTopic
-28799:function _setupPaint
-28811:async function _setupTestNotify
-28846:async function _setupTestHealthcheck
-28870:function _setupSkipStep
-28879:function _setupCollectCurrent
-28938:function setupWizardNav
-28969:async function _finishSetup
-29050:async function _runHeartbeat
-29066:function _setServerOffline
-29090:async function _flushOfflineReports
-29116:async function _handleServerRestored
-29131:function _heartbeatRetry
-29191:function _preloaderStage
-29211:async function _runStartupCheck
-29474:function _startupHintText
-29482:function _showStartupWarningPopup
-29527:function _showStartupErrorPopup
-29535:function _startupRetry
-29540:function startHeartbeat
-29544:async function _initApp
-29731:async function _backgroundBringSync
+28289:function _setupSeen
+28300:function _markSetupSeen
+28313:function _checklistPendingBeforeSave
+28324:function _ackSavedChecklistItems
+28337:function _checklistItemForStep
+28341:function _checklistState
+28352:function _checklistTodoItems
+28368:function _checklistNewsItems
+28380:function _assistantPendingSteps
+28399:function _renderSettingsChecklist
+28448:function _syncChecklistToggle
+28453:function _toggleChecklistItems
+28463:function _checklistGoTo
+28472:function _flashSettingsCard
+28489:function startSetupAssistant
+28507:function _setupDoneStep
+28514:function _getMissingSetupSteps
+28557:function _gdriveWizardNeeded
+28563:function _setupSteps
+28777:function showSetupWizard
+28794:function _renderSetupStep
+28825:function _setupSelectLang
+28832:function _setupGenerateTopic
+28838:function _setupPaint
+28850:async function _setupTestNotify
+28885:async function _setupTestHealthcheck
+28909:function _setupSkipStep
+28918:function _setupCollectCurrent
+28977:function setupWizardNav
+29008:async function _finishSetup
+29092:async function _runHeartbeat
+29108:function _setServerOffline
+29132:async function _flushOfflineReports
+29158:async function _handleServerRestored
+29173:function _heartbeatRetry
+29233:function _preloaderStage
+29253:async function _runStartupCheck
+29516:function _startupHintText
+29524:function _showStartupWarningPopup
+29569:function _showStartupErrorPopup
+29577:function _startupRetry
+29582:function startHeartbeat
+29586:async function _initApp
+29773:async function _backgroundBringSync
 ```
