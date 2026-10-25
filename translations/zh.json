@@ -276,7 +276,11 @@
     "urgency_title": "减少浪费",
     "urgency_expired": "{n} 个已过期产品待处理",
     "urgency_soon": "{n} 个即将过期：尽快使用或烹饪",
-    "quick_recipe_short": "食谱"
+    "quick_recipe_short": "食谱",
+    "tab_expiring": "⏰ 即将过期",
+    "tab_opened": "📦 已开封",
+    "tab_stale": "🕰️ 被遗忘",
+    "row_actions": "更多操作"
   },
   "inventory": {
     "title": "库存",

@@ -276,7 +276,11 @@
     "urgency_title": "Sauver le gaspillage",
     "urgency_expired": "{n} produits périmés à sauver",
     "urgency_soon": "{n} bientôt périmés : à consommer ou cuisiner",
-    "quick_recipe_short": "Recette"
+    "quick_recipe_short": "Recette",
+    "tab_expiring": "⏰ Bientôt périmés",
+    "tab_opened": "📦 Ouverts",
+    "tab_stale": "🕰️ Oubliés",
+    "row_actions": "Autres actions"
   },
   "inventory": {
     "title": "Liste",

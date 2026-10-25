@@ -276,7 +276,11 @@
     "urgency_title": "Salva el desperdicio",
     "urgency_expired": "{n} productos caducados que rescatar",
     "urgency_soon": "{n} por caducar: úsalos o cocínalos",
-    "quick_recipe_short": "Receta"
+    "quick_recipe_short": "Receta",
+    "tab_expiring": "⏰ Por caducar",
+    "tab_opened": "📦 Abiertos",
+    "tab_stale": "🕰️ Olvidados",
+    "row_actions": "Más acciones"
   },
   "inventory": {
     "title": "Lista",

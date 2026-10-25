@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261025g">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025g">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025g">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261025h">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025h">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025h">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025g">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025g">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025h">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025h">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261025g"></script>
-    <script src="assets/js/core/auth.js?v=20261025g"></script>
+    <script src="assets/js/core/dom.js?v=20261025h"></script>
+    <script src="assets/js/core/auth.js?v=20261025h"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261025g"></script>
+    <script src="assets/js/core/support.js?v=20261025h"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025h';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025g';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025h';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261025g"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261025h"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -278,24 +278,50 @@
             <div id="spend-section" style="display:none"></div>
         </div>
 
-        <!-- Alert for soonest expiring items -->
-        <div class="alert-section" id="alert-expiring" style="display:none">
-            <h3 data-i18n="dashboard.expiring_title">⏰ Prossime Scadenze</h3>
-            <div id="expiring-list"></div>
-        </div>
+        <!-- ── Stock hub (UI audit, blocks 5-7) ─────────────────────────────────
+             Three stacked lists of the same kind (in scadenza / aperti /
+             dimenticati) turned the dashboard into an endless scroll. One block, one
+             segmented control: the height stays predictable and switching context is
+             a single tap. The panels keep their ids, so the loaders and the tap-to-open
+             sheet are untouched; `_syncStockHub()` decides what is worth showing. -->
+        <section class="stock-hub" id="stock-hub" hidden>
+            <div class="stock-hub-tabs" id="stock-hub-tabs" role="tablist">
+                <button type="button" class="stock-tab" role="tab" data-stock="expiring"
+                        onclick="_stockHubSelect('expiring')">
+                    <span data-i18n="dashboard.tab_expiring">⏰ In scadenza</span>
+                    <span class="stock-tab-count" id="stock-tab-count-expiring">0</span>
+                </button>
+                <button type="button" class="stock-tab" role="tab" data-stock="opened"
+                        onclick="_stockHubSelect('opened')">
+                    <span data-i18n="dashboard.tab_opened">📦 Aperti</span>
+                    <span class="stock-tab-count" id="stock-tab-count-opened">0</span>
+                </button>
+                <button type="button" class="stock-tab" role="tab" data-stock="stale"
+                        onclick="_stockHubSelect('stale')">
+                    <span data-i18n="dashboard.tab_stale">🕰️ Dimenticati</span>
+                    <span class="stock-tab-count" id="stock-tab-count-stale">0</span>
+                </button>
+            </div>
 
-        <!-- Opened (partially used) products -->
-        <div class="alert-section alert-opened" id="alert-opened" style="display:none">
-            <h3 data-i18n="dashboard.opened_title">📦 Prodotti Aperti</h3>
-            <div id="opened-list"></div>
-        </div>
+            <!-- Alert for soonest expiring items -->
+            <div class="alert-section" id="alert-expiring" style="display:none" role="tabpanel" data-stock-panel="expiring">
+                <h3 data-i18n="dashboard.expiring_title">⏰ Prossime Scadenze</h3>
+                <div id="expiring-list"></div>
+            </div>
 
-        <!-- Rarely used stock — cook or clear -->
-        <div class="alert-section alert-stale" id="alert-stale" style="display:none">
-            <h3 data-i18n="dashboard.stale_title">🕰️ Da troppo che non usi</h3>
-            <p class="alert-section-hint" data-i18n="dashboard.stale_hint">Priorità alle confezioni aperte ferme da più tempo — ricetta, usa, modifica o butta.</p>
-            <div id="stale-list"></div>
-        </div>
+            <!-- Opened (partially used) products -->
+            <div class="alert-section alert-opened" id="alert-opened" style="display:none" role="tabpanel" data-stock-panel="opened">
+                <h3 data-i18n="dashboard.opened_title">📦 Prodotti Aperti</h3>
+                <div id="opened-list"></div>
+            </div>
+
+            <!-- Rarely used stock — cook or clear -->
+            <div class="alert-section alert-stale" id="alert-stale" style="display:none" role="tabpanel" data-stock-panel="stale">
+                <h3 data-i18n="dashboard.stale_title">🕰️ Da troppo che non usi</h3>
+                <p class="alert-section-hint" data-i18n="dashboard.stale_hint">Priorità alle confezioni aperte ferme da più tempo — ricetta, usa, modifica o butta.</p>
+                <div id="stale-list"></div>
+            </div>
+        </section>
 
         <!-- PARKED banner slot (dashboard) — EverShelf does not run ads, so the slot
              is commented out and `_renderAdSlots()` in core/support.js is a no-op.
@@ -2939,13 +2965,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261025g"></script>
-<script src="assets/js/core/vocab.js?v=20261025g"></script>
-<script src="assets/js/app.js?v=20261025g"></script>
-<script src="assets/js/audit.js?v=20261025g"></script>
-<script src="assets/js/receipt.js?v=20261025g"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261025g"></script>
-<script src="assets/js/settings_search.js?v=20261025g"></script>
+<script src="assets/js/vocab.generated.js?v=20261025h"></script>
+<script src="assets/js/core/vocab.js?v=20261025h"></script>
+<script src="assets/js/app.js?v=20261025h"></script>
+<script src="assets/js/audit.js?v=20261025h"></script>
+<script src="assets/js/receipt.js?v=20261025h"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261025h"></script>
+<script src="assets/js/settings_search.js?v=20261025h"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

@@ -276,7 +276,11 @@
     "urgency_title": "Save the waste",
     "urgency_expired": "{n} expired products to rescue",
     "urgency_soon": "{n} expiring: use or cook them",
-    "quick_recipe_short": "Recipe"
+    "quick_recipe_short": "Recipe",
+    "tab_expiring": "⏰ Expiring",
+    "tab_opened": "📦 Opened",
+    "tab_stale": "🕰️ Forgotten",
+    "row_actions": "More actions"
   },
   "inventory": {
     "title": "List",

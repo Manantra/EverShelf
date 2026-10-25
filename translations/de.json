@@ -276,7 +276,11 @@
     "urgency_title": "Verschwendung retten",
     "urgency_expired": "{n} abgelaufene Produkte retten",
     "urgency_soon": "{n} laufen ab: verbrauchen oder kochen",
-    "quick_recipe_short": "Rezept"
+    "quick_recipe_short": "Rezept",
+    "tab_expiring": "⏰ Läuft ab",
+    "tab_opened": "📦 Geöffnet",
+    "tab_stale": "🕰️ Vergessen",
+    "row_actions": "Weitere Aktionen"
   },
   "inventory": {
     "title": "Liste",

@@ -276,7 +276,11 @@
     "urgency_title": "Salva lo spreco",
     "urgency_expired": "{n} prodotti scaduti da salvare",
     "urgency_soon": "{n} in scadenza: usa o cucina",
-    "quick_recipe_short": "Ricetta"
+    "quick_recipe_short": "Ricetta",
+    "tab_expiring": "⏰ In scadenza",
+    "tab_opened": "📦 Aperti",
+    "tab_stale": "🕰️ Dimenticati",
+    "row_actions": "Altre azioni"
   },
   "inventory": {
     "title": "Lista",

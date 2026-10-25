@@ -379,3 +379,8 @@
     overflow: visible;
 }
 .urgency-hub .alert-section h3 { display: none; }
+
+/* Inside the stock hub the tab names the list: the panel keeps only its rows. */
+.stock-hub .alert-section { box-shadow: none; border: 0; padding: 4px 0 0; }
+.stock-hub .alert-section h3 { display: none; }
+.stock-hub .alert-section-hint { margin: 0 0 6px; }

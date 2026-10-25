@@ -1407,7 +1407,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025g'; // bump when translations change
+const _I18N_VERSION = '20261025h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7833,6 +7833,80 @@ function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
 }
 
 /**
+ * The row's secondary actions, in the space of one button: extend (calendar glyph,
+ * the label stays for screen readers) and the ⋮ that opens the full sheet. The row
+ * itself opens the same sheet on tap, but a visible ⋮ is what a thumb looks for —
+ * and six equal micro-buttons were the reason for the wrong-tap risk.
+ */
+function _rowMenuButtons(item) {
+    const extendKey = t('dashboard.banner_expired_action_extend');
+    const extend = _shouldOfferExtendExpiry(item)
+        ? `<button type="button" class="btn-alert-extend" title="${escapeAttr(extendKey)}" aria-label="${escapeAttr(extendKey)}" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">📅</button>`
+        : '';
+    const menuKey = t('dashboard.row_actions');
+    return extend
+        + `<button type="button" class="alert-item-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}" onclick="event.stopPropagation(); showAlertItemDetail(${item.id}, ${item.product_id})">⋮</button>`;
+}
+
+/**
+ * Stock hub: which of the three lists is on screen (UI audit, blocks 5-7).
+ *
+ * Three stacked lists of different lengths made the dashboard's height
+ * unpredictable and turned "what should I eat?" into a scroll. One block with a
+ * segmented control keeps the height stable and the context one tap away.
+ */
+let _stockHubTab = 'expiring';
+
+/** Rows currently rendered per tab — the loaders decide what is empty. */
+function _stockHubCounts() {
+    return {
+        expiring: document.querySelectorAll('#expiring-list .alert-item').length,
+        opened: document.querySelectorAll('#opened-list .alert-item').length,
+        stale: document.querySelectorAll('#stale-list .alert-item').length,
+    };
+}
+
+/**
+ * Repaint the tabs from what is actually on screen, hide the empty ones, and keep
+ * the current tab if it still has rows (otherwise fall back to the first filled).
+ */
+function _syncStockHub() {
+    const hub = document.getElementById('stock-hub');
+    if (!hub) return;
+    const counts = _stockHubCounts();
+    const tabs = ['expiring', 'opened', 'stale'];
+    const available = tabs.filter(t => counts[t] > 0);
+    hub.hidden = available.length === 0;
+    for (const tab of tabs) {
+        const btn = document.querySelector(`#stock-hub .stock-tab[data-stock="${tab}"]`);
+        const badge = document.getElementById(`stock-tab-count-${tab}`);
+        if (badge) badge.textContent = counts[tab];
+        if (btn) btn.hidden = counts[tab] === 0;
+    }
+    if (!counts[_stockHubTab]) _stockHubTab = available[0] || 'expiring';
+    _stockHubSelect(_stockHubTab);
+}
+
+/**
+ * Show one panel. The loaders still decide whether a list has content (they set
+ * `display` when they render); this only layers "which tab" on top, so an async
+ * render that finishes later cannot resurrect a hidden panel.
+ */
+function _stockHubSelect(tab) {
+    _stockHubTab = tab;
+    document.querySelectorAll('#stock-hub .stock-tab').forEach(btn => {
+        const on = btn.dataset.stock === tab;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#stock-hub [data-stock-panel]').forEach(panel => {
+        const on = panel.dataset.stockPanel === tab;
+        const has = panel.querySelectorAll('.alert-item').length > 0;
+        panel.style.display = (on && has) ? '' : 'none';
+    });
+}
+
+/**
  * Urgency hub (UI audit, blocks 2 & 3).
  *
  * The anomaly banner, the expired rows and the recipe CTA were three blocks with
@@ -8063,7 +8137,7 @@ async function loadDashboard() {
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
-                        ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
+                        ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
             }).join('') + (expiringExtra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', expiringExtra)}</div>` : '');
@@ -8071,6 +8145,8 @@ async function loadDashboard() {
         } else {
             expiringSection.style.display = 'none';
         }
+        // One block, three tabs: repaint the segmented control from what is on screen.
+        _syncStockHub();
         
         // Expired items — items in the freezer that are still within the safety window are hidden
         const expiredSection = document.getElementById('alert-expired');
@@ -8100,7 +8176,7 @@ async function loadDashboard() {
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
-                        ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
+                        ${_rowMenuButtons(item)}
                     </div>
                 </div>`;
             }).join('') + (expiredExtra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', expiredExtra)}</div>` : '');
@@ -8255,6 +8331,7 @@ async function loadDashboard() {
         } else {
             openedSection.style.display = 'none';
         }
+        _syncStockHub();
 
         loadStaleDashboardItems();
         
@@ -8300,6 +8377,7 @@ async function loadStaleDashboardItems() {
         if (!items.length) {
             section.style.display = 'none';
             list.innerHTML = '';
+            _syncStockHub();   // this list is empty: drop its tab
             return;
         }
         section.style.display = 'block';
@@ -8323,10 +8401,8 @@ async function loadStaleDashboardItems() {
                 </div>
                 <div class="alert-item-badges stale-actions">
                     ${openedBadge}
-                    <button type="button" class="btn-banner btn-banner-ok" onclick='startRecipeFromProduct(${JSON.stringify(item.name)})'>${t('dashboard.stale_recipe')}</button>
                     <button type="button" class="btn-banner btn-banner-use" onclick="quickUse(${pid}, '${loc}')">${t('dashboard.stale_use')}</button>
-                    <button type="button" class="btn-banner btn-banner-edit2" onclick="editInventoryItem(${iid})">${t('dashboard.stale_edit')}</button>
-                    <button type="button" class="btn-banner btn-banner-throw" onclick="quickThrowFromInv(${pid}, '${loc}', ${iid})">${t('dashboard.stale_throw')}</button>
+                    <button type="button" class="alert-item-menu" title="${escapeAttr(t('dashboard.row_actions'))}" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="event.stopPropagation(); showAlertItemDetail(${iid}, ${pid})">⋮</button>
                 </div>
             </div>`;
         }).join('');
@@ -11805,7 +11881,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11815,7 +11891,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
