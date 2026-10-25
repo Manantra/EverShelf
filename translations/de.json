@@ -280,7 +280,8 @@
     "tab_expiring": "⏰ Läuft ab",
     "tab_opened": "📦 Geöffnet",
     "tab_stale": "🕰️ Vergessen",
-    "row_actions": "Weitere Aktionen"
+    "row_actions": "Weitere Aktionen",
+    "month_strip": "{used} verbraucht · {wasted} weggeworfen in den letzten 30 Tagen"
   },
   "inventory": {
     "title": "Liste",
@@ -979,7 +980,8 @@
     "already_undone": "Vorgang bereits rückgängig gemacht",
     "too_old": "Vorgänge älter als 24 Stunden können nicht rückgängig gemacht werden",
     "undo_error": "Fehler beim Rückgängigmachen",
-    "recipe_prefix": "Rezept"
+    "recipe_prefix": "Rezept",
+    "insights_title": "📊 Statistiken"
   },
   "chat": {
     "title": "Gemini Chef",

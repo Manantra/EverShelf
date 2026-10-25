@@ -280,7 +280,8 @@
     "tab_expiring": "⏰ In scadenza",
     "tab_opened": "📦 Aperti",
     "tab_stale": "🕰️ Dimenticati",
-    "row_actions": "Altre azioni"
+    "row_actions": "Altre azioni",
+    "month_strip": "{used} usati · {wasted} buttati negli ultimi 30 giorni"
   },
   "inventory": {
     "title": "Lista",
@@ -979,7 +980,8 @@
     "already_undone": "Operazione già annullata",
     "too_old": "Non è possibile annullare operazioni più vecchie di 24 ore",
     "undo_error": "Errore durante l'annullamento",
-    "recipe_prefix": "Ricetta"
+    "recipe_prefix": "Ricetta",
+    "insights_title": "📊 Statistiche"
   },
   "chat": {
     "title": "Gemini Chef",

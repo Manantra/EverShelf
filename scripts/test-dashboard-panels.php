@@ -347,6 +347,20 @@ assert_true(str_contains($spendAdd, "'month_total' => round(\$monthTotal, 2)"),
 assert_true(str_contains($spendAdd, "'event' => 'api_spend_add_ignored'"),
     'an amount of zero is logged too, so a lost entry is not silent');
 
+// ── The analytics live in Storico, the dashboard keeps one line (UI audit, block 4)
+$htmlNow = (string)file_get_contents($root . '/index.html');
+$logPos     = strpos($htmlNow, 'id="page-log"');
+$insightPos = strpos($htmlNow, 'id="dashboard-insight-wrap"');
+$dashPos    = strpos($htmlNow, 'id="page-dashboard"');
+$invPos     = strpos($htmlNow, 'id="page-inventory"');
+assert_true($insightPos !== false, 'the insight block still exists (same ids, same renderers)');
+assert_true($logPos !== false && $insightPos > $logPos, 'the insight block lives in Storico, not on the dashboard');
+assert_true(!($insightPos > $dashPos && $insightPos < $invPos), 'the insight block is not inside the dashboard section');
+assert_true(str_contains($htmlNow, 'id="month-strip"') && str_contains($htmlNow, 'id="month-strip-text"'),
+    'the dashboard keeps one compact month strip');
+assert_true(str_contains($jsCode, 'function _renderMonthStrip(') && str_contains($jsCode, '_renderMonthStrip(statsData);'),
+    'the strip is rendered from the same stats the panels use');
+
 if ($fail === 0) {
     echo "\nAll dashboard-panel tests passed.\n";
 }

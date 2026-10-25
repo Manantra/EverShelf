@@ -280,7 +280,8 @@
     "tab_expiring": "⏰ Expiring",
     "tab_opened": "📦 Opened",
     "tab_stale": "🕰️ Forgotten",
-    "row_actions": "More actions"
+    "row_actions": "More actions",
+    "month_strip": "{used} used · {wasted} wasted in the last 30 days"
   },
   "inventory": {
     "title": "List",
@@ -979,7 +980,8 @@
     "already_undone": "Operation already undone",
     "too_old": "Cannot undo operations older than 24 hours",
     "undo_error": "Error during undo",
-    "recipe_prefix": "Recipe"
+    "recipe_prefix": "Recipe",
+    "insights_title": "📊 Insights"
   },
   "chat": {
     "title": "Gemini Chef",

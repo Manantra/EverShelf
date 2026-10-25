@@ -384,3 +384,27 @@
 .stock-hub .alert-section { box-shadow: none; border: 0; padding: 4px 0 0; }
 .stock-hub .alert-section h3 { display: none; }
 .stock-hub .alert-section-hint { margin: 0 0 6px; }
+
+/* Analytics block in Storico: collapsed by default, one neutral card. */
+.insight-block {
+    margin: 0 0 14px;
+    padding: 2px 12px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--surface-radius);
+    background: var(--surface-bg);
+}
+.insight-block > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-light);
+}
+.insight-block > summary::-webkit-details-marker { display: none; }
+.insight-block > summary::after { content: "▾"; margin-left: auto; opacity: 0.7; }
+.insight-block[open] > summary::after { content: "▴"; }

@@ -280,7 +280,8 @@
     "tab_expiring": "⏰ Por caducar",
     "tab_opened": "📦 Abiertos",
     "tab_stale": "🕰️ Olvidados",
-    "row_actions": "Más acciones"
+    "row_actions": "Más acciones",
+    "month_strip": "{used} usados · {wasted} tirados en los últimos 30 días"
   },
   "inventory": {
     "title": "Lista",
@@ -979,7 +980,8 @@
     "already_undone": "Operación ya deshecha",
     "too_old": "No se pueden deshacer operaciones de más de 24 horas",
     "undo_error": "Error al deshacer",
-    "recipe_prefix": "Receta"
+    "recipe_prefix": "Receta",
+    "insights_title": "📊 Estadísticas"
   },
   "chat": {
     "title": "Chef Gemini",

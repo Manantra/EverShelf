@@ -1407,7 +1407,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025h'; // bump when translations change
+const _I18N_VERSION = '20261025i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7849,6 +7849,29 @@ function _rowMenuButtons(item) {
 }
 
 /**
+ * Compact month strip (UI audit, block 4).
+ *
+ * The analytics — anti-waste report, nutrition, monthly categories, macros, spend —
+ * are reflection, not triage: they moved to Storico, where they have room and do not
+ * sit between "what expires tomorrow" and "what is open". The dashboard keeps one
+ * line, because a single number is worth seeing every day and a chart is not.
+ */
+function _renderMonthStrip(statsData) {
+    const strip = document.getElementById('month-strip');
+    const text = document.getElementById('month-strip-text');
+    if (!strip || !text) return;
+    const used = Number(statsData && statsData.used_30d || 0);
+    const wasted = Number(statsData && statsData.wasted_30d || 0);
+    if (!used && !wasted) {
+        strip.hidden = true;
+        text.textContent = '';
+        return;
+    }
+    text.textContent = t('dashboard.month_strip', { used, wasted });
+    strip.hidden = false;
+}
+
+/**
  * Stock hub: which of the three lists is on screen (UI audit, blocks 5-7).
  *
  * Three stacked lists of different lengths made the dashboard's height
@@ -8220,6 +8243,9 @@ async function loadDashboard() {
 
         // Spend stats panel
         _renderSpendSection(spendData);
+
+        // One line on the dashboard; the charts live in Storico.
+        _renderMonthStrip(statsData);
 
         // Macronutrient panel (#118)
         _renderMacrosSection(macroData);
@@ -11881,7 +11907,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11891,7 +11917,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261025h">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025h">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025h">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261025i">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261025i">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261025i">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025h">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025h">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261025i">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261025i">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261025h"></script>
-    <script src="assets/js/core/auth.js?v=20261025h"></script>
+    <script src="assets/js/core/dom.js?v=20261025i"></script>
+    <script src="assets/js/core/auth.js?v=20261025i"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261025h"></script>
+    <script src="assets/js/core/support.js?v=20261025i"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025i';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025h';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025i';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261025h"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261025i"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -266,17 +266,14 @@
             </div>
         </section>
 
-        <!-- Anti-Waste Report Card + Nutrition Analysis + Monthly Stats (alternating, content rendered by JS) -->
-        <div id="dashboard-insight-wrap" style="position:relative">
-            <div id="overview-section" style="display:none"></div>
-            <div id="waste-chart-section" style="display:none"></div>
-            <div id="trend-section" style="display:none"></div>
-            <div id="nutrition-section" style="display:none"></div>
-            <div id="freshness-section" style="display:none"></div>
-            <div id="monthly-stats-section" style="display:none"></div>
-            <div id="macros-section" style="display:none"></div>
-            <div id="spend-section" style="display:none"></div>
-        </div>
+        <!-- Analytics live in Storico now (UI audit, block 4): the dashboard is for
+             triage. Only the compact month strip stays here. -->
+        <button type="button" class="month-strip" id="month-strip" onclick="showPage('log')" hidden>
+            <span aria-hidden="true">🌱</span>
+            <span class="month-strip-text" id="month-strip-text"></span>
+            <span class="month-strip-arrow" aria-hidden="true">→</span>
+        </button>
+
 
         <!-- ── Stock hub (UI audit, blocks 5-7) ─────────────────────────────────
              Three stacked lists of the same kind (in scadenza / aperti /
@@ -1054,6 +1051,23 @@
         <div class="page-header">
             <h2 data-i18n="log.title">📋 Storico</h2>
         </div>
+        <details class="insight-block" id="insight-block">
+            <summary data-i18n="log.insights_title">📊 Statistiche</summary>
+<!-- Analytics block (moved here from the dashboard, UI audit block 4):
+             reflection, not triage. Same ids, same renderers — the rotation keeps
+             working, it simply lives where the user goes to look at numbers. -->
+        <div id="dashboard-insight-wrap" style="position:relative">
+            <div id="overview-section" style="display:none"></div>
+            <div id="waste-chart-section" style="display:none"></div>
+            <div id="trend-section" style="display:none"></div>
+            <div id="nutrition-section" style="display:none"></div>
+            <div id="freshness-section" style="display:none"></div>
+            <div id="monthly-stats-section" style="display:none"></div>
+            <div id="macros-section" style="display:none"></div>
+            <div id="spend-section" style="display:none"></div>
+        </div>
+        </details>
+
         <div id="log-list" class="log-list"></div>
         <button class="btn btn-secondary full-width mt-2" id="log-load-more" style="display:none" onclick="loadLog(true)" data-i18n="btn.load_more">
             Carica altri...
@@ -2965,13 +2979,13 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261025h"></script>
-<script src="assets/js/core/vocab.js?v=20261025h"></script>
-<script src="assets/js/app.js?v=20261025h"></script>
-<script src="assets/js/audit.js?v=20261025h"></script>
-<script src="assets/js/receipt.js?v=20261025h"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261025h"></script>
-<script src="assets/js/settings_search.js?v=20261025h"></script>
+<script src="assets/js/vocab.generated.js?v=20261025i"></script>
+<script src="assets/js/core/vocab.js?v=20261025i"></script>
+<script src="assets/js/app.js?v=20261025i"></script>
+<script src="assets/js/audit.js?v=20261025i"></script>
+<script src="assets/js/receipt.js?v=20261025i"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261025i"></script>
+<script src="assets/js/settings_search.js?v=20261025i"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

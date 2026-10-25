@@ -280,7 +280,8 @@
     "tab_expiring": "⏰ 即将过期",
     "tab_opened": "📦 已开封",
     "tab_stale": "🕰️ 被遗忘",
-    "row_actions": "更多操作"
+    "row_actions": "更多操作",
+    "month_strip": "近 30 天：已用 {used} · 丢弃 {wasted}"
   },
   "inventory": {
     "title": "库存",
@@ -979,7 +980,8 @@
     "already_undone": "此操作已经撤销",
     "too_old": "无法撤销超过 24 小时的操作",
     "undo_error": "撤销时出错",
-    "recipe_prefix": "食谱"
+    "recipe_prefix": "食谱",
+    "insights_title": "📊 统计"
   },
   "chat": {
     "title": "Gemini 大厨",
