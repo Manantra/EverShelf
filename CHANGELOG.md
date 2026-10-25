@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.24] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Banners now say **where** the product is
+The anomaly banner asked *“Quantità insolitamente alta: Pasta Fusilli (Barilla) — hai
+250000 g, confermi?”* without saying which shelf to look at — and a product can sit in
+more than one place.
+- `inventory_anomalies` groups the locations too (`GROUP_CONCAT(DISTINCT i.location)`)
+  and returns `locations` (every place it is) plus `location` (the first, for old
+  clients).
+- One helper builds the line — `Dove: 🗄️ Dispensa · 🧊 Frigo` — resolving the keys
+  through the client's location map, so custom locations read with their icon/label and
+  a stale `altro` still lands on dispensa.
+- The line appears on **every** banner entry that points at an inventory row: anomaly
+  (both directions), review, consumption prediction, finished/vanished and the
+  “no expiry” reminder. `dashboard.banner_location` in six locales, styled at the
+  13 px muted level of the row metadata — one more line, not another frame.
+
+Guard test `scripts/test-urgency-hub.php` (64 checks) locks the SQL, the payload
+fields, the three helpers, the five call sites and the key in all six locales.
+
 ## [1.16.23] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### The capture sheet starts listening by itself
