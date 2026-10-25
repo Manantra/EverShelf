@@ -143,6 +143,15 @@ check('the mic button fills with the incoming level',
 check('the level meter is released when listening stops',
     str_contains($app, 'function _captureStopMeter()')
     && substr_count($app, '_captureStopMeter();') >= 4);
+check('opening the sheet starts listening by itself',
+    str_contains($app, "if (Ctor) {\n        _captureStartVoice();")
+    && str_contains($app, 'const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;'));
+check('the recogniser starts inside the gesture, before any await',
+    !str_contains($app, 'await _captureStartMeter()')
+    && str_contains($app, "_captureRec.start();\n        _captureStartMeter();"));
+check('the idle line no longer asks for a tap',
+    !str_contains($html, 'Tocca il microfono e parla'));
+
 check('the transcript is shown while it is still guessing',
     str_contains($app, '_captureRec.interimResults = true;')
     && str_contains($app, 'function _captureShowTranscript('));

@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025t'; // bump when translations change
+const _I18N_VERSION = '20261025u'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8094,6 +8094,16 @@ function _openCaptureSheet() {
     const understood = document.getElementById('capture-understood');
     if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureSyncMicAvailability();
+    // Listening starts by itself: the tap that opened the sheet is the gesture that
+    // allows it, so asking for a second tap was pointless. Without the API (or with the
+    // microphone denied) the text field takes over — and only then it gets focus,
+    // because focusing it under voice would open the keyboard over the sheet.
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (Ctor) {
+        _captureStartVoice();
+    } else if (input) {
+        setTimeout(() => { try { input.focus(); } catch (e) {} }, 80);
+    }
 }
 
 function _closeCaptureSheet() {
@@ -8232,7 +8242,6 @@ async function _captureStartVoice() {
     if (un) un.hidden = true;
     _captureStatus('capture.listening');
     _captureSetState('listening');
-    await _captureStartMeter();
     try {
         _captureRec = new Ctor();
         _captureRec.lang = _collationLocale();
@@ -8264,7 +8273,10 @@ async function _captureStartVoice() {
             _captureStopMeter();
             if (!finalText.trim()) _captureStatus('capture.not_understood');
         };
+        // Started inside the user gesture (the tap that opened the sheet), before any
+        // await: Safari and stricter browsers refuse a recogniser started later.
         _captureRec.start();
+        _captureStartMeter();   // cosmetic, fire-and-forget
     } catch (e) {
         _captureStopMeter();
         _captureStatus('capture.not_understood');
@@ -12423,7 +12435,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025t';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025u';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12433,7 +12445,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025t';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261025u';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

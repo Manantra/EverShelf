@@ -2691,7 +2691,7 @@
     "title": "Cosa vuoi fare?",
     "nav_label": "Ascolta",
     "speak": "Parla",
-    "idle": "Tocca il microfono e parla, oppure scrivi.",
+    "idle": "Parla pure: ti ascolto. Oppure scrivi qui sotto.",
     "listening": "Ti ascolto…",
     "unsupported": "Questo browser non ha il riconoscimento vocale: scrivi qui sotto.",
     "mic_denied": "Microfono non consentito: puoi scrivere qui sotto.",

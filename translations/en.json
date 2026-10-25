@@ -2691,7 +2691,7 @@
     "title": "What do you want to do?",
     "nav_label": "Listen",
     "speak": "Speak",
-    "idle": "Tap the microphone and speak, or type below.",
+    "idle": "Just speak — I'm listening. Or type below.",
     "listening": "Listening…",
     "unsupported": "This browser has no speech recognition: type below.",
     "mic_denied": "Microphone not allowed: you can type below.",

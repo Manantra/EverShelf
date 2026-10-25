@@ -2691,7 +2691,7 @@
     "title": "Was möchtest du tun?",
     "nav_label": "Hören",
     "speak": "Sprechen",
-    "idle": "Tippe auf das Mikrofon und sprich, oder schreibe unten.",
+    "idle": "Sprich einfach – ich höre zu. Oder schreibe unten.",
     "listening": "Ich höre zu…",
     "unsupported": "Dieser Browser kann keine Spracherkennung: schreibe unten.",
     "mic_denied": "Mikrofon nicht erlaubt: du kannst unten schreiben.",

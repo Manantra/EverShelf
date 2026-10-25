@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.23] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### The capture sheet starts listening by itself
+Opening the sheet (a tap on the centre button) now starts the microphone immediately —
+the tap **is** the gesture the browser needs, so asking for a second one was pointless.
+- The recogniser is created and started **synchronously inside that gesture**, before
+  any `await` (Safari and stricter browsers refuse a recogniser started later); the
+  level meter, which is only cosmetic, starts right after and is not awaited.
+- The idle line no longer says “tap the microphone”: it reads “Parla pure: ti ascolto.
+  Oppure scrivi qui sotto.” in the six locales.
+- Where the Web Speech API is missing (or the microphone is denied) the text field
+  takes over and only then receives focus — focusing it during voice would pop the
+  keyboard over the sheet.
+
+Guard test `scripts/test-capture-parse.php` (171 checks) locks the auto-start, the
+start-before-await order and the reworded idle line.
+
 ## [1.16.22] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### The centre button: no label, bigger, alive, and no brand

@@ -2691,7 +2691,7 @@
     "title": "Que veux-tu faire ?",
     "nav_label": "Écouter",
     "speak": "Parler",
-    "idle": "Touche le micro et parle, ou écris ci-dessous.",
+    "idle": "Parle, je t'écoute. Ou écris ci-dessous.",
     "listening": "Je t'écoute…",
     "unsupported": "Ce navigateur n'a pas la reconnaissance vocale : écris ci-dessous.",
     "mic_denied": "Micro non autorisé : tu peux écrire ci-dessous.",

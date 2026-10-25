@@ -2691,7 +2691,7 @@
     "title": "¿Qué quieres hacer?",
     "nav_label": "Escuchar",
     "speak": "Hablar",
-    "idle": "Toca el micrófono y habla, o escribe abajo.",
+    "idle": "Habla tranquilo: te escucho. O escribe abajo.",
     "listening": "Te escucho…",
     "unsupported": "Este navegador no tiene reconocimiento de voz: escribe abajo.",
     "mic_denied": "Micrófono no permitido: puedes escribir abajo.",
