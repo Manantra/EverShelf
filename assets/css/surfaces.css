@@ -698,3 +698,15 @@ body {
     color: #FFFFFF;
     border-color: #EA580C;
 }
+
+/* Header actions on the white header: the old translucent green was designed for the
+   green bar. Neutral chip, emerald when the mode is active. */
+.app-header .header-btn.spesa-on,
+.app-header .header-btn[aria-pressed="true"],
+.app-header .header-btn.is-active {
+    background: var(--brand-surface);
+    color: var(--brand-primary);
+    border-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+}
+.app-header img,
+.app-header .nav-logo-icon { filter: none; }
