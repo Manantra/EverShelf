@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261026c'; // bump when translations change
+const _I18N_VERSION = '20261026d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12139,6 +12139,90 @@ async function _itemDetailConsume() {
     }
 }
 
+// ===== Overlays: Esc closes the top one, Tab stays inside =====================
+//
+// Audit I3/I4: only two ad-hoc Escape handlers existed and nothing kept the keyboard
+// inside a dialog, so Tab walked into the page behind the overlay and Esc closed
+// "something". One pair of handlers now covers every `.modal-overlay`, present and
+// future, without touching the dialogs themselves.
+let _lastFocusedOutside = null;
+
+// Remember where the focus was before a dialog took it, so closing can restore it.
+document.addEventListener('focusin', (ev) => {
+    const t = ev.target;
+    if (!t || typeof t.closest !== 'function') return;
+    if (!t.closest('.modal-overlay')) _lastFocusedOutside = t;
+}, true);
+
+/** Visible overlays, in DOM order: the last one is the one on top. */
+function _visibleOverlays() {
+    return Array.from(document.querySelectorAll('.modal-overlay'))
+        // getClientRects, not offsetParent: an overlay is position:fixed and its
+        // offsetParent is always null, even when it is right there on screen.
+        .filter(el => el && el.style.display !== 'none' && !el.hidden && el.getClientRects().length > 0);
+}
+
+function _topOverlay() {
+    const list = _visibleOverlays();
+    return list.length ? list[list.length - 1] : null;
+}
+
+/** How each overlay wants to be closed (state has to be cleaned, not just hidden). */
+const _OVERLAY_CLOSERS = {
+    'modal-overlay': () => closeModal(),
+    'capture-sheet': () => _closeCaptureSheet(),
+    'shelfy-intro':  () => _shelfyCloseIntro(),
+    'support-modal': () => closeSupportModal(),
+    'recipe-overlay': () => closeRecipeDialog(),
+};
+
+/** Focusable children of a dialog, in tab order. */
+function _overlayFocusables(root) {
+    if (!root) return [];
+    return Array.from(root.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+        'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(el => el.getClientRects().length > 0 || el === document.activeElement);
+}
+
+/**
+ * Close the dialog on top. The first-run setup wizard is deliberately skipped: it is a
+ * guided flow, and Esc must not leave the instance half-configured.
+ */
+function _closeTopOverlay() {
+    const top = _topOverlay();
+    if (!top || top.id === 'setup-wizard') return false;
+    const closer = _OVERLAY_CLOSERS[top.id];
+    if (closer) {
+        try { closer(); } catch (e) { top.style.display = 'none'; }
+    } else if (top.getAttribute('onclick')) {
+        try { top.click(); } catch (e) { top.style.display = 'none'; }
+    }
+    if (top.style.display !== 'none' && !top.hidden) top.style.display = 'none';
+    if (_lastFocusedOutside && document.contains(_lastFocusedOutside)) {
+        try { _lastFocusedOutside.focus({ preventScroll: true }); } catch (e) { /* gone */ }
+    }
+    return true;
+}
+
+document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' || ev.key === 'Esc') {
+        if (_closeTopOverlay()) ev.preventDefault();
+        return;
+    }
+    if (ev.key !== 'Tab') return;
+    const top = _topOverlay();
+    if (!top) return;
+    const f = _overlayFocusables(top);
+    if (!f.length) return;
+    const first = f[0];
+    const last = f[f.length - 1];
+    const active = document.activeElement;
+    if (!top.contains(active)) { ev.preventDefault(); first.focus(); return; }
+    if (ev.shiftKey && active === first) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && active === last) { ev.preventDefault(); first.focus(); }
+}, true);
+
 function closeModal() {
     // Spesa spend prompt: only start/resume the camera AFTER the popup is gone
     // (starting under the dialog race-starts barcode decode and causes chaos).
@@ -12985,7 +13069,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12995,7 +13079,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261026c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261026d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

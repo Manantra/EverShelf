@@ -72,6 +72,36 @@ check('the offline banner tooltip says when the server last answered',
     str_contains($app, "t('error.offline_last_sync', { time: when })")
     && str_contains($app, '_lastServerOkTs = Date.now();'));
 
+// ---------------------------------------------- Esc + focus trap on every overlay
+// Audit I3/I4: one pair of handlers for all `.modal-overlay`, present and future.
+check('Esc closes the dialog on top',
+    str_contains($app, 'function _closeTopOverlay()')
+    && str_contains($app, "if (ev.key === 'Escape' || ev.key === 'Esc') {")
+    && str_contains($app, 'if (_closeTopOverlay()) ev.preventDefault();'));
+check('the setup wizard is never dismissed by Esc',
+    str_contains($app, "if (!top || top.id === 'setup-wizard') return false;"));
+check('each overlay closes through its own state-cleaning closer',
+    str_contains($app, "'capture-sheet': () => _closeCaptureSheet(),")
+    && str_contains($app, "'modal-overlay': () => closeModal(),")
+    && str_contains($app, "'support-modal': () => closeSupportModal(),")
+    && str_contains($app, "'recipe-overlay': () => closeRecipeDialog(),"));
+check('Tab cannot leave the dialog',
+    str_contains($app, 'function _overlayFocusables(root)')
+    && str_contains($app, "if (!top.contains(active)) { ev.preventDefault(); first.focus(); return; }")
+    && str_contains($app, "if (ev.shiftKey && active === first) { ev.preventDefault(); last.focus(); }"));
+check('closing returns the focus where it was',
+    str_contains($app, 'let _lastFocusedOutside = null;')
+    && str_contains($app, '_lastFocusedOutside.focus({ preventScroll: true })'));
+check('a fixed overlay is detected by geometry, not by offsetParent',
+    str_contains($app, 'el.getClientRects().length > 0')
+    && !str_contains($app, 'el.offsetParent !== null);
+}'));
+$overlay = $xp->query("//*[@id='modal-overlay']")->item(0);
+check('#modal-overlay is announced as a dialog',
+    $overlay instanceof DOMElement
+    && $overlay->getAttribute('role') === 'dialog'
+    && $overlay->getAttribute('aria-modal') === 'true');
+
 // --------------------------------------------------------------------- motion
 check('reduced-motion users are respected', str_contains($css, '@media (prefers-reduced-motion: reduce)'));
 

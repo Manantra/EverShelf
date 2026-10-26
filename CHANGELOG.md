@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.35] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Added
+- **Esc closes the dialog on top, and Tab stays inside it** (audit I3 + I4, the last two
+  open accessibility items). One `keydown` handler covers every `.modal-overlay` — present
+  and future — instead of the two ad-hoc Escape handlers that used to exist: the top
+  dialog is closed through its own state-cleaning closer
+  (`_OVERLAY_CLOSERS`: `closeModal`, `_closeCaptureSheet`, `_shelfyCloseIntro`,
+  `closeSupportModal`, `closeRecipeDialog`), the focus returns to the element that opened
+  it (`_lastFocusedOutside`), and `Tab` / `Shift+Tab` cycle inside the dialog instead of
+  walking into the page behind it. The first-run setup wizard is deliberately **not**
+  dismissible with Esc: it is a guided flow, not a notice.
+- `#modal-overlay` is announced as a dialog (`role="dialog" aria-modal="true"`), like the
+  wizard, the support modal and SHELFY's sheet already were.
+- Visibility is decided by `getClientRects()`, not `offsetParent`: a `position: fixed`
+  overlay has no offset parent even when it is right there on screen.
+
 ## [1.16.34] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed
