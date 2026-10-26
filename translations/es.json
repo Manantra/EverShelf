@@ -2728,15 +2728,6 @@
     "examples_intro": "Habla o escribe como te salga: cantidades, medias, gramos, «lo he terminado todo».",
     "examples_confirm": "Nada se aplica sin confirmación: primero ves lo que he entendido.",
     "what_can_i_say": "¿Qué puedo decir?",
-    "feedback_on": "Voz activada",
-    "feedback_off": "Voz desactivada",
-    "voice_ready": "Voz activada.",
-    "voice_use": "Has usado {qty} {unit} de {name}. ¿Confirmas?",
-    "voice_all": "Has terminado {name}. ¿Confirmas?",
-    "voice_add": "Añado {name} a la despensa.",
-    "voice_throw": "Abro {name} para tirarlo.",
-    "voice_recipe": "Busco una receta.",
-    "voice_unknown": "No lo he entendido. Inténtalo otra vez o escribe la frase.",
     "still_listening": "SHELFY sigue escuchando…",
     "use_all_hint": "Entendido: {name} está terminado. Confirma con «Lo he usado todo».",
     "qty_hint": "{qty} {unit} de {name}: confirma en la ficha."
@@ -2755,9 +2746,6 @@
     "intro_start": "Empecemos",
     "intro_reopen": "¿Qué es SHELFY?",
     "pick_title": "¿Cuál querías?",
-    "pick_auto": "Si no eliges, tomo {name}",
-    "auto_confirm_use": "{qty} {unit} de {name}: confirmo en 10 segundos si no tocas",
-    "auto_confirm_use_all": "Has terminado {name}: confirmo en 10 segundos si no tocas",
-    "auto_confirm_add": "Añado {name}: confirmo en 10 segundos si no tocas"
+    "pick_auto": "Si no eliges, tomo {name}"
   }
 }

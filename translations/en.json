@@ -2728,15 +2728,6 @@
     "examples_intro": "Speak or type naturally: amounts, halves, grams, “I finished it all”.",
     "examples_confirm": "Nothing is applied without a confirmation: you see what I understood first.",
     "what_can_i_say": "What can I say?",
-    "feedback_on": "Voice on",
-    "feedback_off": "Voice off",
-    "voice_ready": "Voice on.",
-    "voice_use": "You used {qty} {unit} of {name}. Confirm?",
-    "voice_all": "You finished {name}. Confirm?",
-    "voice_add": "Adding {name} to the pantry.",
-    "voice_throw": "Opening {name} to discard it.",
-    "voice_recipe": "Looking for a recipe.",
-    "voice_unknown": "I did not understand. Try again or type the sentence.",
     "still_listening": "SHELFY is still listening…",
     "use_all_hint": "Understood: {name} is finished. Confirm with “I used it all”.",
     "qty_hint": "{qty} {unit} of {name}: confirm in the sheet."
@@ -2755,9 +2746,6 @@
     "intro_start": "Let's start",
     "intro_reopen": "What is SHELFY?",
     "pick_title": "Which one did you mean?",
-    "pick_auto": "If you don't choose, I take {name}",
-    "auto_confirm_use": "{qty} {unit} of {name}: confirming in 10 seconds unless you touch",
-    "auto_confirm_use_all": "You finished {name}: confirming in 10 seconds unless you touch",
-    "auto_confirm_add": "Adding {name}: confirming in 10 seconds unless you touch"
+    "pick_auto": "If you don't choose, I take {name}"
   }
 }

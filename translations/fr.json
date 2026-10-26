@@ -2728,15 +2728,6 @@
     "examples_intro": "Parle ou écris naturellement : quantités, moitiés, grammes, « j'ai tout fini ».",
     "examples_confirm": "Rien n'est appliqué sans confirmation : tu vois d'abord ce que j'ai compris.",
     "what_can_i_say": "Que puis-je dire ?",
-    "feedback_on": "Voix activée",
-    "feedback_off": "Voix désactivée",
-    "voice_ready": "Voix activée.",
-    "voice_use": "Tu as utilisé {qty} {unit} de {name}. Tu confirmes ?",
-    "voice_all": "Tu as fini {name}. Tu confirmes ?",
-    "voice_add": "J'ajoute {name} au garde-manger.",
-    "voice_throw": "J'ouvre {name} pour le jeter.",
-    "voice_recipe": "Je cherche une recette.",
-    "voice_unknown": "Je n'ai pas compris. Réessaie ou écris la phrase.",
     "still_listening": "SHELFY t'écoute encore…",
     "use_all_hint": "Compris : {name} est fini. Confirme avec « J'ai tout utilisé ».",
     "qty_hint": "{qty} {unit} de {name} : confirme dans la fiche."
@@ -2755,9 +2746,6 @@
     "intro_start": "C'est parti",
     "intro_reopen": "C'est quoi SHELFY ?",
     "pick_title": "Lequel voulais-tu ?",
-    "pick_auto": "Si tu ne choisis pas, je prends {name}",
-    "auto_confirm_use": "{qty} {unit} de {name} : je confirme dans 10 secondes si tu ne touches pas",
-    "auto_confirm_use_all": "Tu as fini {name} : je confirme dans 10 secondes si tu ne touches pas",
-    "auto_confirm_add": "J'ajoute {name} : je confirme dans 10 secondes si tu ne touches pas"
+    "pick_auto": "Si tu ne choisis pas, je prends {name}"
   }
 }

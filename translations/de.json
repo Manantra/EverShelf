@@ -2728,15 +2728,6 @@
     "examples_intro": "Sprich oder schreibe einfach: Mengen, Hälften, Gramm, „alles aufgebraucht“.",
     "examples_confirm": "Nichts wird ohne Bestätigung ausgeführt: du siehst zuerst, was ich verstanden habe.",
     "what_can_i_say": "Was kann ich sagen?",
-    "feedback_on": "Stimme an",
-    "feedback_off": "Stimme aus",
-    "voice_ready": "Stimme an.",
-    "voice_use": "Du hast {qty} {unit} {name} verbraucht. Bestätigen?",
-    "voice_all": "Du hast {name} aufgebraucht. Bestätigen?",
-    "voice_add": "Ich füge {name} zum Vorrat hinzu.",
-    "voice_throw": "Ich öffne {name} zum Wegwerfen.",
-    "voice_recipe": "Ich suche ein Rezept.",
-    "voice_unknown": "Das habe ich nicht verstanden. Versuche es erneut oder tippe den Satz.",
     "still_listening": "SHELFY hört noch zu…",
     "use_all_hint": "Verstanden: {name} ist aufgebraucht. Bestätige mit „Alles verbraucht“.",
     "qty_hint": "{qty} {unit} {name}: in der Karte bestätigen."
@@ -2755,9 +2746,6 @@
     "intro_start": "Los geht’s",
     "intro_reopen": "Was ist SHELFY?",
     "pick_title": "Welches meinst du?",
-    "pick_auto": "Wenn du nichts wählst, nehme ich {name}",
-    "auto_confirm_use": "{qty} {unit} {name}: Bestätigung in 10 Sekunden, wenn du nichts berührst",
-    "auto_confirm_use_all": "{name} ist aufgebraucht: Bestätigung in 10 Sekunden, wenn du nichts berührst",
-    "auto_confirm_add": "Ich füge {name} hinzu: Bestätigung in 10 Sekunden, wenn du nichts berührst"
+    "pick_auto": "Wenn du nichts wählst, nehme ich {name}"
   }
 }

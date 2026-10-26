@@ -160,9 +160,9 @@ check('a dictated quantity reaches the USE panel',
     str_contains($app, 'function _captureQtyFor(')
     && str_contains($app, 'async function _shelfyRunConsume(')
     && str_contains($app, "const qtyEl = document.getElementById('use-quantity');"));
-check('"ho finito" arms "use it all" on the USE panel',
-    str_contains($app, "document.querySelector('#page-use .use-all-btn')")
-    && str_contains($app, '() => submitUseAll()'));
+check('"ho finito" opens the USE panel, where the tap confirms',
+    str_contains($app, "t('capture.use_all_hint'")
+    && !str_contains($app, "document.querySelector('#page-use .use-all-btn')"));
 
 // ── Round 8: SHELFY, the named assistant ────────────────────────────────────
 check('the assistant has a name', str_contains($html, 'data-i18n="capture.title">SHELFY')
@@ -172,18 +172,31 @@ check('it introduces itself once per device',
     && str_contains($app, "localStorage.getItem(SHELFY_INTRO_KEY)")
     && str_contains($app, 'if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }')
     && str_contains($html, 'id="shelfy-help-btn"'));
-check('the confirm drains for ten seconds',
-    str_contains($app, "_shelfyArmButton(document.getElementById('btn-use-submit'), 10000")
-    && str_contains($app, "_shelfyArmButton(document.getElementById('btn-add-submit'), 10000")
+check('the agent never confirms by itself: USE and ADD wait for a tap',
+    !str_contains($app, "_shelfyArmButton(document.getElementById('btn-use-submit')")
+    && !str_contains($app, "_shelfyArmButton(document.getElementById('btn-add-submit')")
+    && !str_contains($app, "document.querySelector('#page-use .use-all-btn')")
+    && str_contains($app, 'function _shelfyArmButton(')
     && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), 'animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;'));
 check('any touch stops it',
     str_contains($app, "document.addEventListener('pointerdown', stop, true)")
     && str_contains($app, "document.addEventListener('keydown', stop, true)")
     && str_contains($app, 'function _shelfyDisarm('));
-check('four candidates, and the closest wins after 15 seconds',
+check('four candidates, and the closest wins after ten seconds',
     str_contains($app, '.slice(0, 4);')
-    && str_contains($app, '_shelfyArmButton(best, 15000')
+    && str_contains($app, '_shelfyArmButton(best, 10000')
     && str_contains($app, "t('shelfy.pick_auto'"));
+check('a derived article is not a confident match',
+    str_contains($app, 'POSITION MATTERS')
+    && str_contains($app, "if (_captureWordRe(b, 'i').test(a)) return 0.55;")
+    && str_contains($app, 'const confident = !!best && best.score >= 0.85;')
+    && str_contains($app, 'const uncertain = !!best && rows.length > 1 && (best.score - rows[1].score) < 0.08;'));
+check('eaten and drunk are consumption too',
+    str_contains($app, "'mangiato', 'mangiata'")
+    && str_contains($app, "'bevuto', 'bevuta'")
+    && str_contains($app, "'drunk', 'drank'")
+    && str_contains($app, "'getrunken'")
+    && str_contains($app, "'bebido'"));
 check('the candidates show picture, name, brand, place',
     str_contains($app, 'class="shelfy-pick')
     && str_contains($app, '_validProductImageUrl(item.image_url)')
@@ -216,10 +229,9 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
         str_contains((string)($doc['capture']['title'] ?? ''), 'SHELFY')
         && str_contains((string)($doc['capture']['idle'] ?? ''), 'SHELFY')
         && str_contains((string)($doc['capture']['not_understood'] ?? ''), 'SHELFY'));
-    check("translations/{$loc}.json has the presentation and the countdown copy",
-        isset($doc['shelfy']['intro_title'], $doc['shelfy']['intro_start'], $doc['shelfy']['pick_auto'], $doc['shelfy']['auto_confirm_use'])
-        && str_contains((string)$doc['shelfy']['pick_auto'], '{name}')
-        && str_contains((string)$doc['shelfy']['auto_confirm_use'], '{qty}'));
+    check("translations/{$loc}.json has the presentation and the pick copy",
+        isset($doc['shelfy']['intro_title'], $doc['shelfy']['intro_start'], $doc['shelfy']['pick_auto'])
+        && str_contains((string)$doc['shelfy']['pick_auto'], '{name}'));
 }
 
 // ── Round 9: ONE utterance per tap (the restart loop beeped and ate the sentence) ──
@@ -271,13 +283,14 @@ check('an interim transcript counts when the browser never finalises',
 check('opening the sheet does not open the soft keyboard',
     str_contains($app, 'input.blur();')
     && !preg_match('/function _openCaptureSheet\(\)[\s\S]{0,1200}input\.focus\(\)/', $app));
-check('voice feedback is spoken only for dictated sentences',
-    str_contains($app, 'function _captureSpeak(')
-    && str_contains($app, '_captureSubmit(said, { voice: true })')
-    && str_contains($app, 'if (fromVoice) _captureSpeak(_captureVoiceSay(parsed));'));
-check('the speaker toggle is remembered per device',
-    str_contains($app, "localStorage.setItem('evershelf_capture_voice'")
-    && str_contains($html, 'id="capture-voice-toggle"'));
+check('the agent has no voice of its own any more',
+    !str_contains($app, '_captureSpeak')
+    && !str_contains($app, '_captureVoiceSay')
+    && !str_contains($html, 'capture-voice-toggle')
+    && !str_contains($html, 'capture-voice-toggle'));
+check('the recipes keep their voice',
+    str_contains($app, 'function _speakBrowser(')
+    && str_contains($app, 'function speakCookingStep('));
 check('"Cosa posso dire" lists the whole lexicon',
     str_contains($html, 'id="capture-examples-btn"')
     && str_contains($app, 'function _captureRenderExamples(')
@@ -303,9 +316,9 @@ check('the ring is hidden with the button and still without motion',
     && preg_match('/prefers-reduced-motion: reduce\) \{\s*\.capture-mic-wrap::before \{ animation: none;/s', $css) === 1);
 
 // ── Round 6: the capture speaks with the SAME voice as the cooking steps ─────
-check('the capture uses the app voice, not a second engine',
-    str_contains($app, '_speakBrowser(String(text), { lang: _collationLocale() })')
-    && !preg_match('/function _captureSpeak\([\s\S]{0,700}new SpeechSynthesisUtterance/', $app));
+check('the capture never speaks (the recipes do)',
+    !str_contains($app, '_captureSpeak')
+    && str_contains($app, 'function _speakBrowser('));
 check('the voice is chosen for the interface language (no hardcoded Italian)',
     str_contains($app, 'function _pickTtsVoice(') && !str_contains($app, "startsWith('it')"));
 check('closing the sheet does not cut the spoken confirmation',
@@ -400,7 +413,7 @@ check('the lexicon covers all six UI languages',
 $score = extract_fn($app, '_captureScoreName');
 check('_captureScoreName() is extractable', $score !== '');
 if ($score !== '') {
-    $jsScore = $score . <<<'JS'
+    $jsScore = $lexicon . $score . <<<'JS'
 console.log(JSON.stringify([
     _captureScoreName('arancia', 'Arancia'),
     _captureScoreName('arancia', 'Arance'),

@@ -1414,3 +1414,60 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .shelfy-armed::after { animation: none; opacity: 0.35; }
 }
+
+/* ── SHELFY's presentation has a face ──────────────────────────────────────
+   It was a wall of text: no image, no movement, nothing that says "hello". The
+   avatar floats, the hand waves and a ring breathes behind them — soft, 3 s, and
+   still with prefers-reduced-motion. */
+.shelfy-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    margin: 2px 0 6px;
+}
+.shelfy-hero-ring {
+    position: absolute;
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--brand-primary) 30%, transparent);
+    animation: shelfy-ring 3.2s ease-out infinite;
+}
+.shelfy-hero-avatar {
+    font-size: 3.4rem;
+    line-height: 1;
+    animation: shelfy-float 3.6s ease-in-out infinite;
+    filter: drop-shadow(0 6px 10px color-mix(in srgb, var(--brand-primary) 25%, transparent));
+}
+.shelfy-hero-wave {
+    position: absolute;
+    right: calc(50% - 62px);
+    top: 22px;
+    font-size: 1.9rem;
+    transform-origin: 70% 80%;
+    animation: shelfy-wave 2.2s ease-in-out infinite;
+}
+@keyframes shelfy-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+@keyframes shelfy-wave {
+    0%, 60%, 100% { transform: rotate(0deg); }
+    10%           { transform: rotate(18deg); }
+    20%           { transform: rotate(-8deg); }
+    30%           { transform: rotate(16deg); }
+    40%           { transform: rotate(-6deg); }
+    50%           { transform: rotate(10deg); }
+}
+@keyframes shelfy-ring {
+    0%   { transform: scale(0.82); opacity: 0.55; }
+    70%  { transform: scale(1.18); opacity: 0; }
+    100% { transform: scale(1.18); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .shelfy-hero-ring,
+    .shelfy-hero-avatar,
+    .shelfy-hero-wave { animation: none; }
+}

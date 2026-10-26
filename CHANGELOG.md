@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.37] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **SHELFY has no voice of its own and never confirms by itself.** The spoken read-back,
+  the speaker toggle and the 10-second auto-confirm on the USE / ADD buttons are gone: the
+  agent opens the panel with the quantity already set and **the tap is the confirmation**.
+  The recipes keep their voice — that is a different feature and it stays untouched.
+- **“Ho usato un’arancia” no longer opens the orange juice.** The matcher scored any name
+  *containing* the word at 0.78, enough to pass as a confident match; now **position
+  decides**: the word (or its plural) leading the name is the product (0.9+), a word buried
+  in a longer name is a derived article (0.55, below the threshold, so SHELFY asks). Four
+  candidates, the closest draining for **10 seconds** and taken if nothing is touched; a tie
+  (within 0.08) asks too. When only a derived article exists, it proposes adding what was
+  actually said instead of opening the juice.
+- **Eaten and drunk are consumption too**: mangiato/mangiata/mangiati/mangiate,
+  bevuto/bevuta/bevuti/bevute, assaggiato, drunk/drank/tasted, getrunken, bu/bue/bues,
+  goûté, bebido/bebida/probado, 喝/吃完 — in the six languages the parser already reads.
+- **The presentation has a face**: an avatar that floats, a hand that waves and a breathing
+  ring (still with `prefers-reduced-motion`) instead of a wall of text.
+
 ## [1.16.36] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed

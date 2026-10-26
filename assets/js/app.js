@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261026e'; // bump when translations change
+const _I18N_VERSION = '20261026f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8146,7 +8146,6 @@ function _openCaptureSheet() {
     const understood = document.getElementById('capture-understood');
     if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureSyncMicAvailability();
-    _captureSyncVoiceToggle();
     // Listening starts by itself: the tap that opened the sheet is the gesture that
     // allows it, so asking for a second tap was pointless. Without the API (or with the
     // microphone denied) the text field takes over — and only then it gets focus,
@@ -8326,7 +8325,7 @@ function _captureShowChoices(rows) {
         + `<p class="shelfy-pick-note">${escapeHtml(t('shelfy.pick_auto', { name: top[0].item.name }))}</p>`;
     el.hidden = false;
     const best = el.querySelector('.shelfy-pick');
-    _shelfyArmButton(best, 15000, () => _captureChoose(top[0].index));
+    _shelfyArmButton(best, 10000, () => _captureChoose(top[0].index));
 }
 
 /**
@@ -8341,65 +8340,6 @@ function _captureShowChoices(rows) {
 let _captureVoice = { active: false, text: '' };
 /** The level meter is started lazily (see _captureStartVoice). */
 let _captureMeterStarted = false;
-
-/** Audio feedback (TTS) is on unless the user turned it off in the sheet. */
-function _captureVoiceEnabled() {
-    try { return localStorage.getItem('evershelf_capture_voice') !== '0'; } catch (e) { return true; }
-}
-
-/** Speaker toggle in the capture sheet: same localStorage flag, per device. */
-function _captureToggleVoice() {
-    const on = !_captureVoiceEnabled();
-    try { localStorage.setItem('evershelf_capture_voice', on ? '1' : '0'); } catch (e) { /* private mode */ }
-    const btn = document.getElementById('capture-voice-toggle');
-    if (btn) {
-        btn.textContent = on ? '🔊' : '🔇';
-        btn.title = t(on ? 'capture.feedback_on' : 'capture.feedback_off');
-        btn.setAttribute('aria-label', btn.title);
-    }
-    if (on) {
-        _captureSpeak(t('capture.voice_ready'));
-    } else {
-        try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* no TTS */ }
-    }
-    showToast(t(on ? 'capture.feedback_on' : 'capture.feedback_off'), 'info', 1800);
-}
-
-/**
- * Speak one sentence with the app voice — the same one the cooking steps use
- * (`_speakBrowser`), so the capture never sounds like a second assistant. Local only:
- * no cloud TTS endpoint is involved, whatever Settings says about the recipes engine.
- */
-function _captureSpeak(text) {
-    if (!text || !_captureVoiceEnabled()) return;
-    try {
-        _speakBrowser(String(text), { lang: _collationLocale() });
-    } catch (e) { /* no TTS: the text on screen says the same */ }
-}
-
-/** Stop listening and clear every timer of the session. */
-function _captureVoiceStop() {
-    _captureVoice.active = false;
-    _captureVoice.text = '';
-    try {
-        if (_captureRec) { _captureRec.onend = null; _captureRec.onerror = null; _captureRec.stop(); }
-    } catch (e) { /* already stopped */ }
-    _captureRec = null;
-    _captureStopMeter();
-    // The spoken confirmation belongs to the app, not to the session: closing the sheet
-    // right after "Hai usato 1 mela. Confermi?" must not cut the sentence.
-}
-
-/** The speaker button says what it will do (and survives a reload). */
-function _captureSyncVoiceToggle() {
-    const btn = document.getElementById('capture-voice-toggle');
-    if (!btn) return;
-    const on = _captureVoiceEnabled();
-    btn.textContent = on ? '🔊' : '🔇';
-    btn.title = t(on ? 'capture.feedback_on' : 'capture.feedback_off');
-    btn.setAttribute('aria-label', btn.title);
-    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-}
 
 /**
  * "Cosa posso dire": the sheet's own manual.
@@ -8529,8 +8469,9 @@ async function _shelfyRunConsume(row, parsed) {
     _closeCaptureSheet();
     await _openUsePage(item.product_id, item.location);
     if (useAll) {
-        showToast(t('shelfy.auto_confirm_use_all', { name: item.name }), 'info', 6000);
-        _shelfyArmButton(document.querySelector('#page-use .use-all-btn'), 10000, () => submitUseAll());
+        // Nothing is applied by the sentence: "Ho consumato tutto" is one tap away and the
+        // tap is the user's. (The agent no longer confirms on its own.)
+        showToast(t('capture.use_all_hint', { name: item.name }), 'info', 6000);
         return;
     }
     const qtyEl = document.getElementById('use-quantity');
@@ -8539,8 +8480,7 @@ async function _shelfyRunConsume(row, parsed) {
         qtyEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
     const unit = item.unit || '';
-    showToast(t('shelfy.auto_confirm_use', { qty: qty > 0 ? qty : '1', unit, name: item.name }), 'info', 6000);
-    _shelfyArmButton(document.getElementById('btn-use-submit'), 10000, () => submitUse({ preventDefault() {} }));
+    showToast(t('capture.qty_hint', { qty: qty > 0 ? qty : '1', unit, name: item.name }), 'info', 6000);
 }
 
 /**
@@ -8602,8 +8542,7 @@ async function _shelfyOpenAdd(parsed) {
         const known = Array.from(unitEl.options || []).some(o => o.value === unit);
         if (known) { unitEl.value = unit; try { onAddUnitChange(); } catch (e) { /* older build */ } }
     }
-    showToast(t('shelfy.auto_confirm_add', { name: best.item.name }), 'info', 6000);
-    _shelfyArmButton(document.getElementById('btn-add-submit'), 10000, () => submitAdd({ preventDefault() {} }));
+    showToast(t('capture.add_hint', { name: best.item.name }), 'info', 6000);
 }
 
 /**
@@ -8717,21 +8656,6 @@ async function _captureStartVoice() {
     }
 }
 
-/**
- * The sentence the voice says back: what it understood, asked as a confirmation.
- * Silent when the user typed instead of speaking.
- */
-function _captureVoiceSay(parsed, productName) {
-    const name = productName || parsed.product || '';
-    const qty = parsed.qty > 0 ? String(Math.round(parsed.qty * 100) / 100) : '';
-    const unit = parsed.unit || '';
-    if (parsed.intent === 'add') return t('capture.voice_add', { name });
-    if (parsed.intent === 'throw') return t('capture.voice_throw', { name });
-    if (parsed.intent === 'recipe') return t('capture.voice_recipe');
-    if (parsed.use_all) return t('capture.voice_all', { name });
-    return t('capture.voice_use', { qty: qty || '1', unit, name });
-}
-
 // ===== CAPTURE: the internal, offline "model" =====
 // A lexicon, not a neural network: the six UI languages are scanned together, so an
 // Italian sentence works on an English UI (and vice versa), nothing leaves the
@@ -8739,7 +8663,14 @@ function _captureVoiceSay(parsed, productName) {
 const _CAPTURE_INTENT_WORDS = {
     recipe: ['cosa cucino', 'che cosa', 'cosa posso', 'cucino', 'ricetta', 'recipe', 'rezept', 'recette', 'receta', '食谱', '用什么做'],
     throw: ['butta', 'buttato', 'buttare', 'gettato', 'getta', 'throw away', 'throw', 'wegwerfen', 'weggeworfen', 'jeter', 'jeté', 'jette', 'tirar', 'tirado', 'tira', '扔掉', '丢'],
-    consume: ['ho usato', 'usato', 'consumato', 'mangiato', 'finito', 'consum', 'used up', 'used', 'eaten', 'ate', 'verwendet', 'verbraucht', 'aufgebraucht', 'gegessen', 'benutzt', 'utilisé', 'utilise', 'utiliser', 'utilisée', 'consommé', 'consomme', 'mangé', 'mange', 'usado', 'consumido', 'comido', '用了', '吃了', '用完'],
+    // Consumption is not only "used": eaten, drunk and tasted are the same action on a
+    // different kind of food, and people say whichever fits the shelf.
+    consume: ['ho usato', 'usato', 'consumato', 'mangiato', 'mangiata', 'mangiati', 'mangiate', 'bevuto', 'bevuta', 'bevuti', 'bevute', 'assaggiato',
+        'finito', 'finita', 'consum', 'used up', 'used', 'eaten', 'ate', 'drunk', 'drank', 'tasted',
+        'verwendet', 'verbraucht', 'aufgebraucht', 'gegessen', 'getrunken', 'benutzt', 'probiert',
+        'utilisé', 'utilise', 'utiliser', 'utilisée', 'consommé', 'consomme', 'mangé', 'mange', 'bu', 'bue', 'bues', 'goûté',
+        'usado', 'consumido', 'comido', 'comida', 'bebido', 'bebida', 'probado',
+        '用了', '吃了', '喝完', '喝完', '喝', '吃', '用完'],
     add: ['aggiungi', 'aggiungere', 'metti in', 'compra', 'add', 'buy', 'hinzuf', 'kaufen', 'ajout', 'ajouter', 'achet', 'a[ñn]ad', '添加', '买'],
 };
 const _CAPTURE_NUMBER_WORDS = {
@@ -8885,23 +8816,40 @@ let _captureChoicesCache = [];
 /** Last parsed sentence: the choice buttons reuse its quantity and "use it all". */
 let _capturePending = { qty: 0, unit: '', use_all: false, intent: '', product: '' };
 
-/** 0..1 similarity between a spoken product and a pantry name. */
+/**
+ * 0..1 similarity between a spoken product and a pantry name.
+ *
+ * POSITION MATTERS. "Ho usato un'arancia" used to open "Succo di frutta arancia rossa",
+ * because any name containing the word scored 0.78 — enough to look like a confident
+ * match. The fruit and a juice made of it are two different articles: when the spoken
+ * word is NOT the head of the name, the candidate stays in the list but below the
+ * confident threshold, so SHELFY asks which one instead of guessing.
+ */
 function _captureScoreName(needle, name) {
     const a = String(name || '').toLowerCase().trim();
     const b = String(needle || '').toLowerCase().trim();
     if (!a || !b) return 0;
     if (a === b) return 1;
-    if (a.startsWith(b)) return 0.9;
-    if (a.includes(b)) return 0.78;
-    // A plural/singular pair ("arance" / "arancia") shares the stem: compare all but
-    // the last character, so speech does not need the exact dictionary form.
-    const shortLen = Math.min(a.length, b.length);
-    if (shortLen >= 4 && a.slice(0, shortLen - 1) === b.slice(0, shortLen - 1)) return 0.7;
-    const at = new Set(a.split(/\s+/));
-    const bt = new Set(b.split(/\s+/));
+    const aWords = a.split(/\s+/);
+    const bWords = b.split(/\s+/);
+    const head = aWords[0] || '';
+    const headOfNeedle = bWords[0] || '';
+    // The spoken word (or its plural/singular twin) opens the name: that IS the product.
+    const stem = (x, y) => {
+        const n = Math.min(x.length, y.length);
+        return n >= 4 && x.slice(0, n - 1) === y.slice(0, n - 1);
+    };
+    if (head === headOfNeedle || stem(head, headOfNeedle)) return 0.92;
+    if (a.startsWith(b + ' ') || a === b) return 0.9;
+    // The word sits inside a longer name: a derived article (juice, passata, jam).
+    if (_captureWordRe(b, 'i').test(a)) return 0.55;
+    // Same stem anywhere: still a derived article.
+    if (stem(a, b)) return 0.5;
+    const at = new Set(aWords);
+    const bt = new Set(bWords);
     let shared = 0;
     for (const token of bt) if (at.has(token)) shared++;
-    return (shared / Math.max(at.size, bt.size)) * 0.7;
+    return (shared / Math.max(at.size, bt.size)) * 0.6;
 }
 
 /** Pantry rows matching a spoken name, best first (rows with stock only). */
@@ -8970,7 +8918,6 @@ function _captureChoose(index) {
 async function _captureSubmit(raw, opts) {
     const text = String(raw || '').trim();
     if (!text) { _captureStatus('capture.idle'); return; }
-    const fromVoice = !!(opts && opts.voice);
     const parsed = _captureParse(text);
     _capturePending = parsed;
     _captureShowTranscript(text, true);
@@ -8979,12 +8926,8 @@ async function _captureSubmit(raw, opts) {
 
     if (!parsed.intent && !parsed.product) {
         _captureStatus('capture.not_understood');
-        if (fromVoice) _captureSpeak(t('capture.voice_unknown'));
         return;                       // keep the sheet open: the user can retype
     }
-    // Spoken input gets a spoken answer: "hai usato 1 mela, confermi?" — a dictation
-    // nobody reads back is a dictation nobody trusts.
-    if (fromVoice) _captureSpeak(_captureVoiceSay(parsed));
 
     const go = (fn) => setTimeout(() => { _closeCaptureSheet(); fn(); }, 650);
 
@@ -9016,22 +8959,32 @@ async function _captureSubmit(raw, opts) {
         return;
     }
 
-    if (best && best.score >= 0.75) {
-        // "Ho usato 1 arancia" / "ho finito tutti i fusilli": SHELFY opens the USE panel
-        // with the quantity (or "use it all") already selected and arms the confirm: ten
-        // seconds without a touch and it goes through, one touch and it stops.
+    // "Ho usato 1 arancia" / "ho finito tutti i fusilli": SHELFY opens the USE panel with
+    // the quantity (or "use it all") already selected. It never confirms by itself any more:
+    // the tap on the panel is the confirmation.
+    const confident = !!best && best.score >= 0.85;
+    const uncertain = !!best && rows.length > 1 && (best.score - rows[1].score) < 0.08;
+    if (confident && !uncertain) {
         _shelfyRunConsume(best, parsed);
         return;
     }
-    if (rows.length) {
+    if (rows.length === 1 && best && best.score >= 0.7) {
+        _shelfyRunConsume(best, parsed);
+        return;
+    }
+    if (rows.length > 1) {
+        // Four alternatives, the closest one draining for 10 s: if nothing is touched it is
+        // what the user meant. Touching a card (or the screen) takes over.
         _captureChoicesCache = rows;
         _captureShowChoices(rows);
         _captureStatus('capture.which_one');
-        return;                       // the user picks; nothing is guessed
+        return;
     }
+    // Only a derived article matched ("arancia" vs "Succo di arancia"): that is not the
+    // product, so propose adding what was actually said.
     _captureStatus('capture.no_product', { name: parsed.product || text });
     go(() => {
-        showAddForm();
+        startManualEntry();
         const nameEl = document.getElementById('pf-name');
         if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
     });
@@ -13069,7 +13022,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -13079,7 +13032,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261026e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261026f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

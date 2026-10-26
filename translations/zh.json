@@ -2728,15 +2728,6 @@
     "examples_intro": "随口说或写下来：数量、一半、克数、“全部用完”。",
     "examples_confirm": "没有确认不会执行任何操作：先看看我理解了什么。",
     "what_can_i_say": "可以怎么说？",
-    "feedback_on": "语音已开启",
-    "feedback_off": "语音已关闭",
-    "voice_ready": "语音已开启。",
-    "voice_use": "你用掉了 {qty} {unit} 的 {name}。确认吗？",
-    "voice_all": "你把 {name} 用完了。确认吗？",
-    "voice_add": "我把 {name} 加入储物。",
-    "voice_throw": "我打开 {name} 准备丢弃。",
-    "voice_recipe": "我在找食谱。",
-    "voice_unknown": "我没听懂。请再说一次或输入句子。",
     "still_listening": "SHELFY 还在听…",
     "use_all_hint": "明白：{name} 已用完。用「已全部用完」确认。",
     "qty_hint": "{qty} {unit} 的 {name}：在卡片里确认。"
@@ -2755,9 +2746,6 @@
     "intro_start": "开始吧",
     "intro_reopen": "SHELFY 是什么？",
     "pick_title": "你指的是哪一个？",
-    "pick_auto": "如果你不选，我就用 {name}",
-    "auto_confirm_use": "{qty} {unit} 的 {name}：10 秒后自动确认",
-    "auto_confirm_use_all": "{name} 已用完：10 秒后自动确认",
-    "auto_confirm_add": "添加 {name}：10 秒后自动确认"
+    "pick_auto": "如果你不选，我就用 {name}"
   }
 }
