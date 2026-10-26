@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.36] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **The assistant is called SHELFY in the chat too.** The chat header still said “Gemini
+  Chef” and the scan overlay “Gemini Vision”: those are the *assistant’s* name, not the
+  provider’s, so they now say “SHELFY” and “AI Vision” / “AI OCR” (it/en/de/fr/es/zh). The
+  Settings pages keep the provider’s real name (`Google Gemini`, `API Key Gemini`) because
+  there the name is the thing being configured — renaming it would be a lie.
+- Two dead keys left the locales (`nav.gemini`, `gemini.chat_title`): the navigator item
+  went away in 1.16.22.
+
 ## [1.16.35] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Added

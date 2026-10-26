@@ -75,7 +75,6 @@
     "home": "Home",
     "inventory": "Lista",
     "recipes": "Ricette",
-    "gemini": "Gemini",
     "shopping": "Spesa",
     "log": "Storico",
     "settings": "Config"
@@ -386,8 +385,8 @@
     "status_ocr_searching": "Sto leggendo i numeri del codice a barre...",
     "status_digit_ocr": "Leggo i numeri sotto il codice...",
     "status_ai_visual_searching": "Ora provo a riconoscere il prodotto...",
-    "method_ai_ocr": "Gemini OCR",
-    "method_ai_vision": "Gemini Vision",
+    "method_ai_ocr": "AI OCR",
+    "method_ai_vision": "AI Vision",
     "method_local_ocr": "OCR numeri",
     "method_zbar": "ZBar",
     "local_ocr_found": "Codice dai numeri: {code}",
@@ -395,8 +394,8 @@
     "ai_fallback_found": "Prodotto identificato dall'AI",
     "ai_fallback_not_found": "AI: prodotto non riconosciuto",
     "ai_fallback_exhausted": "AI: prodotto non riconosciuto — riprova con il barcode",
-    "ai_overlay_label": "Gemini Vision",
-    "ai_overlay_msg": "Gemini Vision sta analizzando il prodotto...",
+    "ai_overlay_label": "AI Vision",
+    "ai_overlay_msg": "SHELFY sta analizzando il prodotto…",
     "ai_retry_btn": "Riprova con AI",
     "ai_manual_btn": "Identifica AI",
     "ai_not_recognized": "AI: prodotto non riconosciuto. Riprova o inserisci manualmente.",
@@ -989,7 +988,7 @@
     "insights_title": "📊 Statistiche"
   },
   "chat": {
-    "title": "Gemini Chef",
+    "title": "SHELFY",
     "welcome": "Ciao! Sono il tuo assistente cucina",
     "welcome_desc": "Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!",
     "suggestion_snack": "🍿 Spuntino veloce",
@@ -2348,7 +2347,6 @@
     "btn": "Aggiorna"
   },
   "gemini": {
-    "chat_title": "Chat con Gemini",
     "not_configured": "🤖 Gemini non configurato — imposta GEMINI_API_KEY nelle impostazioni"
   },
   "appliances": {

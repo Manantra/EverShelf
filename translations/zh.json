@@ -75,7 +75,6 @@
     "home": "首页",
     "inventory": "库存",
     "recipes": "食谱",
-    "gemini": "Gemini",
     "shopping": "购物清单",
     "log": "记录",
     "settings": "设置"
@@ -379,8 +378,8 @@
     "status_ocr_searching": "正在读取条形码数字…",
     "status_digit_ocr": "正在读取条形码下方的数字…",
     "status_ai_visual_searching": "正在尝试识别商品…",
-    "method_ai_ocr": "Gemini OCR",
-    "method_ai_vision": "Gemini Vision",
+    "method_ai_ocr": "AI 文字识别",
+    "method_ai_vision": "AI 视觉",
     "method_local_ocr": "数字 OCR",
     "method_zbar": "ZBar",
     "local_ocr_found": "从数字中识别到条形码：{code}",
@@ -388,8 +387,8 @@
     "ai_fallback_found": "AI 已识别商品",
     "ai_fallback_not_found": "AI：无法识别商品",
     "ai_fallback_exhausted": "AI：无法识别商品——请尝试扫描条形码",
-    "ai_overlay_label": "Gemini Vision",
-    "ai_overlay_msg": "Gemini Vision 正在分析商品…",
+    "ai_overlay_label": "AI 视觉",
+    "ai_overlay_msg": "SHELFY 正在分析商品…",
     "ai_retry_btn": "使用 AI 重试",
     "ai_manual_btn": "AI识别",
     "ai_not_recognized": "AI 无法识别该商品。请重试或手动添加。",
@@ -989,7 +988,7 @@
     "insights_title": "📊 统计"
   },
   "chat": {
-    "title": "Gemini 大厨",
+    "title": "SHELFY",
     "welcome": "你好！我是你的厨房助手",
     "welcome_desc": "想做果汁、零食或快手菜，都可以问我。我了解你的库存、厨电设备和口味偏好！",
     "suggestion_snack": "🍿 快手零食",
@@ -2348,7 +2347,6 @@
     "btn": "更新"
   },
   "gemini": {
-    "chat_title": "与 Gemini 对话",
     "not_configured": "🤖 尚未配置 Gemini——请在设置中填写 GEMINI_API_KEY"
   },
   "appliances": {

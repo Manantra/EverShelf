@@ -75,7 +75,6 @@
     "home": "Home",
     "inventory": "Liste",
     "recipes": "Rezepte",
-    "gemini": "Gemini",
     "shopping": "Einkauf",
     "log": "Verlauf",
     "settings": "Einstellungen"
@@ -379,8 +378,8 @@
     "status_ocr_searching": "Ich lese die Barcode-Ziffern...",
     "status_digit_ocr": "Lese Ziffern unter dem Barcode...",
     "status_ai_visual_searching": "Jetzt versuche ich, das Produkt zu erkennen...",
-    "method_ai_ocr": "Gemini OCR",
-    "method_ai_vision": "Gemini Vision",
+    "method_ai_ocr": "KI-OCR",
+    "method_ai_vision": "KI-Vision",
     "method_local_ocr": "Ziffern-OCR",
     "method_zbar": "ZBar",
     "local_ocr_found": "Code aus Ziffern: {code}",
@@ -388,8 +387,8 @@
     "ai_fallback_found": "Produkt von KI erkannt",
     "ai_fallback_not_found": "KI: Produkt nicht erkannt",
     "ai_fallback_exhausted": "KI: Produkt nicht erkannt — Barcode erneut scannen",
-    "ai_overlay_label": "Gemini Vision",
-    "ai_overlay_msg": "Gemini Vision analysiert das Produkt...",
+    "ai_overlay_label": "KI-Vision",
+    "ai_overlay_msg": "SHELFY analysiert das Produkt…",
     "ai_retry_btn": "Mit KI erneut versuchen",
     "ai_manual_btn": "KI erkennen",
     "ai_not_recognized": "KI: Produkt nicht erkannt. Erneut versuchen oder manuell eingeben.",
@@ -989,7 +988,7 @@
     "insights_title": "📊 Statistiken"
   },
   "chat": {
-    "title": "Gemini Chef",
+    "title": "SHELFY",
     "welcome": "Hallo! Ich bin dein Küchenassistent",
     "welcome_desc": "Frag mich, dir einen Saft, einen Snack, ein schnelles Gericht zu machen... Ich kenne deinen Vorrat, deine Geräte und deine Vorlieben!",
     "suggestion_snack": "🍿 Schneller Snack",
@@ -2348,7 +2347,6 @@
     "btn": "Aktualisieren"
   },
   "gemini": {
-    "chat_title": "Mit Gemini chatten",
     "not_configured": "🤖 Gemini nicht konfiguriert — GEMINI_API_KEY in den Einstellungen setzen"
   },
   "appliances": {
