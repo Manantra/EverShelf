@@ -8558,16 +8558,39 @@ function _shelfyAddUnit(qty, unit) {
     return { qty: Math.round(n * hit[1] * 100) / 100, unit: hit[0] };
 }
 
-/** "Aggiungi …" → the add form, fields filled, confirm armed for 10 s. */
-function _shelfyOpenAdd(parsed) {
+/**
+ * "Aggiungi …" → the add form with the quantity already set and the confirm armed.
+ *
+ * A product nobody has in the catalogue cannot be added blind: the manual form opens with
+ * the spoken name instead, and the user confirms the category (no timer there — creating
+ * an article is not a repeatable one-line action).
+ */
+async function _shelfyOpenAdd(parsed) {
     const name = (parsed && parsed.product) || '';
     const spoken = _shelfyAddUnit(Number(parsed && parsed.qty) || 0, parsed && parsed.unit);
     const qty = spoken.qty;
     const unit = spoken.unit;
     _closeCaptureSheet();
+
+    const rows = await _captureFindProducts(name);
+    const best = rows[0] || null;
+    if (!best || best.score < 0.75) {
+        startManualEntry();
+        const nameEl = document.getElementById('pf-name');
+        if (nameEl) { nameEl.value = name; nameEl.focus(); }
+        showToast(t('capture.add_hint', { name: name || '—' }), 'info', 5000);
+        return;
+    }
+    try {
+        const full = await api('product_get', { id: best.item.product_id });
+        if (!full || !full.product) { showToast(t('error.generic'), 'error'); return; }
+        currentProduct = full.product;
+        currentProduct._confCount = 0;
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+        return;
+    }
     showAddForm();
-    const nameEl = document.getElementById('pf-name');
-    if (nameEl) nameEl.value = name;
     const qtyEl = document.getElementById('add-quantity');
     if (qtyEl && qty > 0) qtyEl.value = qty;
     const unitEl = document.getElementById('add-unit');
@@ -8575,7 +8598,7 @@ function _shelfyOpenAdd(parsed) {
         const known = Array.from(unitEl.options || []).some(o => o.value === unit);
         if (known) { unitEl.value = unit; try { onAddUnitChange(); } catch (e) { /* older build */ } }
     }
-    showToast(t('shelfy.auto_confirm_add', { name: name || '—' }), 'info', 6000);
+    showToast(t('shelfy.auto_confirm_add', { name: best.item.name }), 'info', 6000);
     _shelfyArmButton(document.getElementById('btn-add-submit'), 10000, () => submitAdd({ preventDefault() {} }));
 }
 
