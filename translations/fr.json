@@ -2730,7 +2730,7 @@
     "what_can_i_say": "Que puis-je dire ?",
     "still_listening": "SHELFY t'écoute encore…",
     "use_all_hint": "Compris : {name} est fini. Confirme avec « J'ai tout utilisé ».",
-    "qty_hint": "{qty} {unit} de {name} : confirme dans la fiche."
+    "qty_hint": "{qty} {unit} de {name} : je valide dans 10 secondes si tu ne touches à rien."
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."

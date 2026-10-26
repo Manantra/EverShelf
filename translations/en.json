@@ -2730,7 +2730,7 @@
     "what_can_i_say": "What can I say?",
     "still_listening": "SHELFY is still listening…",
     "use_all_hint": "Understood: {name} is finished. Confirm with “I used it all”.",
-    "qty_hint": "{qty} {unit} of {name}: confirm in the sheet."
+    "qty_hint": "{qty} {unit} of {name}: I confirm in 10 seconds if you do not touch anything."
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."

@@ -2730,7 +2730,7 @@
     "what_can_i_say": "Was kann ich sagen?",
     "still_listening": "SHELFY hört noch zu…",
     "use_all_hint": "Verstanden: {name} ist aufgebraucht. Bestätige mit „Alles verbraucht“.",
-    "qty_hint": "{qty} {unit} {name}: in der Karte bestätigen."
+    "qty_hint": "{qty} {unit} {name}: ich bestätige in 10 Sekunden, wenn du nichts berührst."
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."

@@ -2730,7 +2730,7 @@
     "what_can_i_say": "可以怎么说？",
     "still_listening": "SHELFY 还在听…",
     "use_all_hint": "明白：{name} 已用完。用「已全部用完」确认。",
-    "qty_hint": "{qty} {unit} 的 {name}：在卡片里确认。"
+    "qty_hint": "{qty} {unit} {name}：10 秒内不碰屏幕我就确认。"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"

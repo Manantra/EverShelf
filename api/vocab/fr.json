@@ -986,5 +986,321 @@
         ]
     },
     "translated_from": "it",
-    "translated_with": "ai:gemini"
+    "translated_with": "ai:gemini",
+    "capture":     {
+        "intent": {
+            "recipe": [
+                "quest ce que je peux cuisiner",
+                "qu est ce que je peux cuisiner",
+                "quoi cuisiner",
+                "que cuisiner",
+                "recette",
+                "recettes",
+                "cuisiner",
+                "cuisine",
+                "preparer",
+                "préparer"
+            ],
+            "throw": [
+                "jeter",
+                "jeté",
+                "jetee",
+                "jetée",
+                "jette",
+                "jetons",
+                "gaspiller",
+                "gaspillé",
+                "gaspille"
+            ],
+            "consume": [
+                "utilisé",
+                "utilisee",
+                "utilisée",
+                "utilises",
+                "utiliser",
+                "utilise",
+                "consommé",
+                "consommee",
+                "consommée",
+                "consommer",
+                "mangé",
+                "mangee",
+                "mangée",
+                "manger",
+                "bu",
+                "bue",
+                "bues",
+                "boire",
+                "goûté",
+                "gouté",
+                "gouter",
+                "goûter",
+                "terminé",
+                "terminee",
+                "terminée",
+                "fini",
+                "finie",
+                "mange",
+                "termine",
+                "goute",
+                "jete"
+            ],
+            "add": [
+                "ajouter",
+                "ajouté",
+                "ajoutee",
+                "ajoutée",
+                "ajoute",
+                "acheter",
+                "acheté",
+                "achetee",
+                "achetée",
+                "ranger",
+                "rangé",
+                "mettre"
+            ]
+        },
+        "numbers": {
+            "un": 1,
+            "une": 1,
+            "deux": 2,
+            "trois": 3,
+            "quatre": 4,
+            "cinq": 5,
+            "six": 6,
+            "sept": 7,
+            "huit": 8,
+            "neuf": 9,
+            "dix": 10,
+            "onze": 11,
+            "douze": 12
+        },
+        "units": {
+            "g": [
+                "g",
+                1
+            ],
+            "gr": [
+                "g",
+                1
+            ],
+            "gramme": [
+                "g",
+                1
+            ],
+            "grammes": [
+                "g",
+                1
+            ],
+            "kg": [
+                "kg",
+                1
+            ],
+            "kilo": [
+                "kg",
+                1
+            ],
+            "kilos": [
+                "kg",
+                1
+            ],
+            "kilogramme": [
+                "kg",
+                1
+            ],
+            "kilogrammes": [
+                "kg",
+                1
+            ],
+            "ml": [
+                "ml",
+                1
+            ],
+            "millilitre": [
+                "ml",
+                1
+            ],
+            "millilitres": [
+                "ml",
+                1
+            ],
+            "cl": [
+                "cl",
+                1
+            ],
+            "dl": [
+                "dl",
+                1
+            ],
+            "l": [
+                "l",
+                1
+            ],
+            "lt": [
+                "l",
+                1
+            ],
+            "litre": [
+                "l",
+                1
+            ],
+            "litres": [
+                "l",
+                1
+            ],
+            "pz": [
+                "pz",
+                1
+            ],
+            "pièce": [
+                "pz",
+                1
+            ],
+            "pièces": [
+                "pz",
+                1
+            ],
+            "piece": [
+                "pz",
+                1
+            ],
+            "pieces": [
+                "pz",
+                1
+            ],
+            "tranche": [
+                "pz",
+                1
+            ],
+            "tranches": [
+                "pz",
+                1
+            ],
+            "conf": [
+                "conf",
+                1
+            ],
+            "paquet": [
+                "conf",
+                1
+            ],
+            "paquets": [
+                "conf",
+                1
+            ],
+            "pack": [
+                "conf",
+                1
+            ],
+            "bouteille": [
+                "conf",
+                1
+            ],
+            "bouteilles": [
+                "conf",
+                1
+            ],
+            "pot": [
+                "conf",
+                1
+            ],
+            "pots": [
+                "conf",
+                1
+            ],
+            "boîte": [
+                "conf",
+                1
+            ],
+            "boite": [
+                "conf",
+                1
+            ],
+            "boîtes": [
+                "conf",
+                1
+            ],
+            "boites": [
+                "conf",
+                1
+            ]
+        },
+        "fractions": [
+            [
+                "trois quarts",
+                0.75
+            ],
+            [
+                "un quart",
+                0.25
+            ],
+            [
+                "un demi",
+                0.5
+            ],
+            [
+                "demi",
+                0.5
+            ],
+            [
+                "demie",
+                0.5
+            ],
+            [
+                "moitié",
+                0.5
+            ],
+            [
+                "moitie",
+                0.5
+            ]
+        ],
+        "all_words": [
+            "tout",
+            "toute",
+            "tous",
+            "toutes",
+            "entier",
+            "entiere",
+            "entière",
+            "fini",
+            "finie",
+            "vide",
+            "vidé"
+        ],
+        "stop_words": [
+            "le",
+            "la",
+            "les",
+            "l",
+            "un",
+            "une",
+            "des",
+            "du",
+            "de",
+            "d",
+            "avec",
+            "pour",
+            "dans",
+            "sur",
+            "mon",
+            "ma",
+            "mes",
+            "je",
+            "j",
+            "ai",
+            "est",
+            "et",
+            "ou",
+            "que",
+            "qu",
+            "ce",
+            "cette"
+        ]
+    },
+    "locale": {
+        "name": "Français",
+        "collation": "fr-FR",
+        "speech_tag": "fr-FR"
+    }
 }

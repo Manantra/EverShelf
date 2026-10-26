@@ -1401,11 +1401,16 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261026f'; // bump when translations change
+const _I18N_VERSION = '20261026l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
-const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', zh: '简体中文' };
+/**
+ * Shipped languages: `{ it: 'Italiano', en: 'English', … }`, read from the vocabulary DATA
+ * (api/vocab/<code>.json → "locale"), so the picker names a language without app.js
+ * carrying a word of it. Adding a language = dropping one JSON and regenerating.
+ */
+const _SUPPORTED_LANGS = vocabLanguages();
 
 /**
  * Language asked by the URL (`/?lang=de`), the deep link the marketing site uses to
@@ -1432,8 +1437,8 @@ if (_URL_LANG) localStorage.setItem('evershelf_lang', _URL_LANG);
 
 /** Collation locale for the UI language (sorting must follow it, never a fixed 'it'). */
 function _collationLocale() {
-    const map = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', zh: 'zh-CN', en: 'en-GB', it: 'it-IT' };
-    return map[_currentLang] || 'en-GB';
+    // Dates, numbers and the TTS voice follow the data (api/vocab/<code>.json → locale).
+    return vocabCollationTag(_currentLang) || 'en-GB';
 }
 
 // Apply theme IMMEDIATELY to prevent flash of unstyled content
@@ -6897,66 +6902,12 @@ let _awRefreshTimer = null;
 let _awFactTimer    = null;
 let _awBadgeTimer   = null;
 
-// ── Embedded fallback facts (used when offline / API not yet loaded) ──
-const AW_FACTS_FALLBACK = {
-    it: [
-        "Nel 2024 ogni italiano spreca ~554 g di cibo a settimana (Waste Watcher 2024)",
-        "Lo spreco domestico in Italia vale oltre €7,5 miliardi l'anno",
-        "La frutta fresca è l'alimento più sprecato in Italia: ~22g/persona/settimana",
-        "Nel mondo si sprecano ~1,05 miliardi di tonnellate di cibo ogni anno (UNEP 2024)",
-        "Il 19% del cibo globale disponibile al consumo viene buttato (UNEP 2024)",
-        "Le famiglie sono responsabili del 60% dello spreco alimentare totale",
-        "Lo spreco alimentare conta per l'8-10% delle emissioni globali di gas serra",
-        "Se fosse un Paese, lo spreco alimentare sarebbe il 3° emettitore di CO₂ al mondo",
-        "Lo spreco alimentare consuma il 25% dell'acqua dolce usata in agricoltura",
-        "Un'area grande quanto la Cina viene coltivata per cibo mai mangiato",
-        "Lo spreco alimentare costa al mondo ~€1.000 miliardi l'anno",
-        "Il lunedì è il giorno in cui gli italiani buttano più cibo (residui del weekend)",
-        "Solo il 30% degli italiani sa distinguere 'da consumarsi entro' da 'preferibilmente entro'",
-        "Il ricorso al congelatore riduce lo spreco domestico del 20%",
-        "1 kg di pane sprecato = 1.300 litri d'acqua consumati inutilmente",
-        "Sprecare 1 hamburger = stessa acqua di una doccia da 90 minuti",
-        "Lo spreco alimentare pro capite in Italia è ~29 kg/anno (domestico)",
-        "Il 42% degli italiani dichiara di sprecare meno grazie all'aumento dei prezzi",
-        "Solo il 15% degli italiani chiede la 'doggy bag' al ristorante",
-        "Un quarto del cibo sprecato basterebbe a sfamare tutti gli affamati del mondo",
-        "La Legge Gadda (166/2016) è tra le norme anti-spreco più avanzate d'Europa",
-        "Il Sud Italia spreca in media l'8% in più rispetto al Nord",
-        "Nel 2024 oltre 780 milioni di persone hanno sofferto la fame nel mondo (FAO)",
-        "Educare i bambini a scuola riduce lo spreco familiare del 15%",
-        "Il packaging intelligente potrebbe ridurre lo spreco del 15%",
-    ],
-    de: [
-        "Deutsche Haushalte werfen pro Person rund 82 kg Lebensmittel pro Jahr weg (Destatis 2024)",
-        "Weltweit werden ~1,05 Milliarden Tonnen Lebensmittel pro Jahr verschwendet (UNEP 2024)",
-        "19% des global verfügbaren Lebensmittelangebots landet im Müll (UNEP 2024)",
-        "Haushalte verursachen 60% der gesamten Lebensmittelverschwendung",
-        "Lebensmittelverschwendung ist für 8-10% der globalen Treibhausgase verantwortlich",
-        "Wäre Lebensmittelverschwendung ein Land, wäre es der 3. größte CO₂-Emittent",
-        "25% des in der Landwirtschaft genutzten Süßwassers wird für nie gegessenes Essen verbraucht",
-        "1 kg verschwendetes Rindfleisch ≈ 27 kg CO₂-Emissionen",
-        "Das Einfrieren reduziert Haushaltsabfälle um bis zu 20%",
-        "Nur ein Viertel der verschwendeten Lebensmittel würde alle Hungernden ernähren",
-        "Schlaue Verpackungen könnten den Lebensmittelabfall um 15% senken",
-    ],
-    en: [
-        "~1.05 billion tonnes of food are wasted globally every year (UNEP 2024)",
-        "19% of food available for human consumption is wasted globally (UNEP 2024)",
-        "Households account for 60% of all food waste globally",
-        "Food waste represents 8-10% of global greenhouse gas emissions",
-        "If food waste were a country, it would be the world's 3rd largest CO₂ emitter",
-        "25% of freshwater used in farming grows food that is never eaten",
-        "Food waste costs the world ~$1 trillion per year",
-        "30–40% of the US food supply is wasted each year (USDA 2021)",
-        "Americans spend ~$1,800/year on food they never eat",
-        "Just a quarter of wasted food would feed all the world's hungry",
-        "Smart packaging could cut food waste by 15%",
-        "1 kg of wasted bread = 1,300 litres of water wasted",
-        "Wasting one hamburger uses as much water as a 90-minute shower",
-        "Teaching children about food waste reduces household waste by 15%",
-        "In 2024, over 780 million people faced hunger despite global food abundance (FAO)",
-    ],
-};
+// ── Offline fallback facts (used when offline / API not yet loaded) ──
+// The sentences are TEXT and live in data/food_facts_fallback.json, generated for the
+// browser by scripts/gen-food-facts-js.php — never in this file.
+const AW_FACTS_FALLBACK = (typeof EVERSHELF_FOOD_FACTS_FALLBACK !== 'undefined' && EVERSHELF_FOOD_FACTS_FALLBACK)
+    ? EVERSHELF_FOOD_FACTS_FALLBACK
+    : {};
 
 // Live facts cache (loaded from API daily, falls back to embedded)
 let _awLiveFacts = null;
@@ -6989,7 +6940,7 @@ async function _awLoadFacts() {
 /** Return current facts array for the active language. */
 function _awGetFacts() {
     const src = _awLiveFacts || AW_FACTS_FALLBACK;
-    return src[_currentLang] || src['en'] || src['it'] || AW_FACTS_FALLBACK['en'] || AW_FACTS_FALLBACK['it'];
+    return src[_currentLang] || src['en'] || src['it'] || AW_FACTS_FALLBACK['en'] || AW_FACTS_FALLBACK['it'] || [];
 }
 
 /** Fetch fresh stats and re-render the anti-waste section. */
@@ -8173,10 +8124,12 @@ function _openCaptureSheet() {
 }
 
 function _closeCaptureSheet() {
-    _shelfyDisarm();
-    _captureVoiceStop();
+    // Hide first: closing is the one action that must never depend on the cleanup
+    // succeeding, or a failure in there traps the user behind an overlay.
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
+    _shelfyDisarm();
+    _captureVoiceStop();
 }
 
 function _captureStatus(key, params) {
@@ -8263,6 +8216,30 @@ function _captureStopMeter() {
     _captureSetState('idle');
 }
 
+/**
+ * Stop the live recogniser and the level meter.
+ *
+ * This is the one place that ends a session, so closing the sheet, a new tap on the mic
+ * and a denied microphone all go through it. It must exist: it went missing in a
+ * refactor while three callers still called it, and the ReferenceError made
+ * `_closeCaptureSheet()` stop at its first line — the dialog stayed on screen and the
+ * microphone never started. Guard test: scripts/test-capture-parse.php.
+ */
+function _captureVoiceStop() {
+    if (_captureVoice.timer) {
+        try { clearTimeout(_captureVoice.timer); } catch (e) { /* already fired */ }
+        _captureVoice.timer = 0;
+    }
+    _captureVoice.active = false;
+    _captureVoice.text = '';
+    try {
+        if (_captureRec) { _captureRec.onend = null; _captureRec.onerror = null; _captureRec.stop(); }
+    } catch (e) { /* already stopped */ }
+    _captureRec = null;
+    _captureMeterStarted = false;
+    _captureStopMeter();
+}
+
 /** Live transcript: grey while it is still guessing, solid once it is final. */
 function _captureShowTranscript(text, isFinal) {
     const el = document.getElementById('capture-transcript');
@@ -8285,8 +8262,9 @@ function _captureShowUnderstood(parsed) {
     bits.push(`<span class="cu-chip cu-intent">${escapeHtml(intentKey ? t(intentKey) : t('capture.intent_unknown'))}</span>`);
     if (parsed.product) bits.push(`<span class="cu-chip">${escapeHtml(parsed.product)}</span>`);
     if (parsed.intent !== 'recipe' && parsed.qty) {
+        const shown = Math.round(parsed.qty * (Number(parsed.unit_factor) || 1) * 100) / 100;
         const unit = parsed.unit ? ` ${escapeHtml(parsed.unit)}` : '';
-        bits.push(`<span class="cu-chip cu-qty">×${escapeHtml(String(parsed.qty))}${unit}</span>`);
+        bits.push(`<span class="cu-chip cu-qty">×${escapeHtml(String(shown))}${unit}</span>`);
     }
     el.innerHTML = `<span class="cu-label">${escapeHtml(t('capture.understood'))}</span>${bits.join('')}`;
     el.hidden = false;
@@ -8337,7 +8315,7 @@ function _captureShowChoices(rows) {
  * spoken. One utterance, and if the browser ends without a final result the interim text
  * is used — that is the sentence.
  */
-let _captureVoice = { active: false, text: '' };
+let _captureVoice = { active: false, text: '', timer: 0 };
 /** The level meter is started lazily (see _captureStartVoice). */
 let _captureMeterStarted = false;
 
@@ -8458,8 +8436,10 @@ function _shelfyArmButton(el, ms, fire) {
 }
 
 /**
- * "Ho usato …" / "Ho finito …" → the USE panel of that row, quantity already set,
- * confirm armed for 10 s.
+ * "Ho usato …" → the USE panel of that row, quantity already set, and the confirm armed
+ * for 10 s (the button's background drains; any touch stops it and leaves the decision to
+ * the user). "Ho finito …" opens the same panel without arming: using the whole row is
+ * destructive, so `submitUseAll()` keeps its slide-to-confirm.
  */
 async function _shelfyRunConsume(row, parsed) {
     if (!row || !row.item) return;
@@ -8470,7 +8450,7 @@ async function _shelfyRunConsume(row, parsed) {
     await _openUsePage(item.product_id, item.location);
     if (useAll) {
         // Nothing is applied by the sentence: "Ho consumato tutto" is one tap away and the
-        // tap is the user's. (The agent no longer confirms on its own.)
+        // tap is the user's (that flow always asks for a slide).
         showToast(t('capture.use_all_hint', { name: item.name }), 'info', 6000);
         return;
     }
@@ -8481,24 +8461,35 @@ async function _shelfyRunConsume(row, parsed) {
     }
     const unit = item.unit || '';
     showToast(t('capture.qty_hint', { qty: qty > 0 ? qty : '1', unit, name: item.name }), 'info', 6000);
+    // One countdown only on that button: the page's own 15 s idle confirm would race with
+    // SHELFY's 10 s drain (and paint a second progress bar on top of it).
+    clearUseFormIdleCountdown();
+    // The confirmation is the draining background: 10 s, then it acts — unless the user
+    // touches anything (pointerdown / key cancels it, see _shelfyArmButton). The button must
+    // exist: arming nothing would run the action immediately.
+    const confirmBtn = document.getElementById('btn-use-submit');
+    if (confirmBtn) {
+        _shelfyArmButton(confirmBtn, 10000, () => submitUse({ preventDefault() {} }));
+    }
 }
 
 /**
  * The add form only speaks pz / conf / g / ml: a dictated "1 litro" becomes 1000 ml and
- * "mezzo chilo" 500 g, instead of being silently dropped to a single piece.
+ * "mezzo chilo" 500 g, instead of being silently dropped to a single piece. The spoken
+ * words themselves are DATA (api/vocab/<lang>.json → "capture.units").
  */
 function _shelfyAddUnit(qty, unit) {
-    const map = {
-        l: ['ml', 1000], lt: ['ml', 1000], litri: ['ml', 1000], litro: ['ml', 1000],
-        cl: ['ml', 10],
-        kg: ['g', 1000], kilo: ['g', 1000], chili: ['g', 1000],
-        gr: ['g', 1], g: ['g', 1], grammi: ['g', 1], grammo: ['g', 1],
-        ml: ['ml', 1], pz: ['pz', 1], pezzo: ['pz', 1], pezzi: ['pz', 1],
-        conf: ['conf', 1], confezione: ['conf', 1], confezioni: ['conf', 1],
+    const info = _captureUnitInfo(unit);
+    const n = (Number(qty) || 0) * (info ? (Number(info.factor) || 1) : 1);
+    if (!info) return { qty: n, unit: '' };
+    // The add form's own units: one canonical pair each, language-neutral on purpose.
+    const table = {
+        l: ['ml', 1000], cl: ['ml', 10], dl: ['ml', 100],
+        kg: ['g', 1000], g: ['g', 1], ml: ['ml', 1],
+        pz: ['pz', 1], conf: ['conf', 1],
     };
-    const hit = map[String(unit || '').toLowerCase()];
-    const n = Number(qty) || 0;
-    if (!hit) return { qty: n, unit: '' };
+    const hit = table[info.unit];
+    if (!hit) return { qty: Math.round(n * 100) / 100, unit: info.unit };
     return { qty: Math.round(n * hit[1] * 100) / 100, unit: hit[0] };
 }
 
@@ -8511,7 +8502,8 @@ function _shelfyAddUnit(qty, unit) {
  */
 async function _shelfyOpenAdd(parsed) {
     const name = (parsed && parsed.product) || '';
-    const spoken = _shelfyAddUnit(Number(parsed && parsed.qty) || 0, parsed && parsed.unit);
+    const dictated = (Number(parsed && parsed.qty) || 0) * (Number(parsed && parsed.unit_factor) || 1);
+    const spoken = _shelfyAddUnit(dictated, parsed && parsed.unit);
     const qty = spoken.qty;
     const unit = spoken.unit;
     _closeCaptureSheet();
@@ -8551,7 +8543,8 @@ async function _shelfyOpenAdd(parsed) {
  * It used to be the interface language, so an English UI could not hear an Italian
  * sentence — every word was "not recognised" even though the parser understands all six.
  * The device language wins when we support it (that is what people speak), the interface
- * language is the fallback.
+ * language is the fallback. The BCP-47 tag itself is DATA (`capture.speech_tag` in
+ * api/vocab/<lang>.json): no language list is duplicated in this file.
  */
 function _captureSpeechLang(navLang) {
     const raw = String(navLang != null
@@ -8559,20 +8552,52 @@ function _captureSpeechLang(navLang) {
         : ((typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage)) || ''));
     const base = raw.slice(0, 2).toLowerCase();
     const lang = (_SUPPORTED_LANGS && _SUPPORTED_LANGS[base]) ? base : _currentLang;
-    const map = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', zh: 'zh-CN', en: 'en-GB', it: 'it-IT' };
     // Keep the exact tag the device asked for (it-IT, de-AT…) when it matches the base.
     if (/^[a-z]{2}-[A-Za-z]{2,4}$/.test(raw) && raw.slice(0, 2).toLowerCase() === lang) return raw;
-    return map[lang] || _collationLocale();
+    return vocabCaptureSpeechTag(lang) || _collationLocale();
 }
 
 /**
  * Web Speech API: on-device, free, no server round-trip.
  *
- * One utterance per tap (`continuous = false`): no repeated start chime, no interruption
- * of what is being said. Interim results are shown live and, when the browser ends
- * without finalising, the interim text IS the sentence — before this, a phrase spoken
- * between two restarts was simply lost and "nothing was ever recognised".
+ * ONE session per tap (`continuous = true`), and the session is closed by our own
+ * silence timer — never by the first final result.
+ *
+ * The browser marks a phrase final at the first short pause: submitting that chunk is
+ * what cut "Ho usato 200 grammi di pasta" at "Ho usato" and closed the sheet on a
+ * sentence with no product in it. Now every result (final or interim) only extends the
+ * deadline; when the user stops talking for `_CAPTURE_SILENCE_MS` we call `stop()` once
+ * and `onend` is the only place that submits the accumulated sentence. No restart loop,
+ * so no repeated start chime; the tap still owns the session. The deadline is armed by
+ * the first result, never at `start()`: a user who takes a breath before speaking must
+ * not be told "not understood" while the microphone is still warming up.
  */
+/**
+ * Add a transcript chunk to what we already heard, without repeating an overlapping
+ * prefix.
+ *
+ * Browsers disagree: some hand the WHOLE session list on every event, others reset the
+ * list per phrase and keep the phrase itself cumulative ("ho consumato" then
+ * "ho consumato 250"), and one more re-delivers a finished result. A plain append printed
+ * "ho consumato ho consumato ho consumato 250 ho consumato 250 grammi …" for a single
+ * sentence, so the join looks at the overlap instead of trusting either shape.
+ */
+function _captureJoinText(heard, next) {
+    const a = String(heard || '').trim();
+    const b = String(next || '').trim();
+    if (!a) return b;
+    if (!b) return a;
+    if (b.startsWith(a)) return b;      // the new text already says the whole sentence
+    if (a.startsWith(b)) return a;      // a shorter echo of what we have: keep the longer
+    let n = 0;
+    for (let i = Math.min(a.length, b.length); i > 0; i--) {
+        if (a.slice(-i) === b.slice(0, i)) { n = i; break; }
+    }
+    return `${a} ${b.slice(n)}`.replace(/\s+/g, ' ').trim();
+}
+
+const _CAPTURE_SILENCE_MS = 1800;
+
 async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { _captureStatus('capture.unsupported'); return; }
@@ -8584,23 +8609,28 @@ async function _captureStartVoice() {
     if (un) un.hidden = true;
     _captureStatus('capture.listening');
     _captureSetState('listening');
-    _captureVoice = { active: true, text: '' };
+    _captureVoice = { active: true, text: '', timer: 0 };
     _captureMeterStarted = false;
-    let finalText = '';
-    let interimText = '';
+    /** The sentence as heard so far: it survives a result list the browser resets. */
+    let heard = '';
     let submitted = false;
+
+    /** The user is still talking: push the deadline that closes this one session. */
+    const armSilenceStop = () => {
+        if (_captureVoice.timer) { try { clearTimeout(_captureVoice.timer); } catch (e) {} }
+        _captureVoice.timer = setTimeout(() => {
+            _captureVoice.timer = 0;
+            try { if (_captureRec) _captureRec.stop(); } catch (e) { /* already ended */ }
+        }, _CAPTURE_SILENCE_MS);
+    };
 
     const finish = (text) => {
         if (submitted) return;
-        const said = String(text || '').trim();
+        const said = String(text || '').replace(/\s+/g, ' ').trim();
         if (!said) return;
         submitted = true;
+        _captureVoiceStop();          // one place ends the session: recogniser, meter, timer
         _captureVoice.text = said;
-        _captureVoice.active = false;
-        try { if (_captureRec) { _captureRec.onend = null; _captureRec.stop(); } } catch (e) { /* already stopped */ }
-        _captureRec = null;
-        _captureStopMeter();
-        _captureSetState('idle');
         _captureSubmit(said, { voice: true });
     };
 
@@ -8608,20 +8638,25 @@ async function _captureStartVoice() {
         _captureRec = new Ctor();
         _captureRec.lang = _captureSpeechLang();
         _captureRec.interimResults = true;
-        _captureRec.continuous = false;
+        _captureRec.continuous = true;
         _captureRec.maxAlternatives = 1;
         _captureRec.onresult = (ev) => {
-            let interim = '';
-            for (let i = ev.resultIndex || 0; i < ev.results.length; i++) {
+            // What the browser believes NOW (it may be the whole session or just the phrase
+            // it restarted on): rebuild it, then join it with what we already heard.
+            let eventText = '';
+            for (let i = 0; i < ev.results.length; i++) {
                 const res = ev.results[i];
-                const chunk = res[0] ? String(res[0].transcript || '') : '';
-                if (res.isFinal) finalText += chunk; else interim += chunk;
+                const chunk = res[0] ? String(res[0].transcript || '').trim() : '';
+                if (!chunk) continue;
+                eventText = _captureJoinText(eventText, chunk);
             }
-            if (interim.trim()) interimText = interim.trim();
+            if (eventText) {
+                heard = _captureJoinText(heard, eventText);
+                _captureShowTranscript(heard, false);
+            }
             if (!_captureMeterStarted) { _captureMeterStarted = true; _captureStartMeter(); }
-            const shown = (finalText || interim || interimText).trim();
-            if (shown) _captureShowTranscript(shown, !!finalText.trim());
-            if (finalText.trim()) finish(finalText);
+            // A final chunk is ONE PHRASE, not the sentence: never submit from here.
+            armSilenceStop();
         };
         _captureRec.onerror = (ev) => {
             const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
@@ -8635,9 +8670,11 @@ async function _captureStartVoice() {
         };
         _captureRec.onend = () => {
             _captureRec = null;
+            if (_captureVoice.timer) { try { clearTimeout(_captureVoice.timer); } catch (e) {} _captureVoice.timer = 0; }
             _captureStopMeter();
             if (!_captureVoice.active) return;
-            const said = (finalText || interimText).trim();
+            // The whole utterance, finals plus the text the browser never finalised.
+            const said = heard.trim();
             if (said) { finish(said); return; }
             _captureVoice.active = false;
             _captureSetState('idle');
@@ -8657,52 +8694,52 @@ async function _captureStartVoice() {
 }
 
 // ===== CAPTURE: the internal, offline "model" =====
-// A lexicon, not a neural network: the six UI languages are scanned together, so an
-// Italian sentence works on an English UI (and vice versa), nothing leaves the
-// device, and a new synonym is one word in a list.
-const _CAPTURE_INTENT_WORDS = {
-    recipe: ['cosa cucino', 'che cosa', 'cosa posso', 'cucino', 'ricetta', 'recipe', 'rezept', 'recette', 'receta', '食谱', '用什么做'],
-    throw: ['butta', 'buttato', 'buttare', 'gettato', 'getta', 'throw away', 'throw', 'wegwerfen', 'weggeworfen', 'jeter', 'jeté', 'jette', 'tirar', 'tirado', 'tira', '扔掉', '丢'],
-    // Consumption is not only "used": eaten, drunk and tasted are the same action on a
-    // different kind of food, and people say whichever fits the shelf.
-    consume: ['ho usato', 'usato', 'consumato', 'mangiato', 'mangiata', 'mangiati', 'mangiate', 'bevuto', 'bevuta', 'bevuti', 'bevute', 'assaggiato',
-        'finito', 'finita', 'consum', 'used up', 'used', 'eaten', 'ate', 'drunk', 'drank', 'tasted',
-        'verwendet', 'verbraucht', 'aufgebraucht', 'gegessen', 'getrunken', 'benutzt', 'probiert',
-        'utilisé', 'utilise', 'utiliser', 'utilisée', 'consommé', 'consomme', 'mangé', 'mange', 'bu', 'bue', 'bues', 'goûté',
-        'usado', 'consumido', 'comido', 'comida', 'bebido', 'bebida', 'probado',
-        '用了', '吃了', '喝完', '喝完', '喝', '吃', '用完'],
-    add: ['aggiungi', 'aggiungere', 'metti in', 'compra', 'add', 'buy', 'hinzuf', 'kaufen', 'ajout', 'ajouter', 'achet', 'a[ñn]ad', '添加', '买'],
-};
-const _CAPTURE_NUMBER_WORDS = {
-    uno: 1, una: 1, un: 1, due: 2, tre: 3, quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10,
-    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-    ein: 1, eine: 1, zwei: 2, drei: 3, vier: 4, fünf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10,
-    une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, sept: 7, huit: 8, neuf: 9, dix: 10,
-    dos: 2, tres: 3, cuatro: 4, cinco: 5, siete: 7, ocho: 8, nueve: 9, diez: 10,
-    '一': 1, '两': 2, '二': 2, '三': 3, '四': 4, '五': 5,
-};
-const _CAPTURE_UNITS = 'kg|gr|g|ml|cl|l|pz|pezzi|pezzo|conf|confezioni|confezione';
-/** Spoken weights are written in many ways: one canonical unit each. */
-const _CAPTURE_UNIT_ALIASES = {
-    kg: 'kg', gr: 'g', grammi: 'g', grammo: 'g', g: 'g',
-    ml: 'ml', cl: 'ml', l: 'l', lt: 'l', litri: 'l', litro: 'l',
-    pz: 'pz', pezzo: 'pz', pezzi: 'pz',
-    conf: 'conf', confezione: 'conf', confezioni: 'conf',
-};
+// A lexicon, not a neural network — and the lexicon is DATA.
+//
+// Every word SHELFY can hear (intents, numbers, units, fractions, "all of it", stop
+// words) lives in api/vocab/<lang>.json under "capture" and reaches the browser through
+// assets/js/vocab.generated.js; vocabCaptureLexicon() (assets/js/core/vocab.js) merges
+// the six shipped languages, so an Italian sentence works on an English UI and the
+// other way round. A new synonym is one word in the JSON, a new language is one more
+// file — no product word belongs in this file.
+
+/** "etti" → { unit: 'g', factor: 100 }; an unknown unit is null. */
+function _captureUnitInfo(word) {
+    const units = vocabCaptureLexicon().units || {};
+    const key = String(word || '').toLowerCase();
+    return Object.prototype.hasOwnProperty.call(units, key) ? units[key] : null;
+}
+
 /**
- * "Mezza mela", "un quarto di torta": a fraction is a quantity, not a word.
- * Longest phrase first, so "tre quarti" is not read as "quarti" + 3.
+ * The unit spoken in the sentence, longest first ("ml" before "l", "etti" before "e").
+ * A unit sits right after the number ("300gr"), so a digit is a valid left edge here —
+ * unlike a word, which must not be glued to a number. A CJK measure word is matched as a
+ * plain substring: those scripts have no boundaries.
  */
-const _CAPTURE_FRACTIONS = [
-    ['tre quarti', 0.75], ['three quarters', 0.75], ['dreiviertel', 0.75],
-    ['un quarto', 0.25], ['one quarter', 0.25], ['ein viertel', 0.25], ['un cuarto', 0.25],
-    ['mezza', 0.5], ['mezzo', 0.5], ['metà', 0.5], ['half', 0.5], ['halb', 0.5],
-    ['demi', 0.5], ['media', 0.5], ['medio', 0.5], ['mitad', 0.5], ['一半', 0.5], ['半个', 0.5],
-];
-/** "Ho finito TUTTI i fusilli": the sentence consumes the whole row, not 1 piece. */
-const _CAPTURE_ALL_WORDS = ['tutti', 'tutte', 'tutto', 'tutta', 'tutte le', 'finito', 'finita', 'finiti', 'esaurito', 'esaurita', 'used up', 'all of', 'the whole', 'alles', 'tout', 'toute', 'todo', 'todos', 'toda', '全部', '都', '用完'];
-const _CAPTURE_STOP = /\b(con|avec|mit|with|para|il|lo|la|i|gli|le|un|uno|una|dei|delle|del|della|di|the|a|an|some|of|der|die|das|ein|eine|dem|den|les|des|du|de|el|los|las|unos|unas|une|mi|mio|mia|me|my|ich|habe|ho|he|j|ai|have|i)\b/g;
-const _CAPTURE_CJK_FILLER = /[我你他她它了一个個个这那的]/g;
+function _captureFindUnit(lower) {
+    const words = Object.keys(vocabCaptureLexicon().units || {}).sort((a, b) => b.length - a.length);
+    for (const word of words) {
+        if (_captureHasUnit(lower, word)) return _captureUnitInfo(word);
+    }
+    return null;
+}
+
+/** A unit as a token, digits allowed around it ("300gr", "2 l"). */
+function _captureHasUnit(hay, word) {
+    if (/[\u3400-\u9FFF]/.test(word)) return hay.includes(word);
+    const escaped = String(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('(?:^|[^\\p{L}])' + escaped + '(?=$|[^\\p{L}])', 'iu').test(hay);
+}
+
+/** Fractions, longest phrase first: "tre quarti" is not "quarti" + 3. */
+function _captureFractions() {
+    return (vocabCaptureLexicon().fractions || []).slice().sort((a, b) => b[0].length - a[0].length);
+}
+
+/** The words "all of it" is said with, longest first ("used up" before "used"). */
+function _captureAllWords() {
+    return (vocabCaptureLexicon().all_words || []).slice().sort((a, b) => b.length - a.length);
+}
 
 /** One word/phrase as a standalone token, Unicode-aware ("äpfel", "caffè", "cucino"). */
 function _captureWordRe(word, flags) {
@@ -8714,8 +8751,8 @@ function _captureWordRe(word, flags) {
 /** Intent words, longest first: "buttato" must win over "butta", "consumato" over "consum". */
 function _captureIntentWords() {
     const out = {};
-    for (const [intent, words] of Object.entries(_CAPTURE_INTENT_WORDS)) {
-        out[intent] = words.slice().sort((a, b) => b.length - a.length);
+    for (const [intent, words] of Object.entries(vocabCaptureLexicon().intents || {})) {
+        out[intent] = (words || []).slice().sort((a, b) => b.length - a.length);
     }
     return out;
 }
@@ -8742,11 +8779,15 @@ function _captureMatchIntent(lower) {
  * Parse one sentence into an action: intent, product, quantity, unit + a confidence
  * that says whether the sentence was understood at all (used to keep the sheet open
  * instead of routing a guess).
+ *
+ * Every word it knows comes from the vocabulary data (vocabCaptureLexicon()): intents,
+ * numbers, units, fractions, "all of it" and stop words, in the six shipped languages.
  */
 function _captureParse(raw) {
     const text = String(raw || '').trim();
     const lower = text.toLowerCase();
-    const out = { intent: '', product: '', qty: 1, unit: '', confidence: 0, use_all: false };
+    const lex = vocabCaptureLexicon();
+    const out = { intent: '', product: '', qty: 1, unit: '', unit_factor: 1, confidence: 0, use_all: false };
     if (!lower) return out;
 
     out.intent = _captureMatchIntent(lower);
@@ -8757,27 +8798,25 @@ function _captureParse(raw) {
         out.qty = parseFloat(String(num[1]).replace(',', '.')) || 1;
     } else {
         let matched = 0;
-        for (const [word, value] of _CAPTURE_FRACTIONS) {
+        for (const [word, value] of _captureFractions()) {
             if (_captureHasWord(lower, word)) { matched = value; break; }
         }
         if (matched) {
             out.qty = matched;
         } else {
-            for (const [word, value] of Object.entries(_CAPTURE_NUMBER_WORDS)) {
-                if (_captureWordRe(word, 'i').test(lower)) { out.qty = value; break; }
+            for (const [word, value] of Object.entries(lex.numbers || {})) {
+                if (_captureHasWord(lower, word)) { out.qty = value; break; }
             }
         }
     }
     // "ho finito tutti i fusilli": the whole row goes, whatever the number says.
-    for (const word of _CAPTURE_ALL_WORDS) {
+    for (const word of _captureAllWords()) {
         if (_captureHasWord(lower, word)) {
             out.use_all = true;
             break;
         }
     }
     if (out.use_all && !num) out.qty = 0;
-    const unitRe = new RegExp('(?:^|[^\\p{L}])(?:' + _CAPTURE_UNITS + ')(?=$|[^\\p{L}])', 'iu');
-    const unit = lower.match(unitRe);
 
     // Product: drop the intent words (longest first), numbers, units, articles, filler.
     let product = lower;
@@ -8786,25 +8825,21 @@ function _captureParse(raw) {
     }
     if (num) product = product.split(num[1]).join(' ');
     product = product.replace(/\b\d+(?:[.,]\d+)?\b/g, ' ');
-    product = product.replace(new RegExp('(^|[^\\p{L}])(?:' + _CAPTURE_UNITS + ')(?=$|[^\\p{L}])', 'giu'), '$1 ');
-    for (const [word] of _CAPTURE_FRACTIONS.slice().sort((a, b) => b[0].length - a[0].length)) {
-        product = _captureStripWord(product, word);
-    }
-    for (const word of _CAPTURE_ALL_WORDS.slice().sort((a, b) => b.length - a.length)) {
-        product = _captureStripWord(product, word);
-    }
-    for (const word of Object.keys(_CAPTURE_NUMBER_WORDS).sort((a, b) => b.length - a.length)) {
-        product = product.replace(_captureWordRe(word, 'gi'), ' ');
-    }
-    product = product.replace(_CAPTURE_STOP, ' ');
-    product = product.replace(_CAPTURE_CJK_FILLER, ' ');
+    const unitWords = Object.keys(lex.units || {}).sort((a, b) => b.length - a.length);
+    for (const word of unitWords) product = _captureStripWord(product, word);
+    for (const [word] of _captureFractions()) product = _captureStripWord(product, word);
+    for (const word of _captureAllWords()) product = _captureStripWord(product, word);
+    const numberWords = Object.keys(lex.numbers || {}).sort((a, b) => b.length - a.length);
+    for (const word of numberWords) product = _captureStripWord(product, word);
+    const stopWords = (lex.stop_words || []).slice().sort((a, b) => b.length - a.length);
+    for (const word of stopWords) product = _captureStripWord(product, word);
     product = product.replace(/[?!.,;:'’"“”]+/g, ' ');
     out.product = product.replace(/\s+/g, ' ').trim();
 
+    const unit = _captureFindUnit(lower);
     if (unit) {
-        const m = unit[0].toLowerCase().match(new RegExp('(?:' + _CAPTURE_UNITS + ')$'));
-        const raw = m ? m[0] : '';
-        out.unit = _CAPTURE_UNIT_ALIASES[raw] || raw;
+        out.unit = unit.unit;
+        out.unit_factor = Number(unit.factor) || 1;
     }
     if (out.intent) out.confidence = 1;
     else if (out.product) { out.intent = 'consume'; out.confidence = 0.6; }
@@ -8814,7 +8849,7 @@ function _captureParse(raw) {
 /** Pantry rows offered when the spoken name is ambiguous (session only). */
 let _captureChoicesCache = [];
 /** Last parsed sentence: the choice buttons reuse its quantity and "use it all". */
-let _capturePending = { qty: 0, unit: '', use_all: false, intent: '', product: '' };
+let _capturePending = { qty: 0, unit: '', unit_factor: 1, use_all: false, intent: '', product: '' };
 
 /**
  * 0..1 similarity between a spoken product and a pantry name.
@@ -8885,7 +8920,8 @@ async function _captureFindProduct(name) {
  * "300 g" against "2 confezioni" leaves the row alone instead of guessing).
  */
 function _captureQtyFor(parsed, item) {
-    const qty = Number(parsed && parsed.qty) || 0;
+    const factor = Number(parsed && parsed.unit_factor) || 1;
+    const qty = (Number(parsed && parsed.qty) || 0) * factor;
     if (!(qty > 0)) return 0;
     const unit = String((item && item.unit) || 'pz');
     const said = String((parsed && parsed.unit) || '');
@@ -8910,6 +8946,17 @@ function _captureChoose(index) {
 }
 
 /**
+ * Does the sentence carry an action? A bare intent ("ho usato", "ho finito") is not
+ * one: with no product there is nothing to open, and the sheet has to say it did not
+ * understand instead of showing an empty form for an article that does not exist.
+ */
+function _captureIsActionable(parsed) {
+    if (!parsed) return false;
+    if (parsed.intent === 'recipe') return true;          // "cosa cucino?" is a real request
+    return String(parsed.product || '').trim() !== '';
+}
+
+/**
  * Route one captured sentence. The transcript and the interpretation are shown
  * first (a wrong parse must look like a wrong parse, not like a dead app), then the
  * flow that already does the job opens: use form, add form, item sheet or chat.
@@ -8921,13 +8968,19 @@ async function _captureSubmit(raw, opts) {
     const parsed = _captureParse(text);
     _capturePending = parsed;
     _captureShowTranscript(text, true);
-    _captureShowUnderstood(parsed);
     _captureShowChoices(null);
 
-    if (!parsed.intent && !parsed.product) {
+    // "Ho usato" alone is not an action: say so and keep the sheet open (the user can
+    // retype). This used to fall through to the add form of an empty name — and printing
+    // the "Ho capito" chips above "SHELFY non ha capito" was a contradiction.
+    if (!_captureIsActionable(parsed)) {
+        const understood = document.getElementById('capture-understood');
+        if (understood) { understood.hidden = true; understood.innerHTML = ''; }
         _captureStatus('capture.not_understood');
-        return;                       // keep the sheet open: the user can retype
+        return;
     }
+
+    _captureShowUnderstood(parsed);
 
     const go = (fn) => setTimeout(() => { _closeCaptureSheet(); fn(); }, 650);
 
@@ -13022,7 +13075,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -13032,7 +13085,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261026f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261026l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

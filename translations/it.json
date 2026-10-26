@@ -2730,7 +2730,7 @@
     "what_can_i_say": "Cosa posso dire?",
     "still_listening": "SHELFY ti ascolta ancora…",
     "use_all_hint": "Ho capito: hai finito {name}. Conferma con «Ho consumato tutto».",
-    "qty_hint": "{qty} {unit} di {name}: conferma nella scheda."
+    "qty_hint": "{qty} {unit} di {name}: confermo fra 10 secondi se non tocchi."
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."

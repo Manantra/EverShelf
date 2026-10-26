@@ -229,3 +229,120 @@ function vocabSameLemma(a, b) {
     if (!ta.length || ta.length !== tb.length) return false;
     return ta.every((word, i) => vocabSameLemmaWord(word, tb[i]));
 }
+
+// ── Capture lexicon (SHELFY: one sentence in, one confirmed action out) ─────
+// The words the capture sheet can hear are vocabulary too: they live in the same
+// api/vocab/<lang>.json ("capture"), never in app.js. The parser reads ONE merged
+// lexicon — the current language first, then every other shipped language — because the
+// recogniser listens in the device language, which is not necessarily the UI language,
+// and people mix ("ok, aggiungi il latte").
+
+/** One language's "capture" block, or null when that file does not define it. */
+function vocabCaptureOf(lang) {
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const data = all[String(lang || '')];
+    const capture = data && data.capture;
+    return (capture && typeof capture === 'object') ? capture : null;
+}
+
+/** One language's "locale" block (its own name, collation tag, speech tag). */
+function vocabLocale(lang) {
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const data = all[String(lang || '')];
+    const locale = data && data.locale;
+    return (locale && typeof locale === 'object') ? locale : {};
+}
+
+/**
+ * The shipped languages, in the data's own order: `{ it: 'Italiano', en: 'English', … }`.
+ *
+ * The selector and the `?lang=` deep link read this, so adding a language is dropping
+ * `api/vocab/<code>.json` with its "locale" block — the browser names it itself, and
+ * that name is never written in app.js.
+ */
+function vocabLanguages() {
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const out = {};
+    Object.keys(all).forEach(code => {
+        const locale = vocabLocale(code);
+        out[code] = String(locale.name || code);
+    });
+    return out;
+}
+
+/**
+ * Every capture word we ship, merged.
+ *
+ *   intents     { recipe: [...], throw: [...], consume: [...], add: [...] }
+ *   numbers     { "due": 2 }                             spelled quantities
+ *   units       { "etti": { unit: 'g', factor: 100 } }   spoken unit → canonical + multiplier
+ *   fractions   [["mezza", 0.5]]                         "half an apple"
+ *   all_words   ["tutti", "used up"]                     the whole row
+ *   stop_words  ["il", "the", "我"]                        articles, prepositions, filler
+ *
+ * A collision keeps the current language: the first language that declares a key owns
+ * it. A file that omits a section simply contributes nothing — the data never invents.
+ */
+function vocabCaptureLexicon() {
+    const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
+    if (vocabCaptureLexicon._lang === lang && vocabCaptureLexicon._value) return vocabCaptureLexicon._value;
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
+    const intents = { recipe: [], throw: [], consume: [], add: [] };
+    const out = { intents: intents, numbers: {}, units: {}, fractions: [], all_words: [], stop_words: [] };
+    const seenFractions = new Set();
+    const seenAll = new Set();
+    const seenStop = new Set();
+    const pushUnique = (list, seen, word) => {
+        const key = String(word == null ? '' : word);
+        if (key === '' || seen.has(key)) return;
+        seen.add(key);
+        list.push(key);
+    };
+    order.forEach(code => {
+        const capture = vocabCaptureOf(code);
+        if (!capture) return;
+        const spoken = capture.intent || {};
+        Object.keys(intents).forEach(intent => {
+            (spoken[intent] || []).forEach(word => {
+                if (typeof word === 'string' && word !== '' && intents[intent].indexOf(word) === -1) {
+                    intents[intent].push(word);
+                }
+            });
+        });
+        Object.entries(capture.numbers || {}).forEach(pair => {
+            if (!(pair[0] in out.numbers)) out.numbers[pair[0]] = pair[1];
+        });
+        Object.entries(capture.units || {}).forEach(pair => {
+            const word = pair[0];
+            if (word in out.units) return;
+            const spec = pair[1];
+            const unit = Array.isArray(spec) ? spec[0] : (spec && spec.unit);
+            const factor = Array.isArray(spec) ? spec[1] : (spec && spec.factor);
+            out.units[word] = { unit: String(unit || ''), factor: Number(factor) || 1 };
+        });
+        (capture.fractions || []).forEach(pair => {
+            const word = String((pair && pair[0]) || '');
+            const value = Number(pair && pair[1]);
+            if (word === '' || !(value > 0) || seenFractions.has(word)) return;
+            seenFractions.add(word);
+            out.fractions.push([word, value]);
+        });
+        (capture.all_words || []).forEach(word => pushUnique(out.all_words, seenAll, word));
+        (capture.stop_words || []).forEach(word => pushUnique(out.stop_words, seenStop, word));
+    });
+    vocabCaptureLexicon._lang = lang;
+    vocabCaptureLexicon._value = out;
+    return out;
+}
+
+/** The BCP-47 tag the recogniser should ask for ("" when the data has none). */
+function vocabCaptureSpeechTag(lang) {
+    return String(vocabLocale(lang).speech_tag || '');
+}
+
+/** The BCP-47 collation tag used by dates, numbers and the TTS voice ("" if absent). */
+function vocabCollationTag(lang) {
+    return String(vocabLocale(lang).collation || '');
+}
+

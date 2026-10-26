@@ -994,5 +994,295 @@
         ]
     },
     "translated_from": "it",
-    "translated_with": "ai:gemini"
+    "translated_with": "ai:gemini",
+    "capture":     {
+        "intent": {
+            "recipe": [
+                "was kann ich kochen",
+                "was koche ich",
+                "was kann ich machen",
+                "was soll ich kochen",
+                "rezept",
+                "rezepte",
+                "kochen",
+                "koche"
+            ],
+            "throw": [
+                "wegwerfen",
+                "weggeworfen",
+                "wegschmeißen",
+                "wegschmeissen",
+                "entsorgen",
+                "entsorgt",
+                "fortwerfen",
+                "wirf weg"
+            ],
+            "consume": [
+                "verwendet",
+                "verwenden",
+                "verbraucht",
+                "verbrauchen",
+                "aufgebraucht",
+                "gegessen",
+                "essen",
+                "esse",
+                "getrunken",
+                "trinken",
+                "trinke",
+                "benutzt",
+                "benutzen",
+                "probiert",
+                "probieren",
+                "geleert",
+                "leeren",
+                "fertig"
+            ],
+            "add": [
+                "hinzufügen",
+                "hinzugefügt",
+                "hinzufugen",
+                "kaufen",
+                "kaufe",
+                "kauf",
+                "gekauft",
+                "einlagern",
+                "eingelagert",
+                "lege"
+            ]
+        },
+        "numbers": {
+            "ein": 1,
+            "eine": 1,
+            "einen": 1,
+            "einem": 1,
+            "einer": 1,
+            "zwei": 2,
+            "drei": 3,
+            "vier": 4,
+            "fünf": 5,
+            "sechs": 6,
+            "sieben": 7,
+            "acht": 8,
+            "neun": 9,
+            "zehn": 10,
+            "elf": 11,
+            "zwölf": 12
+        },
+        "units": {
+            "g": [
+                "g",
+                1
+            ],
+            "gr": [
+                "g",
+                1
+            ],
+            "gramm": [
+                "g",
+                1
+            ],
+            "dag": [
+                "g",
+                10
+            ],
+            "hg": [
+                "g",
+                100
+            ],
+            "kg": [
+                "kg",
+                1
+            ],
+            "kilo": [
+                "kg",
+                1
+            ],
+            "kilogramm": [
+                "kg",
+                1
+            ],
+            "ml": [
+                "ml",
+                1
+            ],
+            "milliliter": [
+                "ml",
+                1
+            ],
+            "cl": [
+                "cl",
+                1
+            ],
+            "dl": [
+                "dl",
+                1
+            ],
+            "l": [
+                "l",
+                1
+            ],
+            "lt": [
+                "l",
+                1
+            ],
+            "liter": [
+                "l",
+                1
+            ],
+            "pz": [
+                "pz",
+                1
+            ],
+            "stück": [
+                "pz",
+                1
+            ],
+            "stueck": [
+                "pz",
+                1
+            ],
+            "stk": [
+                "pz",
+                1
+            ],
+            "scheibe": [
+                "pz",
+                1
+            ],
+            "scheiben": [
+                "pz",
+                1
+            ],
+            "conf": [
+                "conf",
+                1
+            ],
+            "packung": [
+                "conf",
+                1
+            ],
+            "packungen": [
+                "conf",
+                1
+            ],
+            "pack": [
+                "conf",
+                1
+            ],
+            "päckchen": [
+                "conf",
+                1
+            ],
+            "flasche": [
+                "conf",
+                1
+            ],
+            "flaschen": [
+                "conf",
+                1
+            ],
+            "glas": [
+                "conf",
+                1
+            ],
+            "gläser": [
+                "conf",
+                1
+            ],
+            "dose": [
+                "conf",
+                1
+            ],
+            "dosen": [
+                "conf",
+                1
+            ],
+            "beutel": [
+                "conf",
+                1
+            ],
+            "tüte": [
+                "conf",
+                1
+            ]
+        },
+        "fractions": [
+            [
+                "dreiviertel",
+                0.75
+            ],
+            [
+                "drei viertel",
+                0.75
+            ],
+            [
+                "ein viertel",
+                0.25
+            ],
+            [
+                "ein halb",
+                0.5
+            ],
+            [
+                "halbe",
+                0.5
+            ],
+            [
+                "halben",
+                0.5
+            ],
+            [
+                "halb",
+                0.5
+            ]
+        ],
+        "all_words": [
+            "alles",
+            "alle",
+            "ganz",
+            "ganze",
+            "ganzen",
+            "leer",
+            "fertig",
+            "aufgebraucht"
+        ],
+        "stop_words": [
+            "der",
+            "die",
+            "das",
+            "den",
+            "dem",
+            "des",
+            "ein",
+            "eine",
+            "einen",
+            "einem",
+            "einer",
+            "und",
+            "oder",
+            "mit",
+            "von",
+            "vom",
+            "im",
+            "in",
+            "am",
+            "an",
+            "auf",
+            "für",
+            "fur",
+            "mein",
+            "meine",
+            "meinen",
+            "ich",
+            "habe",
+            "hab",
+            "hat",
+            "einige"
+        ]
+    },
+    "locale": {
+        "name": "Deutsch",
+        "collation": "de-DE",
+        "speech_tag": "de-DE"
+    }
 }

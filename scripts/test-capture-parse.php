@@ -85,40 +85,52 @@ check('nothing is applied without a confirmation step',
     && str_contains($app, 'showAlertItemDetail(best.item.inventory_id'));
 
 $src = extract_fn($app, '_captureParse');
-// The parser reads its lexicon and matcher: ship them to node as well.
-$lexStart = strpos($app, 'const _CAPTURE_INTENT_WORDS');
-$lexEnd = strpos($app, 'function _captureParse');
-$lexicon = ($lexStart !== false && $lexEnd !== false && $lexEnd > $lexStart)
-    ? substr($app, $lexStart, $lexEnd - $lexStart) : '';
-check('the lexicon is extractable', $lexicon !== '' && str_contains($lexicon, '_captureMatchIntent'));
-$harness = $lexicon . $src . <<<'JS'
-const cases = [
-    ["Ho usato 1 arancia", "consume", "arancia", 1],
-    ["ho usato 250 g di pasta", "consume", "pasta", 250],
-    ["Aggiungi il latte", "add", "latte", 1],
-    ["Cosa cucino con le uova?", "recipe", "", 1],
-    ["I used 2 apples", "consume", "apples", 2],
-    ["add the milk", "add", "milk", 1],
-    ["Ich habe 1 Apfel verbraucht", "consume", "apfel", 1],
-    ["J'ai utilisé une orange", "consume", "orange", 1],
-    ["He usado 1 naranja", "consume", "naranja", 1],
-    ["我用了一个橙子", "consume", "橙子", 1],
-    ["finito il latte", "consume", "latte", 1],
-    ["ho buttato il pane", "throw", "pane", 1],
-    ["due mele", "consume", "mele", 2],
-    ["three eggs", "consume", "eggs", 3],
-    ["zwei Äpfel", "consume", "äpfel", 2],
-    ["deux tomates", "consume", "tomates", 2],
-    ["tres naranjas", "consume", "naranjas", 3],
-    // Round 5: fractions, grams written without a space, "I finished it all".
-    ["ho usato mezza mela", "consume", "mela", 0.5],
-    ["ho usato un quarto di torta", "consume", "torta", 0.25],
-    ["ho usato 300gr di fusilli", "consume", "fusilli", 300],
-    ["I used half an apple", "consume", "apple", 0.5],
-    ["ho finito tutti i fusilli", "consume", "fusilli", 0],
-    ["he usado todo el pan", "consume", "pan", 0],
-];
-const out = cases.map(([text]) => _captureParse(text));
+// The parser reads its lexicon from the vocabulary DATA, so node gets the generated
+// vocabulary + the browser engine + the matchers, never a copy of the words.
+$matchers = '';
+foreach ([
+    '_captureWordRe', '_captureIntentWords', '_captureHasWord', '_captureHasUnit',
+    '_captureStripWord', '_captureMatchIntent', '_captureUnitInfo', '_captureFindUnit',
+    '_captureFractions', '_captureAllWords',
+] as $fnName) {
+    $matchers .= extract_fn($app, $fnName) . "\n";
+}
+check('the parser and its matchers are extractable', $src !== '' && $matchers !== '');
+
+/** The browser vocabulary (generated data + engine), as node sees it. */
+function vocab_prelude(string $root): string
+{
+    return (string)file_get_contents($root . '/assets/js/vocab.generated.js') . "\n"
+        . "let _currentLang = 'it';\n"
+        . (string)file_get_contents($root . '/assets/js/core/vocab.js') . "\n";
+}
+
+// The sentences are DATA too: one per intent and language, plus quantities, fractions,
+// units and "all of it" — scripts/fixtures/capture-cases.json, never a list in this file.
+$fixture = json_decode((string)file_get_contents($root . '/scripts/fixtures/capture-cases.json'), true);
+$cases = [];
+foreach ((array)($fixture['cases'] ?? []) as $row) {
+    if (!is_array($row) || !isset($row['text'])) {
+        continue;
+    }
+    // [sentence, intent, product, qty, unit]
+    $cases[] = [
+        (string)$row['text'],
+        (string)($row['intent'] ?? ''),
+        (string)($row['product'] ?? ''),
+        $row['qty'] ?? 1,
+        (string)($row['unit'] ?? ''),
+    ];
+}
+check('the parser fixtures are DATA (scripts/fixtures/capture-cases.json)',
+    count($cases) >= 30, count($cases) . ' case(s)');
+$jsCases = 'const cases = ' . json_encode(array_map(static fn($c) => [$c[0]], $cases), JSON_UNESCAPED_UNICODE) . ";\n";
+$harness = vocab_prelude($root) . $matchers . $src . $jsCases . <<<'JS'
+const out = {};
+['it', 'en', 'de', 'fr', 'es', 'zh'].forEach(lang => {
+    _currentLang = lang;
+    out[lang] = cases.map(([text]) => _captureParse(text));
+});
 console.log(JSON.stringify(out));
 JS;
 
@@ -126,36 +138,109 @@ $tmp = sys_get_temp_dir() . '/capture_' . getmypid() . '.js';
 file_put_contents($tmp, $harness);
 $raw = shell_exec('node ' . escapeshellarg($tmp) . ' 2>/dev/null');
 @unlink($tmp);
-$out = json_decode(trim((string)$raw), true);
-check('the parser runs in node', is_array($out), (string)$raw);
-if (is_array($out)) {
-    $expect = [
-        ['consume', 'arancia', 1], ['consume', 'pasta', 250], ['add', 'latte', 1],
-        ['recipe', '', 1], ['consume', 'apples', 2], ['add', 'milk', 1],
-        ['consume', 'apfel', 1], ['consume', 'orange', 1], ['consume', 'naranja', 1],
-        ['consume', '橙子', 1], ['consume', 'latte', 0],
-        ['throw', 'pane', 1], ['consume', 'mele', 2], ['consume', 'eggs', 3],
-        ['consume', 'äpfel', 2], ['consume', 'tomates', 2], ['consume', 'naranjas', 3],
-        ['consume', 'mela', 0.5], ['consume', 'torta', 0.25], ['consume', 'fusilli', 300],
-        ['consume', 'apple', 0.5], ['consume', 'fusilli', 0], ['consume', 'pan', 0],
-    ];
-    foreach ($expect as $i => [$intent, $product, $qty]) {
-        $row = $out[$i] ?? [];
-        check("case {$i}: intent {$intent}", ($row['intent'] ?? '') === $intent, json_encode($row));
+$matrix = json_decode(trim((string)$raw), true);
+check('the parser runs in node', is_array($matrix), (string)$raw);
+if (is_array($matrix)) {
+    check('every interface language gets the same merged lexicon',
+        count($matrix) === 6, json_encode(array_keys($matrix)));
+    $base = $matrix['it'] ?? [];
+    check('every case returns a row', is_array($base) && count($base) === count($cases), json_encode($base));
+    foreach ($cases as $i => [$text, $intent, $product, $qty, $unit]) {
+        $row = is_array($base) ? ($base[$i] ?? []) : [];
+        check("case {$i} ({$text}): intent {$intent}", ($row['intent'] ?? '') === $intent, json_encode($row));
         if ($product !== '') {
-            check("case {$i}: product {$product}", ($row['product'] ?? '') === $product, json_encode($row));
+            check("case {$i} ({$text}): product {$product}", ($row['product'] ?? '') === $product, json_encode($row));
         }
-        check("case {$i}: qty {$qty}", (float)($row['qty'] ?? 0) === (float)$qty, json_encode($row));
+        check("case {$i} ({$text}): qty {$qty}", (float)($row['qty'] ?? 0) === (float)$qty, json_encode($row));
+        if ($unit !== '') {
+            check("case {$i} ({$text}): unit {$unit}", ($row['unit'] ?? '') === $unit, json_encode($row));
+        }
+    }
+    foreach (['en', 'de', 'fr', 'es', 'zh'] as $loc) {
+        check("{$loc}: a sentence parses exactly as it does on an Italian UI",
+            json_encode($matrix[$loc] ?? null) === json_encode($base));
     }
 }
 
-// ── Round 5: the parser knows fractions, units and "all of it" ────────────
-check('fractions are quantities', str_contains($app, 'const _CAPTURE_FRACTIONS')
-    && str_contains($app, "['mezza', 0.5]"));
-check('spoken units have one canonical form', str_contains($app, 'const _CAPTURE_UNIT_ALIASES')
-    && str_contains($app, "gr: 'g'"));
-check('"ho finito tutti" sets use_all', str_contains($app, 'const _CAPTURE_ALL_WORDS')
+// ── Round 11: a sentence with no product is not an action ────────────────────
+// "Ho usato" alone used to fall through to the add form of an empty name: a panel for
+// a product that does not exist. It has to say "not understood" and stay open.
+$actSrc = extract_fn($app, '_captureIsActionable');
+check('_captureIsActionable() is extractable', $actSrc !== '');
+$submitSrc = extract_fn($app, '_captureSubmit');
+$guardPos = strpos($submitSrc, 'if (!_captureIsActionable(parsed)) {');
+$openPos  = strpos($submitSrc, 'startManualEntry();');
+check('_captureSubmit() refuses an empty action before opening anything',
+    str_contains($app, "if (parsed.intent === 'recipe') return true;")
+    && $guardPos !== false
+    && ($openPos === false || $guardPos < $openPos));
+check('the sheet never claims "I understood" above "not understood"',
+    // The chips ARE the interpretation: when there is nothing to interpret they hide.
+    preg_match('/if \(!_captureIsActionable\(parsed\)\) \{[\s\S]{0,300}capture-understood[\s\S]{0,250}capture\.not_understood/', $app) === 1
+    && str_contains($app, '_captureShowUnderstood(parsed);'));
+if ($actSrc !== '') {
+    $actHarness = vocab_prelude($root) . $matchers . $src . $actSrc . PHP_EOL . <<<'JS'
+const probes = ['ho usato', 'ho finito', '', 'ho usato 200 grammi di pasta', 'aggiungi il latte', 'cosa cucino con le uova'];
+console.log(JSON.stringify(probes.map(t => _captureIsActionable(_captureParse(t)))));
+JS;
+    $tmpA = sys_get_temp_dir() . '/actionable_' . getmypid() . '.js';
+    file_put_contents($tmpA, $actHarness);
+    $rawA = shell_exec('node ' . escapeshellarg($tmpA) . ' 2>/dev/null');
+    @unlink($tmpA);
+    $act = json_decode(trim((string)$rawA), true);
+    check('the actionable probe answers', is_array($act), (string)$rawA);
+    if (is_array($act)) {
+        check('a bare intent is not actionable', ($act[0] ?? true) === false && ($act[1] ?? true) === false, json_encode($act));
+        check('an empty sentence is not actionable', ($act[2] ?? true) === false, json_encode($act));
+        check('a spoken product makes it actionable', ($act[3] ?? false) === true && ($act[4] ?? false) === true, json_encode($act));
+        check('a recipe question is always actionable', ($act[5] ?? false) === true, json_encode($act));
+    }
+}
+
+// ── Round 5 / 10: fractions, units and "all of it" come from the DATA ─────
+$captureByLang = [];
+foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
+    $doc = json_decode((string)file_get_contents($root . "/api/vocab/{$loc}.json"), true);
+    $captureByLang[$loc] = (array)($doc['capture'] ?? []);
+    $cap = $captureByLang[$loc];
+    $locale = (array)($doc['locale'] ?? []);
+    $intents = array_filter(['recipe', 'throw', 'consume', 'add'],
+        static fn($k) => !empty($cap['intent'][$k]));
+    check("api/vocab/{$loc}.json carries the whole capture schema",
+        count($intents) === 4
+        && !empty($cap['numbers'])
+        && !empty($cap['units'])
+        && !empty($cap['fractions'])
+        && !empty($cap['all_words'])
+        && !empty($cap['stop_words'])
+        // The recogniser tag is language metadata: one place per language, not per feature.
+        && !isset($cap['speech_tag'])
+        && preg_match('/^[a-z]{2}-[A-Z]{2}$/', (string)($locale['speech_tag'] ?? '')) === 1,
+        json_encode(array_keys($cap)) . ' / ' . json_encode(array_keys($locale)));
+}
+$itVocab = json_decode((string)file_get_contents($root . '/api/vocab/it.json'), true);
+$itCapture = $captureByLang['it'];
+$enCapture = $captureByLang['en'];
+$deCapture = $captureByLang['de'];
+$esCapture = $captureByLang['es'];
+check('fractions are quantities in the data',
+    in_array(['mezza', 0.5], (array)($itCapture['fractions'] ?? []), true)
+    && str_contains($app, 'function _captureFractions('));
+check('spoken units have one canonical form in the data',
+    (($itCapture['units']['gr'][0] ?? '') === 'g')
+    && (($itCapture['units']['etti'][1] ?? 0) === 100)
+    && str_contains($app, 'function _captureUnitInfo('));
+check('"ho finito tutti" sets use_all from the data',
+    in_array('tutti', (array)($itCapture['all_words'] ?? []), true)
     && str_contains($app, 'out.use_all = true'));
+check('the whole lexicon is data, none of it is hardcoded in app.js',
+    !str_contains($app, 'const _CAPTURE_INTENT_WORDS')
+    && !str_contains($app, 'const _CAPTURE_NUMBER_WORDS')
+    && !str_contains($app, 'const _CAPTURE_FRACTIONS')
+    && !str_contains($app, 'const _CAPTURE_UNIT_ALIASES')
+    && !str_contains($app, 'const _CAPTURE_ALL_WORDS')
+    && !str_contains($app, 'const _CAPTURE_STOP')
+    && str_contains($app, 'vocabCaptureLexicon()'));
 check('a dictated quantity reaches the USE panel',
     str_contains($app, 'function _captureQtyFor(')
     && str_contains($app, 'async function _shelfyRunConsume(')
@@ -172,12 +257,17 @@ check('it introduces itself once per device',
     && str_contains($app, "localStorage.getItem(SHELFY_INTRO_KEY)")
     && str_contains($app, 'if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }')
     && str_contains($html, 'id="shelfy-help-btn"'));
-check('the agent never confirms by itself: USE and ADD wait for a tap',
-    !str_contains($app, "_shelfyArmButton(document.getElementById('btn-use-submit')")
-    && !str_contains($app, "_shelfyArmButton(document.getElementById('btn-add-submit')")
-    && !str_contains($app, "document.querySelector('#page-use .use-all-btn')")
+check('the USE confirm drains for 10 s and then acts (SHELFY auto-confirms)',
+    str_contains($app, "const confirmBtn = document.getElementById('btn-use-submit');")
+    && str_contains($app, '_shelfyArmButton(confirmBtn, 10000, () => submitUse({ preventDefault() {} }));')
     && str_contains($app, 'function _shelfyArmButton(')
     && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), 'animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;'));
+check('adding and "use it all" still wait for the user',
+    !str_contains($app, "_shelfyArmButton(document.getElementById('btn-add-submit')")
+    && !str_contains($app, "document.querySelector('#page-use .use-all-btn')")
+    && str_contains($app, "t('capture.use_all_hint'"));
+check('only one countdown runs on the USE confirm (no double progress bar)',
+    preg_match('/function _shelfyRunConsume[\s\S]*?clearUseFormIdleCountdown\(\);[\s\S]*?_shelfyArmButton\(confirmBtn, 10000/', $app) === 1);
 check('any touch stops it',
     str_contains($app, "document.addEventListener('pointerdown', stop, true)")
     && str_contains($app, "document.addEventListener('keydown', stop, true)")
@@ -192,11 +282,12 @@ check('a derived article is not a confident match',
     && str_contains($app, 'const confident = !!best && best.score >= 0.85;')
     && str_contains($app, 'const uncertain = !!best && rows.length > 1 && (best.score - rows[1].score) < 0.08;'));
 check('eaten and drunk are consumption too',
-    str_contains($app, "'mangiato', 'mangiata'")
-    && str_contains($app, "'bevuto', 'bevuta'")
-    && str_contains($app, "'drunk', 'drank'")
-    && str_contains($app, "'getrunken'")
-    && str_contains($app, "'bebido'"));
+    // One vocabulary, six languages: the words live in api/vocab/<lang>.json.
+    in_array('mangiato', (array)($itCapture['intent']['consume'] ?? []), true)
+    && in_array('bevuto', (array)($itCapture['intent']['consume'] ?? []), true)
+    && in_array('drunk', (array)($enCapture['intent']['consume'] ?? []), true)
+    && in_array('getrunken', (array)($deCapture['intent']['consume'] ?? []), true)
+    && in_array('bebido', (array)($esCapture['intent']['consume'] ?? []), true));
 check('the candidates show picture, name, brand, place',
     str_contains($app, 'class="shelfy-pick')
     && str_contains($app, '_validProductImageUrl(item.image_url)')
@@ -205,7 +296,9 @@ check('the candidates show picture, name, brand, place',
 $unitSrc = extract_fn($app, '_shelfyAddUnit');
 check('_shelfyAddUnit() is extractable', $unitSrc !== '');
 if ($unitSrc !== '') {
-    $unitHarness = $unitSrc . <<<'JS'
+    $unitHarness = vocab_prelude($root)
+        . extract_fn($app, '_captureUnitInfo') . "\n"
+        . $unitSrc . <<<'JS'
 console.log(JSON.stringify([[1,'l'],[0.5,'kg'],[300,'g'],[30,'cl'],[2,'conf'],[1,'']].map(([q,u]) => _shelfyAddUnit(q,u))));
 JS;
     $tmpU = sys_get_temp_dir() . '/addunit_' . getmypid() . '.js';
@@ -234,33 +327,38 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
         && str_contains((string)$doc['shelfy']['pick_auto'], '{name}'));
 }
 
-// ── Round 9: ONE utterance per tap (the restart loop beeped and ate the sentence) ──
-check('the recogniser is not restarted in a loop',
-    str_contains($app, '_captureRec.continuous = false;')
+// ── Round 9/11: ONE session per tap, and it is not cut at the first pause ────
+// `continuous = false` made the browser finalise "Ho usato" at the first pause and the
+// old `onresult` submitted that chunk, closing the sheet mid-sentence (and the restart
+// loop before it beeped). One session now runs until the user is silent.
+check('the recogniser runs one session per tap, stopped by silence (never restarted)',
+    str_contains($app, '_captureRec.continuous = true;')
+    && str_contains($app, 'const _CAPTURE_SILENCE_MS = 1800;')
+    && str_contains($app, 'const armSilenceStop = () => {')
     && !str_contains($app, '_CAPTURE_VOICE_MAX_RESTARTS')
     && !str_contains($app, '_captureStartVoice(true)')
-    && str_contains($app, "_captureVoice = { active: false, text: '' };"));
+    && str_contains($app, "_captureVoice = { active: false, text: '', timer: 0 };"));
+check('a final phrase never submits: only onend hands the sentence over',
+    preg_match('/_captureRec\.onresult = \(ev\) => \{[\s\S]*?\n        \};/', $app, $onres) === 1
+    && !str_contains($onres[0] ?? '', 'finish(')
+    && str_contains($app, 'if (said) { finish(said); return; }'));
+check('the silence timer ends the session and closing clears it',
+    str_contains($app, '_captureVoice.timer = setTimeout(() => {')
+    && preg_match('/function _captureVoiceStop\(\) \{[\s\S]{0,400}clearTimeout\(_captureVoice\.timer\)/', $app) === 1);
 // The recogniser must hear the language the user SPEAKS: an English UI used to make an
 // Italian sentence unrecognisable even though the parser understands all six languages.
 $langSrc = extract_fn($app, '_captureSpeechLang');
 check('_captureSpeechLang() is extractable', $langSrc !== '');
 if ($langSrc !== '') {
-    $langHarness = "globalThis._SUPPORTED_LANGS={it:1,en:1,de:1,fr:1,es:1,zh:1};
-"
-        . "globalThis._collationLocale=()=>'en-GB';
-"
-        . "globalThis._currentLang='en';
-"
-        . $langSrc . "
-"
-        . "const f=_captureSpeechLang;
-"
-        . "const out={uiEnDeviceIt:f('it-IT')};
-"
-        . "globalThis._currentLang='it';
-"
-        . "out.uiItDeviceDe=f('de-DE'); out.uiItDeviceRu=f('ru-RU'); out.uiItDeviceZh=f('zh-CN'); out.uiItNoDevice=f('');
-"
+    $langHarness = vocab_prelude($root)
+        . "globalThis._SUPPORTED_LANGS={it:1,en:1,de:1,fr:1,es:1,zh:1};\n"
+        . "globalThis._collationLocale=()=>'en-GB';\n"
+        . "_currentLang='en';\n"
+        . $langSrc . "\n"
+        . "const f=_captureSpeechLang;\n"
+        . "const out={uiEnDeviceIt:f('it-IT')};\n"
+        . "_currentLang='it';\n"
+        . "out.uiItDeviceDe=f('de-DE'); out.uiItDeviceRu=f('ru-RU'); out.uiItDeviceZh=f('zh-CN'); out.uiItNoDevice=f('');\n"
         . "console.log(JSON.stringify(out));";
     $tmpL = sys_get_temp_dir() . '/speechlang_' . getmypid() . '.js';
     file_put_contents($tmpL, $langHarness);
@@ -276,10 +374,32 @@ if ($langSrc !== '') {
     }
 }
 
+// ── Round 10: closing the sheet and starting the microphone must always work ──
+// A refactor deleted _captureVoiceStop() while three callers kept calling it: the
+// ReferenceError stopped _closeCaptureSheet() at its first line (the dialog stayed on
+// screen) and _captureStartVoice() at its first line (nothing was ever heard, the mic
+// never filled). Both are locked here.
+preg_match_all('/\b(_capture[A-Za-z]+)\s*\(/', $app, $captureCalls);
+$undefinedCapture = [];
+foreach (array_unique($captureCalls[1] ?? []) as $fnName) {
+    if (!str_contains($app, 'function ' . $fnName . '(')) {
+        $undefinedCapture[] = $fnName;
+    }
+}
+check('every _capture*() call has a definition', $undefinedCapture === [], implode(', ', $undefinedCapture));
+check('the voice session has one stop function',
+    str_contains($app, 'function _captureVoiceStop(')
+    && substr_count($app, '_captureVoiceStop()') >= 3);
+check('closing the sheet hides it before the cleanup runs',
+    preg_match('/function _closeCaptureSheet\(\)\s*\{[^}]*display = \'none\';[^}]*_shelfyDisarm\(\);[^}]*_captureVoiceStop\(\);/s', $app) === 1);
+check('opening the sheet starts listening by itself',
+    preg_match('/function _openCaptureSheet\(\)[\s\S]{0,1600}_captureStartVoice\(\);/', $app) === 1);
+
 check('an interim transcript counts when the browser never finalises',
-    str_contains($app, 'const said = (finalText || interimText).trim();')
-    && str_contains($app, 'if (said) { finish(said); return; }')
-    && str_contains($app, 'if (interim.trim()) interimText = interim.trim();'));
+    str_contains($app, "let heard = '';")
+    && str_contains($app, 'heard = _captureJoinText(heard, eventText);')
+    && str_contains($app, 'const said = heard.trim();')
+    && str_contains($app, 'if (said) { finish(said); return; }'));
 check('opening the sheet does not open the soft keyboard',
     str_contains($app, 'input.blur();')
     && !preg_match('/function _openCaptureSheet\(\)[\s\S]{0,1200}input\.focus\(\)/', $app));
@@ -407,13 +527,17 @@ check('the matcher is internal and offline (no AI call, no network)',
     !str_contains(extract_fn($app, '_captureParse'), 'api(')
     && !str_contains(extract_fn($app, '_captureParse'), 'fetch('));
 check('the lexicon covers all six UI languages',
-    str_contains($app, "'cosa cucino'") && str_contains($app, "'recipe'") && str_contains($app, "'rezept'")
-    && str_contains($app, "'recette'") && str_contains($app, "'receta'") && str_contains($app, "'食谱'"));
+    in_array('cosa cucino', (array)($captureByLang['it']['intent']['recipe'] ?? []), true)
+    && in_array('recipe', (array)($captureByLang['en']['intent']['recipe'] ?? []), true)
+    && in_array('rezept', (array)($captureByLang['de']['intent']['recipe'] ?? []), true)
+    && in_array('recette', (array)($captureByLang['fr']['intent']['recipe'] ?? []), true)
+    && in_array('receta', (array)($captureByLang['es']['intent']['recipe'] ?? []), true)
+    && in_array('食谱', (array)($captureByLang['zh']['intent']['recipe'] ?? []), true));
 
 $score = extract_fn($app, '_captureScoreName');
 check('_captureScoreName() is extractable', $score !== '');
 if ($score !== '') {
-    $jsScore = $lexicon . $score . <<<'JS'
+    $jsScore = extract_fn($app, '_captureWordRe') . "\n" . $score . <<<'JS'
 console.log(JSON.stringify([
     _captureScoreName('arancia', 'Arancia'),
     _captureScoreName('arancia', 'Arance'),
@@ -434,6 +558,115 @@ JS;
         && (float)($scores[2] ?? 0) >= 0.85          // latte -> Latte intero
         && (float)($scores[3] ?? 1) < (float)($scores[2] ?? 0)
         && (float)($scores[4] ?? 1) === 0.0, json_encode($scores));
+}
+
+// ── Round 11: the real voice loop, driven by a fake recogniser ───────────────
+// A browser finalises a phrase at the first short pause. The old loop submitted that
+// first final, so "Ho usato 200 grammi di pasta" arrived as "Ho usato" and the sheet
+// closed. Here the real _captureStartVoice() runs against a fake API that emits exactly
+// that sequence: nothing may be submitted until the silence timer stops the session.
+$voiceSrc = extract_fn($app, '_captureStartVoice');
+$stopSrc  = extract_fn($app, '_captureVoiceStop');
+preg_match('/const _CAPTURE_SILENCE_MS = (\d+);/', $app, $silenceM);
+check('the voice loop is extractable',
+    $voiceSrc !== '' && $stopSrc !== '' && !empty($silenceM[1]),
+    json_encode($silenceM));
+if ($voiceSrc !== '' && $stopSrc !== '' && !empty($silenceM[1])) {
+    $voiceHarness = "const _CAPTURE_SILENCE_MS = " . $silenceM[1] . ";\n"
+        . "let _captureRec = null;\nlet _captureMeterStarted = false;\n"
+        . "let _captureVoice = { active: false, text: '', timer: 0 };\n"
+        . "const submitted = [];\n"
+        . "const _statuses = [];\n"
+        . "globalThis.document = { getElementById: () => null };\n"
+        . "const _captureStatus = (k) => { _statuses.push(k); };\n"
+        . "const _captureShowTranscript = () => {};\n"
+        . "const _captureShowChoices = () => {};\n"
+        . "const _captureSetState = () => {};\n"
+        . "const _captureStartMeter = () => {};\n"
+        . "const _captureStopMeter = () => {};\n"
+        . "const _captureSpeechLang = () => 'it-IT';\n"
+        . "const _captureSubmit = (text) => { submitted.push(text); };\n"
+        . extract_fn($app, '_captureJoinText') . "\n"
+        . $stopSrc . "\n" . $voiceSrc . "\n"
+        . <<<'JS'
+class FakeRec {
+    constructor() { FakeRec.last = this; FakeRec.started = false; }
+    start() { FakeRec.started = true; }
+    stop() { const self = this; setTimeout(() => { if (self.onend) self.onend(); }, 0); }
+    // The Web Speech API hands the WHOLE session list on every event, never just the new
+    // chunk: that is what made the old append duplicate "ho ho ho usato…".
+    emit(list) {
+        const results = list.map(([text, isFinal]) => Object.assign([{ transcript: text }], { isFinal: isFinal }));
+        if (this.onresult) this.onresult({ resultIndex: 0, results: results });
+    }
+}
+window = { SpeechRecognition: FakeRec };
+async function runSession(events) {
+    submitted.length = 0;
+    await _captureStartVoice();
+    const rec = FakeRec.last;
+    const afterEachEvent = [];
+    for (const ev of events) {
+        rec.emit(ev);
+        afterEachEvent.push(submitted.slice());
+    }
+    await new Promise(r => setTimeout(r, _CAPTURE_SILENCE_MS + 300));
+    return { afterEachEvent: afterEachEvent, submitted: submitted.slice() };
+}
+(async () => {
+    const cut = await runSession([
+        [['Ho usato', true]],
+        [['Ho usato', true], ['200 grammi di pasta', true]]
+    ]);
+    const repeated = await runSession([
+        [['ho usato una', false]],
+        [['ho usato una', false]],
+        [['ho usato una banana', false]],
+        [['ho usato una banana', true]],
+        [['ho usato una banana', true]]
+    ]);
+    // Chrome on Android restarts the list at every phrase, and the new phrase is cumulative:
+    // this is the "ho consumato ho consumato ho consumato 250 …" report.
+    const resetCumulative = await runSession([
+        [['ho consumato', true]],
+        [['ho consumato 250', false]],
+        [['ho consumato 250 grammi', false]],
+        [['ho consumato 250 grammi di pasta', true]]
+    ]);
+    // The same reset with a phrase that does NOT repeat the beginning.
+    const resetPieces = await runSession([
+        [['ho consumato', true]],
+        [['250 grammi di pasta', true]]
+    ]);
+    console.log(JSON.stringify({
+        cut: cut, repeated: repeated, resetCumulative: resetCumulative,
+        resetPieces: resetPieces, started: FakeRec.started
+    }));
+})();
+JS;
+    $tmpV = sys_get_temp_dir() . '/voice_' . getmypid() . '.js';
+    file_put_contents($tmpV, $voiceHarness);
+    $rawV = shell_exec('node ' . escapeshellarg($tmpV) . ' 2>/dev/null');
+    @unlink($tmpV);
+    $voice = json_decode(trim((string)$rawV), true);
+    check('the voice loop runs against a fake recogniser', is_array($voice), (string)$rawV);
+    if (is_array($voice)) {
+        check('the first final phrase is NOT submitted (the sentence is still going)',
+            ($voice['cut']['afterEachEvent'][0] ?? null) === [], json_encode($voice['cut']['afterEachEvent'][0] ?? null));
+        check('the whole sentence is submitted once, when the user stops talking',
+            ($voice['cut']['submitted'] ?? []) === ['Ho usato 200 grammi di pasta'], json_encode($voice['cut']['submitted'] ?? null));
+        check('re-delivered results are not appended twice ("ho ho ho usato…")',
+            ($voice['repeated']['submitted'] ?? []) === ['ho usato una banana'], json_encode($voice['repeated']['submitted'] ?? null));
+        check('no event submits while the user is still talking',
+            array_filter((array)($voice['repeated']['afterEachEvent'] ?? [null])) === [],
+            json_encode($voice['repeated']['afterEachEvent'] ?? null));
+        check('a restarted result list is not stitched twice (the "ho consumato ho consumato" report)',
+            ($voice['resetCumulative']['submitted'] ?? []) === ['ho consumato 250 grammi di pasta'],
+            json_encode($voice['resetCumulative']['submitted'] ?? null));
+        check('a restarted list without the beginning is joined once',
+            ($voice['resetPieces']['submitted'] ?? []) === ['ho consumato 250 grammi di pasta'],
+            json_encode($voice['resetPieces']['submitted'] ?? null));
+    }
 }
 
 // --------------------------------------------------------------------- i18n

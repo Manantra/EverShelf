@@ -1636,5 +1636,374 @@
       "findus",
       "star"
     ]
-  }
+  },
+    "capture":     {
+        "intent": {
+            "recipe": [
+                "cosa cucino",
+                "cosa posso cucinare",
+                "cosa cucinare",
+                "cosa preparo",
+                "che cosa",
+                "cosa posso fare",
+                "ricetta",
+                "ricette",
+                "cucino",
+                "cucinare"
+            ],
+            "throw": [
+                "buttato",
+                "buttata",
+                "buttare",
+                "butto",
+                "butta",
+                "gettato",
+                "gettata",
+                "gettare",
+                "getta",
+                "buttare via",
+                "butta via",
+                "eliminare",
+                "scartare",
+                "scarto",
+                "buttato via",
+                "buttata via",
+                "gettato via",
+                "gettata via"
+            ],
+            "consume": [
+                "ho usato",
+                "usato",
+                "usata",
+                "usati",
+                "usate",
+                "uso",
+                "consumato",
+                "consumata",
+                "consumati",
+                "consumate",
+                "consumare",
+                "mangiato",
+                "mangiata",
+                "mangiati",
+                "mangiate",
+                "mangiare",
+                "bevuto",
+                "bevuta",
+                "bevuti",
+                "bevute",
+                "bere",
+                "assaggiato",
+                "assaggiata",
+                "assaggiare",
+                "finito",
+                "finita",
+                "finiti",
+                "finite",
+                "esaurito",
+                "esaurita",
+                "esauriti"
+            ],
+            "add": [
+                "aggiungi",
+                "aggiungere",
+                "aggiunto",
+                "aggiunta",
+                "metti in",
+                "metti",
+                "mettere",
+                "compra",
+                "comprare",
+                "comprato",
+                "comprata",
+                "acquista",
+                "acquistare",
+                "ho comprato"
+            ]
+        },
+        "numbers": {
+            "uno": 1,
+            "una": 1,
+            "un": 1,
+            "due": 2,
+            "tre": 3,
+            "quattro": 4,
+            "cinque": 5,
+            "sei": 6,
+            "sette": 7,
+            "otto": 8,
+            "nove": 9,
+            "dieci": 10,
+            "undici": 11,
+            "dodici": 12
+        },
+        "units": {
+            "g": [
+                "g",
+                1
+            ],
+            "gr": [
+                "g",
+                1
+            ],
+            "grammi": [
+                "g",
+                1
+            ],
+            "grammo": [
+                "g",
+                1
+            ],
+            "hg": [
+                "g",
+                100
+            ],
+            "etto": [
+                "g",
+                100
+            ],
+            "etti": [
+                "g",
+                100
+            ],
+            "kg": [
+                "kg",
+                1
+            ],
+            "chilo": [
+                "kg",
+                1
+            ],
+            "chili": [
+                "kg",
+                1
+            ],
+            "kilogrammi": [
+                "kg",
+                1
+            ],
+            "kilogrammo": [
+                "kg",
+                1
+            ],
+            "ml": [
+                "ml",
+                1
+            ],
+            "millilitri": [
+                "ml",
+                1
+            ],
+            "millilitro": [
+                "ml",
+                1
+            ],
+            "cl": [
+                "cl",
+                1
+            ],
+            "dl": [
+                "dl",
+                1
+            ],
+            "l": [
+                "l",
+                1
+            ],
+            "lt": [
+                "l",
+                1
+            ],
+            "litro": [
+                "l",
+                1
+            ],
+            "litri": [
+                "l",
+                1
+            ],
+            "pz": [
+                "pz",
+                1
+            ],
+            "pezzo": [
+                "pz",
+                1
+            ],
+            "pezzi": [
+                "pz",
+                1
+            ],
+            "fetta": [
+                "pz",
+                1
+            ],
+            "fette": [
+                "pz",
+                1
+            ],
+            "conf": [
+                "conf",
+                1
+            ],
+            "confezione": [
+                "conf",
+                1
+            ],
+            "confezioni": [
+                "conf",
+                1
+            ],
+            "busta": [
+                "conf",
+                1
+            ],
+            "buste": [
+                "conf",
+                1
+            ],
+            "barattolo": [
+                "conf",
+                1
+            ],
+            "barattoli": [
+                "conf",
+                1
+            ],
+            "bottiglia": [
+                "conf",
+                1
+            ],
+            "bottiglie": [
+                "conf",
+                1
+            ],
+            "vasetto": [
+                "conf",
+                1
+            ],
+            "vasetti": [
+                "conf",
+                1
+            ],
+            "scatola": [
+                "conf",
+                1
+            ],
+            "scatole": [
+                "conf",
+                1
+            ],
+            "sacchetto": [
+                "conf",
+                1
+            ],
+            "sacchetti": [
+                "conf",
+                1
+            ]
+        },
+        "fractions": [
+            [
+                "tre quarti",
+                0.75
+            ],
+            [
+                "un quarto",
+                0.25
+            ],
+            [
+                "un mezzo",
+                0.5
+            ],
+            [
+                "mezza",
+                0.5
+            ],
+            [
+                "mezzo",
+                0.5
+            ],
+            [
+                "metà",
+                0.5
+            ],
+            [
+                "meta",
+                0.5
+            ]
+        ],
+        "all_words": [
+            "tutti",
+            "tutte",
+            "tutto",
+            "tutta",
+            "tutte le",
+            "finito",
+            "finita",
+            "finiti",
+            "finite",
+            "esaurito",
+            "esaurita",
+            "esauriti",
+            "vuoto",
+            "vuota"
+        ],
+        "stop_words": [
+            "il",
+            "lo",
+            "la",
+            "i",
+            "gli",
+            "le",
+            "l",
+            "un",
+            "uno",
+            "una",
+            "dei",
+            "delle",
+            "del",
+            "della",
+            "dello",
+            "degli",
+            "di",
+            "da",
+            "in",
+            "con",
+            "per",
+            "su",
+            "tra",
+            "fra",
+            "a",
+            "al",
+            "allo",
+            "alla",
+            "ai",
+            "agli",
+            "alle",
+            "e",
+            "ed",
+            "o",
+            "ho",
+            "hai",
+            "ha",
+            "abbiamo",
+            "avete",
+            "hanno",
+            "mio",
+            "mia",
+            "miei",
+            "mie",
+            "mi",
+            "me",
+            "che",
+            "questo",
+            "questa"
+        ]
+    },
+    "locale": {
+        "name": "Italiano",
+        "collation": "it-IT",
+        "speech_tag": "it-IT"
+    }
 }

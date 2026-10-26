@@ -13,7 +13,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
-## [1.16.37] - 2026-10-25 · branch `refactor_25_10_2026`
+## [1.16.38] - 2026-10-26 · branch `refactor_25_10_2026`
+
+### Fixed
+- **SHELFY no longer interrupts you mid-sentence.** The browser marks a phrase *final* at
+  the first short pause, and the loop submitted that chunk: “Ho usato 200 grammi di pasta”
+  arrived as “Ho usato”, the sheet closed and — with no product in the parse — the add form
+  for an article that does not exist opened. The recogniser now runs **one session per tap**
+  (`continuous = true`) closed by our own silence deadline (`_CAPTURE_SILENCE_MS`, 1.8 s,
+  armed by the first result so taking a breath is not an error), finals and the
+  never-finalised interim text are glued into one sentence, and **only `onend` submits** —
+  no restart loop, so no start chime either. New guard drives the real
+  `_captureStartVoice()` against a fake recogniser that emits exactly that sequence: the
+  first final must not be submitted and the whole sentence must arrive once.
+- **One sentence, not “ho ho ho usato…” (twice over).** The Web Speech API is not
+  consistent: Chrome re-delivers the finished results on later events, and Chrome on
+  Android **restarts `ev.results` at every phrase** with the phrase itself already
+  cumulative. Appending printed “ho ho ho usato ho usto ho usato una” on the first shape
+  and “ho consumato ho consumato ho consumato 250 ho consumato 250 grammi …” on the second,
+  for a single sentence. The transcript is now rebuilt from the event and **joined by its
+  overlap** (`_captureJoinText`: a longer text that already starts with what we heard
+  replaces it, a restarted one is stitched once, a shorter echo never erases anything) and
+  the interim belongs to the same sentence, so it cannot survive as a duplicate. The
+  fake-recogniser guard replays all three shapes and asserts “ho consumato 250 grammi di
+  pasta” arrives exactly once.
+- **No “Ho capito” written above “non ho capito”.** The chips *are* the interpretation:
+  they are shown only for a sentence that carries an action. A bare “ho usato” hides them
+  and the status explains that SHELFY did not understand, with the transcript still on
+  screen and the sheet open for a retry.
+- **A sentence with no product is not an action.** `_captureSubmit()` now goes through
+  `_captureIsActionable()`: a bare “ho usato” / “ho finito” (or an empty transcript) says
+  *not understood* and keeps the sheet open for a retry, instead of opening an empty add
+  form (recipe questions stay valid). Locked in node: bare intent → not actionable, spoken
+  product → actionable.
+- **SHELFY could not be closed and heard nothing.** A refactor deleted
+  `_captureVoiceStop()` while three callers kept calling it: the `ReferenceError` stopped
+  `_closeCaptureSheet()` at its first line, so the dialog stayed on screen (and Esc did
+  nothing), and it stopped `_captureStartVoice()` at its first line, so the recogniser
+  never started — no transcript, and the microphone never filled with the voice.
+  The function is back, closing now hides the sheet **before** any cleanup can fail
+  (a cosmetic error can never trap the user again), and `scripts/test-capture-parse.php`
+  locks both: every `_capture*()` call must have a definition, and the sheet's closer
+  must hide first.
+
+### Changed
+- **The USE confirm drains again — 10 s, then SHELFY confirms.** When the agent opens the
+  “Usa” sheet from “ho usato …” it arms *Usa questa quantità* with the reverse progress bar
+  (`_shelfyArmButton`, `.shelfy-armed` → `shelfy-drain`, `--shelfy-ms: 10000`): any touch
+  anywhere cancels it and leaves the decision to you, otherwise the quantity is consumed.
+  The page's own 15 s idle confirm is cleared first, so a single bar runs and it also works
+  for grams and millilitres. “Ho finito …” (use-all) and *Aggiungi* still wait for a tap —
+  emptying a row or creating an article is not something the agent does on its own. The
+  toast now says the 10 seconds (`capture.qty_hint`, all six locales), which is what the
+  intro already promised.
+- **The capture lexicon is DATA, one schema per language.** The intent words, spelled
+  numbers, units (with their multiplier: `etti` → g ×100), fractions, "all of it" and
+  stop words left `app.js` and now live in `api/vocab/<lang>.json` under `"capture"`
+  (intent, numbers, units, fractions, all_words, stop_words) —
+  the same vocabulary file the product titles already read, generated for the browser by
+  `scripts/gen-vocab-js.php`. `assets/js/core/vocab.js` merges the six shipped languages
+  (current one first) through `vocabCaptureLexicon()`, so an Italian sentence still works
+  on an English UI and vice versa. Every language now carries the same coverage —
+  Italian, English, German, French, Spanish and Chinese — and no product word, unit or
+  article is left in the code: the guard test parses 38 sentences from
+  `scripts/fixtures/capture-cases.json` (one per intent per language, units, fractions,
+  "all of it") on **all six interface languages** and fails if a locale loses a section
+  of the schema.
+- **Language metadata is data too.** Each `api/vocab/<lang>.json` gained a `"locale"`
+  block — the language's own name (`Italiano`, `Deutsch`, `简体中文`…), its collation tag
+  and its recogniser tag. `_SUPPORTED_LANGS` and `_collationLocale()` in `app.js` now
+  read it (`vocabLanguages()` / `vocabCollationTag()`): the language picker, the `?lang=`
+  deep link, date and number formatting and the TTS voice all come from the JSON, so
+  `app.js` no longer carries a translated word of its own.
+- **The offline anti-waste facts moved out of the code.** The screensaver fallback
+  sentences (IT/EN/DE) were a literal in `app.js`; they now live in
+  `data/food_facts_fallback.json` and reach the browser as
+  `assets/js/food_facts.generated.js` (`php scripts/gen-food-facts-js.php`, offline,
+  in the service-worker shell). `scripts/test-vocabulary.php` also stopped skipping its
+  own generated-file check (the assertions sat after the script's `exit`) and now fails
+  when either generated file drifts from its JSON, when a language file loses its
+  `locale`/`capture` block, or when a language name / anti-waste sentence reappears in
+  `app.js`.
+
 
 ### Changed
 - **SHELFY has no voice of its own and never confirms by itself.** The spoken read-back,

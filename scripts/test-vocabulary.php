@@ -38,7 +38,7 @@ assert_true(count($files) >= 1, 'api/vocab/ holds at least one language');
 $required = ['lang', 'fold', 'word_separators', 'plural_pairs', 'pack_size_units', 'stop_words',
              'number_forms', 'agreement_forms', 'phrase_map', 'keyword_map', 'categories',
              'brands', 'piece_produce', 'produce_preparations', 'processed', 'prepared_salad',
-             'classic_piece_defaults'];
+             'classic_piece_defaults', 'locale', 'capture'];
 $vocab = [];
 foreach ($files as $file) {
     $lang = basename($file, '.json');
@@ -178,12 +178,40 @@ if ($node === '') {
     }
 }
 
-if ($fail === 0) {
-    echo "\nAll vocabulary guard tests passed.\n";
-}
-exit($fail === 0 ? 0 : 1);
-
+// ── The generated files are in sync with their data ────────────────────────
 assert_true(str_contains($generated, $expected),
     'assets/js/vocab.generated.js is in sync with api/vocab/*.json (run php scripts/gen-vocab-js.php)');
 assert_true(str_contains($generated, 'GENERATED FILE'), 'the generated file says it is generated');
 assert_true(!str_contains($generated, 'function '), 'the generated file carries data only, no logic');
+
+// ── The offline screensaver facts are TEXT: data → generated JS ────────────
+$factsData = json_decode((string)file_get_contents($root . '/data/food_facts_fallback.json'), true);
+$facts = [];
+foreach ((array)$factsData as $code => $list) {
+    if (preg_match('/^[a-z]{2}$/', (string)$code) !== 1 || !is_array($list)) {
+        continue;
+    }
+    $sentences = array_values(array_filter(array_map('strval', $list), static fn($s) => trim($s) !== ''));
+    if ($sentences) {
+        $facts[$code] = $sentences;
+    }
+}
+assert_true(count($facts) >= 1, 'data/food_facts_fallback.json carries the offline facts');
+$factsGenerated = (string)file_get_contents($root . '/assets/js/food_facts.generated.js');
+assert_true(str_contains($factsGenerated, json_encode($facts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+    'assets/js/food_facts.generated.js is in sync with data/food_facts_fallback.json (run php scripts/gen-food-facts-js.php)');
+
+// ── No language name and no sentence of prose inside app.js ────────────────
+$appCode = strip_comments((string)file_get_contents($root . '/assets/js/app.js'));
+foreach ($vocab as $code => $data) {
+    $name = trim((string)($data['locale']['name'] ?? ''));
+    assert_true($name === '' || !str_contains($appCode, "'" . $name . "'"),
+        "app.js does not hardcode the name of '{$code}' ({$name}) — it comes from the data");
+}
+assert_true(!str_contains($appCode, 'ogni italiano spreca') && !str_contains($appCode, 'Lebensmittelverschwendung'),
+    'app.js carries no anti-waste sentence (they live in data/food_facts_fallback.json)');
+
+if ($fail === 0) {
+    echo "\nAll vocabulary guard tests passed.\n";
+}
+exit($fail === 0 ? 0 : 1);
