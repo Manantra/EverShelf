@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261026a'; // bump when translations change
+const _I18N_VERSION = '20261026b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8135,8 +8135,10 @@ function _openCaptureSheet() {
     sheet.style.display = '';
     const input = document.getElementById('capture-input');
     if (input) {
+        // Never focus it here: focusing a text field opens the soft keyboard on a phone,
+        // right over the sheet the user opened to SPEAK. Only the no-speech fallback does.
+        input.blur();
         input.value = '';
-        setTimeout(() => { try { input.focus(); } catch (e) {} }, 60);
     }
     _captureStatus('capture.idle');
     _captureShowTranscript('', false);
@@ -8328,15 +8330,17 @@ function _captureShowChoices(rows) {
 }
 
 /**
- * Voice session state.
+ * Voice session state: ONE sentence per tap.
  *
- * `continuous: false` made the recogniser end after the first pause and the sheet
- * immediately said "non ho capito" while the user was still thinking. The session now
- * survives the recogniser's own timeouts (it is restarted while the sheet is open) and
- * the error only appears after several silent seconds.
+ * The restart loop that was here to "survive the recogniser timeouts" was harmful: every
+ * restart makes the browser play its start chime (a beep every few seconds, right in the
+ * middle of the sentence) and throws away the interim transcript the user had already
+ * spoken. One utterance, and if the browser ends without a final result the interim text
+ * is used — that is the sentence.
  */
-let _captureVoice = { active: false, finals: '', restarts: 0, graceTimer: null };
-const _CAPTURE_VOICE_MAX_RESTARTS = 6;
+let _captureVoice = { active: false, text: '' };
+/** The level meter is started lazily (see _captureStartVoice). */
+let _captureMeterStarted = false;
 
 /** Audio feedback (TTS) is on unless the user turned it off in the sheet. */
 function _captureVoiceEnabled() {
@@ -8376,7 +8380,7 @@ function _captureSpeak(text) {
 /** Stop listening and clear every timer of the session. */
 function _captureVoiceStop() {
     _captureVoice.active = false;
-    if (_captureVoice.graceTimer) { clearTimeout(_captureVoice.graceTimer); _captureVoice.graceTimer = null; }
+    _captureVoice.text = '';
     try {
         if (_captureRec) { _captureRec.onend = null; _captureRec.onerror = null; _captureRec.stop(); }
     } catch (e) { /* already stopped */ }
@@ -8602,29 +8606,71 @@ async function _shelfyOpenAdd(parsed) {
     _shelfyArmButton(document.getElementById('btn-add-submit'), 10000, () => submitAdd({ preventDefault() {} }));
 }
 
-/** Web Speech API: on-device, free, no server round-trip, interim results on. */
-async function _captureStartVoice(resume) {
+/**
+ * Which language the recogniser listens for.
+ *
+ * It used to be the interface language, so an English UI could not hear an Italian
+ * sentence — every word was "not recognised" even though the parser understands all six.
+ * The device language wins when we support it (that is what people speak), the interface
+ * language is the fallback.
+ */
+function _captureSpeechLang(navLang) {
+    const raw = String(navLang != null
+        ? navLang
+        : ((typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage)) || ''));
+    const base = raw.slice(0, 2).toLowerCase();
+    const lang = (_SUPPORTED_LANGS && _SUPPORTED_LANGS[base]) ? base : _currentLang;
+    const map = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', zh: 'zh-CN', en: 'en-GB', it: 'it-IT' };
+    // Keep the exact tag the device asked for (it-IT, de-AT…) when it matches the base.
+    if (/^[a-z]{2}-[A-Za-z]{2,4}$/.test(raw) && raw.slice(0, 2).toLowerCase() === lang) return raw;
+    return map[lang] || _collationLocale();
+}
+
+/**
+ * Web Speech API: on-device, free, no server round-trip.
+ *
+ * One utterance per tap (`continuous = false`): no repeated start chime, no interruption
+ * of what is being said. Interim results are shown live and, when the browser ends
+ * without finalising, the interim text IS the sentence — before this, a phrase spoken
+ * between two restarts was simply lost and "nothing was ever recognised".
+ */
+async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { _captureStatus('capture.unsupported'); return; }
-    if (!resume) {
-        _captureVoiceStop();      // a manual tap restarts the session, it does not stack it
-        _captureShowChoices(null);
-        _captureVoice = { active: true, finals: '', restarts: 0, graceTimer: null };
-        const tr = document.getElementById('capture-transcript');
-        if (tr) { tr.hidden = true; tr.textContent = ''; }
-        const un = document.getElementById('capture-understood');
-        if (un) un.hidden = true;
-        _captureStatus('capture.listening');
-        _captureSetState('listening');
-    }
+    _captureVoiceStop();          // a tap restarts the sentence, it does not stack sessions
+    _captureShowChoices(null);
+    const tr = document.getElementById('capture-transcript');
+    if (tr) { tr.hidden = true; tr.textContent = ''; }
+    const un = document.getElementById('capture-understood');
+    if (un) un.hidden = true;
+    _captureStatus('capture.listening');
+    _captureSetState('listening');
+    _captureVoice = { active: true, text: '' };
+    _captureMeterStarted = false;
+    let finalText = '';
+    let interimText = '';
+    let submitted = false;
+
+    const finish = (text) => {
+        if (submitted) return;
+        const said = String(text || '').trim();
+        if (!said) return;
+        submitted = true;
+        _captureVoice.text = said;
+        _captureVoice.active = false;
+        try { if (_captureRec) { _captureRec.onend = null; _captureRec.stop(); } } catch (e) { /* already stopped */ }
+        _captureRec = null;
+        _captureStopMeter();
+        _captureSetState('idle');
+        _captureSubmit(said, { voice: true });
+    };
+
     try {
         _captureRec = new Ctor();
-        _captureRec.lang = _collationLocale();
+        _captureRec.lang = _captureSpeechLang();
         _captureRec.interimResults = true;
-        // Continuous: a pause between words is not the end of the sentence.
-        _captureRec.continuous = true;
+        _captureRec.continuous = false;
         _captureRec.maxAlternatives = 1;
-        let finalText = '';
         _captureRec.onresult = (ev) => {
             let interim = '';
             for (let i = ev.resultIndex || 0; i < ev.results.length; i++) {
@@ -8632,57 +8678,41 @@ async function _captureStartVoice(resume) {
                 const chunk = res[0] ? String(res[0].transcript || '') : '';
                 if (res.isFinal) finalText += chunk; else interim += chunk;
             }
-            const shown = (finalText || interim).trim();
+            if (interim.trim()) interimText = interim.trim();
+            if (!_captureMeterStarted) { _captureMeterStarted = true; _captureStartMeter(); }
+            const shown = (finalText || interim || interimText).trim();
             if (shown) _captureShowTranscript(shown, !!finalText.trim());
-            if (finalText.trim()) {
-                _captureVoice.finals = finalText.trim();
-                _captureVoice.active = false;
-                if (_captureVoice.graceTimer) { clearTimeout(_captureVoice.graceTimer); _captureVoice.graceTimer = null; }
-                try { _captureRec.stop(); } catch (e) { /* already stopped */ }
-                _captureStopMeter();
-                _captureSubmit(finalText.trim(), { voice: true });
-            }
+            if (finalText.trim()) finish(finalText);
         };
         _captureRec.onerror = (ev) => {
             const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
             if (denied) {
                 _captureVoiceStop();
                 _captureStatus('capture.mic_denied');
+                _captureSetState('idle');
                 return;
             }
-            // "no-speech"/"aborted" are normal while waiting: onend restarts the session.
+            // "no-speech" / "aborted": onend decides, and the interim text still counts.
         };
         _captureRec.onend = () => {
             _captureRec = null;
             _captureStopMeter();
-            if (!_captureVoice.active || _captureVoice.finals.trim()) return;
-            if (_captureVoice.restarts < _CAPTURE_VOICE_MAX_RESTARTS) {
-                _captureVoice.restarts++;
-                // Give the user time: "ti ascolto ancora" instead of an error after 1 s.
-                _captureStatus('capture.still_listening');
-                setTimeout(() => {
-                    if (_captureVoice.active) _captureStartVoice(true);
-                }, 350);
-                return;
-            }
+            if (!_captureVoice.active) return;
+            const said = (finalText || interimText).trim();
+            if (said) { finish(said); return; }
             _captureVoice.active = false;
-            _captureStatus('capture.not_understood');
-            _captureSpeak(t('capture.voice_unknown'));
             _captureSetState('idle');
+            _captureStatus('capture.not_understood');
         };
-        // Started inside the user gesture (the tap that opened the sheet), before any
-        // await: Safari and stricter browsers refuse a recogniser started later.
+        // Started inside the user gesture (the tap), before any await: Safari and stricter
+        // browsers refuse a recogniser started later.
         _captureRec.start();
-        _captureStartMeter();   // cosmetic, fire-and-forget
-        if (!resume && _captureVoice.graceTimer) clearTimeout(_captureVoice.graceTimer);
-        if (_captureVoice.active) {
-            // Nothing heard after a few seconds: say we are still there, not "non ho capito".
-            _captureVoice.graceTimer = setTimeout(() => {
-                if (_captureVoice.active && !_captureVoice.finals.trim()) _captureStatus('capture.still_listening');
-            }, 4000);
-        }
+        // The meter (getUserMedia) starts on the first result, not before: two clients on
+        // the microphone at the same instant is what made the recogniser hear nothing on
+        // some phones, and the meter is only cosmetic.
     } catch (e) {
         _captureStopMeter();
+        _captureSetState('idle');
         _captureStatus('capture.not_understood');
     }
 }
@@ -12955,7 +12985,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12965,7 +12995,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261026a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261026b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

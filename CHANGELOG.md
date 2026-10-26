@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.33] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Fixed
+- **Nothing was being recognised, and the app beeped every few seconds.** The listening
+  session was restarted whenever the recogniser ended (to “survive the timeouts”), and each
+  restart makes the browser play its start chime — right in the middle of the sentence —
+  while throwing away the interim transcript already spoken. One utterance per tap now:
+  `continuous = false`, no restart loop, and **if the browser ends without finalising, the
+  interim text is the sentence.**
+- **The keyboard no longer opens under the voice.** `_openCaptureSheet()` focused the text
+  field on open, which pops the soft keyboard over the sheet the user opened to speak; it
+  now blurs it (only the no-recognition fallback focuses the field).
+- **The recogniser listens to the language the user speaks.** It used the interface
+  language, so an English UI made an Italian sentence unrecognisable even though the parser
+  understands all six: the device language wins when supported, the interface language is
+  the fallback.
+- **One microphone client at a time.** The level meter (getUserMedia) started together with
+  the recogniser; on several phones two simultaneous consumers leave the recogniser hearing
+  nothing. The meter now starts on the first result — it is cosmetic.
+
 ## [1.16.32] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Changed

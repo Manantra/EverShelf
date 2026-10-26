@@ -73,7 +73,9 @@ check('the sheet offers examples (and the whole lexicon) plus the full chat',
 check('_captureParse() is extractable', extract_fn($app, '_captureParse') !== '');
 check('the voice uses the on-device Web Speech API (no server STT)',
     str_contains($app, 'window.SpeechRecognition') && str_contains($app, 'window.webkitSpeechRecognition'));
-check('the transcript language follows the UI language', str_contains($app, '_captureRec.lang = _collationLocale();'));
+check('the transcript language follows the device (falling back to the UI language)',
+    str_contains($app, '_captureRec.lang = _captureSpeechLang();')
+    && str_contains($app, 'function _captureSpeechLang('));
 check('a missing/denied mic degrades to typing, never to a dead button',
     str_contains($app, "'capture.unsupported'") && str_contains($app, "'capture.mic_denied'"));
 check('nothing is applied without a confirmation step',
@@ -220,14 +222,58 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
         && str_contains((string)$doc['shelfy']['auto_confirm_use'], '{qty}'));
 }
 
-// ── Round 5: the session listens long enough, then talks back ───────────────
-check('listening survives the recogniser timeouts',
-    str_contains($app, '_captureRec.continuous = true;')
-    && str_contains($app, '_CAPTURE_VOICE_MAX_RESTARTS')
-    && str_contains($app, "_captureStatus('capture.still_listening')"));
+// ── Round 9: ONE utterance per tap (the restart loop beeped and ate the sentence) ──
+check('the recogniser is not restarted in a loop',
+    str_contains($app, '_captureRec.continuous = false;')
+    && !str_contains($app, '_CAPTURE_VOICE_MAX_RESTARTS')
+    && !str_contains($app, '_captureStartVoice(true)')
+    && str_contains($app, "_captureVoice = { active: false, text: '' };"));
+// The recogniser must hear the language the user SPEAKS: an English UI used to make an
+// Italian sentence unrecognisable even though the parser understands all six languages.
+$langSrc = extract_fn($app, '_captureSpeechLang');
+check('_captureSpeechLang() is extractable', $langSrc !== '');
+if ($langSrc !== '') {
+    $langHarness = "globalThis._SUPPORTED_LANGS={it:1,en:1,de:1,fr:1,es:1,zh:1};
+"
+        . "globalThis._collationLocale=()=>'en-GB';
+"
+        . "globalThis._currentLang='en';
+"
+        . $langSrc . "
+"
+        . "const f=_captureSpeechLang;
+"
+        . "const out={uiEnDeviceIt:f('it-IT')};
+"
+        . "globalThis._currentLang='it';
+"
+        . "out.uiItDeviceDe=f('de-DE'); out.uiItDeviceRu=f('ru-RU'); out.uiItDeviceZh=f('zh-CN'); out.uiItNoDevice=f('');
+"
+        . "console.log(JSON.stringify(out));";
+    $tmpL = sys_get_temp_dir() . '/speechlang_' . getmypid() . '.js';
+    file_put_contents($tmpL, $langHarness);
+    $rawL = shell_exec('node ' . escapeshellarg($tmpL) . ' 2>/dev/null');
+    @unlink($tmpL);
+    $L = json_decode(trim((string)$rawL), true);
+    check('the speech language picks the device language', is_array($L), (string)$rawL);
+    if (is_array($L)) {
+        check('an English UI still listens in Italian', ($L['uiEnDeviceIt'] ?? '') === 'it-IT', json_encode($L));
+        check('a German device listens in German', ($L['uiItDeviceDe'] ?? '') === 'de-DE', json_encode($L));
+        check('a Chinese device listens in Chinese', ($L['uiItDeviceZh'] ?? '') === 'zh-CN', json_encode($L));
+        check('an unsupported device language falls back to the interface', ($L['uiItDeviceRu'] ?? '') === 'it-IT', json_encode($L));
+    }
+}
+
+check('an interim transcript counts when the browser never finalises',
+    str_contains($app, 'const said = (finalText || interimText).trim();')
+    && str_contains($app, 'if (said) { finish(said); return; }')
+    && str_contains($app, 'if (interim.trim()) interimText = interim.trim();'));
+check('opening the sheet does not open the soft keyboard',
+    str_contains($app, 'input.blur();')
+    && !preg_match('/function _openCaptureSheet\(\)[\s\S]{0,1200}input\.focus\(\)/', $app));
 check('voice feedback is spoken only for dictated sentences',
     str_contains($app, 'function _captureSpeak(')
-    && str_contains($app, '_captureSubmit(finalText.trim(), { voice: true })')
+    && str_contains($app, '_captureSubmit(said, { voice: true })')
     && str_contains($app, 'if (fromVoice) _captureSpeak(_captureVoiceSay(parsed));'));
 check('the speaker toggle is remembered per device',
     str_contains($app, "localStorage.setItem('evershelf_capture_voice'")
@@ -312,9 +358,11 @@ check('the level meter is released when listening stops',
 check('opening the sheet starts listening by itself',
     str_contains($app, "if (Ctor) {\n        _captureStartVoice();")
     && str_contains($app, 'const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;'));
-check('the recogniser starts inside the gesture, before any await',
+check('the recogniser starts inside the gesture, before any meter/await',
     !str_contains($app, 'await _captureStartMeter()')
-    && str_contains($app, "_captureRec.start();\n        _captureStartMeter();"));
+    && str_contains($app, '_captureRec.start();')
+    // The meter is a second microphone client: it starts on the first result.
+    && str_contains($app, 'if (!_captureMeterStarted) { _captureMeterStarted = true; _captureStartMeter(); }'));
 check('the first run explains the permission prompt instead of looking stuck',
     str_contains($app, "navigator.permissions.query({ name: 'microphone' })")
     && str_contains($app, "_captureStatus('capture.mic_prompt')"));
