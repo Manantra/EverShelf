@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.34] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- The two voice error messages now name the two real causes instead of saying “not allowed”:
+  *“Microfono non consentito: controlla i permessi del browser e apri l’app in HTTPS”* and
+  *“Questo browser non ha il riconoscimento vocale: scrivi qui sotto (SHELFY capisce lo
+  stesso)”*, in all six locales — a microphone needs a secure context, and a LAN install on
+  plain `http://192.168.x.x` is the usual reason a phone hears nothing.
+
 ## [1.16.33] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Fixed
