@@ -2694,14 +2694,14 @@
     "weekly_digest_title": "📊 EverShelf 每周摘要"
   },
   "capture": {
-    "title": "你想做什么？",
+    "title": "SHELFY",
     "nav_label": "聆听",
     "speak": "说话",
-    "idle": "直接说话即可，我在听。也可以在下方输入。",
-    "listening": "我在听…",
+    "idle": "请说：SHELFY 在听。也可以在下面输入。",
+    "listening": "SHELFY 在听…",
     "unsupported": "此浏览器不支持语音识别：请在下方输入。",
     "mic_denied": "麦克风未授权：可以在下方输入。",
-    "not_understood": "没听懂：试试「我用了一个橙子」。",
+    "not_understood": "SHELFY 没听懂：试试「我用了一个苹果」。",
     "placeholder": "例如：我用了一个橙子",
     "run": "执行",
     "example_use": "我用了一个橙子",
@@ -2739,11 +2739,27 @@
     "voice_throw": "我打开 {name} 准备丢弃。",
     "voice_recipe": "我在找食谱。",
     "voice_unknown": "我没听懂。请再说一次或输入句子。",
-    "still_listening": "我还在听…",
+    "still_listening": "SHELFY 还在听…",
     "use_all_hint": "明白：{name} 已用完。用「已全部用完」确认。",
     "qty_hint": "{qty} {unit} 的 {name}：在卡片里确认。"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"
+  },
+  "shelfy": {
+    "intro_title": "你好，我是 SHELFY",
+    "intro_lead": "我是你的储物助手：我会听、会理解，并在动手前告诉你我要做什么。",
+    "intro_how_title": "怎么用",
+    "intro_how_1": "告诉我你用掉、用完或添加了什么：我会打开正确的页面并填好数量。",
+    "intro_how_2": "确认按钮会在 10 秒内慢慢清空：你不碰屏幕我就确认。",
+    "intro_how_3": "你一碰屏幕我就停下，由你决定。有多个相似商品时我会显示四个，15 秒后选最接近的。",
+    "intro_phrases_title": "你可以说",
+    "intro_start": "开始吧",
+    "intro_reopen": "SHELFY 是什么？",
+    "pick_title": "你指的是哪一个？",
+    "pick_auto": "如果你不选，我就用 {name}",
+    "auto_confirm_use": "{qty} {unit} 的 {name}：10 秒后自动确认",
+    "auto_confirm_use_all": "{name} 已用完：10 秒后自动确认",
+    "auto_confirm_add": "添加 {name}：10 秒后自动确认"
   }
 }

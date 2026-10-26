@@ -2694,14 +2694,14 @@
     "weekly_digest_title": "📊 EverShelf Wochenübersicht"
   },
   "capture": {
-    "title": "Was möchtest du tun?",
+    "title": "SHELFY",
     "nav_label": "Hören",
     "speak": "Sprechen",
-    "idle": "Sprich einfach – ich höre zu. Oder schreibe unten.",
-    "listening": "Ich höre zu…",
+    "idle": "Sprich einfach: SHELFY hört zu. Oder tippe unten.",
+    "listening": "SHELFY hört zu…",
     "unsupported": "Dieser Browser kann keine Spracherkennung: schreibe unten.",
     "mic_denied": "Mikrofon nicht erlaubt: du kannst unten schreiben.",
-    "not_understood": "Nicht verstanden: versuche „Ich habe 1 Apfel verbraucht“.",
+    "not_understood": "SHELFY hat es nicht verstanden: versuche „ich habe 1 Apfel verbraucht“.",
     "placeholder": "z. B. Ich habe eine Orange verbraucht",
     "run": "Ausführen",
     "example_use": "Ich habe 1 Orange verbraucht",
@@ -2717,7 +2717,7 @@
     "intent_throw": "Wegwerfen",
     "intent_unknown": "Nicht erkannt",
     "understood": "Verstanden",
-    "which_one": "Welches meintest du?",
+    "which_one": "Welches meinst du?",
     "throw_hint": "Öffne {name}: dort kannst du es wegwerfen.",
     "mic_prompt": "Erlaube oben das Mikrofon und sprich dann.",
     "example_use_half": "Ich habe einen halben Apfel verwendet",
@@ -2739,11 +2739,27 @@
     "voice_throw": "Ich öffne {name} zum Wegwerfen.",
     "voice_recipe": "Ich suche ein Rezept.",
     "voice_unknown": "Das habe ich nicht verstanden. Versuche es erneut oder tippe den Satz.",
-    "still_listening": "Ich höre noch zu…",
+    "still_listening": "SHELFY hört noch zu…",
     "use_all_hint": "Verstanden: {name} ist aufgebraucht. Bestätige mit „Alles verbraucht“.",
     "qty_hint": "{qty} {unit} {name}: in der Karte bestätigen."
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."
+  },
+  "shelfy": {
+    "intro_title": "Hallo, ich bin SHELFY",
+    "intro_lead": "Ich bin dein Vorratsassistent: ich höre zu, verstehe und zeige dir, was ich gleich tue.",
+    "intro_how_title": "So funktioniert es",
+    "intro_how_1": "Sag mir, was du verbraucht, aufgebraucht oder hinzugefügt hast: ich öffne die richtige Maske mit der Menge.",
+    "intro_how_2": "Der Bestätigungsbutton leert sich in 10 Sekunden: berührst du nichts, bestätige ich.",
+    "intro_how_3": "Berührst du den Bildschirm, halte ich an — du entscheidest. Bei mehreren ähnlichen Produkten zeige ich vier und wähle nach 15 Sekunden das nächste.",
+    "intro_phrases_title": "Du kannst sagen",
+    "intro_start": "Los geht’s",
+    "intro_reopen": "Was ist SHELFY?",
+    "pick_title": "Welches meinst du?",
+    "pick_auto": "Wenn du nichts wählst, nehme ich {name}",
+    "auto_confirm_use": "{qty} {unit} {name}: Bestätigung in 10 Sekunden, wenn du nichts berührst",
+    "auto_confirm_use_all": "{name} ist aufgebraucht: Bestätigung in 10 Sekunden, wenn du nichts berührst",
+    "auto_confirm_add": "Ich füge {name} hinzu: Bestätigung in 10 Sekunden, wenn du nichts berührst"
   }
 }

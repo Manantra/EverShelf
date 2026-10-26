@@ -2694,14 +2694,14 @@
     "weekly_digest_title": "📊 EverShelf weekly digest"
   },
   "capture": {
-    "title": "What do you want to do?",
+    "title": "SHELFY",
     "nav_label": "Listen",
     "speak": "Speak",
-    "idle": "Just speak — I'm listening. Or type below.",
-    "listening": "Listening…",
+    "idle": "Speak freely: SHELFY is listening. Or type below.",
+    "listening": "SHELFY is listening…",
     "unsupported": "This browser has no speech recognition: type below.",
     "mic_denied": "Microphone not allowed: you can type below.",
-    "not_understood": "I did not get that: try \"I used 1 apple\".",
+    "not_understood": "SHELFY did not understand: try “I used 1 apple”.",
     "placeholder": "e.g. I used an orange",
     "run": "Run",
     "example_use": "I used 1 orange",
@@ -2739,11 +2739,27 @@
     "voice_throw": "Opening {name} to discard it.",
     "voice_recipe": "Looking for a recipe.",
     "voice_unknown": "I did not understand. Try again or type the sentence.",
-    "still_listening": "Still listening…",
+    "still_listening": "SHELFY is still listening…",
     "use_all_hint": "Understood: {name} is finished. Confirm with “I used it all”.",
     "qty_hint": "{qty} {unit} of {name}: confirm in the sheet."
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."
+  },
+  "shelfy": {
+    "intro_title": "Hi, I'm SHELFY",
+    "intro_lead": "I am your pantry assistant: I listen, I understand, and I show you what I am about to do before I do it.",
+    "intro_how_title": "How it works",
+    "intro_how_1": "Tell me what you used, finished or added: I open the right panel with the quantity already set.",
+    "intro_how_2": "The confirm button empties over 10 seconds: if you touch nothing, I go ahead.",
+    "intro_how_3": "Touch the screen and I stop — you are in charge. With several similar products I show four and pick the closest after 15 seconds.",
+    "intro_phrases_title": "You can tell me",
+    "intro_start": "Let's start",
+    "intro_reopen": "What is SHELFY?",
+    "pick_title": "Which one did you mean?",
+    "pick_auto": "If you don't choose, I take {name}",
+    "auto_confirm_use": "{qty} {unit} of {name}: confirming in 10 seconds unless you touch",
+    "auto_confirm_use_all": "You finished {name}: confirming in 10 seconds unless you touch",
+    "auto_confirm_add": "Adding {name}: confirming in 10 seconds unless you touch"
   }
 }

@@ -77,8 +77,9 @@ check('the transcript language follows the UI language', str_contains($app, '_ca
 check('a missing/denied mic degrades to typing, never to a dead button',
     str_contains($app, "'capture.unsupported'") && str_contains($app, "'capture.mic_denied'"));
 check('nothing is applied without a confirmation step',
-    str_contains($app, 'quickUse(best.item.product_id, best.item.location)')
-    && str_contains($app, 'showAddForm();')
+    // Round 8: SHELFY opens the panel it is about to act on and arms its confirm;
+    // the sentence alone never writes.
+    str_contains($app, 'function _shelfyArmButton(')
     && str_contains($app, 'showAlertItemDetail(best.item.inventory_id'));
 
 $src = extract_fn($app, '_captureParse');
@@ -153,13 +154,71 @@ check('spoken units have one canonical form', str_contains($app, 'const _CAPTURE
     && str_contains($app, "gr: 'g'"));
 check('"ho finito tutti" sets use_all', str_contains($app, 'const _CAPTURE_ALL_WORDS')
     && str_contains($app, 'out.use_all = true'));
-check('a dictated quantity opens the sheet on that number',
+check('a dictated quantity reaches the USE panel',
     str_contains($app, 'function _captureQtyFor(')
-    && str_contains($app, 'showItemDetail(best.item.id, best.item.product_id, preset)'));
-check('"ho finito" opens the sheet to confirm, it never writes by itself',
-    str_contains($app, "t('capture.use_all_hint'")
-    && str_contains($app, 'showItemDetail(best.item.id, best.item.product_id);
-            });'));
+    && str_contains($app, 'async function _shelfyRunConsume(')
+    && str_contains($app, "const qtyEl = document.getElementById('use-quantity');"));
+check('"ho finito" arms "use it all" on the USE panel',
+    str_contains($app, "document.querySelector('#page-use .use-all-btn')")
+    && str_contains($app, '() => submitUseAll()'));
+
+// ── Round 8: SHELFY, the named assistant ────────────────────────────────────
+check('the assistant has a name', str_contains($html, 'data-i18n="capture.title">SHELFY')
+    && str_contains($app, 'const SHELFY_INTRO_KEY'));
+check('it introduces itself once per device',
+    str_contains($html, 'id="shelfy-intro"')
+    && str_contains($app, "localStorage.getItem(SHELFY_INTRO_KEY)")
+    && str_contains($app, 'if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }')
+    && str_contains($html, 'id="shelfy-help-btn"'));
+check('the confirm drains for ten seconds',
+    str_contains($app, "_shelfyArmButton(document.getElementById('btn-use-submit'), 10000")
+    && str_contains($app, "_shelfyArmButton(document.getElementById('btn-add-submit'), 10000")
+    && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), 'animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;'));
+check('any touch stops it',
+    str_contains($app, "document.addEventListener('pointerdown', stop, true)")
+    && str_contains($app, "document.addEventListener('keydown', stop, true)")
+    && str_contains($app, 'function _shelfyDisarm('));
+check('four candidates, and the closest wins after 15 seconds',
+    str_contains($app, '.slice(0, 4);')
+    && str_contains($app, '_shelfyArmButton(best, 15000')
+    && str_contains($app, "t('shelfy.pick_auto'"));
+check('the candidates show picture, name, brand, place',
+    str_contains($app, 'class="shelfy-pick')
+    && str_contains($app, '_validProductImageUrl(item.image_url)')
+    && str_contains($app, 'class="shelfy-pick-meta"'));
+// The add form speaks pz/conf/g/ml only: a dictated litre must arrive as 1000 ml.
+$unitSrc = extract_fn($app, '_shelfyAddUnit');
+check('_shelfyAddUnit() is extractable', $unitSrc !== '');
+if ($unitSrc !== '') {
+    $unitHarness = $unitSrc . <<<'JS'
+console.log(JSON.stringify([[1,'l'],[0.5,'kg'],[300,'g'],[30,'cl'],[2,'conf'],[1,'']].map(([q,u]) => _shelfyAddUnit(q,u))));
+JS;
+    $tmpU = sys_get_temp_dir() . '/addunit_' . getmypid() . '.js';
+    file_put_contents($tmpU, $unitHarness);
+    $rawU = shell_exec('node ' . escapeshellarg($tmpU) . ' 2>/dev/null');
+    @unlink($tmpU);
+    $u = json_decode(trim((string)$rawU), true);
+    check('the dictated units reach the add form', is_array($u), (string)$rawU);
+    if (is_array($u)) {
+        check('1 litre becomes 1000 ml', ($u[0]['qty'] ?? 0) == 1000 && ($u[0]['unit'] ?? '') === 'ml', json_encode($u[0]));
+        check('half a kilo becomes 500 g', ($u[1]['qty'] ?? 0) == 500 && ($u[1]['unit'] ?? '') === 'g', json_encode($u[1]));
+        check('grams stay grams', ($u[2]['qty'] ?? 0) == 300 && ($u[2]['unit'] ?? '') === 'g');
+        check('centilitres become millilitres', ($u[3]['qty'] ?? 0) == 300 && ($u[3]['unit'] ?? '') === 'ml');
+        check('packs stay packs', ($u[4]['unit'] ?? '') === 'conf');
+    }
+}
+
+foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
+    $doc = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);
+    check("translations/{$loc}.json names the assistant",
+        str_contains((string)($doc['capture']['title'] ?? ''), 'SHELFY')
+        && str_contains((string)($doc['capture']['idle'] ?? ''), 'SHELFY')
+        && str_contains((string)($doc['capture']['not_understood'] ?? ''), 'SHELFY'));
+    check("translations/{$loc}.json has the presentation and the countdown copy",
+        isset($doc['shelfy']['intro_title'], $doc['shelfy']['intro_start'], $doc['shelfy']['pick_auto'], $doc['shelfy']['auto_confirm_use'])
+        && str_contains((string)$doc['shelfy']['pick_auto'], '{name}')
+        && str_contains((string)$doc['shelfy']['auto_confirm_use'], '{qty}'));
+}
 
 // ── Round 5: the session listens long enough, then talks back ───────────────
 check('listening survives the recogniser timeouts',

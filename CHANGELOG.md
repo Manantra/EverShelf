@@ -13,6 +13,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.32] - 2026-10-25 · branch `refactor_25_10_2026`
+
+### Changed
+- **No banner hides its actions behind a ⋮ any more.** The last ones folded Finito /
+  Buttato / Correggi into a menu because the strip “only fits one row”: there is room, and
+  a hidden button is a button nobody presses. Every entry renders its actions inline (they
+  wrap on a phone) and **every entry carries a Modifica** — expired, review, prediction,
+  finished, anomaly and the quantity anomaly. The expired strip went from seven buttons to
+  the four that matter (Usa, Finito, Buttato, Modifica): extend and vacuum live in the
+  product sheet, “ignore” was the ✕.
+- **The dashboard updates itself after every change.** Correcting an expiry date in “Salva
+  lo spreco” left the row on screen until a reload: the row now fades out where it is
+  (`is-leaving`, 220 ms) and the blocks are rebuilt from the server on a debounced
+  `_dashboardLiveRefresh()`, wired into the edit save, an extended expiry, a consumption,
+  a deletion and the shared post-mutation hook.
+- **The assistant has a name: SHELFY.** It presents itself once per device (“Ciao, sono
+  SHELFY”, what it does, the phrases it understands, how the confirmation works), can be
+  reopened with the `?` in its sheet, and every status line now speaks in its name.
+- **SHELFY opens the panel it is about to change, with the quantity already set**: “ho usato
+  1 arancia” → the USE panel of the arancia with 1 piece; “249 grammi di orecchiette” → 249 g;
+  “ho finito tutti i fusilli” → the USE panel with “use it all”; “aggiungi 1 litro di latte”
+  → the add form with 1000 ml; fractions (mezza, un quarto, tre quarti) included.
+- **The confirm is a reverse scrollbar**: the button drains for **10 seconds** and then acts;
+  any touch or key press stops it, and pressing the button itself confirms immediately.
+- **Four candidates when the name is ambiguous**, each with picture (or category icon), name,
+  brand, place and quantity; the closest match drains for **15 seconds** and is taken if
+  nothing is chosen.
+
 ## [1.16.31] - 2026-10-25 · branch `refactor_25_10_2026`
 
 ### Fixed

@@ -124,8 +124,8 @@ check('the anomaly banner offers a named action instead of "Giusta"',
     str_contains($app, 'function alignBannerAnomaly(')
     && str_contains($app, "t('dashboard.banner_anomaly_align'")
     && str_contains($app, 'btn-banner btn-banner-use'));
-check('the banner menu renders as buttons, not naked text',
-    preg_match('/\.banner-menu-list \.btn-banner \{[^}]*background: #F1F5F9/s', $css) === 1);
+check('no banner hides its actions in a menu',
+    !str_contains($css, '.banner-menu-list') && !str_contains($app, '_collapseBannerActions'));
 check('the capture sheet follows the emerald hierarchy',
     preg_match('/\.capture-input-row \.btn-accent \{[^}]*background: var\(--brand-primary\)/s', $css) === 1);
 check('capture hints are solid pills, not dashed placeholders',

@@ -1401,7 +1401,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025ze'; // bump when translations change
+const _I18N_VERSION = '20261026a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6721,9 +6721,45 @@ function refreshCurrentPage() {
     }
 }
 
+/**
+ * Any change the user just made shows up in the dashboard immediately.
+ *
+ * The "Salva lo spreco" row stayed on screen after its expiry date was corrected, and
+ * asking the user to refresh the page is not an answer: the row fades out where it is,
+ * then the blocks are rebuilt from the server. Debounced, because a burst of edits must
+ * not fire five dashboards.
+ */
+let _dashLiveTimer = null;
+
+/** Fade a dashboard row out of the current list (it is about to be re-rendered). */
+function _fadeAlertRow(inventoryId) {
+    if (!inventoryId) return;
+    document.querySelectorAll(`.alert-item[data-alert-inv-id="${inventoryId}"]`).forEach(row => {
+        if (row.classList.contains('is-leaving')) return;
+        row.classList.add('is-leaving');
+        setTimeout(() => {
+            try { row.remove(); } catch (e) { /* already gone */ }
+            try { _syncStockHub(); _syncUrgencyHub(); } catch (e) { /* first paint */ }
+        }, 240);
+    });
+}
+
+/** Rebuild the dashboard after a mutation (only when it is the page on screen). */
+function _dashboardLiveRefresh(inventoryId) {
+    if (inventoryId) _fadeAlertRow(inventoryId);
+    const dash = document.getElementById('page-dashboard');
+    if (!dash || !dash.classList.contains('active')) return;
+    clearTimeout(_dashLiveTimer);
+    _dashLiveTimer = setTimeout(() => {
+        if (typeof loadDashboard === 'function') loadDashboard();
+    }, inventoryId ? 280 : 120);
+}
+
 /** Reload banner + current page (and shopping tabs when relevant) after a mutation. */
 function refreshAppDataAfterMutation() {
     if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+    // One choke point: whatever mutated, the dashboard rebuilds itself if it is on screen.
+    _dashboardLiveRefresh();
     refreshCurrentPage();
     if (_currentPageId === 'shopping' && typeof loadSmartShopping === 'function') {
         loadSmartShopping(true);
@@ -8094,6 +8130,8 @@ let _captureRec = null;
 function _openCaptureSheet() {
     const sheet = document.getElementById('capture-sheet');
     if (!sheet) return;
+    // First run: SHELFY introduces itself before it starts listening.
+    if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }
     sheet.style.display = '';
     const input = document.getElementById('capture-input');
     if (input) {
@@ -8134,6 +8172,7 @@ function _openCaptureSheet() {
 }
 
 function _closeCaptureSheet() {
+    _shelfyDisarm();
     _captureVoiceStop();
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
@@ -8252,15 +8291,40 @@ function _captureShowUnderstood(parsed) {
     el.hidden = false;
 }
 
-/** Ambiguous product: offer the closest pantry rows instead of guessing. */
+/**
+ * Ambiguous product: SHELFY offers the four closest pantry rows instead of guessing.
+ *
+ * Each card carries what you need to recognise the right one (picture or category icon,
+ * name, brand, location, quantity). The best match drains for 15 s: if nothing is
+ * touched, that is the one the user meant.
+ */
 function _captureShowChoices(rows) {
     const el = document.getElementById('capture-choices');
     if (!el) return;
+    _shelfyDisarm();
     if (!rows || !rows.length) { el.hidden = true; el.innerHTML = ''; return; }
-    el.innerHTML = `<span class="cu-label">${escapeHtml(t('capture.which_one'))}</span>` + rows.map(({ item, index }) =>
-        `<button type="button" class="capture-hint" onclick="_captureChoose(${index})">${escapeHtml(item.name)}</button>`
-    ).join('');
+    const top = rows.slice(0, 4);
+    el.innerHTML = `<span class="cu-label">${escapeHtml(t('shelfy.pick_title'))}</span>`
+        + top.map(({ item, index }, i) => {
+            const loc = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location || '' };
+            const cat = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
+            const media = _validProductImageUrl(item.image_url)
+                ? `<img src="${escapeHtml(item.image_url)}" alt="" loading="lazy">`
+                : `<span class="shelfy-pick-emoji">${cat}</span>`;
+            const meta = [item.brand, `${loc.icon} ${loc.label}`, _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit)]
+                .filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
+            return `<button type="button" class="shelfy-pick${i === 0 ? ' is-best' : ''}" onclick="_captureChoose(${index})">
+                <span class="shelfy-pick-media">${media}</span>
+                <span class="shelfy-pick-body">
+                    <span class="shelfy-pick-name">${escapeHtml(item.name)}</span>
+                    <span class="shelfy-pick-meta">${meta}</span>
+                </span>
+            </button>`;
+        }).join('')
+        + `<p class="shelfy-pick-note">${escapeHtml(t('shelfy.pick_auto', { name: top[0].item.name }))}</p>`;
     el.hidden = false;
+    const best = el.querySelector('.shelfy-pick');
+    _shelfyArmButton(best, 15000, () => _captureChoose(top[0].index));
 }
 
 /**
@@ -8369,6 +8433,150 @@ function _captureToggleExamples() {
     box.hidden = !open;
     const btn = document.getElementById('capture-examples-btn');
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+/**
+ * SHELFY — the pantry assistant. One name everywhere, one behaviour everywhere:
+ * it opens the panel it is about to act on, fills the confirm button like a draining
+ * bar for ten seconds, and does nothing at all if the user touches the screen first.
+ */
+const SHELFY_INTRO_KEY = 'evershelf_shelfy_intro';
+
+function _shelfyIntroSeen() {
+    try { return localStorage.getItem(SHELFY_INTRO_KEY) === '1'; } catch (e) { return true; }
+}
+function _shelfyMarkIntroSeen() {
+    try { localStorage.setItem(SHELFY_INTRO_KEY, '1'); } catch (e) { /* private mode */ }
+}
+
+/** The phrases SHELFY understands, as the sheet and the intro both list them. */
+const _SHELFY_EXAMPLES = [
+    'capture.example_use', 'capture.example_use_half', 'capture.example_use_grams',
+    'capture.example_all', 'capture.example_add', 'capture.example_throw', 'capture.example_recipe',
+];
+
+function _shelfyOpenIntro() {
+    const box = document.getElementById('shelfy-intro');
+    if (!box) return;
+    const list = document.getElementById('shelfy-intro-phrases');
+    if (list) {
+        list.innerHTML = _SHELFY_EXAMPLES
+            .map(k => `<span class="capture-hint">${escapeHtml(t(k))}</span>`).join('');
+    }
+    box.style.display = 'flex';
+}
+
+function _shelfyCloseIntro(start) {
+    _shelfyMarkIntroSeen();
+    const box = document.getElementById('shelfy-intro');
+    if (box) box.style.display = 'none';
+    if (start) _openCaptureSheet();
+}
+
+/** Live timers of the assistant: the 10 s confirm and the 15 s choice. */
+let _shelfyTimer = null;
+let _shelfyUnbind = null;
+
+/** Stop whatever is counting down (a touch anywhere, a new action, closing the sheet). */
+function _shelfyDisarm() {
+    if (_shelfyTimer) { clearTimeout(_shelfyTimer); _shelfyTimer = null; }
+    if (_shelfyUnbind) { try { _shelfyUnbind(); } catch (e) { /* already gone */ } _shelfyUnbind = null; }
+    document.querySelectorAll('.shelfy-armed').forEach(el => {
+        el.classList.remove('shelfy-armed');
+        el.style.removeProperty('--shelfy-ms');
+    });
+}
+
+/**
+ * Arm a button or a card: the background drains for `ms`, then `fire()` runs.
+ *
+ * The drain is the reverse of a scrollbar filling up: it shows how long is left and it
+ * is the confirmation itself. A pointerdown or a key press anywhere stops it — the user
+ * is in control — and pressing the armed control simply runs its own handler.
+ */
+function _shelfyArmButton(el, ms, fire) {
+    _shelfyDisarm();
+    if (!el) { try { fire(); } catch (e) { /* no element, run anyway */ } return; }
+    el.classList.add('shelfy-armed');
+    el.style.setProperty('--shelfy-ms', `${ms}ms`);
+    _shelfyTimer = setTimeout(() => { _shelfyDisarm(); try { fire(); } catch (e) { /* silent */ } }, ms);
+    const stop = () => _shelfyDisarm();
+    _shelfyUnbind = () => {
+        document.removeEventListener('pointerdown', stop, true);
+        document.removeEventListener('keydown', stop, true);
+    };
+    // Bound on the next tick: the tap that started the action must not cancel it.
+    setTimeout(() => {
+        if (!_shelfyTimer) return;
+        document.addEventListener('pointerdown', stop, true);
+        document.addEventListener('keydown', stop, true);
+    }, 0);
+}
+
+/**
+ * "Ho usato …" / "Ho finito …" → the USE panel of that row, quantity already set,
+ * confirm armed for 10 s.
+ */
+async function _shelfyRunConsume(row, parsed) {
+    if (!row || !row.item) return;
+    const item = row.item;
+    const useAll = !!(parsed && parsed.use_all);
+    const qty = useAll ? 0 : _captureQtyFor(parsed || {}, item);
+    _closeCaptureSheet();
+    await _openUsePage(item.product_id, item.location);
+    if (useAll) {
+        showToast(t('shelfy.auto_confirm_use_all', { name: item.name }), 'info', 6000);
+        _shelfyArmButton(document.querySelector('#page-use .use-all-btn'), 10000, () => submitUseAll());
+        return;
+    }
+    const qtyEl = document.getElementById('use-quantity');
+    if (qtyEl && qty > 0) {
+        qtyEl.value = qty;
+        qtyEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const unit = item.unit || '';
+    showToast(t('shelfy.auto_confirm_use', { qty: qty > 0 ? qty : '1', unit, name: item.name }), 'info', 6000);
+    _shelfyArmButton(document.getElementById('btn-use-submit'), 10000, () => submitUse({ preventDefault() {} }));
+}
+
+/**
+ * The add form only speaks pz / conf / g / ml: a dictated "1 litro" becomes 1000 ml and
+ * "mezzo chilo" 500 g, instead of being silently dropped to a single piece.
+ */
+function _shelfyAddUnit(qty, unit) {
+    const map = {
+        l: ['ml', 1000], lt: ['ml', 1000], litri: ['ml', 1000], litro: ['ml', 1000],
+        cl: ['ml', 10],
+        kg: ['g', 1000], kilo: ['g', 1000], chili: ['g', 1000],
+        gr: ['g', 1], g: ['g', 1], grammi: ['g', 1], grammo: ['g', 1],
+        ml: ['ml', 1], pz: ['pz', 1], pezzo: ['pz', 1], pezzi: ['pz', 1],
+        conf: ['conf', 1], confezione: ['conf', 1], confezioni: ['conf', 1],
+    };
+    const hit = map[String(unit || '').toLowerCase()];
+    const n = Number(qty) || 0;
+    if (!hit) return { qty: n, unit: '' };
+    return { qty: Math.round(n * hit[1] * 100) / 100, unit: hit[0] };
+}
+
+/** "Aggiungi …" → the add form, fields filled, confirm armed for 10 s. */
+function _shelfyOpenAdd(parsed) {
+    const name = (parsed && parsed.product) || '';
+    const spoken = _shelfyAddUnit(Number(parsed && parsed.qty) || 0, parsed && parsed.unit);
+    const qty = spoken.qty;
+    const unit = spoken.unit;
+    _closeCaptureSheet();
+    showAddForm();
+    const nameEl = document.getElementById('pf-name');
+    if (nameEl) nameEl.value = name;
+    const qtyEl = document.getElementById('add-quantity');
+    if (qtyEl && qty > 0) qtyEl.value = qty;
+    const unitEl = document.getElementById('add-unit');
+    if (unitEl && unit) {
+        const known = Array.from(unitEl.options || []).some(o => o.value === unit);
+        if (known) { unitEl.value = unit; try { onAddUnitChange(); } catch (e) { /* older build */ } }
+    }
+    showToast(t('shelfy.auto_confirm_add', { name: name || '—' }), 'info', 6000);
+    _shelfyArmButton(document.getElementById('btn-add-submit'), 10000, () => submitAdd({ preventDefault() {} }));
 }
 
 /** Web Speech API: on-device, free, no server round-trip, interim results on. */
@@ -8662,7 +8870,7 @@ async function _captureFindProducts(name) {
         .map((item, index) => ({ item, index, score: _captureScoreName(needle, item.name) }))
         .filter(row => row.score >= 0.45)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 3);
+        .slice(0, 4);
 }
 
 /** Backwards-compatible single result (best match, or null). */
@@ -8696,15 +8904,8 @@ function _captureChoose(index) {
     const row = _captureChoicesCache[index];
     _captureShowChoices(null);
     if (!row) return;
-    const preset = _captureQtyFor(_capturePending, row.item);
-    _closeCaptureSheet();
-    if (preset > 0) {
-        // The dictated amount travels with the choice: the stepper opens on it.
-        showItemDetail(row.item.id, row.item.product_id, preset);
-        return;
-    }
-    quickUse(row.item.product_id, row.item.location);
-    showToast(t('capture.use_hint', { name: row.item.name }), 'success');
+    // The dictated amount (or "use it all") travels with the choice.
+    _shelfyRunConsume(row, _capturePending);
 }
 
 /**
@@ -8746,12 +8947,7 @@ async function _captureSubmit(raw, opts) {
         return;
     }
     if (parsed.intent === 'add') {
-        go(() => {
-            showAddForm();
-            const nameEl = document.getElementById('pf-name');
-            if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
-            showToast(t('capture.add_hint', { name: parsed.product || text }), 'success');
-        });
+        _shelfyOpenAdd(parsed);
         return;
     }
 
@@ -8768,29 +8964,10 @@ async function _captureSubmit(raw, opts) {
     }
 
     if (best && best.score >= 0.75) {
-        // "Ho finito tutti i fusilli": the sheet of that row opens; one tap on
-        // "Ho consumato tutto" is the confirmation. The sentence alone never writes.
-        if (parsed.use_all) {
-            go(() => {
-                showToast(t('capture.use_all_hint', { name: best.item.name }), 'info', 5000);
-                showItemDetail(best.item.id, best.item.product_id);
-            });
-            return;
-        }
-        // "Ho usato 300 g di fusilli": same sheet, stepper already on 300 g.
-        const preset = _captureQtyFor(parsed, best.item);
-        if (preset > 0) {
-            go(() => {
-                showToast(t('capture.qty_hint', { qty: preset, unit: best.item.unit || '', name: best.item.name }), 'info', 5000);
-                showItemDetail(best.item.id, best.item.product_id, preset);
-            });
-            return;
-        }
-        // Consume is the default when only a product was named.
-        go(() => {
-            quickUse(best.item.product_id, best.item.location);
-            showToast(t('capture.use_hint', { name: best.item.name }), 'success');
-        });
+        // "Ho usato 1 arancia" / "ho finito tutti i fusilli": SHELFY opens the USE panel
+        // with the quantity (or "use it all") already selected and arms the confirm: ten
+        // seconds without a touch and it goes through, one touch and it stops.
+        _shelfyRunConsume(best, parsed);
         return;
     }
     if (rows.length) {
@@ -9809,37 +9986,7 @@ function _bannerLocationText(item) {
     return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 
-/**
- * One banner row, two controls.
- *
- * The expired entry used to expose six pastel buttons (Finito, Usa, Buttato,
- * Modifica, Estendi, Chiudi) in one row: low contrast, tiny labels and a wrong-tap
- * trap on a kiosk. The entry keeps exactly one primary action and folds the rest
- * into the same ⋮ menu the stock rows use — the handlers are untouched, only the
- * presentation changes.
- */
-function _collapseBannerActions(html) {
-    const parts = String(html || '').match(/<button[\s\S]*?<\/button>/g) || [];
-    if (parts.length <= 1) return html;
-    const pick = parts.find(b => /btn-banner-use(?!-danger)/.test(b))
-        || parts.find(b => /btn-banner-ok|btn-banner-confirm/.test(b))
-        || parts[0];
-    const rest = parts.filter(b => b !== pick);
-    if (!rest.length) return pick;
-    return pick
-        + `<button type="button" class="alert-item-menu banner-menu-btn" aria-expanded="false" aria-label="${escapeAttr(t('dashboard.row_actions'))}" onclick="_toggleBannerMenu(this)">⋮</button>`
-        + `<div class="banner-menu-list" hidden>${rest.join('')}</div>`;
-}
-
 /** Open/close the secondary actions of the current banner row. */
-function _toggleBannerMenu(btn) {
-    const list = btn && btn.nextElementSibling;
-    if (!list) return;
-    const open = list.hidden;
-    list.hidden = !open;
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
 function renderBannerItem() {
     const banner = document.getElementById('alert-banner');
     if (!banner || _bannerQueue.length === 0) { if (banner) banner.style.display = 'none'; return; }
@@ -9890,28 +10037,17 @@ function renderBannerItem() {
             <div class="banner-fact">${escapeHtml(whenText)}${dateText ? ' · ' + escapeHtml(dateText) : ''}</div>
             ${_alertItemMeta(item)}
             <div class="banner-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</div>`;
+        // Four actions, all visible, and "Modifica" is always one of them. Extend, vacuum
+        // and "ignore" left the strip: the first two live in the product sheet and the
+        // edit form, the third is the ✕ in the corner.
         let btns = '';
-        btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_expired_action_finished')}</button>`;
         if (!isOpenedExpiry && safety.level !== 'danger') {
             btns += `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
         }
+        btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_expired_action_finished')}</button>`;
         btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
-        // "Modifica" — opens full edit modal (includes date correction)
-        btns += `<button class="btn-banner btn-banner-edit2" onclick="editReviewItem(${item.id}, ${item.product_id})">${t('dashboard.banner_expired_action_modify')}</button>`;
-        if (_shouldOfferExtendExpiry(item)) {
-            btns += `<button class="btn-banner btn-banner-extend" onclick="bannerExtendExpiry()">${t('dashboard.banner_expired_action_extend')}</button>`;
-        }
-        if (isOpenedExpiry && !item.vacuum_sealed) {
-            // Offer to re-seal with vacuum — extends shelf life
-            btns += `<button class="btn-banner btn-banner-vacuum" onclick="bannerMarkVacuum()">${t('dashboard.banner_expired_action_vacuum')}</button>`;
-        }
-        if (!isOpenedExpiry && safety.level === 'danger') {
-            btns += `<button class="btn-banner btn-banner-use btn-banner-use-danger" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
-        }
-        if (!isOpenedExpiry) {
-            btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
-        }
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editReviewItem(${item.id}, ${item.product_id})">${t('dashboard.banner_expired_action_modify')}</button>`;
+        actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'review') {
         const item = entry.data;
@@ -9952,7 +10088,7 @@ function renderBannerItem() {
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_review_action_weigh')}</button>`;
         }
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'prediction') {
         const pred = entry.data;
@@ -9981,7 +10117,7 @@ function renderBannerItem() {
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_prediction_action_weigh')}</button>`;
         }
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'finished') {
         const fin = entry.data;
@@ -10008,12 +10144,17 @@ function renderBannerItem() {
             ? `<button class="btn-banner btn-banner-confirm" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_confirm', { qty: fin.expected_qty, unit: fin.unit })}</button>`
             : '';
         const keepBtn = `<button class="btn-banner btn-banner-edit" onclick="keepBannerFinishedStock()">${t('dashboard.banner_finished_action_keep')}</button>`;
+        // Always a "Modifica": a wrong "finished" must be correctable where it is read.
+        const _finId = Number(fin.inventory_id || fin.id || 0);
+        const editBtn = _finId > 0
+            ? `<button class="btn-banner btn-banner-edit" onclick="editReviewItem(${_finId}, ${Number(fin.product_id) || 0})">${t('dashboard.banner_review_action_edit')}</button>`
+            : '';
         if (restoreFirst) {
-            btns = restoreBtn + yesBtn + keepBtn;
+            btns = restoreBtn + yesBtn + keepBtn + editBtn;
         } else {
-            btns = yesBtn + restoreBtn + keepBtn;
+            btns = yesBtn + restoreBtn + keepBtn + editBtn;
         }
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'anomaly') {
         const an = entry.data;
@@ -10058,7 +10199,7 @@ function renderBannerItem() {
             btns += `<button class="btn-banner btn-banner-edit" onclick="openDuplicateLossCheck(${ch.product_id})">${t('dashboard.banner_dup_loss_action_open')}</button>`;
         }
         btns += `<button class="btn-banner btn-banner-ok" onclick="dismissDuplicateLossCheck()">${t('dashboard.banner_dup_loss_action_done')}</button>`;
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'no_expiry') {
         const item = entry.data;
@@ -10069,7 +10210,7 @@ function renderBannerItem() {
         const pid = item.product_id || item.id;
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerNoExpiry()">${t('dashboard.banner_no_expiry_action_set')}</button>`;
         btns += `<button class="btn-banner btn-banner-ok" onclick="confirmNoExpiryNeeded(${pid})">${t('dashboard.banner_no_expiry_action_dismiss')}</button>`;
-        actionsEl.innerHTML = _collapseBannerActions(btns);
+        actionsEl.innerHTML = btns;
     }
 
     if (_bannerQueue.length > 1) {
@@ -10391,6 +10532,7 @@ async function extendInventoryExpiry(inventoryId, itemHint = null) {
             // Keep local banner/dashboard state consistent immediately
             item.expiry_date = newExpiry;
             item.expiry_user_set = 1;
+            _dashboardLiveRefresh(item.id);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const expDay = new Date(newExpiry + 'T12:00:00');
@@ -11880,7 +12022,7 @@ async function itemDetailUseAll(productId, location) {
  * plus one solid primary; everything else is either a quiet secondary or a neutral
  * support button (UI review, round 4).
  */
-let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, location: '', name: '' };
+let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, inventoryId: 0, location: '', name: '' };
 
 function _itemDetailQtyInit(item, presetQty) {
     const unit = String(item.unit || 'pz');
@@ -11898,6 +12040,7 @@ function _itemDetailQtyInit(item, presetQty) {
         step,
         unit,
         productId: item.product_id,
+        inventoryId: item.id,
         location: item.location || 'dispensa',
         name: item.name || '',
     };
@@ -11933,6 +12076,7 @@ async function _itemDetailConsume() {
         });
         if (res && res.success) {
             showToast(t('inventory.detail_consumed', { qty: label, name: q.name }), 'success');
+            _dashboardLiveRefresh(q.inventoryId);
             try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
         } else {
             showToast((res && res.error) || t('error.generic'), 'error');
@@ -12137,6 +12281,7 @@ async function deleteInventoryItem(id) {
         try {
             await api('inventory_delete', {}, 'POST', { id });
             closeModal();
+            _dashboardLiveRefresh(id);
             showActionToast(t('toast.product_removed'), t('btn.undo') || 'Undo', async () => {
                 try {
                     // Best-effort: re-add from snapshot if we still have it.
@@ -12578,6 +12723,8 @@ async function submitEditInventory(e, id, productId) {
         }
         if ((_inventorySearchQuery || '').trim()) filterInventory();
         else renderInventory(currentInventory);
+        // The row the user just corrected must leave the dashboard by itself.
+        _dashboardLiveRefresh(payload.id);
         await loadInventory();
         // A stocktake can open this sheet on top of its card: refresh the sentence
         // with what was just saved (the audit overlay stayed open underneath).
@@ -12785,7 +12932,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025ze';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -12795,7 +12942,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025ze';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261026a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

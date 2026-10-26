@@ -601,35 +601,6 @@ body {
     align-items: center;
 }
 .alert-banner-actions .btn-banner { min-height: var(--touch-min); }
-.banner-menu-btn { margin-left: auto; }
-.banner-menu-list {
-    flex: 1 1 100%;
-    display: grid;
-    gap: 6px;
-    margin-top: 4px;
-    padding: 8px;
-    border-radius: 12px;
-    border: 1px solid var(--surface-border);
-    background: var(--surface-bg);
-}
-.banner-menu-list[hidden] { display: none; }
-/* Menu items are buttons, not a list of naked centred words. */
-.banner-menu-list .btn-banner {
-    justify-content: flex-start;
-    width: 100%;
-    min-height: var(--touch-min);
-    padding: 0 12px;
-    border: 1px solid var(--surface-border);
-    border-radius: 10px;
-    background: #F1F5F9;
-    color: #334155;
-    font-size: 13px;
-    font-weight: 600;
-    text-align: left;
-}
-.banner-menu-list .btn-banner:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
-[data-theme="dark"] .banner-menu-list .btn-banner { background: #1E293B; color: #CBD5E1; }
-
 /* ── Typography: three levels per card, not six ─────────────────────────────
    Product title 15/600, metadata 13/400 muted, badge 12/600. Everything else in
    the rows inherits one of the three, so the eye finds the title first. */
@@ -1076,6 +1047,12 @@ body {
 /* Banner actions live inline next to the primary and keep their own colour:
    finishing is emerald, discarding is a soft red, correcting stock is sky, ignoring
    is neutral. Collapsing them behind a ⋮ hid the very actions the strip exists for. */
+.alert-banner-actions {
+    /* Every action is visible: they wrap on a phone instead of hiding behind a ⋮. */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
 .alert-banner-actions .btn-banner {
     display: inline-flex;
     align-items: center;
@@ -1301,4 +1278,139 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .capture-mic-wrap::before { animation: none; }
     .capture-mic-wrap::after  { animation: none; opacity: 0.6; }
+}
+
+/* A row that has just been acted on leaves with a fade: the dashboard must never look
+   stale after an edit, and a hard re-render jumps the whole page. */
+.alert-item.is-leaving {
+    opacity: 0;
+    transform: translateX(10px);
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    .alert-item.is-leaving { transition: none; }
+}
+
+/* ── SHELFY: presentation, candidate cards, armed confirm ──────────────────
+   The assistant is one emerald voice with a 10 s confirm: the button drains like a
+   scrollbar running backwards, so "how long have I got" is a picture, not a sentence. */
+.shelfy-intro {
+    max-width: 520px;
+    padding: 18px 20px 20px;
+    border-radius: 18px 18px 0 0;
+}
+.shelfy-lead {
+    margin: 0 0 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-main);
+}
+.shelfy-how {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.shelfy-how-title {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.shelfy-how-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.shelfy-how-list li { margin-bottom: 4px; }
+
+/* Four candidates: picture or icon, name, brand, place, quantity. */
+.shelfy-pick {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 56px;
+    margin-top: 6px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: #F8FAFC;
+    text-align: left;
+    cursor: pointer;
+}
+[data-theme="dark"] .shelfy-pick { background: #1E293B; }
+.shelfy-pick.is-best { border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent); }
+.shelfy-pick-media {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--brand-surface);
+    overflow: hidden;
+}
+.shelfy-pick-media img { width: 100%; height: 100%; object-fit: cover; }
+.shelfy-pick-emoji { font-size: 1.3rem; }
+.shelfy-pick-body { display: flex; flex-direction: column; min-width: 0; }
+.shelfy-pick-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shelfy-pick-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shelfy-pick-note {
+    margin: 8px 0 0;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--text-light);
+    text-align: center;
+}
+
+/* The armed control drains from full to empty: the confirmation is the timer. */
+.shelfy-armed {
+    position: relative;
+    overflow: hidden;
+}
+.shelfy-armed::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    transform-origin: left center;
+    background: color-mix(in srgb, currentColor 22%, transparent);
+    animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;
+    pointer-events: none;
+}
+.shelfy-armed > * { position: relative; z-index: 1; }
+@keyframes shelfy-drain {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .shelfy-armed::after { animation: none; opacity: 0.35; }
 }

@@ -178,15 +178,32 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
         is_string($val) && str_contains($val, '{location}'));
 }
 
-// ── The banner is one row with two controls, and never repeats a listed product ──
-check('the collapsed banner types still go through _collapseBannerActions()',
-    substr_count($app, 'actionsEl.innerHTML = _collapseBannerActions(btns);') === 6);
-// The quantity anomaly is the one strip whose actions stay inline: "Aggiorna a N" needs
-// its siblings visible, each with its own colour (round 5).
+// ── Every banner action is visible: no ⋮, and always a "Modifica" (round 8) ──
+check('no banner hides its actions behind a menu any more',
+    !str_contains($app, '_collapseBannerActions')
+    && !str_contains($app, '_toggleBannerMenu')
+    && !str_contains($app, 'banner-menu-list')
+    && substr_count($app, 'actionsEl.innerHTML = btns;') >= 6
+    && !str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), '.banner-menu-list'));
+check('the banner actions wrap instead of hiding',
+    preg_match('/\.alert-banner-actions \{[^}]*flex-wrap: wrap/s', (string)file_get_contents($root . '/assets/css/surfaces.css')) === 1);
+check('the expired strip offers four useful actions',
+    str_contains($app, 'btn-banner btn-banner-use" onclick="bannerQuickUse()"')
+    && str_contains($app, 'btn-banner btn-banner-finish" onclick="bannerFinishAll()"')
+    && str_contains($app, 'btn-banner btn-banner-throw" onclick="bannerThrowAway()"')
+    && str_contains($app, 'btn-banner btn-banner-edit" onclick="editReviewItem(')
+    && !str_contains($app, 'onclick="dismissBannerExpired()"')
+    && !str_contains($app, 'onclick="bannerExtendExpiry()"')
+    && !str_contains($app, 'onclick="bannerMarkVacuum()"'));
+check('every banner type carries an edit action',
+    substr_count($app, "t('dashboard.banner_review_action_edit')") >= 2
+    && str_contains($app, "t('dashboard.banner_expired_action_modify')")
+    && str_contains($app, "t('dashboard.banner_anomaly_edit_qty')")
+    && str_contains($app, "t('dashboard.banner_dup_loss_action_fix')"));
+
+// The anomaly strip keeps its own rules from round 6.
 check('the anomaly banner keeps its actions inline',
-    str_contains($app, 'actionsEl.innerHTML = btns;')
-    && str_contains($app, 'btn-banner btn-banner-use" onclick="alignBannerAnomaly()"'));
-// Round 6: six buttons for one number was a control panel. Two answers only, plus the ✕.
+    str_contains($app, 'btn-banner btn-banner-use" onclick="alignBannerAnomaly()"'));
 check('the anomaly strip offers exactly two choices',
     str_contains($app, 'btn-banner btn-banner-edit-qty" onclick="editBannerAnomalyQuantity()"')
     && !str_contains($app, 'onclick="dismissBannerAnomaly()"')
@@ -207,51 +224,11 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
     check("translations/{$loc}.json says confirm-N-unit",
         str_contains($align, '{qty}') && str_contains($align, '{unit}'));
     check("translations/{$loc}.json has the second choice",
-        isset($doc['dashboard']['banner_anomaly_edit_qty']) && $doc['dashboard']['banner_anomaly_edit_qty'] !== '');
+    isset($doc['dashboard']['banner_anomaly_edit_qty']) && $doc['dashboard']['banner_anomaly_edit_qty'] !== '');
 }
-$collapse = extract_fn($app, '_collapseBannerActions');
-check('_collapseBannerActions() is extractable', $collapse !== '');
-check('the menu toggle exists', extract_fn($app, '_toggleBannerMenu') !== '');
 check('an expired entry already listed is not shown again',
     str_contains($app, "document.querySelectorAll('#expired-list .alert-item')")
     && str_contains($app, "entry.type !== 'expired' || !listedIds.has("));
-check('the menu panel is styled', str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), '.banner-menu-list'));
-
-$harness = $collapse . <<<'JS'
-const t = (k) => ({ 'dashboard.row_actions': 'More actions' }[k] || k);
-const escapeAttr = (s) => String(s);
-const html = [
-    '<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">Finito</button>',
-    '<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">Usa</button>',
-    '<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">Buttato</button>',
-    '<button class="btn-banner btn-banner-edit2" onclick="editReviewItem(1,2)">Modifica</button>',
-    '<button class="btn-banner btn-banner-extend" onclick="bannerExtendExpiry()">Estendi</button>',
-    '<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">Chiudi</button>',
-].join('');
-const out = _collapseBannerActions(html);
-console.log(JSON.stringify({
-    primary: /^<button class="btn-banner btn-banner-use"/.test(out),
-    primary_only_one: (out.match(/btn-banner-use"/g) || []).length === 1,
-    menu_button: out.includes('banner-menu-btn'),
-    menu_items: (out.match(/<button/g) || []).length,
-    keeps_handlers: ['bannerFinishAll', 'bannerThrowAway', 'editReviewItem', 'bannerExtendExpiry', 'dismissBannerExpired'].every(f => out.includes(f)),
-    single: _collapseBannerActions('<button class="btn-banner">Solo</button>').includes('banner-menu-list') === false,
-}));
-JS;
-
-$tmp2 = sys_get_temp_dir() . '/banner_collapse_' . getmypid() . '.js';
-file_put_contents($tmp2, $harness);
-$raw2 = shell_exec('node ' . escapeshellarg($tmp2) . ' 2>/dev/null');
-@unlink($tmp2);
-$out2 = json_decode(trim((string)$raw2), true);
-check('the collapse harness runs in node', is_array($out2), (string)$raw2);
-if (is_array($out2)) {
-    check('"Usa" becomes the primary action', (bool)($out2['primary'] ?? false));
-    check('only one filled action stays visible', (bool)($out2['primary_only_one'] ?? false));
-    check('the rest go behind a 40px menu button', (bool)($out2['menu_button'] ?? false));
-    check('every handler survives the move', (bool)($out2['keeps_handlers'] ?? false));
-    check('a single-action banner gets no empty menu', (bool)($out2['single'] ?? false));
-}
 
 // --------------------------------------------------------------------- i18n
 foreach (['dashboard.urgency_title', 'dashboard.urgency_expired', 'dashboard.urgency_soon', 'dashboard.quick_recipe_short'] as $key) {

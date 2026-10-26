@@ -2694,14 +2694,14 @@
     "weekly_digest_title": "📊 Riepilogo settimanale EverShelf"
   },
   "capture": {
-    "title": "Cosa vuoi fare?",
+    "title": "SHELFY",
     "nav_label": "Ascolta",
     "speak": "Parla",
-    "idle": "Parla pure: ti ascolto. Oppure scrivi qui sotto.",
-    "listening": "Ti ascolto…",
+    "idle": "Parla pure: SHELFY ti ascolta. Oppure scrivi qui sotto.",
+    "listening": "SHELFY ti ascolta…",
     "unsupported": "Questo browser non ha il riconoscimento vocale: scrivi qui sotto.",
     "mic_denied": "Microfono non consentito: puoi scrivere qui sotto.",
-    "not_understood": "Non ho capito: prova con «ho usato 1 mela».",
+    "not_understood": "SHELFY non ha capito: prova con «ho usato 1 mela».",
     "placeholder": "Es: ho usato un'arancia",
     "run": "Esegui",
     "example_use": "Ho usato 1 arancia",
@@ -2739,11 +2739,27 @@
     "voice_throw": "Apro {name} per buttarlo.",
     "voice_recipe": "Cerco una ricetta.",
     "voice_unknown": "Non ho capito. Riprova o scrivi la frase.",
-    "still_listening": "Ti ascolto ancora…",
+    "still_listening": "SHELFY ti ascolta ancora…",
     "use_all_hint": "Ho capito: hai finito {name}. Conferma con «Ho consumato tutto».",
     "qty_hint": "{qty} {unit} di {name}: conferma nella scheda."
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."
+  },
+  "shelfy": {
+    "intro_title": "Ciao, sono SHELFY",
+    "intro_lead": "Sono l'assistente della tua dispensa: ascolto, capisco e ti mostro cosa sto per fare prima di farlo.",
+    "intro_how_title": "Come funziona",
+    "intro_how_1": "Dimmi cosa hai usato, finito o aggiunto: apro la scheda giusta con la quantità già impostata.",
+    "intro_how_2": "Il pulsante di conferma si svuota in 10 secondi: se non tocchi niente, confermo io.",
+    "intro_how_3": "Se tocchi lo schermo mi fermo e comandi tu. Con più prodotti simili te ne mostro quattro e scelgo il più vicino dopo 15 secondi.",
+    "intro_phrases_title": "Puoi dirmi",
+    "intro_start": "Iniziamo",
+    "intro_reopen": "Cos'è SHELFY?",
+    "pick_title": "Quale intendevi?",
+    "pick_auto": "Se non scegli, prendo {name}",
+    "auto_confirm_use": "{qty} {unit} di {name}: confermo tra 10 secondi se non tocchi",
+    "auto_confirm_use_all": "Hai finito {name}: confermo tra 10 secondi se non tocchi",
+    "auto_confirm_add": "Aggiungo {name}: confermo tra 10 secondi se non tocchi"
   }
 }
