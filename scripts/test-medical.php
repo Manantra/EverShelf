@@ -79,7 +79,9 @@ check('the wizard has three steps: question, notice, place',
     && (bool)preg_match("/if \(step === 2\)/s", $app)
     && (bool)preg_match("/if \(step === 3\)/s", $app));
 check('the notice is long, not a one-liner (five paragraphs in every locale)',
-    (bool)preg_match("/disclaimer_p1', 'disclaimer_p2', 'disclaimer_p3', 'disclaimer_p4', 'disclaimer_p5'/s", $app)
+    // Literal t() calls: the i18n audit cannot see a key built at runtime.
+    array_reduce([1, 2, 3, 4, 5], fn($c, $i) => $c && str_contains($app, "t('medical.disclaimer_p{$i}')"), true)
+    && !str_contains($app, "t('medical.' + k)")
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
         $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
         for ($i = 1; $i <= 5; $i++) {

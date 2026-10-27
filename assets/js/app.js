@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027n'; // bump when translations change
+const _I18N_VERSION = '20261027o'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13270,8 +13270,15 @@ function _medSetupBody(step) {
         return `
             <h4 class="med-setup-step-title">${escapeHtml(t('medical.disclaimer_title_full'))}</h4>
             <div class="med-disclaimer med-disclaimer-long">
-                ${['disclaimer_p1', 'disclaimer_p2', 'disclaimer_p3', 'disclaimer_p4', 'disclaimer_p5']
-                    .map(k => `<p>${escapeHtml(t('medical.' + k))}</p>`).join('')}
+                ${[
+                    // Literal t() calls on purpose: the i18n audit only sees bare keys, and a
+                    // paragraph that silently lost its translation must fail the build.
+                    t('medical.disclaimer_p1'),
+                    t('medical.disclaimer_p2'),
+                    t('medical.disclaimer_p3'),
+                    t('medical.disclaimer_p4'),
+                    t('medical.disclaimer_p5'),
+                ].map(p => `<p>${escapeHtml(p)}</p>`).join('')}
             </div>
             <label class="toggle-row med-disclaimer-accept">
                 <input type="checkbox" id="med-setup-accept" onchange="_medSetupSyncAccept()">
@@ -14492,7 +14499,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027o';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14502,7 +14509,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027o';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

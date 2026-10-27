@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.23.2] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Changed
+- **The five paragraphs of the notice are resolved with literal `t()` calls.** They were
+  built as `t('medical.' + k)`, which works at runtime but is invisible to
+  `scripts/i18n-audit.py` (its JS regex only sees a bare key): a paragraph that silently
+  lost a translation would not have failed the build. The keys are now written out, and
+  the guard test locks all five in the six locales.
+
 ## [1.23.1] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Fixed
