@@ -1215,6 +1215,21 @@ try {
             getFreeApis();
             break;
 
+        // EverShelf Med (opt-in): module state + "what do I have for this symptom?".
+        // Both are authenticated and read-only; the answer never contains a dosage.
+        case 'med_status':
+            medStatusAction();
+            break;
+        case 'med_symptom_search':
+            medSymptomSearchAction($db);
+            break;
+        case 'med_classify':
+            medClassifyAction($db);
+            break;
+        case 'med_open':
+            medOpenAction($db);
+            break;
+
         case 'ai_test':
             aiTestConnection();
             break;
@@ -4862,7 +4877,9 @@ function listInventory(PDO $db): void {
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name, COALESCE(p.kind, '') as kind,
-               COALESCE(p.is_favorite, 0) as is_favorite
+               COALESCE(p.is_favorite, 0) as is_favorite, COALESCE(p.is_medical, 0) as is_medical,
+               COALESCE(p.med_atc, '') as med_atc, COALESCE(p.med_ingredient, '') as med_ingredient,
+               COALESCE(p.med_tags, '') as med_tags, COALESCE(p.med_pao_days, 0) as med_pao_days
         FROM inventory i
         JOIN products p ON i.product_id = p.id
         WHERE i.quantity > 0
@@ -4871,6 +4888,25 @@ function listInventory(PDO $db): void {
     if (!empty($location)) {
         $query .= " AND i.location = ?";
         $params[] = $location;
+    }
+    // EverShelf Med keeps the domains apart: the recipe flow asks for `for_recipe=1`, and a
+    // medicine must never end up in a shopping suggestion or an ingredient list. The flag on
+    // the product and the location the household marked both count.
+    if (!empty($_GET['for_recipe']) && medicalEnabled($db)) {
+        $query .= " AND COALESCE(p.is_medical, 0) = 0";
+        $medLocs = [];
+        try {
+            $st = $db->prepare("SELECT value FROM app_settings WHERE key = 'medical_locations'");
+            $st->execute();
+            $rawLocs = (string)($st->fetchColumn() ?: '');
+            $parsedLocs = json_decode($rawLocs, true);
+            $medLocs = is_array($parsedLocs) ? array_values(array_filter(array_map('strval', $parsedLocs))) : [];
+        } catch (Throwable $e) { /* no marks yet */ }
+        if ($medLocs) {
+            $ph = implode(',', array_fill(0, count($medLocs), '?'));
+            $query .= " AND LOWER(COALESCE(i.location, '')) NOT IN ({$ph})";
+            foreach ($medLocs as $ml) { $params[] = mb_strtolower(trim($ml)); }
+        }
     }
     $query .= " ORDER BY COALESCE(p.is_favorite, 0) DESC, p.name ASC";
     $stmt = $db->prepare($query);
@@ -8047,7 +8083,8 @@ function getStats(PDO $db): void {
     // Expiring soonest (top items needing attention)
     $expiring = $db->query("
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, COALESCE(p.is_medical, 0) as is_medical,
+               COALESCE(p.med_tags, '') as med_tags, COALESCE(p.med_pao_days, 0) as med_pao_days
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
               AND (i.opened_at IS NULL OR i.opened_at = '')
@@ -8059,7 +8096,8 @@ function getStats(PDO $db): void {
     $vacExtDays = (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30');
     $expiredStmt = $db->prepare("
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, COALESCE(p.is_medical, 0) as is_medical,
+               COALESCE(p.med_tags, '') as med_tags, COALESCE(p.med_pao_days, 0) as med_pao_days
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL
           -- Date-only on purpose: an item that expires TODAY is valid until the end of
@@ -9355,6 +9393,203 @@ function dbCleanup(?PDO $db = null): void {
     } catch (Throwable $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
+}
+
+/**
+ * GET med_status — is the opt-in module on, did the household accept the notice, and what
+ * may a box be classified as? (The taxonomy is CLOSED: 8 household categories.)
+ */
+function medStatusAction(): void {
+    $db = getDB();
+    $accepted = false;
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'med_disclaimer_accepted'");
+        $stmt->execute();
+        $raw = (string)($stmt->fetchColumn() ?: '');
+        $accepted = in_array(strtolower(trim($raw, " \t\n\r\"")), ['1', 'true', 'yes', 'on'], true);
+    } catch (Throwable $e) { /* no setting yet: not accepted */ }
+    $categories = [];
+    foreach (medicalCategories() as $c) {
+        $categories[] = [
+            'slug' => (string)($c['slug'] ?? ''),
+            'label_key' => (string)($c['label_key'] ?? ''),
+            'atc' => array_values((array)($c['atc'] ?? [])),
+        ];
+    }
+    $setupDone = false;
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'med_setup_done'");
+        $stmt->execute();
+        $setupDone = in_array(strtolower(trim((string)($stmt->fetchColumn() ?: ''), " \t\n\r\"")), ['1', 'true', 'yes', 'on'], true);
+    } catch (Throwable $e) { /* never asked */ }
+    echo json_encode([
+        'success' => true,
+        'enabled' => medicalEnabled($db),
+        'disclaimer_accepted' => $accepted,
+        'setup_done' => $setupDone,
+        'disclaimer_key' => 'medical.disclaimer',
+        'categories' => $categories,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/** The app_settings map, as a plain key → value array (raw JSON strings). */
+function _medicalSettingsMap(PDO $db): array {
+    $out = [];
+    try {
+        foreach ($db->query("SELECT key, value FROM app_settings")->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $out[(string)$row['key']] = $row['value'];
+        }
+    } catch (Throwable $e) { /* no settings: the product flag is enough */ }
+    return $out;
+}
+
+/**
+ * GET med_symptom_search?q=mal+di+testa — what is already in the house for this symptom.
+ *
+ * Deterministic on purpose: the taxonomy is a local file, the inventory is our own database,
+ * and no model is involved. The response carries `disclaimer_key` so the UI pins the warning
+ * above the list, and it never contains a dosage: the app lists boxes, the doctor treats people.
+ */
+function medSymptomSearchAction(PDO $db): void {
+    $q = trim((string)($_GET['q'] ?? ''));
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => true, 'enabled' => false, 'matches' => [], 'items' => [], 'disclaimer_key' => 'medical.disclaimer'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $matches = medicalMatchSymptom($q);
+    $slugs = array_map(static fn($m) => $m['slug'], $matches);
+    $atcs = [];
+    foreach ($matches as $m) {
+        foreach ((array)$m['atc'] as $a) { $atcs[] = strtoupper((string)$a); }
+    }
+    $items = [];
+    if ($slugs) {
+        // Medical rows only: the product flag, or the location the household marked as medical.
+        $medLocs = medicalLocationSlugs(_medicalSettingsMap($db));
+        $rows = $db->query("SELECT i.id, i.product_id, p.name, p.brand, p.category, p.image_url, p.unit, i.quantity,
+                                   p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
+                                   p.is_medical, p.med_atc, p.med_tags, p.med_ingredient, p.med_pao_days
+                            FROM inventory i JOIN products p ON p.id = i.product_id
+                            WHERE i.quantity > 0.001")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            if (!medicalIsMedicalRow($row, $medLocs)) continue;
+            $tags = medicalTagsOf($row);
+            $hit = (bool)array_intersect($tags, $slugs);
+            if (!$hit && $atcs) {
+                // Phase 2 (AIFA): an ATC prefix matches both ways, so N02BE01 belongs to N02B.
+                $atc = strtoupper(trim((string)($row['med_atc'] ?? '')));
+                foreach ($atcs as $want) {
+                    if ($atc !== '' && (stripos($atc, $want) === 0 || stripos($want, $atc) === 0)) { $hit = true; break; }
+                }
+            }
+            if (!$hit) continue;
+            $items[] = [
+                'inventory_id' => (int)$row['id'],
+                'product_id' => (int)$row['product_id'],
+                'name' => (string)$row['name'],
+                'brand' => (string)($row['brand'] ?? ''),
+                'ingredient' => (string)($row['med_ingredient'] ?? ''),
+                'tags' => $tags,
+                'atc' => strtoupper(trim((string)($row['med_atc'] ?? ''))),
+                'pao_days' => (int)($row['med_pao_days'] ?? 0),
+                'quantity' => (float)$row['quantity'],
+                'unit' => (string)($row['unit'] ?? 'pz'),
+                'default_quantity' => (float)($row['default_quantity'] ?? 0),
+                'package_unit' => (string)($row['package_unit'] ?? ''),
+                'location' => (string)($row['location'] ?? ''),
+                'expiry_date' => (string)($row['expiry_date'] ?? ''),
+                'opened_at' => (string)($row['opened_at'] ?? ''),
+                'image_url' => (string)($row['image_url'] ?? ''),
+                'is_medical' => true,
+            ];
+        }
+    }
+    echo json_encode([
+        'success' => true,
+        'enabled' => true,
+        'matches' => $matches,
+        'items' => $items,
+        'disclaimer_key' => 'medical.disclaimer',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_classify — teach the module what a box is.
+ *
+ * Phase 1: the household picks one or more of the 8 CLOSED categories (never free text, or the
+ * offline search would rot), types the active ingredient (for the duplicate warning) and, for
+ * syrups/drops/creams, the "expires N days after opening" number. This also sets
+ * `is_medical`, so the row leaves the food domain from now on.
+ */
+function medClassifyAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $productId = (int)($input['product_id'] ?? 0);
+    $valid = medicalCategorySlugs();
+    $tags = [];
+    foreach ((array)($input['tags'] ?? []) as $t) {
+        $t = strtolower(trim((string)$t));
+        if ($t !== '' && in_array($t, $valid, true) && !in_array($t, $tags, true)) { $tags[] = $t; }
+    }
+    $atc = strtoupper(trim((string)($input['atc'] ?? '')));
+    $allowedAtc = [];
+    foreach (medicalCategories() as $c) {
+        foreach ((array)($c['atc'] ?? []) as $a) { $allowedAtc[] = strtoupper((string)$a); }
+    }
+    $ingredient = mb_substr(trim((string)($input['ingredient'] ?? '')), 0, 80);
+    $paoDays = max(0, min(365, (int)($input['pao_days'] ?? 0)));
+    if ($productId <= 0 || ($atc !== '' && !in_array($atc, $allowedAtc, true))) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_atc = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
+       ->execute([implode(',', $tags), $atc, $ingredient, $paoDays, $productId]);
+    EverLog::info('Medical product classified', [
+        'event' => 'med_classify',
+        'product_id' => $productId,
+        'tags' => $tags,
+        'pao_days' => $paoDays,
+    ]);
+    echo json_encode(['success' => true, 'tags' => $tags, 'pao_days' => $paoDays], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_open — "segna come aperto": a medicine's operational expiry is the printed date
+ * UNTIL the seal is broken; after that it is today + the N days the box declares. Only a
+ * product with `med_pao_days > 0` rewrites the expiry, and the rewrite is explicit
+ * (`expiry_user_set = 1`) so a later rescan cannot silently undo it.
+ */
+function medOpenAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $invId = (int)($input['inventory_id'] ?? 0);
+    if (!medicalEnabled($db) || $invId <= 0) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $stmt = $db->prepare("SELECT i.id, p.med_pao_days FROM inventory i JOIN products p ON p.id = i.product_id WHERE i.id = ?");
+    $stmt->execute([$invId]);
+    $found = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$found) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $pao = (int)($found['med_pao_days'] ?? 0);
+    $db->prepare("UPDATE inventory SET opened_at = date('now') WHERE id = ?")->execute([$invId]);
+    $newExpiry = '';
+    if ($pao > 0) {
+        $db->prepare("UPDATE inventory SET expiry_date = date('now', ?), expiry_user_set = 1 WHERE id = ?")
+           ->execute(['+' . $pao . ' day', $invId]);
+        $newExpiry = (string)$db->query("SELECT expiry_date FROM inventory WHERE id = " . (int)$invId)->fetchColumn();
+    }
+    EverLog::info('Medicine marked as opened', [
+        'event' => 'med_open',
+        'inventory_id' => $invId,
+        'pao_days' => $pao,
+    ]);
+    echo json_encode(['success' => true, 'opened_at' => date('Y-m-d'), 'expiry_date' => $newExpiry, 'pao_days' => $pao], JSON_UNESCAPED_UNICODE);
 }
 
 /**

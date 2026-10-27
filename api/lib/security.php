@@ -269,6 +269,12 @@ function evershelfClientSettingsKeys(): array
         // Guided setup ledger (issue #301): answered once per instance, not per browser
         'setup_done',
         'setup_seen',
+        // EverShelf Med (opt-in): the switch, the medical locations and the disclaimer
+        // acceptance are instance-level on purpose — a new phone must not re-ask, and the
+        // server needs the switch to keep medicines out of the food domains.
+        'med_enabled',
+        'medical_locations',
+        'med_disclaimer_accepted',
     ];
 }
 

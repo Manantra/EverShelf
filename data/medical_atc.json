@@ -1,0 +1,114 @@
+{
+    "version": 1,
+    "note": "ATC → human label + symptoms, DATA ONLY. Used by api/lib/medical.php with a deterministic matcher (no AI, no network, works offline). Add a row to teach EverShelf a new symptom group; the labels are i18n keys (medical.atc_*), the symptoms are the words a household actually says, per language. NOT medical advice: the app only lists what is already in the house.",
+    "groups": [
+        {
+            "atc": "N02B",
+            "label_key": "medical.atc_analgesic",
+            "symptoms": {
+                "it": ["mal di testa", "emicrania", "febbre", "dolore", "dolori", "raffreddore"],
+                "en": ["headache", "migraine", "fever", "pain", "ache", "cold"],
+                "de": ["kopfschmerzen", "migräne", "fieber", "schmerzen", "erkältung"],
+                "fr": ["mal de tête", "migraine", "fièvre", "douleur", "rhume"],
+                "es": ["dolor de cabeza", "migraña", "fiebre", "dolor", "resfriado"],
+                "zh": ["头痛", "偏头痛", "发烧", "疼痛", "感冒"]
+            }
+        },
+        {
+            "atc": "M01A",
+            "label_key": "medical.atc_antiinflammatory",
+            "symptoms": {
+                "it": ["infiammazione", "mal di schiena", "dolore muscolare", "contusione", "ginocchio"],
+                "en": ["inflammation", "back pain", "muscle pain", "bruise", "knee"],
+                "de": ["entzündung", "rückenschmerzen", "muskelschmerzen", "prellung", "knie"],
+                "fr": ["inflammation", "mal de dos", "douleur musculaire", "bleu", "genou"],
+                "es": ["inflamación", "dolor de espalda", "dolor muscular", "golpe", "rodilla"],
+                "zh": ["炎症", "背痛", "肌肉痛", "瘀伤", "膝盖"]
+            }
+        },
+        {
+            "atc": "R06A",
+            "label_key": "medical.atc_antihistamine",
+            "symptoms": {
+                "it": ["allergia", "prurito", "starnuti", "orticaria", "raffreddore da fieno"],
+                "en": ["allergy", "itching", "sneezing", "hives", "hay fever"],
+                "de": ["allergie", "juckreiz", "niesen", "nesselsucht", "heuschnupfen"],
+                "fr": ["allergie", "démangeaison", "éternuements", "urticaire", "rhume des foins"],
+                "es": ["alergia", "picor", "estornudos", "urticaria", "rinitis"],
+                "zh": ["过敏", "瘙痒", "打喷嚏", "荨麻疹", "花粉症"]
+            }
+        },
+        {
+            "atc": "A02B",
+            "label_key": "medical.atc_antacid",
+            "symptoms": {
+                "it": ["stomaco", "reflusso", "bruciore di stomaco", "acidità", "digestione"],
+                "en": ["stomach", "reflux", "heartburn", "acidity", "indigestion"],
+                "de": ["magen", "reflux", "sodbrennen", "übersäuerung", "verdauung"],
+                "fr": ["estomac", "reflux", "brûlures d'estomac", "acidité", "digestion"],
+                "es": ["estómago", "reflujo", "acidez", "ardor", "digestión"],
+                "zh": ["胃", "反流", "烧心", "胃酸", "消化不良"]
+            }
+        },
+        {
+            "atc": "R05C",
+            "label_key": "medical.atc_mucolytic",
+            "symptoms": {
+                "it": ["tosse", "catarro", "muco", "bronchi"],
+                "en": ["cough", "phlegm", "mucus", "bronchi"],
+                "de": ["husten", "schleim", "bronchien"],
+                "fr": ["toux", "glaires", "mucus", "bronches"],
+                "es": ["tos", "flemas", "mocos", "bronquios"],
+                "zh": ["咳嗽", "痰", "支气管"]
+            }
+        },
+        {
+            "atc": "R01A",
+            "label_key": "medical.atc_nasal",
+            "symptoms": {
+                "it": ["naso chiuso", "raffreddore", "congestione", "sinusite"],
+                "en": ["blocked nose", "stuffy nose", "congestion", "sinusitis"],
+                "de": ["verstopfte nase", "schnupfen", "verstopfung der nase", "nasennebenhöhlen"],
+                "fr": ["nez bouché", "rhume", "congestion", "sinusite"],
+                "es": ["nariz tapada", "congestión", "sinusitis", "resfriado"],
+                "zh": ["鼻塞", "鼻窦炎", "感冒鼻塞"]
+            }
+        },
+        {
+            "atc": "D01A",
+            "label_key": "medical.atc_antifungal",
+            "symptoms": {
+                "it": ["micosi", "fungo", "piede d'atleta"],
+                "en": ["fungal infection", "athlete's foot", "thrush"],
+                "de": ["pilz", "fußpilz", "scheidenpilz"],
+                "fr": ["mycose", "pied d'athlète", "champignon"],
+                "es": ["hongos", "pie de atleta", "micosis"],
+                "zh": ["真菌感染", "脚气", "霉菌"]
+            }
+        },
+        {
+            "atc": "S01X",
+            "label_key": "medical.atc_eye",
+            "symptoms": {
+                "it": ["occhio", "occhi", "occhio secco", "congiuntivite", "irritazione occhio"],
+                "en": ["eye", "eyes", "dry eye", "conjunctivitis", "eye irritation"],
+                "de": ["auge", "augen", "trockene augen", "bindehautentzündung"],
+                "fr": ["œil", "yeux", "œil sec", "conjonctivite"],
+                "es": ["ojo", "ojos", "ojo seco", "conjuntivitis"],
+                "zh": ["眼睛", "干眼", "结膜炎"]
+            }
+        },
+        {
+            "atc": "N05B",
+            "label_key": "medical.atc_calm",
+            "symptoms": {
+                "it": ["ansia", "agitazione", "insonnia"],
+                "en": ["anxiety", "agitation", "insomnia"],
+                "de": ["angst", "unruhe", "schlaflosigkeit"],
+                "fr": ["anxiété", "agitation", "insomnie"],
+                "es": ["ansiedad", "agitación", "insomnio"],
+                "zh": ["焦虑", "失眠", "烦躁"]
+            }
+        }
+    ]
+}

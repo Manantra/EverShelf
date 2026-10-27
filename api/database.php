@@ -480,6 +480,36 @@ function migrateDB(PDO $db): void {
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
 
+    // EverShelf Med (opt-in): a product can be a medicine. The flag keeps food and drugs in
+    // separate domains even when the module is switched on later — a row already in the
+    // "Armadietto Farmaci" location is recognised from the location too.
+    if (!in_array('is_medical', $prodCols2)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN is_medical INTEGER NOT NULL DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    // ATC group + active ingredient: typed by the household (the AIFA catalogue is a later
+    // import), so "what do I have for a headache?" can be answered without any guessing.
+    if (!in_array('med_atc', $prodCols2)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN med_atc TEXT DEFAULT ''"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    if (!in_array('med_ingredient', $prodCols2)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN med_ingredient TEXT DEFAULT ''"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    // Phase 1 taxonomy: a CLOSED set of household categories (comma separated slugs from
+    // data/medical_categories.json) — never free text, or the offline search would rot.
+    if (!in_array('med_tags', $prodCols2)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN med_tags TEXT DEFAULT ''"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    // "Once opened it expires after N days" (syrups, eye drops, creams): the operational
+    // expiry replays from this number, no external API and no guessed shelf life.
+    if (!in_array('med_pao_days', $prodCols2)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN med_pao_days INTEGER DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+
     // User-locked product title/brand — rescans must not overwrite with Open Food Facts names
     $prodCols3 = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
     if (!in_array('name_user_set', $prodCols3)) {
