@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.23.1] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **Enabling the medicine cabinet did nothing.** The first-run "Attiva" and the Settings switch
+  saved through `_saveSettingToServer()`, which posts to **`save_settings`** — the `.env`
+  writer, whose key map has no `med_enabled`, no `med_disclaimer_accepted`, no
+  `medical_locations`. The keys were silently dropped, the screen landed on Settings, and the
+  switch was still off because the server had never been told. The module now writes through a
+  dedicated `_medSaveInstanceSettings()` → **`app_settings_save`** (and `med_setup_done` was
+  added to the writable allow-list); after saving, the UI **re-reads the server** so the switch
+  can never disagree with what was stored, and a failed save says so instead of pretending.
+
+### Changed
+- **The first run is a real three-step flow:** question → **full notice** → **the place**.
+  Step 2 is no longer a terse line: five paragraphs that say what the app is (an inventory),
+  what it never does (no diagnosis, no therapy, no dose), that the symptom search is a reminder
+  of what you bought (not an opinion for you, your allergies, your other medicines or a child),
+  never a substitute for advice and never for an emergency, what the dates mean (printed date +
+  your after-opening days, expired boxes go to the pharmacy), and that the data stays on your
+  server and the module can be switched off without deleting the rows. The consent checkbox
+  gates the step (the button starts disabled).
+- **Step 3 requires the dedicated location**: pick an existing one or create it right there
+  ("Armadietto farmaci" prefilled). Finishing stores enable + consent + location + setup_done
+  in one save and opens the module with a confirmation toast.
+- **"↺ Rivedi l'introduzione"** in *Settings → Farmaci*: the question can be reopened at any
+  time (it forgets the answer on the server, not the data). The one-time question now follows
+  the **server** (`med_setup_done`) instead of this browser's localStorage, so a reset shows it
+  again on every device.
+
 ## [1.23.0] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Added

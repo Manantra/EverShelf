@@ -2803,7 +2803,7 @@
     "disclaimer_short": "EverShelf est un inventaire domestique : il ne pose pas de diagnostic, ne remplace pas le médecin et n’indique jamais de dose.",
     "disclaimer_title": "Avant d’activer le module",
     "disclaimer": "Je comprends qu’EverShelf est un inventaire domestique. Il ne pose pas de diagnostic, ne remplace pas le médecin et n’indique jamais de dose : les consignes restent celles de la notice et du professionnel de santé.",
-    "disclaimer_accept": "J’ai lu et j’accepte",
+    "disclaimer_accept": "J’ai lu et compris : je n’utiliserai pas EverShelf comme un médecin.",
     "disclaimer_ok": "Activer le module",
     "enabled_on": "Module médicaments activé",
     "enabled_off": "Module médicaments désactivé",
@@ -2861,6 +2861,23 @@
     "cat_supplements": "Compléments et vitamines",
     "no_expiry": "aucune date",
     "product_toggle": "💊 C’est un médicament / complément",
-    "product_toggle_hint": "Activez-le pour une boîte de médicaments ou de compléments : les catégories alimentent « qu’est-ce que j’ai pour… » et la péremption peut partir de l’ouverture."
+    "product_toggle_hint": "Activez-le pour une boîte de médicaments ou de compléments : les catégories alimentent « qu’est-ce que j’ai pour… » et la péremption peut partir de l’ouverture.",
+    "disclaimer_title_full": "Ce que vous activez (à lire vraiment)",
+    "disclaimer_p1": "EverShelf Med est un inventaire : il enregistre quelles boîtes vous avez chez vous, où elles sont et quand elles périment. Ce n’est ni un dispositif médical ni un service de santé.",
+    "disclaimer_p2": "Il ne pose aucun diagnostic, ne suggère aucune thérapie et n’indique aucune dose — ni combien de comprimés, ni pendant combien de jours. En cas de doute, la réponse n’est pas cette application : c’est la notice, un médecin ou un pharmacien.",
+    "disclaimer_p3": "La recherche « qu’est-ce que j’ai pour… » rappelle ce que vous avez acheté : elle ne dit pas que le produit vous convient, à vos allergies, à vos autres médicaments ou à un enfant. Ne l’utilisez jamais à la place d’un avis professionnel, et jamais en urgence — en urgence, appelez les secours.",
+    "disclaimer_p4": "Les dates sont celles imprimées, plus les jours que vous déclarez après ouverture. Si une boîte est périmée ou ouverte depuis trop longtemps, ne l’utilisez pas : rapportez-la en pharmacie ou à un point de collecte des déchets spéciaux.",
+    "disclaimer_p5": "Vos données restent sur votre serveur, comme tout le reste d’EverShelf. Vous pouvez désactiver le module quand vous voulez depuis Réglages → Médicaments : les lignes ne sont pas supprimées, elles redeviennent de simples produits du garde-manger.",
+    "setup_back": "← Retour",
+    "setup_accept_next": "J’accepte, continuer →",
+    "setup_location_title": "Où rangeons-nous les médicaments ?",
+    "setup_location_existing": "— utiliser un emplacement existant —",
+    "setup_location_or": "ou en créer un nouveau, uniquement pour les médicaments :",
+    "setup_finish": "Activer le module",
+    "setup_done_toast": "Module actif. Les médicaments vivent dans « {place} ».",
+    "default_location_name": "Armoire à pharmacie",
+    "location_required_toast": "Choisissez ou saisissez le nom de l’emplacement des médicaments.",
+    "save_error": "Enregistrement impossible, réessayez.",
+    "setup_review": "↺ Revoir l’introduction du module"
   }
 }

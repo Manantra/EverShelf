@@ -2803,7 +2803,7 @@
     "disclaimer_short": "EverShelf ist ein Haushaltsinventar: keine Diagnose, kein Ersatz für den Arzt, keine Dosierungsangaben.",
     "disclaimer_title": "Bevor du das Modul aktivierst",
     "disclaimer": "Ich verstehe, dass EverShelf ein Haushaltsinventar ist. Es stellt keine Diagnose, ersetzt keinen Arzt und nennt keine Dosierung: es gelten weiterhin die Packungsbeilage und die Fachperson.",
-    "disclaimer_accept": "Gelesen und akzeptiert",
+    "disclaimer_accept": "Gelesen und verstanden: ich nutze EverShelf nicht wie einen Arzt.",
     "disclaimer_ok": "Modul aktivieren",
     "enabled_on": "Medikamenten-Modul aktiv",
     "enabled_off": "Medikamenten-Modul aus",
@@ -2861,6 +2861,23 @@
     "cat_supplements": "Nahrungsergänzung und Vitamine",
     "no_expiry": "kein Datum",
     "product_toggle": "💊 Medikament / Nahrungsergänzung",
-    "product_toggle_hint": "Aktiviere es für eine Packung Medikamente oder Nahrungsergänzung: die Kategorien füttern „Was habe ich für …“ und das Ablaufdatum kann ab dem Öffnen laufen."
+    "product_toggle_hint": "Aktiviere es für eine Packung Medikamente oder Nahrungsergänzung: die Kategorien füttern „Was habe ich für …“ und das Ablaufdatum kann ab dem Öffnen laufen.",
+    "disclaimer_title_full": "Was du aktivierst (bitte wirklich lesen)",
+    "disclaimer_p1": "EverShelf Med ist ein Inventar: es hält fest, welche Packungen zu Hause sind, wo sie liegen und wann sie ablaufen. Es ist kein Medizinprodukt und kein Gesundheitsdienst.",
+    "disclaimer_p2": "Es stellt keine Diagnose, schlägt keine Therapie vor und nennt keine Dosierung – weder wie viele Tabletten noch für wie viele Tage. Bei Zweifeln ist die Antwort nicht diese App, sondern die Packungsbeilage, ein Arzt oder eine Apotheke.",
+    "disclaimer_p3": "Die Suche „Was habe ich für …“ erinnert daran, was du gekauft hast: sie sagt nicht, dass das Produkt zu dir, deinen Allergien, deinen anderen Medikamenten oder einem Kind passt. Nutze sie nie statt einer fachlichen Auskunft und nie im Notfall – im Notfall den Notruf wählen.",
+    "disclaimer_p4": "Die Daten sind die aufgedruckten, plus die Tage, die du nach dem Öffnen angibst. Ist eine Packung abgelaufen oder zu lange offen, verwende sie nicht: bring sie in die Apotheke oder zu einer Sonderabfall-Sammelstelle.",
+    "disclaimer_p5": "Deine Daten bleiben auf deinem Server, wie alles andere in EverShelf. Du kannst das Modul jederzeit unter Einstellungen → Medikamente ausschalten: die Zeilen werden nicht gelöscht, sie werden wieder normale Vorratsprodukte.",
+    "setup_back": "← Zurück",
+    "setup_accept_next": "Akzeptieren, weiter →",
+    "setup_location_title": "Wo bewahren wir die Medikamente auf?",
+    "setup_location_existing": "— einen vorhandenen Ort verwenden —",
+    "setup_location_or": "oder einen neuen anlegen, nur für Medikamente:",
+    "setup_finish": "Modul aktivieren",
+    "setup_done_toast": "Modul aktiv. Die Medikamente liegen in „{place}“.",
+    "default_location_name": "Hausapotheke",
+    "location_required_toast": "Wähle oder tippe den Namen des Medikamentenorts.",
+    "save_error": "Speichern fehlgeschlagen, bitte erneut versuchen.",
+    "setup_review": "↺ Einführung des Moduls erneut ansehen"
   }
 }

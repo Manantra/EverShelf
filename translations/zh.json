@@ -2803,7 +2803,7 @@
     "disclaimer_short": "EverShelf 只是家庭库存工具：不提供诊断，不能替代医生，也从不给出剂量。",
     "disclaimer_title": "启用前请阅读",
     "disclaimer": "我确认了解 EverShelf 只是家庭库存工具。它不提供诊断，不能替代医生，也从不给出剂量：用药说明仍以说明书和医务人员为准。",
-    "disclaimer_accept": "我已阅读并同意",
+    "disclaimer_accept": "我已阅读并理解：我不会把 EverShelf 当作医生。",
     "disclaimer_ok": "启用模块",
     "enabled_on": "药品模块已开启",
     "enabled_off": "药品模块已关闭",
@@ -2861,6 +2861,23 @@
     "cat_supplements": "保健品与维生素",
     "no_expiry": "无日期",
     "product_toggle": "💊 这是药品 / 保健品",
-    "product_toggle_hint": "用于药品或保健品：分类用于“我家里有什么可以应对……”的搜索，有效期可从开封日计算。"
+    "product_toggle_hint": "用于药品或保健品：分类用于“我家里有什么可以应对……”的搜索，有效期可从开封日计算。",
+    "disclaimer_title_full": "你正在开启什么（请认真读一遍）",
+    "disclaimer_p1": "EverShelf Med 是一个库存工具：记录家里有哪些药盒、放在哪里、什么时候到期。它不是医疗器械，也不是医疗服务。",
+    "disclaimer_p2": "它不做诊断、不建议治疗方案、不给出剂量——既不说吃几片，也不说吃几天。有疑问时，答案不是这个应用，而是说明书、医生或药师。",
+    "disclaimer_p3": "“我家里有什么可以应对……”只是提醒你买过什么：它不代表该产品适合你、你的过敏、你正在服用的其他药物或儿童。不要用它替代专业意见，更不要在紧急情况下使用——紧急情况请拨打急救电话。",
+    "disclaimer_p4": "日期是包装上印的，加上你自己填写的开封后天数。药盒过期或开封时间过长，请不要使用：送到药店或特殊垃圾回收点。",
+    "disclaimer_p5": "数据保存在你自己的服务器上，和 EverShelf 的其他数据一样。你可以随时在 设置 → 药品 中关闭模块：记录不会被删除，只是恢复为普通的储物记录。",
+    "setup_back": "← 返回",
+    "setup_accept_next": "我同意，继续 →",
+    "setup_location_title": "药品放在哪里？",
+    "setup_location_existing": "— 使用已有位置 —",
+    "setup_location_or": "或新建一个只放药品的位置：",
+    "setup_finish": "启用模块",
+    "setup_done_toast": "模块已开启。药品存放在“{place}”。",
+    "default_location_name": "家庭药箱",
+    "location_required_toast": "请选择或输入药品位置的名称。",
+    "save_error": "保存失败，请重试。",
+    "setup_review": "↺ 重新查看模块介绍"
   }
 }

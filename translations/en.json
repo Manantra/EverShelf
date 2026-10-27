@@ -2803,7 +2803,7 @@
     "disclaimer_short": "EverShelf is a household inventory: it gives no diagnosis, does not replace a doctor and never states a dose.",
     "disclaimer_title": "Before enabling the module",
     "disclaimer": "I understand that EverShelf is a household inventory. It gives no diagnosis, does not replace a doctor and never states a dose: the instructions remain those of the patient leaflet and of the health professional.",
-    "disclaimer_accept": "I have read and accept",
+    "disclaimer_accept": "I have read and understand: I will not use EverShelf as if it were a doctor.",
     "disclaimer_ok": "Enable the module",
     "enabled_on": "Medicines module on",
     "enabled_off": "Medicines module off",
@@ -2861,6 +2861,23 @@
     "cat_supplements": "Supplements and vitamins",
     "no_expiry": "no date",
     "product_toggle": "💊 This is a medicine / supplement",
-    "product_toggle_hint": "Turn it on for a box of medicines or supplements: the categories feed “what do I have for…” and the expiry can start from opening."
+    "product_toggle_hint": "Turn it on for a box of medicines or supplements: the categories feed “what do I have for…” and the expiry can start from opening.",
+    "disclaimer_title_full": "What you are turning on (please really read it)",
+    "disclaimer_p1": "EverShelf Med is an inventory: it records which boxes you have at home, where they are and when they expire. It is not a medical device and not a health service.",
+    "disclaimer_p2": "It gives no diagnosis, suggests no therapy and states no dose — not how many tablets, not for how many days. If you have a doubt, the answer is not this app: it is the patient leaflet, a doctor or a pharmacist.",
+    "disclaimer_p3": "The “what do I have for…” search is a reminder of what you bought: it does not say that the product suits you, your allergies, your other medicines or a child. Never use it instead of professional advice, and never in an emergency — in an emergency call the emergency services.",
+    "disclaimer_p4": "Dates are the ones printed on the package, plus the days you declare after opening. If a box is expired or has been open too long, do not use it: take it to a pharmacy or a special-waste collection point.",
+    "disclaimer_p5": "Your data stays on your server, like everything else in EverShelf. You can turn the module off whenever you want from Settings → Medicines: the rows are not deleted, they go back to being ordinary pantry products.",
+    "setup_back": "← Back",
+    "setup_accept_next": "I accept, continue →",
+    "setup_location_title": "Where do we keep the medicines?",
+    "setup_location_existing": "— use a location you already have —",
+    "setup_location_or": "or create a new one, only for medicines:",
+    "setup_finish": "Enable the module",
+    "setup_done_toast": "Module on. Medicines live in “{place}”.",
+    "default_location_name": "Medicine cabinet",
+    "location_required_toast": "Choose or type the name of the medicines location.",
+    "save_error": "Could not save, try again.",
+    "setup_review": "↺ Review the module introduction"
   }
 }

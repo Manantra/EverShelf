@@ -275,6 +275,7 @@ function evershelfClientSettingsKeys(): array
         'med_enabled',
         'medical_locations',
         'med_disclaimer_accepted',
+        'med_setup_done',
     ];
 }
 

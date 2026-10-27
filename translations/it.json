@@ -2803,7 +2803,7 @@
     "disclaimer_short": "EverShelf è un inventario domestico: non fornisce diagnosi, non sostituisce il medico e non indica dosi.",
     "disclaimer_title": "Prima di attivare il modulo",
     "disclaimer": "Dichiaro di comprendere che EverShelf è un inventario domestico. Non fornisce diagnosi, non sostituisce il medico e non indica dosi: le raccomandazioni restano quelle del foglio illustrativo e del professionista sanitario.",
-    "disclaimer_accept": "Ho letto e accetto",
+    "disclaimer_accept": "Ho letto e capisco: non userò EverShelf come se fosse un medico.",
     "disclaimer_ok": "Attiva il modulo",
     "enabled_on": "Modulo farmaci attivo",
     "enabled_off": "Modulo farmaci disattivato",
@@ -2861,6 +2861,23 @@
     "cat_supplements": "Integratori e vitamine",
     "no_expiry": "nessuna data",
     "product_toggle": "💊 È un farmaco / integratore",
-    "product_toggle_hint": "Attivalo per una scatola di farmaci o integratori: le categorie servono alla ricerca «cosa ho in casa per…» e la scadenza può partire dall’apertura."
+    "product_toggle_hint": "Attivalo per una scatola di farmaci o integratori: le categorie servono alla ricerca «cosa ho in casa per…» e la scadenza può partire dall’apertura.",
+    "disclaimer_title_full": "Cosa stai attivando (leggilo davvero)",
+    "disclaimer_p1": "EverShelf Med è un inventario: registra quali scatole hai in casa, dove sono e quando scadono. Non è un dispositivo medico e non è un servizio sanitario.",
+    "disclaimer_p2": "Non fornisce diagnosi, non suggerisce terapie e non indica dosi: né quante compresse prendere, né per quanti giorni. Se hai un dubbio, la risposta non è questa app: è il foglio illustrativo, il medico o il farmacista.",
+    "disclaimer_p3": "La ricerca «cosa ho in casa per…» è un promemoria di quello che hai comprato: non dice che quel prodotto è adatto a te, alle tue allergie, alle altre medicine che prendi o a un bambino. Non usarla al posto di un parere professionale e mai in un’emergenza: in emergenza chiama i soccorsi.",
+    "disclaimer_p4": "Le date sono quelle stampate sulla confezione, più i giorni che dichiari tu dopo l’apertura. Se una confezione è scaduta o è aperta da troppo tempo non usarla: portala in farmacia o al punto di raccolta dei rifiuti speciali.",
+    "disclaimer_p5": "I dati restano sul tuo server, come tutto il resto di EverShelf. Puoi spegnere il modulo quando vuoi da Impostazioni → Farmaci: le righe non vengono cancellate, tornano a essere normali prodotti della dispensa.",
+    "setup_back": "← Indietro",
+    "setup_accept_next": "Accetto, avanti →",
+    "setup_location_title": "Dove teniamo i farmaci?",
+    "setup_location_existing": "— usa una locazione che hai già —",
+    "setup_location_or": "oppure creane una nuova, solo per i farmaci:",
+    "setup_finish": "Attiva il modulo",
+    "setup_done_toast": "Modulo attivo. I farmaci vivono in «{place}».",
+    "default_location_name": "Armadietto farmaci",
+    "location_required_toast": "Scegli o scrivi il nome della locazione dei farmaci.",
+    "save_error": "Non sono riuscito a salvare: riprova.",
+    "setup_review": "↺ Rivedi l’introduzione del modulo"
   }
 }

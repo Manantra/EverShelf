@@ -50,18 +50,53 @@ check('the module is off unless MED_ENABLED / the Settings toggle says so',
     str_contains($lib, "env('MED_ENABLED', 'false')") && str_contains($lib, 'med_enabled'));
 check('the first run is asked once and "Non ora" is a decision',
     (bool)preg_match('/function _medSetupLater.*?evershelf_med_asked.*?med_setup_done/s', $app));
-check('the one-time question is never shown again once answered',
-    (bool)preg_match("/if \\(localStorage\\.getItem\\('evershelf_med_asked'\\) === '1'\\) return false;/", $app));
+check('the one-time question follows the SERVER, not this browser',
+    (bool)preg_match('/function _medMaybeAskSetup\(\) \{[\s\S]{0,600}?if \(!_medStatus \|\| _medStatus\.setupDone\) return false;/s', $app)
+    && !preg_match('/function _medMaybeAskSetup\(\) \{[\s\S]{0,600}?localStorage\.getItem/s', $app));
 check('the medical UI never opens without the accepted notice',
     str_contains($app, 'return !!(_medStatus.enabled && _medStatus.accepted);'));
 check('the disclaimer is stored per instance',
     str_contains($api, 'med_disclaimer_accepted') && str_contains($app, 'med_disclaimer_accepted'));
-check('the accept button starts disabled', str_contains($app, 'id="med-disclaimer-ok" disabled'));
+check('the consent button starts disabled', str_contains($app, 'id="med-setup-next" disabled'));
 check('the module settings are the only new writable keys',
     preg_match('/evershelfClientSettingsKeys.*?med_enabled.*?medical_locations.*?med_disclaimer_accepted/s', $sec) === 1);
 check('all medical actions stay authenticated',
     !str_contains($sec, "'med_symptom_search'") && !str_contains($sec, "'med_classify'")
     && !str_contains($sec, "'med_open'") && !str_contains($sec, "'med_status'"));
+
+// ── 1b. The first-run flow actually stores what it promises ─────────────────
+// The keys live in app_settings (instance-level). `_saveSettingToServer()` writes the .env
+// through `save_settings` and silently ignores unknown keys, which is why enabling the
+// module did nothing: the acceptance and the switch never reached the server.
+check('the module state is written through app_settings_save',
+    (bool)preg_match("/function _medSaveInstanceSettings[\s\S]{0,300}?api\('app_settings_save'/s", $app));
+check('no medical key goes through the .env writer any more',
+    !preg_match('/_saveSettingToServer\(\{ *med_/', $app));
+check('med_setup_done is writable by the client',
+    (bool)preg_match("/'med_setup_done',\s*\];/s", $sec));
+check('the wizard has three steps: question, notice, place',
+    str_contains($app, 'function _medSetupRender(step)')
+    && (bool)preg_match("/if \(step === 2\)/s", $app)
+    && (bool)preg_match("/if \(step === 3\)/s", $app));
+check('the notice is long, not a one-liner (five paragraphs in every locale)',
+    (bool)preg_match("/disclaimer_p1', 'disclaimer_p2', 'disclaimer_p3', 'disclaimer_p4', 'disclaimer_p5'/s", $app)
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+        $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+        for ($i = 1; $i <= 5; $i++) {
+            if (mb_strlen((string)($d['medical']['disclaimer_p' . $i] ?? '')) < 40) { return false; }
+        }
+        return $c;
+    }, true));
+check('the last step requires a location, existing or brand new',
+    (bool)preg_match("/id=\"med-setup-location\"/s", $app)
+    && (bool)preg_match("/id=\"med-setup-new-location\"/s", $app)
+    && str_contains($app, 'medical.location_required_toast'));
+check('finishing stores enable + consent + location + setup_done in one save',
+    (bool)preg_match('/med_enabled: true,[\s\S]{0,200}?med_disclaimer_accepted: true,[\s\S]{0,200}?medical_locations: \[name\],[\s\S]{0,120}?med_setup_done: true/s', $app));
+check('the UI re-reads the server after saving (the switch cannot lie)',
+    (bool)preg_match('/await _medSaveInstanceSettings\(\{[\s\S]{0,900}?await _medRefreshStatus\(\);/s', $app));
+check('the introduction can be reopened from Settings',
+    str_contains($html, 'onclick="_medReopenSetup()"') && str_contains($app, 'function _medReopenSetup'));
 
 // ── 2. Its own settings SECTION, like "Cucina" ──────────────────────────────
 check('the settings strip has a medical group',
@@ -95,10 +130,9 @@ foreach (['index.html' => $html, 'assets/js/app.js' => $app] as $src => $body) {
 }
 check('every modal-* class used in the UI exists in the stylesheets', $unknown === [], implode(', ', array_keys($unknown)));
 check('the medical dialogs are drawn above the splash and the network overlay',
-    (bool)preg_match('/#med-setup-overlay,\s*\n#med-disclaimer-overlay,\s*\n#med-search-overlay \{[^}]*z-index: 300500/s', $css));
-check('the three medical dialogs use the real modal surface',
+    (bool)preg_match('/#med-setup-overlay,\s*\n#med-search-overlay \{[^}]*z-index: 300500/s', $css));
+check('the medical dialogs use the real modal surface',
     str_contains($html, 'class="modal-content med-search-card"')
-    && str_contains($app, 'class="modal-content med-disclaimer-card"')
     && str_contains($app, 'class="modal-content med-setup-card"'));
 
 // ── 3. A dedicated location, with its own colour ────────────────────────────
@@ -109,7 +143,7 @@ check('the household can create the location from the module',
 check('creating a location persists it through the settings path',
     (bool)preg_match("/api\\('save_settings', \\{\\}, 'POST', \\{ custom_locations:/s", $app));
 check('the medical location is marked instance-wide and closes the first run',
-    (bool)preg_match('/_saveSettingToServer\\(\\{ medical_locations: clean, med_setup_done: clean\\.length > 0 \\}\\)/s', $app));
+    (bool)preg_match('/_medSaveInstanceSettings\\(\\{ medical_locations: clean, med_setup_done: clean\\.length > 0 \\}\\)/s', $app));
 check('a medical row is tinted, not recoloured',
     str_contains($css, '.alert-item.is-medical') && str_contains($app, 'is-medical'));
 check('the tint is driven by the flag OR the marked location',
@@ -205,7 +239,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 68 medical keys', $aligned && count($base) === 68);
+check('all six locales carry the same 85 medical keys', $aligned && count($base) === 85);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));

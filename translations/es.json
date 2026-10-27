@@ -2803,7 +2803,7 @@
     "disclaimer_short": "EverShelf es un inventario doméstico: no da diagnósticos, no sustituye al médico y nunca indica dosis.",
     "disclaimer_title": "Antes de activar el módulo",
     "disclaimer": "Declaro que comprendo que EverShelf es un inventario doméstico. No da diagnósticos, no sustituye al médico y nunca indica dosis: las indicaciones siguen siendo las del prospecto y del profesional sanitario.",
-    "disclaimer_accept": "He leído y acepto",
+    "disclaimer_accept": "He leído y entiendo: no usaré EverShelf como si fuera un médico.",
     "disclaimer_ok": "Activar el módulo",
     "enabled_on": "Módulo de medicamentos activo",
     "enabled_off": "Módulo de medicamentos desactivado",
@@ -2861,6 +2861,23 @@
     "cat_supplements": "Complementos y vitaminas",
     "no_expiry": "sin fecha",
     "product_toggle": "💊 Es un medicamento / complemento",
-    "product_toggle_hint": "Actívalo para una caja de medicamentos o complementos: las categorías alimentan «qué tengo para…» y la caducidad puede empezar al abrirlo."
+    "product_toggle_hint": "Actívalo para una caja de medicamentos o complementos: las categorías alimentan «qué tengo para…» y la caducidad puede empezar al abrirlo.",
+    "disclaimer_title_full": "Qué estás activando (léelo de verdad)",
+    "disclaimer_p1": "EverShelf Med es un inventario: registra qué cajas tienes en casa, dónde están y cuándo caducan. No es un producto sanitario ni un servicio de salud.",
+    "disclaimer_p2": "No da diagnósticos, no sugiere tratamientos y no indica dosis — ni cuántos comprimidos ni durante cuántos días. Si tienes una duda, la respuesta no es esta app: es el prospecto, un médico o un farmacéutico.",
+    "disclaimer_p3": "La búsqueda «qué tengo para…» es un recordatorio de lo que compraste: no dice que el producto te convenga a ti, a tus alergias, a tus otros medicamentos o a un niño. No la uses en lugar de un consejo profesional y nunca en una urgencia — en una urgencia llama a los servicios de emergencia.",
+    "disclaimer_p4": "Las fechas son las impresas, más los días que declares tras la apertura. Si una caja está caducada o lleva demasiado tiempo abierta, no la uses: llévala a la farmacia o a un punto de recogida de residuos especiales.",
+    "disclaimer_p5": "Tus datos se quedan en tu servidor, como todo lo demás de EverShelf. Puedes desactivar el módulo cuando quieras en Ajustes → Medicamentos: las filas no se borran, vuelven a ser productos normales de la despensa.",
+    "setup_back": "← Atrás",
+    "setup_accept_next": "Acepto, continuar →",
+    "setup_location_title": "¿Dónde guardamos los medicamentos?",
+    "setup_location_existing": "— usar una ubicación que ya tienes —",
+    "setup_location_or": "o crear una nueva, solo para medicamentos:",
+    "setup_finish": "Activar el módulo",
+    "setup_done_toast": "Módulo activo. Los medicamentos viven en «{place}».",
+    "default_location_name": "Botiquín",
+    "location_required_toast": "Elige o escribe el nombre de la ubicación de los medicamentos.",
+    "save_error": "No se pudo guardar, inténtalo de nuevo.",
+    "setup_review": "↺ Revisar la introducción del módulo"
   }
 }

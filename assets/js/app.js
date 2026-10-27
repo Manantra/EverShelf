@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027m'; // bump when translations change
+const _I18N_VERSION = '20261027n'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13000,7 +13000,7 @@ async function _medSetLocations(list) {
     const s = getSettings();
     s.medical_locations = clean;
     saveSettingsToStorage(s);
-    await _saveSettingToServer({ medical_locations: clean, med_setup_done: clean.length > 0 });
+    await _medSaveInstanceSettings({ medical_locations: clean, med_setup_done: clean.length > 0 });
     _medStatus.setupDone = clean.length > 0;
     _renderMedLocations();
     _renderMedClassify();
@@ -13194,21 +13194,38 @@ async function _medMarkOpened(invId) {
 // ─── Med: settings actions ──────────────────────────────────────────────────
 
 /**
- * First run: the module has never been configured, so the household is asked ONCE — at boot,
- * above everything — whether medicines live in their own place. "Non ora" is a real answer:
- * it stores the choice (module off) and the question never comes back. Enabling goes through
- * the same mandated disclaimer as the Settings switch; then the dedicated location is created
- * or picked, because the module needs a place of its own.
+ * EverShelf Med writes its state where the server reads it.
+ *
+ * These keys live in `app_settings` (instance-level: the module is a decision of the house,
+ * not of this browser), so they go through `app_settings_save`. `_saveSettingToServer()` is
+ * the `.env` writer (`save_settings`) and silently ignores unknown keys — that is why
+ * enabling the module did nothing: the acceptance and the switch never reached the server.
  */
-function _medMaybeAskSetup() {
-    if (!_medStatus || _medStatus.setupDone) return false;
-    if (localStorage.getItem('evershelf_med_asked') === '1') return false;
-    if (document.getElementById('med-setup-overlay')) return false;
-    const ov = document.createElement('div');
-    ov.id = 'med-setup-overlay';
-    ov.className = 'modal-overlay';
-    ov.setAttribute('role', 'dialog');
-    ov.setAttribute('aria-modal', 'true');
+async function _medSaveInstanceSettings(payload) {
+    try {
+        const r = await api('app_settings_save', {}, 'POST', { settings: payload });
+        if (!r || r.success === false) {
+            showToast(t('medical.save_error'), 'error');
+            return false;
+        }
+        return true;
+    } catch (e) {
+        showToast(t('medical.save_error'), 'error');
+        return false;
+    }
+}
+
+/** The wizard shell: one overlay, three steps, Esc closes (and nothing is saved). */
+function _medSetupRender(step) {
+    let ov = document.getElementById('med-setup-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'med-setup-overlay';
+        ov.className = 'modal-overlay';
+        ov.setAttribute('role', 'dialog');
+        ov.setAttribute('aria-modal', 'true');
+        document.body.appendChild(ov);
+    }
     ov.innerHTML = `
         <div class="modal-content med-setup-card">
             <div class="modal-header">
@@ -13216,15 +13233,97 @@ function _medMaybeAskSetup() {
                 <button type="button" class="modal-close" onclick="_medCloseSetup()"
                         aria-label="${escapeAttr(t('btn.close'))}">✕</button>
             </div>
-            <p>${escapeHtml(t('medical.setup_ask'))}</p>
-            <p class="settings-hint">${escapeHtml(t('medical.setup_why'))}</p>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-outline" onclick="_medSetupLater()">${escapeHtml(t('medical.setup_later'))}</button>
-                <button type="button" class="btn btn-primary" onclick="_medSetupEnable()">${escapeHtml(t('medical.setup_enable'))}</button>
+            <div class="med-setup-progress" aria-hidden="true">
+                ${[1, 2, 3].map(n => `<span class="med-setup-dot ${n === step ? 'is-on' : ''}"></span>`).join('')}
             </div>
+            <div id="med-setup-body">${_medSetupBody(step)}</div>
         </div>`;
-    document.body.appendChild(ov);
     ov.style.display = 'flex';
+    if (step === 2) _medSetupSyncAccept();
+}
+
+/** The notice's checkbox gates the next step (a real consent, not a prefilled one). */
+function _medSetupSyncAccept() {
+    const check = document.getElementById('med-setup-accept');
+    const next = document.getElementById('med-setup-next');
+    if (next) next.disabled = !(check && check.checked);
+}
+
+/** Step 3: choosing an existing location clears the "new name" field (and vice versa). */
+function _medSetupLocationPick(sel) {
+    const input = document.getElementById('med-setup-new-location');
+    if (input && sel && sel.value) input.value = '';
+}
+
+function _medSetupLocationTyped() {
+    const input = document.getElementById('med-setup-new-location');
+    const sel = document.getElementById('med-setup-location');
+    if (input && input.value.trim() && sel) sel.value = '';
+}
+
+
+/** One step at a time: the question, the notice, the place. */
+function _medSetupBody(step) {
+    if (step === 2) {
+        // The mandatory notice: long on purpose. A household that keeps medicines needs to
+        // know what this app is, what it is not, and what to do with an expired box.
+        return `
+            <h4 class="med-setup-step-title">${escapeHtml(t('medical.disclaimer_title_full'))}</h4>
+            <div class="med-disclaimer med-disclaimer-long">
+                ${['disclaimer_p1', 'disclaimer_p2', 'disclaimer_p3', 'disclaimer_p4', 'disclaimer_p5']
+                    .map(k => `<p>${escapeHtml(t('medical.' + k))}</p>`).join('')}
+            </div>
+            <label class="toggle-row med-disclaimer-accept">
+                <input type="checkbox" id="med-setup-accept" onchange="_medSetupSyncAccept()">
+                <span>${escapeHtml(t('medical.disclaimer_accept'))}</span>
+            </label>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_medSetupRender(1)">${escapeHtml(t('medical.setup_back'))}</button>
+                <button type="button" class="btn btn-primary" id="med-setup-next" disabled
+                        onclick="_medSetupRender(3)">${escapeHtml(t('medical.setup_accept_next'))}</button>
+            </div>`;
+    }
+    if (step === 3) {
+        const choices = _medLocationChoices();
+        return `
+            <h4 class="med-setup-step-title">${escapeHtml(t('medical.setup_location_title'))}</h4>
+            <p>${escapeHtml(t('medical.location_required'))}</p>
+            <div class="med-location-picker">
+                <select id="med-setup-location" class="input" onchange="_medSetupLocationPick(this)">
+                    <option value="">${escapeHtml(t('medical.setup_location_existing'))}</option>
+                    ${choices.map(c => `<option value="${escapeAttr(c.slug)}">${escapeHtml(c.label)}</option>`).join('')}
+                </select>
+            </div>
+            <p class="settings-hint">${escapeHtml(t('medical.setup_location_or'))}</p>
+            <input type="text" class="input" id="med-setup-new-location" maxlength="40"
+                   placeholder="${escapeAttr(t('medical.new_location_placeholder'))}"
+                   value="${escapeAttr(t('medical.default_location_name'))}"
+                   oninput="_medSetupLocationTyped()">
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_medSetupRender(2)">${escapeHtml(t('medical.setup_back'))}</button>
+                <button type="button" class="btn btn-primary" onclick="_medSetupFinish()">${escapeHtml(t('medical.setup_finish'))}</button>
+            </div>`;
+    }
+    return `
+        <p>${escapeHtml(t('medical.setup_ask'))}</p>
+        <p class="settings-hint">${escapeHtml(t('medical.setup_why'))}</p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-outline" onclick="_medSetupLater()">${escapeHtml(t('medical.setup_later'))}</button>
+            <button type="button" class="btn btn-primary" onclick="_medSetupRender(2)">${escapeHtml(t('medical.setup_enable'))}</button>
+        </div>`;
+}
+
+/**
+ * First run, step 1 of 3: does this household want the medicine cabinet at all?
+ * "Non ora" is a real answer (module off, remembered); "Attiva" moves to the notice.
+ */
+function _medMaybeAskSetup() {
+    // The SERVER is the source of truth: `med_setup_done` is asked once per INSTANCE. A
+    // localStorage copy would pin the question to this browser (and would keep it hidden
+    // after a reset), so it is only written for older cached clients, never read here.
+    if (!_medStatus || _medStatus.setupDone) return false;
+    if (document.getElementById('med-setup-overlay')) return false;
+    _medSetupRender(1);
     return true;
 }
 
@@ -13238,14 +13337,69 @@ async function _medSetupLater() {
     localStorage.setItem('evershelf_med_asked', '1');
     _medStatus.setupDone = true;
     _medCloseSetup();
-    await _saveSettingToServer({ med_setup_done: true, med_enabled: false });
+    await _medSaveInstanceSettings({ med_setup_done: true, med_enabled: false });
 }
 
-/** "Attiva": the notice first (it is the same gate as the Settings switch). */
-function _medSetupEnable() {
-    _medCloseSetup();
+/**
+ * Step 3 done: one save that stores the decision, the consent and the place, then the UI
+ * re-reads the server so the switch can never disagree with what was stored.
+ */
+async function _medSetupFinish() {
+    const sel = document.getElementById('med-setup-location');
+    const input = document.getElementById('med-setup-new-location');
+    const existing = String((sel && sel.value) || '').trim();
+    const created = String((input && input.value) || '').trim();
+    const name = existing || created;
+    if (!name) {
+        showToast(t('medical.location_required_toast'), 'error');
+        return;
+    }
+    if (created && !existing) {
+        // A brand-new location: same path the Settings card uses (CUSTOM_LOCATIONS).
+        const s0 = getSettings();
+        s0.custom_locations = s0.custom_locations || [];
+        if (!s0.custom_locations.some(v => String(v).toLowerCase() === created.toLowerCase())) {
+            s0.custom_locations.push(created);
+            api('save_settings', {}, 'POST', { custom_locations: s0.custom_locations }).catch(() => {});
+        }
+        saveSettingsToStorage(s0);
+        mergeCustomLocations(s0.custom_locations);
+    }
+    const s = getSettings();
+    s.medical_locations = [name];
+    s.med_enabled = true;
+    s.med_disclaimer_accepted = true;
+    saveSettingsToStorage(s);
+    const ok = await _medSaveInstanceSettings({
+        med_enabled: true,
+        med_disclaimer_accepted: true,
+        medical_locations: [name],
+        med_setup_done: true,
+    });
     localStorage.setItem('evershelf_med_asked', '1');
-    _medOpenDisclaimer();
+    _medStatus.enabled = true;
+    _medStatus.accepted = true;
+    _medStatus.setupDone = true;
+    _medCloseSetup();
+    if (ok) {
+        showToast(t('medical.setup_done_toast').replace('{place}', _medLocationLabel(name)), 'success');
+    }
+    // Re-read from the server: if the save failed, the switch must show the truth.
+    await _medRefreshStatus();
+    loadDashboard();
+}
+
+/**
+ * "Rivedi l'introduzione": the way back to the first-run question, for whoever clicked
+ * through it (or wants to move the cabinet). It forgets the answer on the server AND on this
+ * device, then reopens step 1 — nothing else is touched.
+ */
+async function _medReopenSetup() {
+    localStorage.removeItem('evershelf_med_asked');
+    _medStatus.setupDone = false;
+    await _medSaveInstanceSettings({ med_setup_done: false });
+    _medCloseSetup();
+    _medSetupRender(1);
 }
 
 /** The toggle: enabling without an accepted disclaimer opens the notice instead. */
@@ -13254,87 +13408,20 @@ async function onMedEnabledChange() {
     const want = !!(el && el.checked);
     if (want && !_medStatus.accepted) {
         if (el) el.checked = false;
-        _medOpenDisclaimer();
+        // One path for the consent: the wizard's notice step.
+        _medSetupRender(2);
         return;
     }
     _medStatus.enabled = want;
     const s = getSettings();
     s.med_enabled = want;
     saveSettingsToStorage(s);
-    await _saveSettingToServer({ med_enabled: want });
+    await _medSaveInstanceSettings({ med_enabled: want });
     _applyMedUi();
     showToast(t(want ? 'medical.enabled_on' : 'medical.enabled_off'), 'success');
     loadDashboard();
 }
 
-
-/** The mandatory notice: nothing of the module is stored as enabled before this. */
-function _medOpenDisclaimer() {
-    let ov = document.getElementById('med-disclaimer-overlay');
-    if (!ov) {
-        ov = document.createElement('div');
-        ov.id = 'med-disclaimer-overlay';
-        ov.className = 'modal-overlay';
-        ov.setAttribute('role', 'dialog');
-        ov.setAttribute('aria-modal', 'true');
-        ov.setAttribute('aria-labelledby', 'med-disclaimer-title');
-        ov.innerHTML = `
-            <div class="modal-content med-disclaimer-card">
-                <div class="modal-header">
-                    <h3 id="med-disclaimer-title">${escapeHtml(t('medical.disclaimer_title'))}</h3>
-                    <button type="button" class="modal-close" onclick="_medCloseDisclaimer()"
-                            aria-label="${escapeAttr(t('btn.close'))}">✕</button>
-                </div>
-                <p class="med-disclaimer">${escapeHtml(t('medical.disclaimer'))}</p>
-                <label class="toggle-row med-disclaimer-accept">
-                    <input type="checkbox" id="med-disclaimer-check">
-                    <span>${escapeHtml(t('medical.disclaimer_accept'))}</span>
-                </label>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-outline" onclick="_medCloseDisclaimer()">${escapeHtml(t('btn.cancel'))}</button>
-                    <button type="button" class="btn btn-primary" id="med-disclaimer-ok" disabled onclick="_medAcceptDisclaimer()">${escapeHtml(t('medical.disclaimer_ok'))}</button>
-                </div>
-            </div>`;
-        document.body.appendChild(ov);
-        const check = ov.querySelector('#med-disclaimer-check');
-        if (check) check.addEventListener('change', () => {
-            const ok = ov.querySelector('#med-disclaimer-ok');
-            if (ok) ok.disabled = !check.checked;
-        });
-    }
-    ov.style.display = 'flex';
-}
-
-function _medCloseDisclaimer() {
-    const ov = document.getElementById('med-disclaimer-overlay');
-    if (ov) ov.style.display = 'none';
-    const el = document.getElementById('setting-med-enabled');
-    if (el && !_medStatus.enabled) el.checked = false;
-}
-
-/** Accepting the notice is what actually enables the module. */
-async function _medAcceptDisclaimer() {
-    const check = document.getElementById('med-disclaimer-check');
-    if (!check || !check.checked) return;
-    _medStatus.accepted = true;
-    _medStatus.enabled = true;
-    const s = getSettings();
-    s.med_disclaimer_accepted = true;
-    s.med_enabled = true;
-    saveSettingsToStorage(s);
-    await _saveSettingToServer({ med_disclaimer_accepted: true, med_enabled: true });
-    _medCloseDisclaimer();
-    _applyMedUi();
-    showToast(t('medical.enabled_on'), 'success');
-    loadDashboard();
-    // The module needs a dedicated location: without one, nothing can be classified.
-    if (!(getSettings().medical_locations || []).length) {
-        try {
-            showPage('settings');
-            _openSettingsCardFor('med-module-card');
-        } catch (e) {}
-    }
-}
 
 /** Open the symptom search (also called by SHELFY when the sentence is a symptom). */
 function _medOpenSearch(prefill) {
@@ -13471,7 +13558,6 @@ const _OVERLAY_CLOSERS = {
     'recipe-overlay': () => closeRecipeDialog(),
     // EverShelf Med dialogs: Esc must clean up, not just hide the box.
     'med-search-overlay': () => _medCloseSearch(),
-    'med-disclaimer-overlay': () => _medCloseDisclaimer(),
     'med-setup-overlay': () => _medCloseSetup(),
 };
 
@@ -14406,7 +14492,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027m';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14416,7 +14502,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

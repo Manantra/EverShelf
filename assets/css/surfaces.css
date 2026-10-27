@@ -2195,7 +2195,36 @@ a.free-api:hover { border-color: var(--brand-primary); }
    .modal-overlay would put the question *behind* the app. Above both, below the auth
    overlays (400000), which own the pairing step. */
 #med-setup-overlay,
-#med-disclaimer-overlay,
 #med-search-overlay {
     z-index: 300500;
+}
+
+/* The three-step wizard: question -> notice -> place. */
+.med-setup-progress {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+.med-setup-dot {
+    width: 28px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--surface-border);
+}
+.med-setup-dot.is-on {
+    background: var(--brand-primary);
+}
+.med-setup-step-title {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+.med-disclaimer-long {
+    max-height: 42vh;
+    overflow-y: auto;
+}
+.med-disclaimer-long p {
+    margin: 0 0 8px;
+}
+.med-disclaimer-long p:last-child {
+    margin-bottom: 0;
 }
