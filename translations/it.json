@@ -2084,7 +2084,10 @@
     "gdrive_code_missing": "Incolla il codice di autorizzazione",
     "rate_limited": "Troppe richieste. Riprova tra qualche istante.",
     "offline_last_sync": "Ultimi dati dal server: {time}",
-    "offline_queue_full": "Memoria offline piena: {n} operazione(i) più vecchie sono state scartate."
+    "offline_queue_full": "Memoria offline piena: {n} operazione(i) più vecchie sono state scartate.",
+    "food_in_cabinet": "Gli alimenti non possono andare nell’armadietto dei farmaci: scegli un altro luogo.",
+    "medicine_needs_cabinet": "Un farmaco può stare solo nell’armadietto dei farmaci.",
+    "medicine_location_missing": "Segna prima l’armadietto dei farmaci (Configurazione → Farmaci)."
   },
   "confirm": {
     "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",

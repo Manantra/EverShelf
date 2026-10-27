@@ -1200,7 +1200,7 @@ try {
             break;
 
         case 'get_settings':
-            getServerSettings();
+            getServerSettings($db);
             break;
 
         // GET support_qr — the donation link as a QR image. Public: the native
@@ -1928,19 +1928,20 @@ function inventoryLabelFromSlug(string $slug): string
  * It disappears by itself as soon as the household renames it (the rename writes it into
  * `CUSTOM_LOCATIONS`) or deletes it once empty — both go through the declared list.
  *
+ * `$db` is REQUIRED to look at the stock, and it is never opened here: `getDB()` builds a NEW
+ * connection and runs the migrations on it, and a second connection left open turns the next
+ * `UPDATE` of the same request into "database is locked". Callers without a connection get
+ * the declared list only.
+ *
  * @return array<string,string> slug => label, orphans only
  */
-function inventoryOrphanCustomLocations(): array
+function inventoryOrphanCustomLocations(?PDO $db = null): array
 {
     $out = [];
+    if (!$db instanceof PDO) {
+        return $out;
+    }
     try {
-        if (!function_exists('getDB')) {
-            return $out;
-        }
-        $db = getDB();
-        if (!$db instanceof PDO) {
-            return $out;
-        }
         $builtins = array_map('mb_strtolower', inventoryBuiltinLocations());
         $rows = $db->query("SELECT DISTINCT location FROM inventory WHERE location LIKE 'custom\\_%' ESCAPE '\\'")
                    ->fetchAll(PDO::FETCH_COLUMN) ?: [];
@@ -1963,7 +1964,7 @@ function inventoryOrphanCustomLocations(): array
 /**
  * @return array<string,string> slug => display label
  */
-function inventoryCustomLocationMap(): array {
+function inventoryCustomLocationMap(?PDO $db = null): array {
     $raw = env('CUSTOM_LOCATIONS', '');
     $out = [];
     foreach (explode(',', $raw) as $part) {
@@ -1978,7 +1979,7 @@ function inventoryCustomLocationMap(): array {
         $out[$slug] = $label;
     }
     // A place that still has stock is a place, even when its label went missing.
-    foreach (inventoryOrphanCustomLocations() as $slug => $label) {
+    foreach (inventoryOrphanCustomLocations($db) as $slug => $label) {
         if (!isset($out[$slug])) {
             $out[$slug] = $label;
         }
@@ -1987,16 +1988,98 @@ function inventoryCustomLocationMap(): array {
 }
 
 /** All allowed inventory location keys (built-in + custom). */
-function validInventoryLocations(): array {
+function validInventoryLocations(?PDO $db = null): array {
     return array_values(array_unique(array_merge(
         inventoryBuiltinLocations(),
-        array_keys(inventoryCustomLocationMap())
+        array_keys(inventoryCustomLocationMap($db))
     )));
 }
 
 /** Display names only (for settings UI / .env). */
-function inventoryCustomLocationLabels(): array {
-    return array_values(inventoryCustomLocationMap());
+function inventoryCustomLocationLabels(?PDO $db = null): array {
+    return array_values(inventoryCustomLocationMap($db));
+}
+
+/**
+ * Canonical keys of the place(s) marked as the medicine cabinet.
+ *
+ * `app_settings.medical_locations` may hold the typed label ("Armadietto Farmaci") or the
+ * slug (`custom_armadietto_farmaci`), depending on the client that saved it: both read as the
+ * same place here, so the domain rule below cannot be bypassed by a label.
+ *
+ * @return array<int,string>
+ */
+function medicalLocationKeys(PDO $db): array
+{
+    $labelToSlug = [];
+    foreach (inventoryCustomLocationMap($db) as $slug => $label) {
+        $labelToSlug[mb_strtolower(trim((string)$label))] = $slug;
+    }
+    $builtins = inventoryBuiltinLocations();
+    $out = [];
+    foreach (medicalLocationSlugs(_medicalSettingsMap($db)) as $value) {
+        $key = mb_strtolower(trim((string)$value));
+        if ($key === '') {
+            continue;
+        }
+        if (isset($labelToSlug[$key])) {
+            $out[] = $labelToSlug[$key];
+        } elseif (in_array($key, $builtins, true)) {
+            $out[] = $key;
+        } else {
+            $out[] = inventorySlugifyCustomLocation($key);
+        }
+    }
+    return array_values(array_unique($out));
+}
+
+/**
+ * Food and medicines never share a place.
+ *
+ * Returns an `error_key` when the location is wrong for that product, `null` when it is fine:
+ *   - a **medicine** lives only in the place the household marked as its cabinet;
+ *   - **food** never goes into that cabinet.
+ * The client already hides the wrong buttons; this is the rule that cannot be bypassed —
+ * `addToInventory()`, `updateInventory()` (a move) and the CSV import all ask here.
+ */
+function inventoryLocationDomainError(PDO $db, bool $isMedical, string $location): ?string
+{
+    $keys = medicalLocationKeys($db);
+    $loc = mb_strtolower(trim($location));
+    $inCabinet = $loc !== '' && in_array($loc, $keys, true);
+    if ($isMedical) {
+        if ($keys === []) {
+            return 'error.medicine_location_missing';
+        }
+        return $inCabinet ? null : 'error.medicine_needs_cabinet';
+    }
+    return $inCabinet ? 'error.food_in_cabinet' : null;
+}
+
+/**
+ * Move a product's stock into the cabinet — used when a row BECOMES a medicine (it was a food
+ * product being corrected), so the rule does not depend on the order of the actions.
+ * Returns the number of inventory rows moved.
+ */
+function medicalStockMoveToCabinet(PDO $db, int $productId): int
+{
+    $keys = medicalLocationKeys($db);
+    if ($keys === [] || $productId <= 0) {
+        return 0;
+    }
+    $target = $keys[0];
+    $stmt = $db->prepare('SELECT id, location FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt->execute([$productId]);
+    $moved = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        if (mb_strtolower(trim((string)($row['location'] ?? ''))) === $target) {
+            continue;
+        }
+        $db->prepare('UPDATE inventory SET location = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+           ->execute([$target, (int)$row['id']]);
+        $moved++;
+    }
+    return $moved;
 }
 
 function inventoryImportNormalizeUnit(string $raw): ?string {
@@ -2456,6 +2539,12 @@ function importInventory(PDO $db): void {
     try {
         foreach ($toImport as $row) {
             try {
+                // Food never goes into the medicine cabinet: the row is refused here too, so a
+                // CSV cannot bypass the domain rule the pantry enforces on every add.
+                $importDomain = inventoryLocationDomainError($db, !empty($row['data']['is_medical']), (string)($row['data']['location'] ?? ''));
+                if ($importDomain !== null) {
+                    throw new RuntimeException($importDomain);
+                }
                 $prod = inventoryImportUpsertProduct($db, $row['data']);
                 $stock = inventoryImportAddStock($db, $prod['id'], $row['data']);
                 $imported++;
@@ -5161,11 +5250,36 @@ function addToInventory(PDO $db): void {
     }
 
     // Validate location
-    $validLocations = validInventoryLocations();
+    $validLocations = validInventoryLocations($db);
     if (!in_array($location, $validLocations, true)) {
         EverLog::warn('addToInventory: invalid location (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Invalid location']);
+        return;
+    }
+
+    // Food and medicines never share a place (EverShelf Med): a medicine lives only in the
+    // cabinet the household marked, and food never goes into it. The client hides the wrong
+    // buttons; this is the rule that cannot be bypassed.
+    $medStmt = $db->prepare('SELECT COALESCE(is_medical, 0) FROM products WHERE id = ?');
+    $medStmt->execute([$productId]);
+    $isMedicalProduct = (int)($medStmt->fetchColumn() ?: 0) === 1;
+    $medStmt->closeCursor();   // an open read cursor blocks the write below on SQLite
+    $domainError = inventoryLocationDomainError($db, $isMedicalProduct, (string)$location);
+    if ($domainError !== null) {
+        EverLog::warn('addToInventory: location refused by the medicine domain', [
+            'event'      => 'api_inventory_add_domain_refused',
+            'product_id' => $productId,
+            'location'   => (string)$location,
+            'is_medical' => $isMedicalProduct ? 1 : 0,
+            'error_key'  => $domainError,
+        ]);
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Location not allowed for this product',
+            'error_key' => $domainError,
+        ]);
         return;
     }
 
@@ -6310,6 +6424,31 @@ function updateInventory(PDO $db): void {
 
     $fields = [];
     $params = [];
+    // A move must respect the medicine domain before anything is written: a medicine only to
+    // its cabinet, food never into it (EverShelf Med).
+    if (isset($input['location'])) {
+        $medStmt = $db->prepare('SELECT COALESCE(is_medical, 0) FROM products WHERE id = ?');
+        $medStmt->execute([(int)$prevRow['product_id']]);
+        $isMedicalRow = (int)($medStmt->fetchColumn() ?: 0) === 1;
+        $medStmt->closeCursor();
+        $domainError = inventoryLocationDomainError($db, $isMedicalRow, (string)$input['location']);
+        if ($domainError !== null) {
+            EverLog::warn('updateInventory: location refused by the medicine domain', [
+                'event'      => 'api_inventory_update_domain_refused',
+                'product_id' => (int)$prevRow['product_id'],
+                'location'   => (string)$input['location'],
+                'is_medical' => $isMedicalRow ? 1 : 0,
+                'error_key'  => $domainError,
+            ]);
+            http_response_code(409);
+            echo json_encode([
+                'success'   => false,
+                'error'     => 'Location not allowed for this product',
+                'error_key' => $domainError,
+            ]);
+            return;
+        }
+    }
     if (isset($input['quantity'])) { $fields[] = "quantity = ?"; $params[] = $input['quantity']; }
     if (isset($input['location'])) { $fields[] = "location = ?"; $params[] = $input['location']; }
     if (isset($input['expiry_date'])) { $fields[] = "expiry_date = ?"; $params[] = $input['expiry_date'] ?: null; }
@@ -9079,7 +9218,7 @@ function evershelfSetupLedgerValue(string $key): mixed
     return $decoded ?? (string)$raw;
 }
 
-function getServerSettings(): void {
+function getServerSettings(?PDO $db = null): void {
     EverLog::debug('getServerSettings');
     $bringEmail = env('BRING_EMAIL');
     
@@ -9128,7 +9267,8 @@ function getServerSettings(): void {
         'weather_city' => env('WEATHER_CITY', ''),
         'dietary' => env('DIETARY', ''),
         'appliances' => env('APPLIANCES', '') ? array_values(array_filter(array_map('trim', explode(',', env('APPLIANCES', ''))))) : [],
-        'custom_locations' => inventoryCustomLocationLabels(),
+        'custom_locations' => inventoryCustomLocationLabels($db),
+
         'camera_facing' => env('CAMERA_FACING', 'environment'),
         'scale_enabled' => env('SCALE_ENABLED', 'false') === 'true',
         'scale_gateway_url' => env('SCALE_GATEWAY_URL', ''),
@@ -9654,13 +9794,18 @@ function medClassifyAction(PDO $db): void {
     }
     $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_atc = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
        ->execute([implode(',', $tags), $atc, $ingredient, $paoDays, $productId]);
+    // A medicine lives in the cabinet: a product that already had stock (it was a food row
+    // being corrected) moves there now, so the domain rule never depends on the order in
+    // which the household did things.
+    $movedToCabinet = medicalStockMoveToCabinet($db, $productId);
     EverLog::info('Medical product classified', [
         'event' => 'med_classify',
         'product_id' => $productId,
         'tags' => $tags,
         'pao_days' => $paoDays,
+        'moved_to_cabinet' => $movedToCabinet,
     ]);
-    echo json_encode(['success' => true, 'tags' => $tags, 'pao_days' => $paoDays], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => true, 'tags' => $tags, 'pao_days' => $paoDays, 'moved_to_cabinet' => $movedToCabinet], JSON_UNESCAPED_UNICODE);
 }
 
 /**
@@ -10137,7 +10282,7 @@ function locationRenameAction(PDO $db): void
     $old = trim((string)($input['old'] ?? ''));
     $new = trim((string)($input['new'] ?? ''));
 
-    $map = inventoryCustomLocationMap();          // slug => label
+    $map = inventoryCustomLocationMap($db);       // slug => label
     $oldSlug = $old !== '' ? inventorySlugifyCustomLocation($old) : '';
     if ($old === '' || $oldSlug === '' || !isset($map[$oldSlug])) {
         EverLog::warn('location rename: unknown location', ['event' => 'location_rename_unknown', 'from' => $old]);
@@ -19867,7 +20012,7 @@ function templatesApply(PDO $db): void {
     }
     if ($target === 'inventory') {
         $added = 0; $skipped = 0; $errors = [];
-        $validLocs = validInventoryLocations();
+        $validLocs = validInventoryLocations($db);
         foreach ($items as $it) {
             $productId = (int)($it['product_id'] ?? 0);
             $name = trim((string)($it['name'] ?? ''));

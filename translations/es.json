@@ -2084,7 +2084,10 @@
     "gdrive_code_missing": "Pega el código de autorización",
     "rate_limited": "Demasiadas solicitudes. Inténtalo de nuevo en un momento.",
     "offline_last_sync": "Últimos datos del servidor: {time}",
-    "offline_queue_full": "Cola sin conexión llena: se han descartado {n} de las operaciones más antiguas."
+    "offline_queue_full": "Cola sin conexión llena: se han descartado {n} de las operaciones más antiguas.",
+    "food_in_cabinet": "Los alimentos no van en el botiquín: elige otro lugar.",
+    "medicine_needs_cabinet": "Un medicamento solo puede estar en el botiquín.",
+    "medicine_location_missing": "Marca primero el botiquín (Ajustes → Medicamentos)."
   },
   "confirm": {
     "remove_item": "¿Realmente quieres eliminar este producto del inventario?",

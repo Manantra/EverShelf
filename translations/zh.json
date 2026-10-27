@@ -2084,7 +2084,10 @@
     "gdrive_code_missing": "请粘贴授权码",
     "rate_limited": "请求过多，请稍后再试。",
     "offline_last_sync": "最后一次从服务器获取数据：{time}",
-    "offline_queue_full": "离线队列已满：已丢弃 {n} 个最早的操作。"
+    "offline_queue_full": "离线队列已满：已丢弃 {n} 个最早的操作。",
+    "food_in_cabinet": "食品不能放进药品柜：请选择其他位置。",
+    "medicine_needs_cabinet": "药品只能放在药品柜。",
+    "medicine_location_missing": "请先在设置 → 药品中标记药品柜。"
   },
   "confirm": {
     "remove_item": "确定要从库存中移除该商品吗？",

@@ -2084,7 +2084,10 @@
     "gdrive_code_missing": "Collez le code d’autorisation",
     "rate_limited": "Trop de requêtes. Veuillez réessayer dans un instant.",
     "offline_last_sync": "Dernières données du serveur : {time}",
-    "offline_queue_full": "File hors ligne pleine : {n} opération(s) les plus anciennes ont été perdues."
+    "offline_queue_full": "File hors ligne pleine : {n} opération(s) les plus anciennes ont été perdues.",
+    "food_in_cabinet": "Les aliments ne vont pas dans l’armoire à pharmacie : choisissez un autre endroit.",
+    "medicine_needs_cabinet": "Un médicament ne va que dans l’armoire à pharmacie.",
+    "medicine_location_missing": "Définissez d’abord l’armoire à pharmacie (Réglages → Médicaments)."
   },
   "confirm": {
     "remove_item": "Voulez-vous vraiment supprimer ce produit de l'inventaire ?",

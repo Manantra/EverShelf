@@ -78,6 +78,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the search runs on the rows of the place on screen (`currentInventory`), and switching place
   **clears** a leftover search query and tag filter — a query typed somewhere else is what
   made five products in "Dispensa cucina" look like one.
+- **Food and medicines can no longer share a place.** Food cannot be added (or moved) into
+  the medicine cabinet, and a medicine cannot be placed anywhere else. The client only offers
+  the legal places (`_renderLocationSelector(…, kind)` for the add form, `_locationsForDomain()`
+  for both move dialogs) and the server refuses the rest on **every door**:
+  `inventoryLocationDomainError()` is asked by `addToInventory`, `updateInventory` and the CSV
+  import, and answers `error.food_in_cabinet`, `error.medicine_needs_cabinet` or
+  `error.medicine_location_missing` (six locales). A product that *becomes* a medicine
+  (`med_classify`) has its stock moved into the cabinet, so the rule never depends on the
+  order of the actions; the marked place is read in both stored forms (typed label or slug).
+- **A second database connection turned a move into "database is locked".** Adopting a custom
+  place that lost its label used to call `getDB()`, which builds a NEW PDO and runs the
+  migrations on it: the connection stayed open for the rest of the request and the next
+  `UPDATE` answered `database_busy`. The orphan lookup now receives the request's connection
+  (`inventoryOrphanCustomLocations(?PDO $db)`) and never opens one.
 - **Adding a product lit up TWO locations ("Dispensa" and "Dispensa cucina").** The add form
   picked the button by asking whether its *text* contained the location key: "dispensa" is a
   substring of "dispensa cucina", so both pills turned green — and a custom place matched

@@ -331,6 +331,47 @@ check('the food form comes back for a normal product and when editing',
     && (bool)preg_match('/function editProductFromAction\(\) \{[\s\S]{0,400}?_medFormSetMode\(false\);/s', $app));
 check('the add step drops the vacuum option for a medicine',
     (bool)preg_match("/const vacuumGroup = document\.getElementById\('add-vacuum-group'\);\s*if \(vacuumGroup\) vacuumGroup\.style\.display = _isMedicalRow\(currentProduct\) \? 'none' : '';/s", $app));
+// ── 7c. Food and medicines never share a place ──────────────────────────────
+// "Food cannot go into the medicine location, and a medicine cannot go anywhere else."
+// The client hides the wrong places; the server refuses them on EVERY door (add, move,
+// import) and moves the stock of a product that BECOMES a medicine into the cabinet.
+$apiSrc2 = (string)file_get_contents($root . '/api/index.php');
+check('the server knows the two refusals and the missing cabinet',
+    str_contains($apiSrc2, 'function inventoryLocationDomainError(PDO $db, bool $isMedical, string $location): ?string')
+    && str_contains($apiSrc2, "'error.food_in_cabinet'")
+    && str_contains($apiSrc2, "'error.medicine_needs_cabinet'")
+    && str_contains($apiSrc2, "'error.medicine_location_missing'"));
+check('every door asks: the add, the move and the import',
+    (bool)preg_match('/function addToInventory\(PDO \$db\): void[\s\S]{0,6000}?inventoryLocationDomainError\(\$db, \$isMedicalProduct, \(string\)\$location\)/s', $apiSrc2)
+    && (bool)preg_match('/function updateInventory\(PDO \$db\): void[\s\S]{0,4000}?inventoryLocationDomainError\(\$db, \$isMedicalRow, \(string\)\$input\[.location.\]\)/s', $apiSrc2)
+    && (bool)preg_match('/inventoryLocationDomainError\(\$db, !empty\(\$row\[.data.\]\[.is_medical.\]\)/s', $apiSrc2));
+check('a product that becomes a medicine moves its stock into the cabinet',
+    (bool)preg_match('/function medClassifyAction\(PDO \$db\): void[\s\S]{0,4000}?medicalStockMoveToCabinet\(\$db, \$productId\)/s', $apiSrc2));
+check('the marked place is read in both stored forms (typed label or slug)',
+    (bool)preg_match('/function medicalLocationKeys\(PDO \$db\): array[\s\S]{0,1400}?inventorySlugifyCustomLocation/s', $apiSrc2));
+check('the cabinet is never discovered by opening a second connection',
+    // getDB() builds a NEW PDO and runs the migrations on it: a second connection left open
+    // made the next UPDATE of the same request answer "database is locked".
+    (bool)preg_match('/function inventoryOrphanCustomLocations\(\?PDO \$db = null\): array/s', $apiSrc2)
+    && !preg_match('/function inventoryOrphanCustomLocations\(\?PDO \$db = null\): array[\s\S]{0,900}?getDB\(\)/s', $apiSrc2));
+check('the add asks the allow-list with the request connection',
+    (bool)preg_match('/function addToInventory\(PDO \$db\): void[\s\S]{0,6000}?\$validLocations = validInventoryLocations\(\$db\);/s', $apiSrc2));
+check('the client offers only the right places',
+    (bool)preg_match('/function _renderLocationSelector\(sel, hiddenId, clickFn, currentVal, kind = .any.\)/s', $app)
+    && str_contains($app, "_renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, _isMedicalRow(currentProduct) ? 'medical' : 'food')")
+    && (bool)preg_match('/function _locationsForDomain\(isMedical, fromLoc = ..\)/s', $app)
+    && substr_count($app, '_locationsForDomain(') >= 3);
+check('the move pickers follow the domain (both of them)',
+    str_contains($app, 'const otherLocs = _locationsForDomain(_isMedicalRow(product), fromLoc);')
+    && str_contains($app, 'const otherLocs = _locationsForDomain(false, fromLoc);'));
+check('the three refusals are translated in six locales', array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+    $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+    foreach (['food_in_cabinet', 'medicine_needs_cabinet', 'medicine_location_missing'] as $k) {
+        if (trim((string)($d['error'][$k] ?? '')) === '') { return false; }
+    }
+    return $c;
+}, true));
+
 check('the medical form copy exists in all six locales', array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
     $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
     $m = $d['medical'] ?? [];

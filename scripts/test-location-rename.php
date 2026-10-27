@@ -128,8 +128,8 @@ check('the medical wizard stores the place it creates the same way',
 // ── A place with stock is a place (orphan slugs adopted server-side) ────────
 $apiSrc = (string)file_get_contents($root . '/api/index.php');
 check('the server adopts a custom place whose label went missing',
-    str_contains($apiSrc, 'function inventoryOrphanCustomLocations(): array')
-    && (bool)preg_match('/function inventoryCustomLocationMap\(\): array \{[\s\S]{0,1200}?inventoryOrphanCustomLocations\(\)/s', $apiSrc)
+    str_contains($apiSrc, 'function inventoryOrphanCustomLocations(?PDO $db = null): array')
+    && (bool)preg_match('/function inventoryCustomLocationMap\(\?PDO \$db = null\): array \{[\s\S]{0,1400}?inventoryOrphanCustomLocations\(\$db\)/s', $apiSrc)
     && (bool)preg_match("/SELECT DISTINCT location FROM inventory WHERE location LIKE 'custom\\\\\\\\_%'/", $apiSrc));
 check('an adopted label is readable, not the raw slug',
     str_contains($apiSrc, 'function inventoryLabelFromSlug(string $slug): string'));

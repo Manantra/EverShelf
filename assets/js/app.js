@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027ze'; // bump when translations change
+const _I18N_VERSION = '20261027zf'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2294,6 +2294,43 @@ function _syncLocationFilterUi() {
     }
 }
 
+/**
+ * The places a product may move TO: a medicine only to its cabinet, food never into it.
+ * `fromLoc` is where it is now (never offered back to itself).
+ */
+function _locationsForDomain(isMedical, fromLoc = '') {
+    return Object.entries(LOCATIONS).filter(([key]) =>
+        key !== fromLoc && (isMedical ? isMedicalLocation(key) : !isMedicalLocation(key)));
+}
+
+/**
+ * Paint one location picker (a row of buttons).
+ *
+ * `kind` keeps the medicine domain apart: `'medical'` offers only the cabinet (a medicine can
+ * live nowhere else), `'food'` hides it (food never goes in), `'any'` is for filters.
+ */
+function _renderLocationSelector(sel, hiddenId, clickFn, currentVal, kind = 'any') {
+    const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
+    if (!el) return;
+    const entries = Object.entries(LOCATIONS).filter(([key]) =>
+        kind === 'medical' ? isMedicalLocation(key)
+            : kind === 'food' ? !isMedicalLocation(key)
+                : true);
+    // One selection, by KEY: a label ("Dispensa cucina") and its slug are the same place,
+    // and one place's name can contain another's (see markLocationButton()).
+    const cur = resolveLocationKey(currentVal || document.getElementById(hiddenId)?.value || 'dispensa');
+    el.innerHTML = entries.map(([key, meta], idx) => {
+        const active = key === cur || (!LOCATIONS[cur] && idx === 0);
+        return `<button type="button" class="loc-btn${active ? ' active' : ''}" data-loc="${escapeAttr(key)}" onclick="${clickFn}(this, '${key}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
+    }).join('');
+    const hidden = document.getElementById(hiddenId);
+    if (hidden && !entries.some(([key]) => key === hidden.value)) {
+        // Never leave a value the picker does not offer (a medicine has no other place; a
+        // cabinet with no place marked leaves it empty, and the server says why).
+        hidden.value = entries.some(([key]) => key === cur) ? cur : (entries[0] ? entries[0][0] : '');
+    }
+}
+
 function rebuildLocationPickers() {
     const tabs = document.getElementById('location-tabs');
     if (tabs) {
@@ -2309,23 +2346,11 @@ function rebuildLocationPickers() {
             + ` onchange="filterLocation(this.value)">${options.join('')}</select>`;
         _syncLocationFilterUi();
     }
-    const renderSelector = (sel, hiddenId, clickFn, currentVal) => {
-        const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
-        if (!el) return;
-        // One selection, by KEY: a label ("Dispensa cucina") and its slug are the same place,
-        // and one place's name can contain another's (see markLocationButton()).
-        const cur = resolveLocationKey(currentVal || document.getElementById(hiddenId)?.value || 'dispensa');
-        el.innerHTML = Object.entries(LOCATIONS).map(([key, meta], idx) => {
-            const active = key === cur || (!LOCATIONS[cur] && idx === 0);
-            return `<button type="button" class="loc-btn${active ? ' active' : ''}" data-loc="${escapeAttr(key)}" onclick="${clickFn}(this, '${key}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
-        }).join('');
-        const hidden = document.getElementById(hiddenId);
-        if (hidden && !LOCATIONS[hidden.value]) {
-            hidden.value = LOCATIONS[cur] ? cur : (Object.keys(LOCATIONS)[0] || 'dispensa');
-        }
-    };
-    renderSelector('#page-add .location-selector', 'add-location', 'selectLocation', document.getElementById('add-location')?.value);
-    renderSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value);
+    // The add form follows the product: a medicine can only go to the cabinet, food never
+    // into it (Rebuild runs on settings changes too, so it reads `currentProduct` live).
+    const addKind = _isMedicalRow(currentProduct) ? 'medical' : 'food';
+    _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', document.getElementById('add-location')?.value, addKind);
+    _renderLocationSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value, 'any');
 }
 
 /**
@@ -15062,7 +15087,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027ze';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027zf';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15072,7 +15097,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027ze';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027zf';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -17982,6 +18007,9 @@ function showAddForm() {
     // Auto-detect location — a medicine goes to its own cabinet, never to the pantry.
     const medLoc = (getSettings().medical_locations || [])[0];
     const autoLoc = resolveLocationKey((_isMedicalRow(currentProduct) && medLoc) ? medLoc : guessLocation(currentProduct)) || 'dispensa';
+    // The picker follows THIS product's domain: a medicine only to the cabinet, food never
+    // into it (_renderLocationSelector). The server enforces the same rule.
+    _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, _isMedicalRow(currentProduct) ? 'medical' : 'food');
     document.getElementById('add-location').value = autoLoc;
     
     // Exactly one button, chosen by key: the old text match lit up both "Dispensa" and
@@ -18624,6 +18652,10 @@ function _apiErrorText(data) {
     if (key === 'error.gdrive_not_configured') return t('error.gdrive_not_configured');
     if (key === 'error.gdrive_not_authorized') return t('error.gdrive_not_authorized');
     if (key === 'error.gdrive_code_missing') return t('error.gdrive_code_missing');
+    // EverShelf Med: food and medicines never share a place.
+    if (key === 'error.food_in_cabinet') return t('error.food_in_cabinet');
+    if (key === 'error.medicine_needs_cabinet') return t('error.medicine_needs_cabinet');
+    if (key === 'error.medicine_location_missing') return t('error.medicine_location_missing');
     return data?.error || t('error.generic');
 }
 
@@ -20025,7 +20057,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
         return;
     }
 
-    const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
+    const otherLocs = _locationsForDomain(_isMedicalRow(product), fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
@@ -26334,7 +26366,8 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
         return;
     }
 
-    const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
+    // A recipe ingredient is food: the cabinet is never offered.
+    const otherLocs = _locationsForDomain(false, fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');

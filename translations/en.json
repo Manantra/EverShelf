@@ -2084,7 +2084,10 @@
     "gdrive_code_missing": "Paste the authorization code",
     "rate_limited": "Too many requests. Please try again later.",
     "offline_last_sync": "Last data from the server: {time}",
-    "offline_queue_full": "Offline queue full: {n} of the oldest operation(s) were dropped."
+    "offline_queue_full": "Offline queue full: {n} of the oldest operation(s) were dropped.",
+    "food_in_cabinet": "Food cannot go into the medicine cabinet: pick another place.",
+    "medicine_needs_cabinet": "A medicine can only live in the medicine cabinet.",
+    "medicine_location_missing": "Mark the medicine cabinet first (Settings → Medicines)."
   },
   "confirm": {
     "remove_item": "Do you really want to remove this product from inventory?",

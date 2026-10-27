@@ -157,8 +157,8 @@ Auto-generated action → handler mapping. Regenerate: `bash scripts/gen-code-in
 | 1571 | calendar_ics | calendarIcsFeed |
 | 1575 | get_ics_settings | getIcsSettings |
 | 1579 | rotate_ics_token | rotateIcsToken |
-| 5479 | expired | — |
-| 5483 | wrong_location | _guessPreferredStorageLocation |
-| 5489 | kept_too_long | — |
-| 5495 | bought_too_much | — |
-| 5500 | bad_quality | — |
+| 5593 | expired | — |
+| 5597 | wrong_location | _guessPreferredStorageLocation |
+| 5603 | kept_too_long | — |
+| 5609 | bought_too_much | — |
+| 5614 | bad_quality | — |
