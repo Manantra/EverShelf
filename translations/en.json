@@ -2859,6 +2859,8 @@
     "cat_eyes": "Eyes and sight",
     "cat_muscles": "Cramps and muscles",
     "cat_supplements": "Supplements and vitamins",
-    "no_expiry": "no date"
+    "no_expiry": "no date",
+    "product_toggle": "💊 This is a medicine / supplement",
+    "product_toggle_hint": "Turn it on for a box of medicines or supplements: the categories feed “what do I have for…” and the expiry can start from opening."
   }
 }

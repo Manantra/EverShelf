@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.23.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The product form asks the question the scanner could not answer.** A medicine box scanned
+  into the catalog used to become a normal product that had to be re-classified later, in
+  another section. The form now carries **"💊 È un farmaco / integratore"** (only while the
+  module is on): turning it on shows the **8 closed categories** as chips, the active
+  ingredient and the **PAO days** in place, and the add step lands in the **dedicated
+  location** instead of guessing the pantry. The fields are stored through `med_classify`
+  (the one action that owns those columns, with the tag allow-list and the PAO bounds), so
+  `product_save` stays untouched and there is no second dictionary of medical fields.
+- Opening a product for editing shows its own medical fields (toggle on, chips selected,
+  ingredient and PAO filled), so correcting a box is the same gesture as creating it.
+
 ## [1.22.2] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Fixed

@@ -2859,6 +2859,8 @@
     "cat_eyes": "Ojos y vista",
     "cat_muscles": "Calambres y músculos",
     "cat_supplements": "Complementos y vitaminas",
-    "no_expiry": "sin fecha"
+    "no_expiry": "sin fecha",
+    "product_toggle": "💊 Es un medicamento / complemento",
+    "product_toggle_hint": "Actívalo para una caja de medicamentos o complementos: las categorías alimentan «qué tengo para…» y la caducidad puede empezar al abrirlo."
   }
 }

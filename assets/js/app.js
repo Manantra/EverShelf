@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027l'; // bump when translations change
+const _I18N_VERSION = '20261027m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12918,6 +12918,8 @@ function _applyMedUi() {
     if (block) block.hidden = !_medOn();
     const btn = document.getElementById('med-search-btn');
     if (btn) btn.hidden = !_medOn();
+    const pfGroup = document.getElementById('pf-medical-group');
+    if (pfGroup) pfGroup.hidden = !_medOn();
     if (_medOn()) { _renderMedLocations(); _medRenderLocationPicker(); _renderMedClassify(); }
     else _renderMedicalBlock([]);
 }
@@ -13105,6 +13107,69 @@ async function _medClassify(productId) {
     } catch (e) {
         showToast(t('medical.classify_error'), 'error');
     }
+}
+
+/**
+ * The product form's medical toggle ("È un farmaco / integratore").
+ *
+ * Closing the gap found in use: a scanned medicine used to become a normal product and had
+ * to be re-classified afterwards. Here the switch turns the row medical, shows the CLOSED
+ * category chips + the PAO number in place, and the add step lands in the dedicated location.
+ * The whole block stays hidden while the module is off: opt-in means opt-in.
+ */
+function _syncProductMedicalUi(product) {
+    const group = document.getElementById('pf-medical-group');
+    if (!group) return;
+    group.hidden = !_medOn();
+    if (!_medOn()) return;
+    const isMed = !!(product && (_isMedicalRow(product) || product.is_medical));
+    const toggle = document.getElementById('pf-is-medical');
+    if (toggle) toggle.checked = isMed;
+    const box = document.getElementById('pf-medical-box');
+    if (box) box.hidden = !isMed;
+    const selected = isMed ? String(product.med_tags || '').split(',').map(v => v.trim()).filter(Boolean) : [];
+    _pfRenderMedCats(selected);
+    const ing = document.getElementById('pf-med-ingredient');
+    if (ing) ing.value = isMed ? (product.med_ingredient || '') : '';
+    const pao = document.getElementById('pf-med-pao');
+    if (pao) pao.value = isMed ? (Number(product.med_pao_days) || 0) : 0;
+}
+
+/** The closed categories, as chips (the only values a box may carry). */
+function _pfRenderMedCats(selected = []) {
+    const host = document.getElementById('pf-med-cats');
+    if (!host) return;
+    const cats = _medStatus.categories || [];
+    host.innerHTML = cats.map(c => `
+        <label class="med-cat-chip ${selected.includes(c.slug) ? 'is-on' : ''}">
+            <input type="checkbox" value="${escapeAttr(c.slug)}" ${selected.includes(c.slug) ? 'checked' : ''}
+                   onchange="this.closest('.med-cat-chip').classList.toggle('is-on', this.checked)">
+            <span>${escapeHtml(t(c.label_key))}</span>
+        </label>`).join('');
+}
+
+function onProductMedicalToggle() {
+    const on = !!document.getElementById('pf-is-medical')?.checked;
+    const box = document.getElementById('pf-medical-box');
+    if (box) box.hidden = !on;
+    if (on) {
+        _pfRenderMedCats([]);
+        // The add step must default to the medical location, not to the pantry.
+        const loc = (getSettings().medical_locations || [])[0];
+        const el = document.getElementById('add-location');
+        if (loc && el) el.value = loc;
+    }
+}
+
+/** The medical fields of the product form, or null when the toggle is off. */
+function _pfMedicalPayload() {
+    if (!document.getElementById('pf-is-medical')?.checked) return null;
+    const tags = Array.from(document.querySelectorAll('#pf-med-cats input:checked')).map(i => i.value);
+    return {
+        tags,
+        ingredient: document.getElementById('pf-med-ingredient')?.value || '',
+        pao_days: Number(document.getElementById('pf-med-pao')?.value || 0) || 0,
+    };
 }
 
 /** "Segna come aperto": the operational expiry becomes today + the N days of the box. */
@@ -14341,7 +14406,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14351,7 +14416,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15632,6 +15697,7 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-image').value = '';
     document.getElementById('pf-image-preview').style.display = 'none';
     document.getElementById('product-form-title').textContent = t('product.title_new');
+    _syncProductMedicalUi(null);
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'block';
 
@@ -15902,6 +15968,16 @@ async function submitProduct(e) {
             // reused or merged row still receives the labels the user typed.
             await _saveProductTags(result.id, document.getElementById('pf-tags')?.value || '');
             await _saveProductFamily(result.id, document.getElementById('pf-parent')?.value || '');
+            const medPayload = _pfMedicalPayload();
+            if (medPayload) {
+                // One action owns the medical columns (validated tags, PAO bounds): reuse it
+                // instead of widening product_save.
+                await api('med_classify', { product_id: result.id, ...medPayload }, 'POST').catch(() => null);
+                productData.is_medical = 1;
+                productData.med_tags = medPayload.tags.join(',');
+                productData.med_ingredient = medPayload.ingredient;
+                productData.med_pao_days = medPayload.pao_days;
+            }
             currentProduct = { ...productData, id: result.id };
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
@@ -16281,6 +16357,7 @@ function editProductFromAction() {
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
     document.getElementById('product-form-title').textContent = t('product.title_edit');
+    _syncProductMedicalUi(currentProduct);
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'none';
     // Keep barcode hint hidden in edit mode
@@ -17041,8 +17118,9 @@ function showAddForm() {
     // Set qty step based on selected unit
     updateAddQtyStep();
     
-    // Auto-detect location
-    const autoLoc = guessLocation(currentProduct);
+    // Auto-detect location — a medicine goes to its own cabinet, never to the pantry.
+    const medLoc = (getSettings().medical_locations || [])[0];
+    const autoLoc = (_isMedicalRow(currentProduct) && medLoc) ? medLoc : guessLocation(currentProduct);
     document.getElementById('add-location').value = autoLoc;
     
     // Highlight correct location button

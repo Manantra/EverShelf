@@ -169,6 +169,22 @@ check('the classification UI is a closed multi-select, never a text field',
     (bool)preg_match('/function _renderMedClassify.*?med-cat-chips.*?type="checkbox"/s', $app));
 check('every box has its own "Segna aperto"', str_contains($app, 'function _medMarkOpened'));
 
+// ── 6b. The product form closes the gap ─────────────────────────────────────
+// A scanned medicine used to become a normal product to re-classify later. The form now has
+// the toggle, the closed chips and the PAO in place, and the add step prefers the cabinet.
+check('the product form carries the medicine toggle, hidden until the module is on',
+    str_contains($html, 'id="pf-medical-group"') && str_contains($html, 'id="pf-medical-group" hidden')
+    && str_contains($html, 'id="pf-is-medical"'));
+check('the toggle shows the closed category chips and the PAO, never a free text tag',
+    str_contains($html, 'id="pf-med-cats"') && str_contains($html, 'id="pf-med-pao"')
+    && !preg_match('/id="pf-med-cats"[^>]*contenteditable/', $html));
+check('saving the form stores the medical fields through med_classify',
+    (bool)preg_match("/const medPayload = _pfMedicalPayload\(\);[\s\S]{0,400}?api\('med_classify', \{ product_id: result\.id/s", $app));
+check('the add step defaults to the medical location for a medicine',
+    (bool)preg_match('/const autoLoc = \(_isMedicalRow\(currentProduct\) && medLoc\) \? medLoc : guessLocation/s', $app));
+check('editing a product shows its own medical fields',
+    (bool)preg_match("/t\('product\.title_edit'\);\n    _syncProductMedicalUi\(currentProduct\)/", $app));
+
 // ── 7. Scanner ──────────────────────────────────────────────────────────────
 check('a medicine code is not an error: the manual entry opens prefilled',
     (bool)preg_match('/_medStatus\.enabled && _looksLikeMedicineCode\(code\).*?_medStartManualEntry\(code\)/s', $app));
@@ -189,7 +205,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 66 medical keys', $aligned && count($base) === 66);
+check('all six locales carry the same 68 medical keys', $aligned && count($base) === 68);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));

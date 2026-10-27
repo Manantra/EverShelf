@@ -2859,6 +2859,8 @@
     "cat_eyes": "Yeux et vue",
     "cat_muscles": "Crampes et muscles",
     "cat_supplements": "Compléments et vitamines",
-    "no_expiry": "aucune date"
+    "no_expiry": "aucune date",
+    "product_toggle": "💊 C’est un médicament / complément",
+    "product_toggle_hint": "Activez-le pour une boîte de médicaments ou de compléments : les catégories alimentent « qu’est-ce que j’ai pour… » et la péremption peut partir de l’ouverture."
   }
 }

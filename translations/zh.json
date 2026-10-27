@@ -2859,6 +2859,8 @@
     "cat_eyes": "眼睛与视力",
     "cat_muscles": "抽筋与肌肉",
     "cat_supplements": "保健品与维生素",
-    "no_expiry": "无日期"
+    "no_expiry": "无日期",
+    "product_toggle": "💊 这是药品 / 保健品",
+    "product_toggle_hint": "用于药品或保健品：分类用于“我家里有什么可以应对……”的搜索，有效期可从开封日计算。"
   }
 }

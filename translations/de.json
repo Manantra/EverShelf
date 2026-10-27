@@ -2859,6 +2859,8 @@
     "cat_eyes": "Augen und Sehen",
     "cat_muscles": "Krämpfe und Muskeln",
     "cat_supplements": "Nahrungsergänzung und Vitamine",
-    "no_expiry": "kein Datum"
+    "no_expiry": "kein Datum",
+    "product_toggle": "💊 Medikament / Nahrungsergänzung",
+    "product_toggle_hint": "Aktiviere es für eine Packung Medikamente oder Nahrungsergänzung: die Kategorien füttern „Was habe ich für …“ und das Ablaufdatum kann ab dem Öffnen laufen."
   }
 }

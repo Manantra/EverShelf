@@ -2859,6 +2859,8 @@
     "cat_eyes": "Occhi e vista",
     "cat_muscles": "Crampi e muscoli",
     "cat_supplements": "Integratori e vitamine",
-    "no_expiry": "nessuna data"
+    "no_expiry": "nessuna data",
+    "product_toggle": "💊 È un farmaco / integratore",
+    "product_toggle_hint": "Attivalo per una scatola di farmaci o integratori: le categorie servono alla ricerca «cosa ho in casa per…» e la scadenza può partire dall’apertura."
   }
 }

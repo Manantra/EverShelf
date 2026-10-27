@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261027l">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027l">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027l">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261027m">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027m">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027m">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027l">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027l">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027m">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027m">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261027l"></script>
-    <script src="assets/js/core/auth.js?v=20261027l"></script>
+    <script src="assets/js/core/dom.js?v=20261027m"></script>
+    <script src="assets/js/core/auth.js?v=20261027m"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261027l"></script>
+    <script src="assets/js/core/support.js?v=20261027m"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027m';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027l';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027m';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261027l"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261027m"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -114,7 +114,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.22.2</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.23.0</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -180,7 +180,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.22.2</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.23.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -862,6 +862,32 @@
             <div class="form-group">
                 <label data-i18n="product.notes_label">📝 Note</label>
                 <textarea id="pf-notes" class="form-input" rows="2" placeholder="Es: senza lattosio, bio, conservare in frigo dopo apertura..." data-i18n-placeholder="product.notes_placeholder"></textarea>
+            </div>
+            <!-- EverShelf Med, closed UX gap: scanning a medicine box no longer ends in a
+                 "normal" product to re-classify later. The toggle turns the row medical
+                 (products.is_medical), shows the CLOSED category chips + PAO right here, and
+                 the add step preselects the dedicated, separately-coloured location.
+                 Hidden while the module is off: opt-in means opt-in. -->
+            <div class="form-group" id="pf-medical-group" hidden>
+                <label class="toggle-row">
+                    <span data-i18n="medical.product_toggle">💊 È un farmaco / integratore</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="pf-is-medical" onchange="onProductMedicalToggle()">
+                        <span class="toggle-slider"></span>
+                    </span>
+                </label>
+                <p class="settings-hint" data-i18n="medical.product_toggle_hint">Attivalo per una scatola di farmaci o integratori: le categorie servono alla ricerca «cosa ho in casa per…» e la scadenza può partire dall'apertura.</p>
+                <div id="pf-medical-box" hidden>
+                    <div class="med-cat-chips" id="pf-med-cats"></div>
+                    <div class="med-classify-fields" style="margin-top:8px">
+                        <input type="text" class="med-classify-ingredient" id="pf-med-ingredient" maxlength="80"
+                               placeholder="principio attivo (es. ibuprofene)" data-i18n-placeholder="medical.ingredient_placeholder">
+                        <label class="med-pao-field">
+                            <span data-i18n="medical.pao_label">Scade dopo l'apertura (giorni)</span>
+                            <input type="number" id="pf-med-pao" min="0" max="365" step="1" value="0">
+                        </label>
+                    </div>
+                </div>
             </div>
                 <div class="form-group" id="pf-tags-group">
                     <label data-i18n="product_tags.form_label">Tag</label>
@@ -3189,15 +3215,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261027l"></script>
-<script src="assets/js/food_facts.generated.js?v=20261027l"></script>
-<script src="assets/js/free_apis.generated.js?v=20261027l"></script>
-<script src="assets/js/core/vocab.js?v=20261027l"></script>
-<script src="assets/js/app.js?v=20261027l"></script>
-<script src="assets/js/audit.js?v=20261027l"></script>
-<script src="assets/js/receipt.js?v=20261027l"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261027l"></script>
-<script src="assets/js/settings_search.js?v=20261027l"></script>
+<script src="assets/js/vocab.generated.js?v=20261027m"></script>
+<script src="assets/js/food_facts.generated.js?v=20261027m"></script>
+<script src="assets/js/free_apis.generated.js?v=20261027m"></script>
+<script src="assets/js/core/vocab.js?v=20261027m"></script>
+<script src="assets/js/app.js?v=20261027m"></script>
+<script src="assets/js/audit.js?v=20261027m"></script>
+<script src="assets/js/receipt.js?v=20261027m"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261027m"></script>
+<script src="assets/js/settings_search.js?v=20261027m"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>
