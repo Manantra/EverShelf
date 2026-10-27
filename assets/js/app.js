@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027za'; // bump when translations change
+const _I18N_VERSION = '20261027zc'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13300,7 +13300,7 @@ function _medNationalCode(code) {
     if (!det.detected || !det.type) return null;
     if (det.type === 'ean13' || det.type === 'pzn_in_ean') return null;
     const clean = String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
-    return clean ? { code: clean, type: det.type } : null;
+    return clean ? { code: clean, type: det.type, label_key: det.label_key || '' } : null;
 }
 
 /**
@@ -15013,7 +15013,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027za';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027zc';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15023,7 +15023,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027za';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027zc';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16040,7 +16040,7 @@ async function onBarcodeDetected(barcode) {
     if (national && !_localRowForBarcode(national.code)) {
         _setScanHudState('idle');
         _setScanStatus(t('scan.status_scanning'), '', '');
-        _medStartManualEntry(national.code, true);
+        _medStartManualEntry(national.code, true, national.label_key);
         return;
     }
 
@@ -16072,7 +16072,7 @@ async function onBarcodeDetected(barcode) {
             const det = _medDetectCode(code);
             if (det.detected && det.confidence === 'high') {
                 // The country schema knows this code is a medicine: no question needed.
-                _medStartManualEntry(code, true);
+                _medStartManualEntry(code, true, det.label_key);
             } else if (det.detected) {
                 // A schema exists but only by GS1 range/FMD: ask, do not claim.
                 _medOfferMedicalFallback(code);
@@ -16113,25 +16113,94 @@ function _looksLikeMedicineCode(code) {
 /**
  * "Codice rilevato": the medicine path of the scanner.
  *
- * `medical` arms the product form's toggle (and its chips) before the form is shown, so the
- * box is born as a medicine instead of being re-classified later.
+ * `medical` switches the product form into MEDICINE mode before it is shown (food fields
+ * hidden, medical taxonomy shown, the read code in the banner), so the box is born as a
+ * medicine instead of being re-classified later. `labelKey` is the schema label of the code
+ * (`medical.code_aic`), so the banner can name it.
  */
-function _medStartManualEntry(barcode, medical = true) {
+function _medStartManualEntry(barcode, medical = true, labelKey = '') {
     showToast(t('medical.code_detected'), 'info', 4000);
     startManualEntry(barcode);
-    if (medical) _medArmProductForm();
+    if (medical) _medArmProductForm(barcode, labelKey);
+}
+
+/**
+ * Switch the product form into MEDICINE mode (or back to the normal product form).
+ *
+ * A recognised medicine code must not land in the food form: there is nothing to confirm
+ * (the app already knows), the name is typed by the household (no drug catalogue), and the
+ * category is the closed medical taxonomy. CSS hides the food-only fields under
+ * `is-medicine-form`; here we repaint the wording, the banner and the medical block.
+ *
+ * @param {boolean} on
+ * @param {{code?:string, label_key?:string}} [info] what the scanner read
+ */
+function _medFormSetMode(on, info = {}) {
+    const page = document.getElementById('page-product-form');
+    if (page) page.classList.toggle('is-medicine-form', !!on);
+
+    const banner = document.getElementById('pf-med-banner');
+    if (banner) banner.hidden = !on;
+    const codeEl = document.getElementById('pf-med-banner-code');
+    if (codeEl) {
+        const type = on && info.label_key ? t(info.label_key) : '';
+        const code = on && info.code ? String(info.code) : '';
+        // textContent, never innerHTML: the code comes from a barcode.
+        codeEl.textContent = [type, code].filter(Boolean).join(' · ');
+    }
+
+    // The switch is a question ("is it a medicine?") only when the app did NOT recognise the
+    // code: in medicine mode it is hidden and the answer is already yes.
+    const toggle = document.getElementById('pf-is-medical');
+    if (toggle) toggle.checked = on ? true : !!toggle.checked;
+    const box = document.getElementById('pf-medical-box');
+    if (box) box.hidden = !(on || (toggle && toggle.checked));
+    const group = document.getElementById('pf-medical-group');
+    if (group) group.hidden = on ? false : !_medOn();
+    if (on) _pfRenderMedCats([]);
+
+    // The food wording is wrong on a medicine box: name, maker and code say what they are.
+    // The `data-i18n` attribute follows, so a later translation pass cannot put the food
+    // labels back on an open medicine form.
+    const nameLabel = document.getElementById('pf-name-label');
+    if (nameLabel) {
+        nameLabel.setAttribute('data-i18n', on ? 'medical.form_name_label' : 'product.name_label');
+        nameLabel.textContent = on ? t('medical.form_name_label') : t('product.name_label');
+    }
+    const brandLabel = document.getElementById('pf-brand-label');
+    if (brandLabel) {
+        brandLabel.setAttribute('data-i18n', on ? 'medical.form_brand_label' : 'product.brand_label');
+        brandLabel.textContent = on ? t('medical.form_brand_label') : t('product.brand_label');
+    }
+    const codeLabel = document.getElementById('pf-barcode-label');
+    if (codeLabel) {
+        codeLabel.setAttribute('data-i18n', on ? 'medical.form_code_label' : 'product.barcode_label');
+        codeLabel.textContent = on ? t('medical.form_code_label') : t('product.barcode_label');
+    }
+    const nameInput = document.getElementById('pf-name');
+    if (nameInput) nameInput.placeholder = on ? t('medical.form_name_placeholder') : t('product.name_placeholder');
+    const brandInput = document.getElementById('pf-brand');
+    if (brandInput) brandInput.placeholder = on ? t('medical.form_brand_placeholder') : t('product.brand_placeholder');
+    const notesInput = document.getElementById('pf-notes');
+    if (notesInput) {
+        notesInput.setAttribute('data-i18n-placeholder', on ? 'medical.form_notes_placeholder' : 'product.notes_placeholder');
+        notesInput.placeholder = on ? t('medical.form_notes_placeholder') : t('product.notes_placeholder');
+    }
+    const title = document.getElementById('product-form-title');
+    if (title) title.textContent = on ? t('medical.form_title') : t('product.title_new');
+}
+
+/** Is the product form in medicine mode (a scanned code filled it, not a food product)? */
+function _medFormIsMedicine() {
+    const page = document.getElementById('page-product-form');
+    return !!(page && page.classList.contains('is-medicine-form'));
 }
 
 /** Turn the product form's medical switch on (and paint the closed categories). */
-function _medArmProductForm() {
+function _medArmProductForm(code = '', labelKey = '') {
     const group = document.getElementById('pf-medical-group');
     if (!group || !_medOn()) return;
-    group.hidden = false;
-    const toggle = document.getElementById('pf-is-medical');
-    const box = document.getElementById('pf-medical-box');
-    if (toggle) toggle.checked = true;
-    if (box) box.hidden = false;
-    _pfRenderMedCats([]);
+    _medFormSetMode(true, { code: String(code || ''), label_key: String(labelKey || '') });
     const loc = (getSettings().medical_locations || [])[0];
     const addLoc = document.getElementById('add-location');
     if (loc && addLoc) {
@@ -16422,6 +16491,9 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-image-preview').style.display = 'none';
     document.getElementById('product-form-title').textContent = t('product.title_new');
     _syncProductMedicalUi(null);
+    // A new product starts as FOOD unless the scanner says otherwise (_medArmProductForm()
+    // switches the medicine mode right after this reset).
+    _medFormSetMode(false);
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'block';
 
@@ -16669,6 +16741,15 @@ async function scanBarcodeForForm() {
 
 async function submitProduct(e) {
     e.preventDefault();
+
+    // Medicine mode: a box the scanner recognised. The closed medical taxonomy IS the
+    // category here (no drug catalogue can fill it), so at least one chip is required; the
+    // unit is the box, and the food category is not asked at all.
+    const isMedicine = _medFormIsMedicine();
+    if (isMedicine && !document.querySelector('#pf-med-cats input:checked')) {
+        showToast(t('medical.pick_category'), 'error', 5000);
+        return;
+    }
     showLoading(true);
     
     const pfUnit = document.getElementById('pf-unit').value;
@@ -16676,10 +16757,10 @@ async function submitProduct(e) {
         id: document.getElementById('pf-id').value || null,
         name: document.getElementById('pf-name').value,
         brand: document.getElementById('pf-brand').value,
-        category: document.getElementById('pf-category').value,
-        unit: pfUnit,
-        default_quantity: pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1),
-        package_unit: pfUnit === 'conf' ? (document.getElementById('pf-conf-unit')?.value || '') : '',
+        category: isMedicine ? 'altro' : document.getElementById('pf-category').value,
+        unit: isMedicine ? 'pz' : pfUnit,
+        default_quantity: isMedicine ? 1 : (pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1)),
+        package_unit: isMedicine ? '' : (pfUnit === 'conf' ? (document.getElementById('pf-conf-unit')?.value || '') : ''),
         notes: document.getElementById('pf-notes').value,
         barcode: document.getElementById('pf-barcode').value || null,
         image_url: document.getElementById('pf-image').value || '',
@@ -17067,6 +17148,9 @@ async function checkInventoryForProduct(productId, productName) {
 // === EDIT PRODUCT FROM ACTION PAGE ===
 function editProductFromAction() {
     if (!currentProduct) return;
+    // Editing uses the full form (food or medicine, the medical switch is there): leave the
+    // scanner's medicine mode behind first.
+    _medFormSetMode(false);
     // Pre-fill the product form with current product data
     document.getElementById('pf-id').value = currentProduct.id || '';
     document.getElementById('pf-name').value = currentProduct.name || '';
@@ -17854,6 +17938,10 @@ function showAddForm() {
     // Exactly one button, chosen by key: the old text match lit up both "Dispensa" and
     // "Dispensa cucina", because one label contains the other.
     markLocationButton('#page-add .loc-btn', autoLoc);
+
+    // A medicine box is not vacuum-sealed: the food-only option goes away.
+    const vacuumGroup = document.getElementById('add-vacuum-group');
+    if (vacuumGroup) vacuumGroup.style.display = _isMedicalRow(currentProduct) ? 'none' : '';
     
     // Show the purchase-type selector  
     const expirySection = document.getElementById('add-expiry-section');

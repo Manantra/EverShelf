@@ -2930,6 +2930,16 @@
     "code_cip13": "CIP13 francés",
     "code_cn": "código nacional español",
     "code_ndc": "NDC estadounidense",
-    "code_upc": "código de barras UPC"
+    "code_upc": "código de barras UPC",
+    "form_title": "💊 Nuevo medicamento",
+    "form_detected": "Medicamento reconocido",
+    "form_no_catalogue": "No hay catálogo de medicamentos: escribe tú el nombre y el laboratorio. La categoría responde a «qué tengo para…».",
+    "form_name_label": "💊 Nombre del medicamento *",
+    "form_name_placeholder": "Ej.: Paracetamol 500 mg comprimidos",
+    "form_brand_label": "🏢 Laboratorio",
+    "form_brand_placeholder": "Ej.: Bayer, Teva, Cinfa…",
+    "form_code_label": "🔖 Código de la caja",
+    "pick_category": "Elige al menos una categoría: es la que responde a «qué tengo para…».",
+    "form_notes_placeholder": "Ej.: un comprimido cuando sea necesario, mantener fuera del alcance de los niños…"
   }
 }

@@ -37,6 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own order and `LOCATION_META`, which never existed). `med_status` now also returns
   `medical_locations`, so a brand-new device paints the cabinet correctly at boot instead of
   only after someone opens the medical settings.
+- **Adding a medicine is not adding food any more.** Scanning a recognised code opened the
+  ordinary product form — "Scatta foto e identifica con AI", the food category, unit/package,
+  tags and a **Famiglia** field that suggested "Spaghetti" — plus a switch asking "is it a
+  medicine?" right after the app had answered that itself. The form now switches to a
+  **medicine mode** (`#page-product-form.is-medicine-form`): a banner states the code it read
+  (AIC/Pharmacode/PZN, from the country schema) and that no drug catalogue exists, so name and
+  maker are typed; the food-only fields (`pf-food-only`) disappear, the "is it a medicine?"
+  switch goes away, the labels become **Nome del farmaco / Casa farmaceutica / Codice della
+  scatola**, and the **closed medical taxonomy** is the category (at least one chip is
+  required — it answers "what do I have for…" — and the product is stored as a box in
+  `altro`, never in a food category). The add step drops the "sotto vuoto" option for a
+  medicine. Nine new keys in six locales; the guard test runs the shipped switch in node.
 - **The splash prints the logos of the free APIs only, no names** — and only the ones that
   read at that size. The row under the boot rail wrapped onto three lines on a phone and read
   like a menu; three of the six marks are **horizontal wordmarks** (Open Products / Beauty /

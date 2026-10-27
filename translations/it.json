@@ -2930,6 +2930,16 @@
     "code_cip13": "CIP13 francese",
     "code_cn": "codice nazionale spagnolo",
     "code_ndc": "NDC statunitense",
-    "code_upc": "codice a barre UPC"
+    "code_upc": "codice a barre UPC",
+    "form_title": "💊 Nuovo farmaco",
+    "form_detected": "Farmaco riconosciuto",
+    "form_no_catalogue": "Nessun catalogo farmaci: scrivi tu il nome e la casa farmaceutica. La categoria serve a «cosa ho in casa per…».",
+    "form_name_label": "💊 Nome del farmaco *",
+    "form_name_placeholder": "Es: Tachipirina 500 mg compresse",
+    "form_brand_label": "🏢 Casa farmaceutica",
+    "form_brand_placeholder": "Es: Angelini, Bayer, Teva…",
+    "form_code_label": "🔖 Codice della scatola",
+    "pick_category": "Scegli almeno una categoria: è quella che risponde a «cosa ho in casa per…».",
+    "form_notes_placeholder": "Es: 1 compressa al bisogno, tenere fuori dalla portata dei bambini…"
   }
 }

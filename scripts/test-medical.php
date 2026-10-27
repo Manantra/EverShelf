@@ -256,7 +256,7 @@ check('the add step defaults to the medical location for a medicine',
     // The value is resolved to a pantry KEY (the stored marking may be the typed label) and
     // recorded as decided, so no history/AI hint can move a medicine out of its cabinet.
     (bool)preg_match('/const autoLoc = resolveLocationKey\(\(_isMedicalRow\(currentProduct\) && medLoc\) \? medLoc : guessLocation\(currentProduct\)\) \|\| \'dispensa\';/s', $app)
-    && (bool)preg_match('/function _medArmProductForm\(\)[\s\S]{0,900}?addLoc\.value = resolveLocationKey\(loc\);[\s\S]{0,200}?addLoc\.dataset\.userPicked = \'1\';/s', $app));
+    && (bool)preg_match('/function _medArmProductForm\(code = \'\', labelKey = \'\'\)[\s\S]{0,900}?addLoc\.value = resolveLocationKey\(loc\);[\s\S]{0,200}?addLoc\.dataset\.userPicked = \'1\';/s', $app));
 check('editing a product shows its own medical fields',
     (bool)preg_match("/t\('product\.title_edit'\);\n    _syncProductMedicalUi\(currentProduct\)/", $app));
 
@@ -264,7 +264,7 @@ check('editing a product shows its own medical fields',
 check('a medicine code is not an error: the schema decides, the manual entry opens',
     str_contains($app, 'const det = _medDetectCode(code);')
     && str_contains($app, "det.confidence === 'high'")
-    && str_contains($app, '_medStartManualEntry(code, true);'));
+    && str_contains($app, '_medStartManualEntry(code, true, det.label_key);'));
 
 // The EAN case: Italian boxes carry BOTH the SSN label (a Pharmacode) and an EAN-13, and no
 // free catalogue knows either. The app must ask, in every country, instead of dead-ending.
@@ -278,9 +278,9 @@ check('an unknown EAN is not a dead end: the household is asked',
 // 3–7 digits. Neither is an EAN, so neither may be dropped by the EAN length floor nor sent
 // to five food catalogues before the medicine entry opens.
 check('a national medicine code is answered before any catalogue request',
-    (bool)preg_match('/function _medNationalCode\(code\)[\s\S]{0,600}?return clean \? \{ code: clean, type: det\.type \} : null;/s', $app)
+    (bool)preg_match('/function _medNationalCode\(code\)[\s\S]{0,700}?return clean \? \{ code: clean, type: det\.type, label_key: det\.label_key \|\| \'\' \} : null;/s', $app)
     && str_contains($app, 'const national = _medOn() ? _medNationalCode(barcode) : null;')
-    && (bool)preg_match('/if \(national && !_localRowForBarcode\(national\.code\)\) \{[\s\S]{0,220}?_medStartManualEntry\(national\.code, true\);/s', $app));
+    && (bool)preg_match('/if \(national && !_localRowForBarcode\(national\.code\)\) \{[\s\S]{0,220}?_medStartManualEntry\(national\.code, true, national\.label_key\);/s', $app));
 check('the EAN length floor no longer drops a Pharmacode or an AIC',
     (bool)preg_match('/const national = _medOn\(\) \? _medNationalCode\(raw\) : null;\s*if \(digits\.length < 8 && !national\) return false;/s', $app));
 check('the pack code keeps its letters (the A of the AIC)',
@@ -299,7 +299,123 @@ check('the country schema falls back to the UI language (no APP_LANG needed)',
 check('the answer routes to the right form (medicine arms the toggle, food does not)',
     (bool)preg_match('/function _medFallbackMedicine\(\)[\s\S]{0,200}?_medStartManualEntry\(code, true\)/s', $app)
     && (bool)preg_match('/function _medFallbackFood\(\)[\s\S]{0,200}?startManualEntry\(code\)/s', $app)
-    && (bool)preg_match('/function _medArmProductForm\(\)[\s\S]{0,600}?toggle\.checked = true/s', $app));
+    && (bool)preg_match('/function _medArmProductForm\(code = \'\', labelKey = \'\'\)[\s\S]{0,300}?_medFormSetMode\(true, \{ code: String\(code \|\| \'\'\), label_key: String\(labelKey \|\| \'\'\) \}\);/s', $app));
+
+// ── 7b. Adding a medicine is not adding food ────────────────────────────────
+// The report: "it says the code is recognised but fills neither name, brand nor category,
+// then the whole screen still talks about food, it asks me whether it is a medicine (of
+// course it is, you detected it!) and the family suggests Spaghetti".
+check('the medicine form has its own banner (code + no-catalogue note)',
+    str_contains($html, 'id="pf-med-banner"')
+    && str_contains($html, 'id="pf-med-banner-code"')
+    && str_contains($html, 'data-i18n="medical.form_no_catalogue"'));
+check('the food-only fields are marked, and hidden in medicine mode',
+    substr_count($html, 'pf-food-only') >= 6
+    && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'),
+        '#page-product-form.is-medicine-form .pf-food-only { display: none !important; }'));
+check('the "is it a medicine?" switch is not asked when the code proved it',
+    str_contains($html, 'id="pf-med-toggle-row"')
+    && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'),
+        '#page-product-form.is-medicine-form #pf-med-toggle-row'));
+check('the wording becomes medical (name, maker, box code), not food',
+    (bool)preg_match('/function _medFormSetMode\(on, info = \{\}\)[\s\S]{0,2600}?nameLabel\.textContent = on \? t\(\'medical\.form_name_label\'\)/s', $app)
+    && (bool)preg_match('/function _medFormSetMode\(on, info = \{\}\)[\s\S]{0,3200}?t\(\'medical\.form_brand_label\'\)/s', $app)
+    && (bool)preg_match('/function _medFormSetMode\(on, info = \{\}\)[\s\S]{0,3600}?t\(\'medical\.form_code_label\'\)/s', $app));
+check('a medicine is stored as a box in "altro", never in a food category',
+    (bool)preg_match('/const isMedicine = _medFormIsMedicine\(\);[\s\S]{0,500}?category: isMedicine \? \'altro\' :/s', $app)
+    && (bool)preg_match('/unit: isMedicine \? \'pz\' : pfUnit,/s', $app));
+check('the closed medical category is required (it is the category here)',
+    (bool)preg_match("/if \(isMedicine && !document\.querySelector\('#pf-med-cats input:checked'\)\) \{[\s\S]{0,200}?t\('medical\.pick_category'\)/s", $app));
+check('the food form comes back for a normal product and when editing',
+    (bool)preg_match('/_syncProductMedicalUi\(null\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*_medFormSetMode\(false\);/s', $app)
+    && (bool)preg_match('/function editProductFromAction\(\) \{[\s\S]{0,400}?_medFormSetMode\(false\);/s', $app));
+check('the add step drops the vacuum option for a medicine',
+    (bool)preg_match("/const vacuumGroup = document\.getElementById\('add-vacuum-group'\);\s*if \(vacuumGroup\) vacuumGroup\.style\.display = _isMedicalRow\(currentProduct\) \? 'none' : '';/s", $app));
+check('the medical form copy exists in all six locales', array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+    $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+    $m = $d['medical'] ?? [];
+    foreach (['form_title','form_detected','form_no_catalogue','form_name_label','form_name_placeholder',
+              'form_brand_label','form_brand_placeholder','form_code_label','pick_category'] as $k) {
+        if (trim((string)($m[$k] ?? '')) === '') { return false; }
+    }
+    return $c;
+}, true));
+
+// The shipped switch, run in node against a fake form: the wording and the class really
+// change, and going back restores the food form.
+$setModeFn = '';
+if (preg_match('/function _medFormSetMode\(on, info = \{\}\) \{.*?\n\}/s', $app, $m1)) { $setModeFn = $m1[0]; }
+$isMedFn = '';
+if (preg_match('/function _medFormIsMedicine\(\) \{.*?\n\}/s', $app, $m2)) { $isMedFn = $m2[0]; }
+check('the medicine-mode switch is extractable', $setModeFn !== '' && $isMedFn !== '');
+if ($setModeFn !== '' && $isMedFn !== '') {
+    $modeHarness = <<<'JS'
+const els = {};
+function mk(id) {
+    els[id] = { id, hidden: true, textContent: '', placeholder: '', checked: false, dataset: {}, attrs: {},
+        setAttribute(k, v) { this.attrs[k] = v; },
+        classList: { _c: new Set(), toggle(c, on) { on ? this._c.add(c) : this._c.delete(c); }, contains(c) { return this._c.has(c); } } };
+    return els[id];
+}
+['page-product-form','pf-med-banner','pf-med-banner-code','pf-is-medical','pf-medical-box','pf-medical-group',
+ 'pf-name-label','pf-brand-label','pf-barcode-label','pf-name','pf-brand','pf-notes','product-form-title'].forEach(mk);
+const document = { getElementById: (id) => els[id] || null };
+const t = (k) => k;
+const _medOn = () => true;
+const _pfRenderMedCats = () => {};
+JS;
+    $modeHarness .= "\n" . $setModeFn . "\n" . $isMedFn . <<<'JS'
+
+_medFormSetMode(true, { code: 'A017837016', label_key: 'medical.code_aic' });
+const on = {
+    medicine: _medFormIsMedicine(),
+    banner: !els['pf-med-banner'].hidden,
+    code: els['pf-med-banner-code'].textContent,
+    toggle: els['pf-is-medical'].checked,
+    box: !els['pf-medical-box'].hidden,
+    name: els['pf-name-label'].textContent,
+    brand: els['pf-brand-label'].textContent,
+    barcode: els['pf-barcode-label'].textContent,
+    title: els['product-form-title'].textContent,
+    notes: els['pf-notes'].placeholder,
+};
+_medFormSetMode(false);
+const off = {
+    medicine: _medFormIsMedicine(),
+    banner: !els['pf-med-banner'].hidden,
+    name: els['pf-name-label'].textContent,
+    title: els['product-form-title'].textContent,
+};
+console.log(JSON.stringify({ on, off }));
+JS;
+    $modeTmp = sys_get_temp_dir() . '/med_form_' . getmypid() . '.js';
+    file_put_contents($modeTmp, $modeHarness);
+    $modeRaw = shell_exec('node ' . escapeshellarg($modeTmp) . ' 2>&1');
+    @unlink($modeTmp);
+    $mode = json_decode(trim((string)$modeRaw), true);
+    check('the medicine-mode harness runs in node', is_array($mode), (string)$modeRaw);
+    if (is_array($mode)) {
+        check('a recognised code switches the form to medicine mode',
+            ($mode['on']['medicine'] ?? false) === true
+            && ($mode['on']['banner'] ?? false) === true
+            && ($mode['on']['code'] ?? '') === 'medical.code_aic · A017837016'
+            && ($mode['on']['toggle'] ?? false) === true
+            && ($mode['on']['box'] ?? false) === true,
+            json_encode($mode['on'] ?? []));
+        check('the wording is medical, not food',
+            ($mode['on']['name'] ?? '') === 'medical.form_name_label'
+            && ($mode['on']['brand'] ?? '') === 'medical.form_brand_label'
+            && ($mode['on']['barcode'] ?? '') === 'medical.form_code_label'
+            && ($mode['on']['notes'] ?? '') === 'medical.form_notes_placeholder'
+            && ($mode['on']['title'] ?? '') === 'medical.form_title',
+            json_encode($mode['on'] ?? []));
+        check('going back restores the food form',
+            ($mode['off']['medicine'] ?? true) === false
+            && ($mode['off']['banner'] ?? true) === false
+            && ($mode['off']['name'] ?? '') === 'product.name_label',
+            json_encode($mode['off'] ?? []));
+    }
+}
 check('closing the question resumes the camera (no silent no-op)',
     (bool)preg_match("/'med-fallback-overlay': \(\) => _medCloseFallback\(true\)/s", $app));
 check('the module says it queries no catalogue (so no country is promised)',
@@ -331,7 +447,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 106 medical keys', $aligned && count($base) === 106);
+check('all six locales carry the same 116 medical keys', $aligned && count($base) === 116);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));

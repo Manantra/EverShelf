@@ -2930,6 +2930,16 @@
     "code_cip13": "französische CIP13",
     "code_cn": "spanischer Nationalcode",
     "code_ndc": "US-NDC",
-    "code_upc": "UPC-Strichcode"
+    "code_upc": "UPC-Strichcode",
+    "form_title": "💊 Neues Medikament",
+    "form_detected": "Medikament erkannt",
+    "form_no_catalogue": "Es gibt keinen Medikamentenkatalog: Name und Hersteller tippst du selbst. Die Kategorie beantwortet «Was habe ich gegen …».",
+    "form_name_label": "💊 Name des Medikaments *",
+    "form_name_placeholder": "z. B. Paracetamol 500 mg Tabletten",
+    "form_brand_label": "🏢 Hersteller",
+    "form_brand_placeholder": "z. B. Bayer, Teva, Ratiopharm…",
+    "form_code_label": "🔖 Code der Packung",
+    "pick_category": "Wähle mindestens eine Kategorie: sie beantwortet «Was habe ich gegen …».",
+    "form_notes_placeholder": "z. B. bei Bedarf eine Tablette, außerhalb der Reichweite von Kindern aufbewahren…"
   }
 }

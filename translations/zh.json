@@ -2930,6 +2930,16 @@
     "code_cip13": "法国 CIP13",
     "code_cn": "西班牙国家编码",
     "code_ndc": "美国 NDC",
-    "code_upc": "UPC 条码"
+    "code_upc": "UPC 条码",
+    "form_title": "💊 新增药品",
+    "form_detected": "已识别药品",
+    "form_no_catalogue": "没有药品目录：名称和厂家由你填写。分类用于回答「我有什么可以对付……」",
+    "form_name_label": "💊 药品名称 *",
+    "form_name_placeholder": "例如：对乙酰氨基酚 500 mg 片剂",
+    "form_brand_label": "🏢 生产厂家",
+    "form_brand_placeholder": "例如：拜耳、Teva……",
+    "form_code_label": "🔖 包装代码",
+    "pick_category": "至少选择一个分类：它用于回答「我有什么可以对付……」",
+    "form_notes_placeholder": "例如：需要时服用一片，请放在儿童接触不到的地方……"
   }
 }

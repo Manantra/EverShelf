@@ -2930,6 +2930,16 @@
     "code_cip13": "French CIP13",
     "code_cn": "Spanish national code",
     "code_ndc": "US NDC",
-    "code_upc": "UPC barcode"
+    "code_upc": "UPC barcode",
+    "form_title": "💊 New medicine",
+    "form_detected": "Medicine recognised",
+    "form_no_catalogue": "There is no drug catalogue: type the name and the maker yourself. The category answers «what do I have for…».",
+    "form_name_label": "💊 Medicine name *",
+    "form_name_placeholder": "E.g. Paracetamol 500 mg tablets",
+    "form_brand_label": "🏢 Manufacturer",
+    "form_brand_placeholder": "E.g. Bayer, Teva, Pfizer…",
+    "form_code_label": "🔖 Box code",
+    "pick_category": "Pick at least one category: it answers «what do I have for…».",
+    "form_notes_placeholder": "E.g. one tablet when needed, keep out of reach of children…"
   }
 }

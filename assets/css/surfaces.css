@@ -2194,6 +2194,35 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: var(--text-muted);
 }
 .med-pao-field input { width: 64px; }
+/* ── Adding a medicine is not adding food ────────────────────────────────────
+   A recognised code switches #page-product-form into `is-medicine-form`: the food-only
+   fields (AI photo fill, food category, unit/package, tags, family) disappear, the medical
+   block shows WITHOUT its "is it a medicine?" switch, and the banner states what the app
+   already knows — the code it read. */
+#page-product-form.is-medicine-form .pf-food-only { display: none !important; }
+#page-product-form.is-medicine-form #pf-med-toggle-row,
+#page-product-form.is-medicine-form #pf-med-toggle-hint { display: none !important; }
+.med-form-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #6366f1;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), transparent 70%);
+}
+.med-form-banner[hidden] { display: none; }
+.med-form-banner-icon { font-size: 1.35rem; line-height: 1; }
+.med-form-banner-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.med-form-banner-body strong { font-size: 0.95rem; font-weight: 800; color: var(--text-main); }
+.med-form-banner-code {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-main);
+    word-break: break-all;
+}
+.med-form-banner-hint { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); }
 .med-box-list {
     display: flex;
     flex-direction: column;
