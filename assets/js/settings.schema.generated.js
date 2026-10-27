@@ -534,11 +534,23 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "tab": "tab-medical",
             "group": "medical",
             "label": "medical.enable",
-            "hint": "medical.location_required",
+            "hint": "",
             "card": "medical.title",
             "card_hint": "medical.hint",
             "keywords": "",
             "type": "bool"
+        },
+        {
+            "id": "med-country-select",
+            "env": "",
+            "tab": "tab-medical",
+            "group": "medical",
+            "label": "medical.country_label",
+            "hint": "medical.location_required",
+            "card": "medical.title",
+            "card_hint": "medical.hint",
+            "keywords": "",
+            "type": "select"
         },
         {
             "id": "setting-health-enabled",

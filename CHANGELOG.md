@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.25.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **Per-country barcode schemas, as data.** `data/medical_code_schemas.json` now says what a
+  medicine pack looks like in 17 countries, with the sources in the file: GS1 prefix ranges
+  (Italy `800–839`, Germany `400–440`, France `300–379`, Spain `840–849`, UK `500–509`,
+  US `000–139`), national formats (`pharmacode` for the Italian **SSN** label — an integer
+  3–131070 read from bars, not decimal digits — `pzn` 8 digits in Code 39 for Germany,
+  `pzn_in_ean` `908888…` for Austria, `cn`, `ndc`, `aic`) and whether the EU FMD DataMatrix
+  applies. A contributor adds a country by editing the JSON: no code, no migration.
+- **The scanner asks the schema, not a guess.** `_medDetectCode()`/`medicalDetectCode()` answer
+  `high` (Italy/Germany: recognised, straight to the medical form), `probable` (partial
+  countries: the app asks) or nothing at all.
+- **Country picker** in *Settings → Farmaci* (`med_country`, stored in `app_settings`; country
+  names come from `Intl.DisplayNames`, so there is no 17th translation table to maintain).
+
+### Changed — blocked where we have no data
+- **A country with no schema claims nothing.** The scan no longer pretends: it says there is
+  no schema for that country and leaves the box to the manual path (💊 in the product form).
+  That is the “block it where you could not get the information” rule, applied to recognition.
+- **Honest gap, documented:** the EU FMD **DataMatrix** is declared (`fmd: true`) but not yet
+  decoded — browser barcode engines rarely expose `data_matrix`, and its GS1 element string
+  (GTIN + expiry + batch + serial) needs its own tests. Decoding it is the next step that
+  would prefill the expiry date straight from the box.
+
 ## [1.24.1] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Changed

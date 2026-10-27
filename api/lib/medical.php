@@ -164,3 +164,146 @@ function medicalLocationSlugs(array $settings): array
     }
     return array_values(array_filter(array_map(static fn($v) => trim((string)$v), (array)$raw)));
 }
+
+/**
+ * The per-country barcode schemas: data/medical_code_schemas.json.
+ *
+ * This file answers "can we tell a medicine pack from a jar here?" — it describes CODES, not
+ * drugs. `status: none` means we have no schema for that country, and the app then claims
+ * nothing: the scan offers manual entry and says so.
+ */
+function medicalCodeSchemas(): array
+{
+    static $data = null;
+    if ($data !== null) {
+        return $data;
+    }
+    $path = dirname(__DIR__, 2) . '/data/medical_code_schemas.json';
+    $raw = is_readable($path) ? (string)file_get_contents($path) : '';
+    $parsed = json_decode($raw, true);
+    if (!is_array($parsed) || empty($parsed['countries'])) {
+        EverLog::warn('medical code schemas missing or unreadable', ['event' => 'medical_schemas_missing', 'path' => $path]);
+        $parsed = ['countries' => [], 'unsupported_note_key' => 'medical.country_none_hint'];
+    }
+    $data = $parsed;
+    return $data;
+}
+
+/** One country block, or null when the country has no schema. */
+function medicalCountrySchema(string $cc): ?array
+{
+    $cc = strtoupper(trim($cc));
+    if ($cc === '') {
+        return null;
+    }
+    $all = medicalCodeSchemas()['countries'] ?? [];
+    return isset($all[$cc]) && is_array($all[$cc]) ? $all[$cc] : null;
+}
+
+/**
+ * Which country's labels are on the box. `MED_COUNTRY` wins, then the instance language
+ * (it→IT, de→DE, fr→FR, es→ES); anything else stays empty instead of guessing (an English UI
+ * says nothing about the country of the pharmacy).
+ */
+function medicalActiveCountry(?PDO $db = null): string
+{
+    $env = strtoupper(trim((string)env('MED_COUNTRY', '')));
+    if ($env !== '') {
+        return $env;
+    }
+    $stored = '';
+    try {
+        $db = $db ?: (function_exists('getDB') ? getDB() : null);
+        if ($db instanceof PDO) {
+            $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'med_country'");
+            $stmt->execute();
+            $stored = strtoupper(trim((string)($stmt->fetchColumn() ?: ''), " \t\n\r\""));
+        }
+    } catch (Throwable $e) { /* no setting yet */ }
+    if ($stored !== '') {
+        return $stored;
+    }
+    $lang = strtolower(substr(trim((string)env('APP_LANG', '')), 0, 2));
+    $map = ['it' => 'IT', 'de' => 'DE', 'fr' => 'FR', 'es' => 'ES'];
+    return $map[$lang] ?? '';
+}
+
+/**
+ * Is this scanned code a medicine pack, for the active country?
+ *
+ * @return array{detected:bool,confidence:string,type:string,label_key:string,status:string,country:string}
+ */
+function medicalDetectCode(string $code, string $country): array
+{
+    $out = ['detected' => false, 'confidence' => 'none', 'type' => '', 'label_key' => '',
+            'status' => 'none', 'country' => strtoupper($country)];
+    $schema = medicalCountrySchema($country);
+    if (!$schema) {
+        return $out;
+    }
+    $out['status'] = (string)($schema['status'] ?? 'none');
+    $c = strtoupper(trim($code));
+    if ($c === '') {
+        return $out;
+    }
+    $digits = preg_replace('/\D/', '', $c);
+
+    // EAN-13 (the box barcode): it is "ours" when the GS1 prefix belongs to the country AND
+    // the country schema is complete enough to say so. A foreign EAN is left alone.
+    if (preg_match('/^\d{13}$/', $c)) {
+        foreach ((array)($schema['gs1'] ?? []) as $range) {
+            $lo = (string)($range[0] ?? '');
+            $hi = (string)($range[1] ?? $lo);
+            $prefix = substr($c, 0, strlen($lo));
+            if ($lo !== '' && $prefix >= $lo && $prefix <= $hi) {
+                foreach ((array)($schema['codes'] ?? []) as $codeDef) {
+                    if (($codeDef['type'] ?? '') === 'ean13' && (int)($codeDef['digits'] ?? 13) === 13) {
+                        $out['detected'] = true;
+                        $out['confidence'] = $out['status'] === 'full' ? 'high' : 'probable';
+                        $out['type'] = 'ean13';
+                        $out['label_key'] = (string)($codeDef['label_key'] ?? '');
+                        return $out;
+                    }
+                }
+            }
+        }
+        // Austrian PZN is embedded in the EAN (908888…), see the schema.
+        foreach ((array)($schema['codes'] ?? []) as $codeDef) {
+            if (($codeDef['type'] ?? '') === 'pzn_in_ean' && str_starts_with($c, (string)($codeDef['prefix'] ?? '\0'))) {
+                $out['detected'] = true;
+                $out['confidence'] = 'high';
+                $out['type'] = 'pzn_in_ean';
+                $out['label_key'] = (string)($codeDef['label_key'] ?? '');
+                return $out;
+            }
+        }
+        return $out;
+    }
+
+    // National short codes: Pharmacode/Laetus (IT), PZN as Code 39 (DE), CN (ES), NDC (US).
+    foreach ((array)($schema['codes'] ?? []) as $codeDef) {
+        $type = (string)($codeDef['type'] ?? '');
+        if ($type === 'ean13' || $type === 'pzn_in_ean') {
+            continue;
+        }
+        $digitsWanted = $codeDef['digits'] ?? null;
+        $lenOk = false;
+        if (is_array($digitsWanted)) {
+            $lenOk = in_array(strlen($digits), array_map('intval', $digitsWanted), true);
+        } elseif (is_int($digitsWanted) && $digitsWanted > 0) {
+            $lenOk = strlen($digits) === $digitsWanted;
+        } elseif ($type === 'pharmacode') {
+            $min = (int)($codeDef['min'] ?? 3);
+            $max = (int)($codeDef['max'] ?? 131070);
+            $lenOk = ctype_digit($digits) && (int)$digits >= $min && (int)$digits <= $max;
+        }
+        if ($lenOk) {
+            $out['detected'] = true;
+            $out['confidence'] = $out['status'] === 'full' ? 'high' : 'probable';
+            $out['type'] = $type;
+            $out['label_key'] = (string)($codeDef['label_key'] ?? '');
+            return $out;
+        }
+    }
+    return $out;
+}

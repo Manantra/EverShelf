@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027q'; // bump when translations change
+const _I18N_VERSION = '20261027r'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12859,7 +12859,7 @@ function _topOverlay() {
 // The symptom search is deterministic and offline: the ATC map is `data/medical_atc.json`,
 // the server matches it against this household's inventory and returns NO dosage. The app
 // lists boxes; the doctor and the leaflet treat people.
-let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [] };
+let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, unsupportedNoteKey: 'medical.country_none_hint' };
 
 /** Read the module state from the server (single source: env + the shared settings). */
 async function _medRefreshStatus() {
@@ -12871,10 +12871,14 @@ async function _medRefreshStatus() {
                 accepted: !!r.disclaimer_accepted,
                 categories: Array.isArray(r.categories) ? r.categories : [],
                 setupDone: !!r.setup_done,
+                country: String(r.country || ''),
+                countries: Array.isArray(r.countries) ? r.countries : [],
+                schema: r.schema && typeof r.schema === 'object' ? r.schema : null,
+                unsupportedNoteKey: String(r.unsupported_note_key || 'medical.country_none_hint'),
             };
         }
     } catch (e) {
-        _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [] };
+        _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, unsupportedNoteKey: 'medical.country_none_hint' };
     }
     _applyMedUi();
     return _medStatus;
@@ -12883,6 +12887,79 @@ async function _medRefreshStatus() {
 /** Is the module usable right now (enabled + disclaimer accepted)? */
 function _medOn() {
     return !!(_medStatus.enabled && _medStatus.accepted);
+}
+
+/**
+ * Is this scanned code a medicine pack, for the active country?
+ *
+ * The rules are DATA (`data/medical_code_schemas.json`, served by `med_status`): GS1 prefix
+ * ranges per country, national short codes (Pharmacode/Laetus in Italy, PZN in Germany, CN in
+ * Spain, NDC in the US) and the EU FMD DataMatrix. `none` means we have no schema for that
+ * country, and the app then claims NOTHING (the household adds the medicine by hand).
+ *
+ * @returns {{detected:boolean, confidence:'high'|'probable'|'none', type:string, label_key:string}}
+ */
+function _medDetectCode(code) {
+    const out = { detected: false, confidence: 'none', type: '', label_key: '' };
+    const schema = _medStatus.schema;
+    if (!schema || !schema.status || schema.status === 'none') return out;
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return out;
+    const digits = c.replace(/\D/g, '');
+    const status = String(schema.status || 'none');
+
+    // Austrian PZN is embedded in the EAN (908888…): check it before the plain EAN rule.
+    for (const def of (schema.codes || [])) {
+        if (def.type === 'pzn_in_ean' && def.prefix && c.startsWith(String(def.prefix))) {
+            return { detected: true, confidence: 'high', type: def.type, label_key: def.label_key || '' };
+        }
+    }
+
+    // EAN-13: "ours" only when the GS1 prefix belongs to this country.
+    if (/^\d{13}$/.test(c)) {
+        for (const range of (schema.gs1 || [])) {
+            const lo = String((range && range[0]) || '');
+            const hi = String((range && range[1]) || lo);
+            const prefix = c.slice(0, lo.length);
+            if (lo && prefix >= lo && prefix <= hi) {
+                const def = (schema.codes || []).find(d => d.type === 'ean13' && Number(d.digits || 13) === 13);
+                if (def) {
+                    return { detected: true, confidence: status === 'full' ? 'high' : 'probable', type: 'ean13', label_key: def.label_key || '' };
+                }
+            }
+        }
+        return out;
+    }
+
+    // National short codes.
+    for (const def of (schema.codes || [])) {
+        if (def.type === 'ean13' || def.type === 'pzn_in_ean') continue;
+        const wanted = def.digits;
+        let lenOk = false;
+        if (Array.isArray(wanted)) lenOk = wanted.map(Number).includes(digits.length);
+        else if (typeof wanted === 'number' && wanted > 0) lenOk = digits.length === wanted;
+        else if (def.type === 'pharmacode') {
+            const min = Number(def.min || 3), max = Number(def.max || 131070);
+            const n = Number(digits);
+            lenOk = /^\d+$/.test(digits) && n >= min && n <= max;
+        }
+        if (lenOk) {
+            return { detected: true, confidence: status === 'full' ? 'high' : 'probable', type: def.type, label_key: def.label_key || '' };
+        }
+    }
+    return out;
+}
+
+/** The country name in the user's own language, without 17 translation keys. */
+function _medCountryLabel(cc) {
+    const code = String(cc || '').toUpperCase();
+    if (!code) return t('medical.country_none');
+    try {
+        const dn = new Intl.DisplayNames([_currentLang || 'en'], { type: 'region' });
+        return dn.of(code) || code;
+    } catch (e) {
+        return code;
+    }
 }
 
 /** A pantry row is a medicine: the product flag wins, then the marked location. */
@@ -12925,7 +13002,7 @@ function _applyMedUi() {
     if (btn) btn.hidden = !_medOn();
     const pfGroup = document.getElementById('pf-medical-group');
     if (pfGroup) pfGroup.hidden = !_medOn();
-    if (_medOn()) { _renderMedLocations(); _medRenderLocationPicker(); _renderMedClassify(); }
+    if (_medOn()) { _medRenderCountryPicker(); _renderMedLocations(); _medRenderLocationPicker(); _renderMedClassify(); }
     else _renderMedicalBlock([]);
 }
 
@@ -12943,6 +13020,34 @@ function _medRenderLocationPicker() {
 }
 
 /** The marked medical locations, as pills (one dedicated location is the normal case). */
+/** The country whose labels are on the box: one <select>, no 17 translation keys. */
+function _medRenderCountryPicker() {
+    const sel = document.getElementById('med-country-select');
+    if (!sel) return;
+    const active = String(_medStatus.country || '').toUpperCase();
+    const opts = [`<option value=""${active === '' ? ' selected' : ''}>${escapeHtml(t('medical.country_none'))}</option>`];
+    (_medStatus.countries || []).forEach(c => {
+        const cc = String(c.cc || '').toUpperCase();
+        if (!cc) return;
+        const label = `${_medCountryLabel(cc)}${c.status === 'full' ? ' ✓' : ''}`;
+        opts.push(`<option value="${escapeAttr(cc)}"${cc === active ? ' selected' : ''}>${escapeHtml(label)}</option>`);
+    });
+    sel.innerHTML = opts.join('');
+    const hint = document.getElementById('med-country-hint');
+    if (hint) {
+        const schema = _medStatus.schema;
+        hint.textContent = schema ? t('medical.sources_note') : t('medical.country_none_hint');
+    }
+}
+
+/** Changing the country re-reads the schema from the server (no client-side guessing). */
+async function onMedCountryChange(sel) {
+    const cc = String((sel && sel.value) || '').trim().toUpperCase();
+    await _medSaveInstanceSettings({ med_country: cc });
+    await _medRefreshStatus();
+    showToast(cc ? t('medical.country_set').replace('{country}', _medCountryLabel(cc)) : t('medical.country_none'), 'success');
+}
+
 function _renderMedLocations() {
     const host = document.getElementById('med-locations-list');
     if (!host) return;
@@ -14505,7 +14610,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027q';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027r';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14515,7 +14620,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027q';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027r';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15536,8 +15641,17 @@ async function onBarcodeDetected(barcode) {
         if (_medStatus.enabled) {
             _setScanHudState('idle');
             _setScanStatus(t('scan.status_scanning'), '', '');
-            if (_looksLikeMedicineCode(code)) {
+            const det = _medDetectCode(code);
+            if (det.detected && det.confidence === 'high') {
+                // The country schema knows this code is a medicine: no question needed.
                 _medStartManualEntry(code, true);
+            } else if (det.detected) {
+                // A schema exists but only by GS1 range/FMD: ask, do not claim.
+                _medOfferMedicalFallback(code);
+            } else if (!_medStatus.schema || _medStatus.schema.status === 'none') {
+                // No schema for this country: the app says so instead of pretending.
+                showToast(t(_medStatus.unsupportedNoteKey || 'medical.country_none_hint'), 'info', 6000);
+                resumeScanner();
             } else {
                 _medOfferMedicalFallback(code);
             }

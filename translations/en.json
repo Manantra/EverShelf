@@ -2885,6 +2885,21 @@
     "fallback_ask": "Code {code} is not in any food catalogue. Is it a medicine or a supplement?",
     "fallback_yes": "💊 Yes, it is a medicine",
     "fallback_no": "No, it is a normal product",
-    "fallback_cancel": "Cancel"
+    "fallback_cancel": "Cancel",
+    "country_label": "Country printed on the medicine packs",
+    "country_none": "Not set",
+    "country_none_hint": "No schema for this country: the scan does not recognise medicines and does not pretend to. You can still add them by hand (💊 in the product form) and classify the box.",
+    "country_set": "Country set: {country}",
+    "sources_note": "The code rules are a data file (data/medical_code_schemas.json) with its sources: GS1 for the prefixes, Pharmacode/Laetus for the Italian SSN label, PZN for Germany, EU FMD DataMatrix. A contributor can add a country without touching code.",
+    "code_detected_as": "Code recognised: {type}",
+    "code_ean13": "EAN-13 barcode",
+    "code_pharmacode": "SSN label (Pharmacode/Laetus)",
+    "code_aic": "AIC code",
+    "code_pzn": "German PZN",
+    "code_pzn_ean": "Austrian PZN (inside the EAN)",
+    "code_cip13": "French CIP13",
+    "code_cn": "Spanish national code",
+    "code_ndc": "US NDC",
+    "code_upc": "UPC barcode"
   }
 }

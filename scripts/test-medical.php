@@ -72,8 +72,8 @@ check('the module state is written through app_settings_save',
     (bool)preg_match("/function _medSaveInstanceSettings[\s\S]{0,300}?api\('app_settings_save'/s", $app));
 check('no medical key goes through the .env writer any more',
     !preg_match('/_saveSettingToServer\(\{ *med_/', $app));
-check('med_setup_done is writable by the client',
-    (bool)preg_match("/'med_setup_done',\s*\];/s", $sec));
+check('the medical keys are writable by the client (setup + country)',
+    str_contains($sec, "'med_setup_done',") && str_contains($sec, "'med_country',"));
 check('the wizard has three steps: question, notice, place',
     str_contains($app, 'function _medSetupRender(step)')
     && (bool)preg_match("/if \(step === 2\)/s", $app)
@@ -164,6 +164,42 @@ check('the medical block offers "Smaltito", never the recipe action',
 check('the medical block is hidden when the module is off',
     (bool)preg_match("/function _renderMedicalBlock.*?if \\(!_medOn\\(\\).*?section\\.style\\.display = 'none'/s", $app));
 
+// ── 4c. Barcode schemas per country (data, with sources) ────────────────────
+$schemas = json_decode((string)file_get_contents($root . '/data/medical_code_schemas.json'), true);
+$ccs = is_array($schemas['countries'] ?? null) ? $schemas['countries'] : [];
+check('the per-country schemas are a data file with sources', count($ccs) >= 15 && !empty($schemas['sources']));
+check('no schema claims a drug catalogue (codes only, no data)',
+    !preg_match('/"catalogue"\s*:/', (string)file_get_contents($root . '/data/medical_code_schemas.json')));
+check('Italy and Germany are complete, the rest is honest about being partial',
+    ($ccs['IT']['status'] ?? '') === 'full' && ($ccs['DE']['status'] ?? '') === 'full'
+    && ($ccs['FR']['status'] ?? '') === 'partial');
+check('Italy carries the SSN label (Pharmacode) and the 800-839 GS1 range',
+    (bool)array_filter($ccs['IT']['codes'] ?? [], fn($c) => ($c['type'] ?? '') === 'pharmacode')
+    && ($ccs['IT']['gs1'][0] ?? []) === ['800', '839']);
+// The detector: high confidence where the schema is complete, nothing where it is not.
+$it = medicalDetectCode('8012345678901', 'IT');
+$itPharma = medicalDetectCode('123456', 'IT');
+$de = medicalDetectCode('09876543', 'DE');
+$fr = medicalDetectCode('3400930000000', 'FR');
+$zz = medicalDetectCode('8012345678901', 'ZZ');
+check('an Italian EAN in the 80… range is recognised as a medicine code',
+    $it['detected'] === true && $it['confidence'] === 'high' && $it['type'] === 'ean13');
+check('an Italian SSN Pharmacode is recognised as a medicine code',
+    $itPharma['detected'] === true && $itPharma['confidence'] === 'high' && $itPharma['type'] === 'pharmacode');
+check('a German PZN (8 digits) is recognised', $de['detected'] === true && $de['type'] === 'pzn');
+check('a partial country only says "probable"', $fr['detected'] === true && $fr['confidence'] === 'probable');
+check('a country with no schema claims nothing at all',
+    $zz['detected'] === false && $zz['confidence'] === 'none');
+check('med_status answers with country, countries and schema',
+    substr_count($api, "'countries' => ") >= 1 && substr_count($api, "'schema' => ") >= 1
+    && (bool)preg_match('/country. => .country,/s', $api));
+check('the country lives in app_settings, not in the .env writer',
+    str_contains($sec, "'med_country',") && (bool)preg_match('/function medicalActiveCountry[\s\S]{0,700}?med_country/s', $lib));
+check('the settings card has the country picker', str_contains($html, 'id="med-country-select"')
+    && str_contains($app, 'function _medRenderCountryPicker'));
+check('with no schema the scanner says so instead of pretending',
+    str_contains($app, "_medStatus.schema.status === 'none'") && str_contains($app, 'unsupportedNoteKey'));
+
 // ── 5. Taxonomy: CLOSED, data-only, six locales ─────────────────────────────
 $slugs = array_map(fn($c) => $c['slug'] ?? '', $cats['categories'] ?? []);
 check('the taxonomy is exactly the 8 household categories',
@@ -222,10 +258,10 @@ check('editing a product shows its own medical fields',
     (bool)preg_match("/t\('product\.title_edit'\);\n    _syncProductMedicalUi\(currentProduct\)/", $app));
 
 // ── 7. Scanner ──────────────────────────────────────────────────────────────
-check('a medicine code is not an error: the manual entry opens prefilled',
-    str_contains($app, 'if (_looksLikeMedicineCode(code)) {')
-    && str_contains($app, '_medStartManualEntry(code, true);')
-    && str_contains($app, 'if (_medStatus.enabled) {'));
+check('a medicine code is not an error: the schema decides, the manual entry opens',
+    str_contains($app, 'const det = _medDetectCode(code);')
+    && str_contains($app, "det.confidence === 'high'")
+    && str_contains($app, '_medStartManualEntry(code, true);'));
 
 // The EAN case: Italian boxes carry BOTH the SSN label (a Pharmacode) and an EAN-13, and no
 // free catalogue knows either. The app must ask, in every country, instead of dead-ending.
@@ -269,7 +305,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 91 medical keys', $aligned && count($base) === 91);
+check('all six locales carry the same 106 medical keys', $aligned && count($base) === 106);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));

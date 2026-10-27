@@ -2885,6 +2885,21 @@
     "fallback_ask": "编码 {code} 不在任何食品目录中。它是药品还是保健品？",
     "fallback_yes": "💊 是药品",
     "fallback_no": "不是，是普通商品",
-    "fallback_cancel": "取消"
+    "fallback_cancel": "取消",
+    "country_label": "药盒上标注的国家",
+    "country_none": "未设置",
+    "country_none_hint": "该国家没有编码规则：扫描不会识别药品，也不会假装识别。你仍然可以手动添加（在商品表单里选择 💊）并给药品分类。",
+    "country_set": "已设置国家：{country}",
+    "sources_note": "编码规则是一个数据文件（data/medical_code_schemas.json），附有来源：GS1 前缀、意大利 SSN 标签的 Pharmacode/Laetus、德国 PZN、欧盟 FMD DataMatrix。贡献者只需添加数据，无需修改代码。",
+    "code_detected_as": "已识别编码：{type}",
+    "code_ean13": "EAN-13 条码",
+    "code_pharmacode": "SSN 标签（Pharmacode/Laetus）",
+    "code_aic": "AIC 编码",
+    "code_pzn": "德国 PZN",
+    "code_pzn_ean": "奥地利 PZN（嵌入 EAN）",
+    "code_cip13": "法国 CIP13",
+    "code_cn": "西班牙国家编码",
+    "code_ndc": "美国 NDC",
+    "code_upc": "UPC 条码"
   }
 }

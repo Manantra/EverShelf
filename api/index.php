@@ -9422,6 +9422,14 @@ function medStatusAction(): void {
         $stmt->execute();
         $setupDone = in_array(strtolower(trim((string)($stmt->fetchColumn() ?: ''), " \t\n\r\"")), ['1', 'true', 'yes', 'on'], true);
     } catch (Throwable $e) { /* never asked */ }
+    // Which country's labels are on the box: the app refuses to guess (an English UI says
+    // nothing about the pharmacy), so the household picks it and the schema follows.
+    $country = medicalActiveCountry($db);
+    $schema = medicalCountrySchema($country);
+    $countries = [];
+    foreach ((array)(medicalCodeSchemas()['countries'] ?? []) as $cc => $block) {
+        $countries[] = ['cc' => (string)$cc, 'status' => (string)($block['status'] ?? 'none')];
+    }
     echo json_encode([
         'success' => true,
         'enabled' => medicalEnabled($db),
@@ -9429,6 +9437,10 @@ function medStatusAction(): void {
         'setup_done' => $setupDone,
         'disclaimer_key' => 'medical.disclaimer',
         'categories' => $categories,
+        'country' => $country,
+        'countries' => $countries,
+        'schema' => $schema,
+        'unsupported_note_key' => (string)(medicalCodeSchemas()['unsupported_note_key'] ?? 'medical.country_none_hint'),
     ], JSON_UNESCAPED_UNICODE);
 }
 

@@ -2885,6 +2885,21 @@
     "fallback_ask": "Le code {code} n’est dans aucun catalogue alimentaire. Est-ce un médicament ou un complément ?",
     "fallback_yes": "💊 Oui, un médicament",
     "fallback_no": "Non, un produit normal",
-    "fallback_cancel": "Annuler"
+    "fallback_cancel": "Annuler",
+    "country_label": "Pays imprimé sur les boîtes de médicaments",
+    "country_none": "Non défini",
+    "country_none_hint": "Aucun schéma pour ce pays : le scan ne reconnaît pas les médicaments et ne fait pas semblant. Vous pouvez toujours les ajouter à la main (💊 dans le formulaire produit) et classer la boîte.",
+    "country_set": "Pays défini : {country}",
+    "sources_note": "Les règles des codes sont un fichier de données (data/medical_code_schemas.json) avec ses sources : GS1 pour les préfixes, Pharmacode/Laetus pour l’étiquette italienne SSN, PZN pour l’Allemagne, DataMatrix FMD pour l’UE. Un contributeur peut ajouter un pays sans toucher au code.",
+    "code_detected_as": "Code reconnu : {type}",
+    "code_ean13": "code-barres EAN-13",
+    "code_pharmacode": "étiquette SSN (Pharmacode/Laetus)",
+    "code_aic": "code AIC",
+    "code_pzn": "PZN allemand",
+    "code_pzn_ean": "PZN autrichien (dans l’EAN)",
+    "code_cip13": "CIP13 français",
+    "code_cn": "code national espagnol",
+    "code_ndc": "NDC américain",
+    "code_upc": "code-barres UPC"
   }
 }

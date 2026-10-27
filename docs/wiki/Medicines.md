@@ -82,3 +82,41 @@ or a base-32 code) into the prefilled manual entry with *"Codice rilevato…"*.
 
 Guard test: `php scripts/test-medical.php` (42 checks: opt-in, disclaimer, domain
 separation, matcher, safety copy, schema, wiring).
+
+## Country schemas — add yours (contributors)
+
+Which barcode is a medicine pack is a **per-country fact**, so it lives in
+**`data/medical_code_schemas.json`** (data only, with the sources in the file). Each country
+declares:
+
+- `status`: `full` (national code formats **and** the GS1 pharma range **and** the EU FMD
+  DataMatrix), `partial` (only the GS1 range and/or the FMD), `none` (no schema — the app then
+  claims nothing and only offers manual entry);
+- `gs1`: the prefix ranges owned by that country's GS1 office (Italy `800–839`, Germany
+  `400–440`, France `300–379`, Spain `840–849`, UK `500–509`, US `000–139`, …);
+- `codes`: the national formats — `ean13`, `pharmacode` (Italy's SSN label: an integer
+  3–131070 read from bars, **not** decimal digits), `pzn` (Germany, 8 digits in Code 39),
+  `pzn_in_ean` (Austria, `908888…`), `cn` (Spain), `ndc` (US), `aic` (Italy, printed);
+- `fmd`: whether the EU Falsified Medicines Directive DataMatrix applies.
+
+**Adding a country is a data change**: copy a block, set the ranges and the code types, add it
+to the table below, and run `php scripts/test-medical.php` (it asserts the file parses, that
+`IT`/`DE` stay complete, and that a country with no schema claims **nothing**). No code, no
+new action, no migration.
+
+| Country | Status | What we can say |
+|---|---|---|
+| 🇮🇹 IT | full | EAN-13 `80…`, SSN Pharmacode/Laetus, AIC printed |
+| 🇩🇪 DE | full | EAN-13 `40…`, PZN (Code 39) |
+| 🇦🇹 AT | partial | EAN-13 `90…`, PZN embedded (`908888…`) |
+| 🇫🇷 FR | partial | EAN-13 `30…` (CIP13) |
+| 🇪🇸 ES | partial | EAN-13 `84…`, Código Nacional |
+| 🇨🇭 CH, 🇧🇪 BE, 🇳🇱 NL, 🇵🇹 PT, 🇵🇱 PL, 🇬🇷 GR, 🇸🇪 SE, 🇩🇰 DK, 🇫🇮 FI, 🇮🇪 IE, 🇬🇧 GB | partial | GS1 range (+ FMD where it applies) |
+| 🇺🇸 US | partial | UPC/EAN `00–13`, NDC |
+| anything else | none | nothing: manual entry, and the app says so |
+
+**Still missing (the honest gap):** the **EU FMD DataMatrix** is declared (`fmd: true`) but not
+yet decoded: most browser barcode engines do not expose `data_matrix`, and parsing its GS1
+element string (GTIN + expiry + batch + serial) needs its own tests. That is the next step
+that would let the scan prefill the **expiry date** straight from the box — and it is the
+reason a modern EU box may still need the manual path today.

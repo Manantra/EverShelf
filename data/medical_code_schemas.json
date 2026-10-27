@@ -1,0 +1,169 @@
+{
+    "version": 1,
+    "note": "How a medicine pack is coded, per country — DATA ONLY, so a contributor can add a country without touching code. 'status': full = national code formats + GS1 pharma range + EU FMD DataMatrix, partial = only the GS1 range and/or FMD, none = no schema (the app stops claiming to recognise anything and only offers manual entry). No catalogue is listed anywhere: this file describes CODES, not drugs.",
+    "updated": "2026-10-27",
+    "sources": [
+        "https://en.wikipedia.org/wiki/Pharmacode (integer 3..131070, read as binary bars, aka Laetus)",
+        "https://de.wikipedia.org/wiki/Pharmazentralnummer (PZN 8 digits = 7 + check, printed as Code 39)",
+        "https://en.wikipedia.org/wiki/List_of_GS1_country_codes (800-839 Italy, 840-849 Spain, 300-379 France, 400-440 Germany, 500-509 UK, 000-139 US)",
+        "https://en.wikipedia.org/wiki/Falsified_Medicines_Directive (EU 2019: 2D DataMatrix with GTIN + serial + expiry + batch + national reimbursement number)"
+    ],
+    "countries": {
+        "IT": {
+            "name_key": "medical.country_it",
+            "status": "full",
+            "gs1": [["800", "839"]],
+            "codes": [
+                { "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" },
+                { "type": "pharmacode", "min": 3, "max": 131070, "label_key": "medical.code_pharmacode" },
+                { "type": "aic", "digits": 9, "label_key": "medical.code_aic" }
+            ],
+            "fmd": true,
+            "source_key": "medical.src_it"
+        },
+        "DE": {
+            "name_key": "medical.country_de",
+            "status": "full",
+            "gs1": [["400", "440"]],
+            "codes": [
+                { "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" },
+                { "type": "pzn", "digits": 8, "symbology": "code39", "label_key": "medical.code_pzn" }
+            ],
+            "fmd": true,
+            "source_key": "medical.src_de"
+        },
+        "AT": {
+            "name_key": "medical.country_at",
+            "status": "partial",
+            "gs1": [["900", "919"]],
+            "codes": [
+                { "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" },
+                { "type": "pzn_in_ean", "prefix": "908888", "digits": 13, "label_key": "medical.code_pzn_ean" }
+            ],
+            "fmd": true,
+            "source_key": "medical.src_at"
+        },
+        "FR": {
+            "name_key": "medical.country_fr",
+            "status": "partial",
+            "gs1": [["300", "379"]],
+            "codes": [
+                { "type": "ean13", "digits": 13, "label_key": "medical.code_cip13" }
+            ],
+            "fmd": true,
+            "source_key": "medical.src_fr"
+        },
+        "ES": {
+            "name_key": "medical.country_es",
+            "status": "partial",
+            "gs1": [["840", "849"]],
+            "codes": [
+                { "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" },
+                { "type": "cn", "digits": [6, 7], "label_key": "medical.code_cn" }
+            ],
+            "fmd": true,
+            "source_key": "medical.src_es"
+        },
+        "CH": {
+            "name_key": "medical.country_ch",
+            "status": "partial",
+            "gs1": [["760", "769"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": false,
+            "source_key": "medical.src_gs1"
+        },
+        "BE": {
+            "name_key": "medical.country_be",
+            "status": "partial",
+            "gs1": [["540", "549"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "NL": {
+            "name_key": "medical.country_nl",
+            "status": "partial",
+            "gs1": [["870", "879"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "PT": {
+            "name_key": "medical.country_pt",
+            "status": "partial",
+            "gs1": [["560", "560"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "PL": {
+            "name_key": "medical.country_pl",
+            "status": "partial",
+            "gs1": [["590", "590"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "GR": {
+            "name_key": "medical.country_gr",
+            "status": "partial",
+            "gs1": [["520", "521"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "SE": {
+            "name_key": "medical.country_se",
+            "status": "partial",
+            "gs1": [["730", "739"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "DK": {
+            "name_key": "medical.country_dk",
+            "status": "partial",
+            "gs1": [["570", "579"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "FI": {
+            "name_key": "medical.country_fi",
+            "status": "partial",
+            "gs1": [["640", "649"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "IE": {
+            "name_key": "medical.country_ie",
+            "status": "partial",
+            "gs1": [["539", "539"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": true,
+            "source_key": "medical.src_gs1"
+        },
+        "GB": {
+            "name_key": "medical.country_gb",
+            "status": "partial",
+            "gs1": [["500", "509"]],
+            "codes": [{ "type": "ean13", "digits": 13, "label_key": "medical.code_ean13" }],
+            "fmd": false,
+            "source_key": "medical.src_gs1"
+        },
+        "US": {
+            "name_key": "medical.country_us",
+            "status": "partial",
+            "gs1": [["000", "139"]],
+            "codes": [
+                { "type": "ean13", "digits": 13, "label_key": "medical.code_upc" },
+                { "type": "ndc", "digits": [10, 11], "label_key": "medical.code_ndc" }
+            ],
+            "fmd": false,
+            "source_key": "medical.src_gs1"
+        }
+
+    },
+    "unsupported_note_key": "medical.country_none_hint"
+}
