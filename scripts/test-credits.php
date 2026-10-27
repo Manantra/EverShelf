@@ -156,6 +156,41 @@ check('the credits page renders the sources and the medicines row',
 check('the generated file carries the sources (splash-safe, offline)',
     str_contains((string)file_get_contents($root . '/assets/js/free_apis.generated.js'), 'EVERSHELF_DATA_SOURCES'));
 
+// ── Every barcode source the API really queries is credited ─────────────────
+// The complaint that started this: Open Products/Beauty/Pet Food Facts were queried by the
+// resolver and missing from the credits. A source that answers a scan must be in the list.
+$resolver = (string)file_get_contents($root . '/api/index.php');
+preg_match_all('#https?://([a-z0-9.\-]+\.(?:openfoodfacts|openproductsfacts|openbeautyfacts|openpetfoodfacts)\.org)#i', $resolver, $m);
+$queried = array_values(array_unique(array_map('strtolower', $m[1] ?? [])));
+$creditedHosts = [];
+foreach ($apis as $api) {
+    $h = parse_url((string)($api['url'] ?? ''), PHP_URL_HOST);
+    if (is_string($h) && $h !== '') { $creditedHosts[] = strtolower($h); }
+}
+$uncredited = [];
+foreach ($queried as $h) {
+    // A country mirror (it.openfoodfacts.org) and the world host are the SAME credited
+    // service: compare by domain, not by label-by-label equality.
+    // Compare the registrable domain: it.openfoodfacts.org and world.openfoodfacts.org are
+    // the same credited service.
+    $base = implode('.', array_slice(explode('.', $h), -2));
+    $covered = false;
+    foreach ($creditedHosts as $credited) {
+        if ($h === $credited || $base === implode('.', array_slice(explode('.', $credited), -2))) {
+            $covered = true;
+            break;
+        }
+    }
+    if (!$covered) { $uncredited[] = $h; }
+}
+check('every barcode source the API queries is in the credits (' . count($queried) . ' hosts)',
+    $queried !== [] && $uncredited === [], implode(', ', $uncredited));
+// The commercial trial endpoint must never be in the default chain: it is opt-in.
+check('the UPCitemdb trial lookup is opt-in, not a silent default',
+    str_contains($resolver, 'UPC_LOOKUP_ENABLED')
+    && !preg_match("/\$priority = \[[^\]]*'upc'/s", $resolver)
+    && str_contains((string)file_get_contents($root . '/.env.example'), 'UPC_LOOKUP_ENABLED=false'));
+
 echo "\n{$checks} checks, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);
 

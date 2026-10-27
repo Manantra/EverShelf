@@ -2802,7 +2802,13 @@
     "source_pzn_what": "Die deutsche PZN: 8 Ziffern (7 + Prüfziffer) in Code 39, und die österreichische PZN in der EAN.",
     "source_fmd_what": "Der EU-Sicherheits-DataMatrix (GTIN + Seriennummer + Ablaufdatum + Charge), Pflicht auf Packungen seit 2019.",
     "source_aifa_what": "Der italienische Nationalkatalog (AIC → Name, Wirkstoff, ATC): für Phase 2 geplant, gefiltert auf OTC/SOP. Noch nicht verwendet.",
-    "planned": "in Phase 2"
+    "planned": "in Phase 2",
+    "api_open_products_facts": "Strichcodes von Para-Pharmazie, Medizinprodukten und Nahrungsergänzung",
+    "api_open_products_facts_where": "Wenn der Scan bei Lebensmitteln nichts findet: die Quelle, die die meisten rezeptfreien Packungen erkennt.",
+    "api_open_beauty_facts": "Strichcodes von Kosmetik und Hygieneprodukten",
+    "api_open_beauty_facts_where": "Cremes, Reiniger, Apothekenartikel, die weder Essen noch Medikament sind.",
+    "api_open_pet_food_facts": "Strichcodes von Tierfutter",
+    "api_open_pet_food_facts_where": "Schließt die Kette unbekannter Codes: kein Lebensmittel, keine Para-Pharmazie, keine Kosmetik — oft Tierfutter."
   },
   "medical": {
     "title": "💊 Medikamente und Schrank",

@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027s'; // bump when translations change
+const _I18N_VERSION = '20261027t'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5214,6 +5214,9 @@ function _freeApiUsage(api) {
         case 'open_food_facts': return t('credits.api_open_food_facts');
         case 'open_prices':     return t('credits.api_open_prices');
         case 'open_meteo':      return t('credits.api_open_meteo');
+        case 'open_products_facts':  return t('credits.api_open_products_facts');
+        case 'open_beauty_facts':    return t('credits.api_open_beauty_facts');
+        case 'open_pet_food_facts':  return t('credits.api_open_pet_food_facts');
         default: return '';
     }
 }
@@ -5223,6 +5226,9 @@ function _freeApiWhere(api) {
         case 'open_food_facts': return t('credits.api_open_food_facts_where');
         case 'open_prices':     return t('credits.api_open_prices_where');
         case 'open_meteo':      return t('credits.api_open_meteo_where');
+        case 'open_products_facts':  return t('credits.api_open_products_facts_where');
+        case 'open_beauty_facts':    return t('credits.api_open_beauty_facts_where');
+        case 'open_pet_food_facts':  return t('credits.api_open_pet_food_facts_where');
         default: return '';
     }
 }
@@ -14646,7 +14652,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027s';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027t';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14656,7 +14662,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027s';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027t';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

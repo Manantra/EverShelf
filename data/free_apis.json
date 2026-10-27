@@ -26,6 +26,33 @@
             "logo": "assets/img/apis/open-meteo.png",
             "url": "https://open-meteo.com",
             "licence": "CC BY 4.0"
+        },
+        {
+            "id": "open_products_facts",
+            "name": "Open Products Facts",
+            "mark": "OPF",
+            "logo": "assets/img/apis/open-products-facts.svg",
+            "url": "https://world.openproductsfacts.org",
+            "licence": "ODbL · CC-BY-SA",
+            "note": "Parafarmaci, dispositivi, integratori: risolve i codici che il cibo non conosce."
+        },
+        {
+            "id": "open_beauty_facts",
+            "name": "Open Beauty Facts",
+            "mark": "OBF",
+            "logo": "assets/img/apis/open-beauty-facts.svg",
+            "url": "https://world.openbeautyfacts.org",
+            "licence": "ODbL · CC-BY-SA",
+            "note": "Cosmetici e igiene: creme, detergenti, prodotti da banco."
+        },
+        {
+            "id": "open_pet_food_facts",
+            "name": "Open Pet Food Facts",
+            "mark": "OPFF",
+            "logo": "assets/img/apis/open-pet-food-facts.svg",
+            "url": "https://world.openpetfoodfacts.org",
+            "licence": "ODbL · CC-BY-SA",
+            "note": "Mangimi per animali: chiude la catena dei codici non alimentari (umani)."
         }
     ],
     "sources": [

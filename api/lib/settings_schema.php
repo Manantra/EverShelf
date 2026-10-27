@@ -1584,205 +1584,210 @@ function evershelfSettingsSchema(): array
     ),
     6 => 
     array (
-      'env' => 'SUPPORT_MODE',
-      'reason' => 'support',
+      'env' => 'UPC_LOOKUP_ENABLED',
+      'reason' => 'advanced',
     ),
     7 => 
     array (
-      'env' => 'SUPPORT_DECIDED',
+      'env' => 'SUPPORT_MODE',
       'reason' => 'support',
     ),
     8 => 
     array (
-      'env' => 'SUPPORT_PAYPAL_URL',
+      'env' => 'SUPPORT_DECIDED',
       'reason' => 'support',
     ),
     9 => 
     array (
-      'env' => 'SUPPORT_PAYPAL_CURRENCY',
+      'env' => 'SUPPORT_PAYPAL_URL',
       'reason' => 'support',
     ),
     10 => 
     array (
-      'env' => 'SUPPORT_PAYPAL_AMOUNTS',
+      'env' => 'SUPPORT_PAYPAL_CURRENCY',
       'reason' => 'support',
     ),
     11 => 
     array (
-      'env' => 'SUPPORT_COST_CURRENCY',
+      'env' => 'SUPPORT_PAYPAL_AMOUNTS',
       'reason' => 'support',
     ),
     12 => 
     array (
-      'env' => 'SUPPORT_COST_HOSTING',
+      'env' => 'SUPPORT_COST_CURRENCY',
       'reason' => 'support',
     ),
     13 => 
     array (
-      'env' => 'SUPPORT_COST_DOMAIN',
+      'env' => 'SUPPORT_COST_HOSTING',
       'reason' => 'support',
     ),
     14 => 
     array (
-      'env' => 'SUPPORT_COST_DEVACCOUNT',
+      'env' => 'SUPPORT_COST_DOMAIN',
       'reason' => 'support',
     ),
     15 => 
     array (
-      'env' => 'SUPPORT_COST_API',
+      'env' => 'SUPPORT_COST_DEVACCOUNT',
       'reason' => 'support',
     ),
     16 => 
     array (
-      'env' => 'RECIPE_RETENTION_DAYS',
-      'reason' => 'advanced',
+      'env' => 'SUPPORT_COST_API',
+      'reason' => 'support',
     ),
     17 => 
     array (
-      'env' => 'TRANSACTION_RETENTION_DAYS',
+      'env' => 'RECIPE_RETENTION_DAYS',
       'reason' => 'advanced',
     ),
     18 => 
     array (
-      'env' => 'GDRIVE_SERVICE_ACCOUNT_JSON',
-      'reason' => 'storage',
+      'env' => 'TRANSACTION_RETENTION_DAYS',
+      'reason' => 'advanced',
     ),
     19 => 
     array (
-      'env' => 'GDRIVE_SERVICE_ACCOUNT_FILE',
+      'env' => 'GDRIVE_SERVICE_ACCOUNT_JSON',
       'reason' => 'storage',
     ),
     20 => 
     array (
-      'env' => 'API_TOKEN',
-      'reason' => 'security',
+      'env' => 'GDRIVE_SERVICE_ACCOUNT_FILE',
+      'reason' => 'storage',
     ),
     21 => 
     array (
-      'env' => 'CORS_ORIGIN',
+      'env' => 'API_TOKEN',
       'reason' => 'security',
     ),
     22 => 
     array (
-      'env' => 'TRUSTED_PROXIES',
+      'env' => 'CORS_ORIGIN',
       'reason' => 'security',
     ),
     23 => 
     array (
-      'env' => 'API_BOOTSTRAP_OPEN',
+      'env' => 'TRUSTED_PROXIES',
       'reason' => 'security',
     ),
     24 => 
     array (
-      'env' => 'GH_ISSUE_TOKEN',
+      'env' => 'API_BOOTSTRAP_OPEN',
       'reason' => 'security',
     ),
     25 => 
     array (
-      'env' => 'GH_ISSUE_TOKEN_ENC',
+      'env' => 'GH_ISSUE_TOKEN',
       'reason' => 'security',
     ),
     26 => 
     array (
-      'env' => 'GH_ISSUE_TOKEN_KEY',
+      'env' => 'GH_ISSUE_TOKEN_ENC',
       'reason' => 'security',
     ),
     27 => 
     array (
-      'env' => 'REPORT_ENABLED',
+      'env' => 'GH_ISSUE_TOKEN_KEY',
       'reason' => 'security',
     ),
     28 => 
     array (
-      'env' => 'INSTANCE_NAME',
-      'reason' => 'advanced',
+      'env' => 'REPORT_ENABLED',
+      'reason' => 'security',
     ),
     29 => 
     array (
-      'env' => 'HA_WEBHOOK_EVENTS',
+      'env' => 'INSTANCE_NAME',
       'reason' => 'advanced',
     ),
     30 => 
     array (
-      'env' => 'NOTIFY_CHANNELS',
+      'env' => 'HA_WEBHOOK_EVENTS',
       'reason' => 'advanced',
     ),
     31 => 
     array (
-      'env' => 'NOTIFY_EVENTS',
+      'env' => 'NOTIFY_CHANNELS',
       'reason' => 'advanced',
     ),
     32 => 
     array (
+      'env' => 'NOTIFY_EVENTS',
+      'reason' => 'advanced',
+    ),
+    33 => 
+    array (
       'env' => 'ICS_TOKEN',
       'reason' => 'security',
     ),
-    33 => 
+    34 => 
     array (
       'env' => 'BARCODE_AI_FALLBACK',
       'reason' => 'advanced',
     ),
-    34 => 
+    35 => 
     array (
       'env' => 'BARCODE_OFFLINE_ENABLED',
       'reason' => 'advanced',
     ),
-    35 => 
+    36 => 
     array (
       'env' => 'BARCODE_OFFLINE_SYNC_DAYS',
       'reason' => 'advanced',
     ),
-    36 => 
+    37 => 
     array (
       'env' => 'BARCODE_LOOKUP_TIMEOUT',
       'reason' => 'advanced',
     ),
-    37 => 
+    38 => 
     array (
       'env' => 'DEMO_MODE',
       'reason' => 'logging',
     ),
-    38 => 
+    39 => 
     array (
       'env' => 'DISPLAY_ERRORS',
       'reason' => 'logging',
     ),
-    39 => 
+    40 => 
     array (
       'env' => 'LOG_LEVEL',
       'reason' => 'logging',
     ),
-    40 => 
+    41 => 
     array (
       'env' => 'LOG_ROTATE_HOURS',
       'reason' => 'logging',
     ),
-    41 => 
+    42 => 
     array (
       'env' => 'LOG_MAX_FILES',
       'reason' => 'logging',
     ),
-    42 => 
+    43 => 
     array (
       'env' => 'GEMINI_CLASSIFY_DAILY_MAX',
       'reason' => 'advanced',
     ),
-    43 => 
+    44 => 
     array (
       'env' => 'RECEIPT_OCR_MAX_ITEMS',
       'reason' => 'advanced',
     ),
-    44 => 
+    45 => 
     array (
       'env' => 'AUTO_FAVORITE_TOP_N',
       'reason' => 'advanced',
     ),
-    45 => 
+    46 => 
     array (
       'env' => 'AUTO_FAVORITE_WINDOW_DAYS',
       'reason' => 'advanced',
     ),
-    46 => 
+    47 => 
     array (
       'env' => 'CRON_LOG_MAX_BYTES',
       'reason' => 'logging',

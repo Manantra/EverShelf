@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.26.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The three open barcode sources the app really queries are now in the credits, with their
+  logos**: **Open Products Facts** (parapharmacy, devices, supplements — the family that
+  recognises most over-the-counter packs), **Open Beauty Facts** (cosmetics/hygiene) and
+  **Open Pet Food Facts**. The resolver has been calling them for a while (`opf`, `obf`,
+  `opff` in the lookup chain) while the credits listed only Open Food Facts, Open Prices and
+  Open-Meteo: the brand assets are vendored from the projects' own static server
+  (`assets/img/apis/open-{products,beauty,pet-food}-facts.svg`), the licence is ODbL/CC-BY-SA
+  and each row says what it is used for and where, in the six locales.
+- They are in the service-worker shell too, so the splash and the credits page paint offline.
+
+### Fixed
+- **A commercial trial endpoint was in the default lookup chain.** `api.upcitemdb.com/prod/trial`
+  was called on every miss — no credit, no opt-in, a barcode leaving for a third party by
+  default. It is now behind `UPC_LOOKUP_ENABLED` (default `false`, documented in `.env.example`
+  and in the settings allowlist), so the free, credited sources answer first.
+
+### Guard
+- `scripts/test-credits.php` now fails when the resolver queries a barcode host that is not in
+  `data/free_apis.json` (compared by registrable domain, so `it.openfoodfacts.org` counts as
+  `world.openfoodfacts.org`) and when the trial endpoint comes back as a silent default. The
+  rule “every source that answers a scan is credited” is now enforced, not remembered.
+
 ## [1.25.1] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Added

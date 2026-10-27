@@ -2802,7 +2802,13 @@
     "source_pzn_what": "The German PZN: 8 digits (7 + check) printed in Code 39, and the Austrian PZN inside the EAN.",
     "source_fmd_what": "The EU safety DataMatrix (GTIN + serial + expiry + batch) mandatory on packs since 2019.",
     "source_aifa_what": "The Italian national catalogue (AIC → name, active ingredient, ATC): planned for Phase 2, filtered to OTC/SOP. Not used yet.",
-    "planned": "Phase 2"
+    "planned": "Phase 2",
+    "api_open_products_facts": "Barcodes of parapharmacy, devices and supplements",
+    "api_open_products_facts_where": "When the scan finds nothing among foods: this is the source that recognises most over-the-counter packs.",
+    "api_open_beauty_facts": "Barcodes of cosmetics and hygiene products",
+    "api_open_beauty_facts_where": "Creams, cleansers, pharmacy items that are neither food nor medicines.",
+    "api_open_pet_food_facts": "Barcodes of pet food",
+    "api_open_pet_food_facts_where": "It closes the chain of unknown codes: if it is not human food, parapharmacy or cosmetics, it is often pet food."
   },
   "medical": {
     "title": "💊 Medicines and cabinet",

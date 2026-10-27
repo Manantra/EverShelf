@@ -4174,7 +4174,13 @@ function barcodeResolveExternal(PDO $db, string $barcode, bool $forceRefresh = f
 
     $offFields = 'product_name,product_name_it,generic_name,generic_name_it,brands,categories_tags,categories_hierarchy,categories,image_front_small_url,image_url,quantity,nutriscore_grade,ingredients_text_it,ingredients_text,allergens_tags,conservation_conditions_it,conservation_conditions,origins_it,origins,manufacturing_places,nova_group,ecoscore_grade,labels,stores,nutriments';
     $altFields = 'product_name,product_name_it,brands,categories_tags,categories_hierarchy,image_front_small_url,image_url,quantity,categories';
-    $priority = ['off_it', 'off_world', 'off_v0', 'opf', 'obf', 'opff', 'upc'];
+    // The free, credited sources first. `upc` is UPCitemdb's TRIAL endpoint (commercial,
+    // rate-limited, no attribution basis): opt-in only, so a household barcode does not
+    // leave for a third party by default and the credits stay truthful.
+    $priority = ['off_it', 'off_world', 'off_v0', 'opf', 'obf', 'opff'];
+    if (strtolower(trim((string)env('UPC_LOOKUP_ENABLED', 'false'))) === 'true') {
+        $priority[] = 'upc';
+    }
     $timeout = barcodeLookupTimeoutSec();
 
     foreach (barcodeLookupCandidates($barcode) as $bc) {

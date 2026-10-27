@@ -2802,7 +2802,13 @@
     "source_pzn_what": "德国 PZN：8 位数字（7 位 + 校验位），以 Code 39 印刷；奥地利 PZN 嵌入 EAN。",
     "source_fmd_what": "欧盟安全 DataMatrix（GTIN + 序列号 + 有效期 + 批号），自 2019 年起在包装上强制。",
     "source_aifa_what": "意大利国家目录（AIC → 名称、有效成分、ATC）：计划在第二阶段加入，仅限 OTC/SOP。尚未使用。",
-    "planned": "第二阶段"
+    "planned": "第二阶段",
+    "api_open_products_facts": "药妆、医疗器械与保健品的条码",
+    "api_open_products_facts_where": "扫描在食品中找不到时：识别大多数非处方包装的来源。",
+    "api_open_beauty_facts": "化妆品与卫生用品的条码",
+    "api_open_beauty_facts_where": "面霜、清洁用品、既不是食品也不是药品的药房商品。",
+    "api_open_pet_food_facts": "宠物食品的条码",
+    "api_open_pet_food_facts_where": "补齐未知条码链：既不是人类食品、药妆或化妆品时，往往是宠物食品。"
   },
   "medical": {
     "title": "💊 药品与药箱",

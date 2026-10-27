@@ -1455,6 +1455,10 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "advanced"
         },
         {
+            "env": "UPC_LOOKUP_ENABLED",
+            "reason": "advanced"
+        },
+        {
             "env": "SUPPORT_MODE",
             "reason": "support"
         },

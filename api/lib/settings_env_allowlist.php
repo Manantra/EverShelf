@@ -82,5 +82,8 @@ function evershelfSettingsEnvAllowlist(): array
         'PREF_HEALTHY'              => 'advanced',
         'PREF_OPENED'               => 'advanced',
         'PREF_ZEROWASTE'            => 'advanced',
+        // A commercial, rate-limited trial endpoint: deliberately not a settings control
+        // (the free, credited sources answer first). It stays an .env opt-in.
+        'UPC_LOOKUP_ENABLED'        => 'advanced',
     ];
 }

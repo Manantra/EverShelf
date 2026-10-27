@@ -2802,7 +2802,13 @@
     "source_pzn_what": "Le PZN allemand : 8 chiffres (7 + contrôle) imprimés en Code 39, et le PZN autrichien dans l’EAN.",
     "source_fmd_what": "Le DataMatrix de sécurité de l’UE (GTIN + série + péremption + lot), obligatoire sur les boîtes depuis 2019.",
     "source_aifa_what": "Le catalogue national italien (AIC → nom, principe actif, ATC) : prévu pour la phase 2, filtré sur OTC/SOP. Pas encore utilisé.",
-    "planned": "en phase 2"
+    "planned": "en phase 2",
+    "api_open_products_facts": "Codes-barres des produits de parapharmacie, dispositifs et compléments",
+    "api_open_products_facts_where": "Quand le scan ne trouve rien parmi les aliments : c’est la source qui reconnaît la plupart des boîtes sans ordonnance.",
+    "api_open_beauty_facts": "Codes-barres des cosmétiques et produits d’hygiène",
+    "api_open_beauty_facts_where": "Crèmes, nettoyants, produits de pharmacie qui ne sont ni aliments ni médicaments.",
+    "api_open_pet_food_facts": "Codes-barres des aliments pour animaux",
+    "api_open_pet_food_facts_where": "Ferme la chaîne des codes inconnus : ni aliment humain, ni parapharmacie, ni cosmétique — souvent des croquettes."
   },
   "medical": {
     "title": "💊 Médicaments et armoire",

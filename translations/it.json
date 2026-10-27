@@ -2802,7 +2802,13 @@
     "source_pzn_what": "Il PZN tedesco: 8 cifre (7 + controllo) stampate in Code 39, e il PZN austriaco dentro l’EAN.",
     "source_fmd_what": "Il DataMatrix di sicurezza UE (GTIN + seriale + scadenza + lotto) obbligatorio sulle confezioni dal 2019.",
     "source_aifa_what": "Il catalogo nazionale italiano (AIC → nome, principio attivo, ATC): previsto per la Fase 2, filtrato su OTC/SOP. Non è ancora usato.",
-    "planned": "in Fase 2"
+    "planned": "in Fase 2",
+    "api_open_products_facts": "Codici a barre di parafarmaci, dispositivi e integratori",
+    "api_open_products_facts_where": "Quando la scansione non trova il prodotto tra gli alimenti: è la fonte che riconosce la maggior parte delle confezioni da banco.",
+    "api_open_beauty_facts": "Codici a barre di cosmetici e prodotti per l’igiene",
+    "api_open_beauty_facts_where": "Creme, detergenti, prodotti da banco che non sono né cibo né farmaci.",
+    "api_open_pet_food_facts": "Codici a barre dei mangimi per animali",
+    "api_open_pet_food_facts_where": "Chiude la catena dei codici sconosciuti: se non è cibo umano, para-farmacia o cosmetico, è spesso pet food."
   },
   "medical": {
     "title": "💊 Farmaci e armadietto",
