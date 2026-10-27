@@ -1799,13 +1799,21 @@
     },
     "custom_locations": {
       "title": "📍 自定义存放位置",
-      "hint": "在食品柜、冰箱、冷冻柜和其他之外添加更多位置（例如地下室、车库）。名称会按你输入的内容保存。",
+      "hint": "在食品柜、冰箱和冷冻柜之外添加更多位置（例如地下室、车库）。名称会按你输入的内容保存。",
       "builtin_hint": "内置位置（不可移除）：食品柜、冰箱、冷冻柜。",
       "placeholder": "例如：地下室、车库储物箱…",
       "empty": "暂无自定义位置",
-      "added": "位置已添加——点击保存以同步",
+      "added": "位置已添加",
       "reserved": "该名称是内置位置保留名称",
-      "in_use": "无法移除“{name}”：仍有 {n} 件商品存放在此处"
+      "in_use": "无法移除“{name}”：仍有 {n} 件商品存放在此处",
+      "rename": "重命名",
+      "rename_title": "重命名存放位置",
+      "rename_label": "新名称",
+      "rename_hint": "新名称会在各处替换旧名称：储藏室、历史和药品。不会移动任何商品。",
+      "renamed": "存放位置已重命名为“{name}”",
+      "rename_missing": "该存放位置已不存在：请刷新页面。",
+      "invalid": "名称无效：请使用 1 到 40 个字符，不要包含逗号。",
+      "rename_failed": "无法重命名该存放位置。"
     },
     "ai": {
       "title": "🤖 人工智能",
@@ -2603,7 +2611,8 @@
     "hint_curl_ssl": "cURL 不支持 SSL — HTTPS 调用可能失败",
     "hint_curl_missing": "cURL 不可用",
     "hint_internet": "无法访问 Gemini 服务器 — AI 功能需要互联网连接",
-    "hint_missing_tables_inline": "缺少：{list}"
+    "hint_missing_tables_inline": "缺少：{list}",
+    "free_apis_lead": "EverShelf 使用这些免费 API"
   },
   "stats_monthly": {
     "title": "月度统计",
@@ -2808,7 +2817,12 @@
     "api_open_beauty_facts": "化妆品与卫生用品的条码",
     "api_open_beauty_facts_where": "面霜、清洁用品、既不是食品也不是药品的药房商品。",
     "api_open_pet_food_facts": "宠物食品的条码",
-    "api_open_pet_food_facts_where": "补齐未知条码链：既不是人类食品、药妆或化妆品时，往往是宠物食品。"
+    "api_open_pet_food_facts_where": "补齐未知条码链：既不是人类食品、药妆或化妆品时，往往是宠物食品。",
+    "why_button": "我们使用哪些免费 API、为什么、在哪里",
+    "why_title": "我们使用的免费 API",
+    "why_lead": "没有付费服务、没有密钥、没有跟踪：这里准确说明我们调用哪个免费服务、为什么调用以及在应用的哪个环节使用。",
+    "why_usage": "为什么",
+    "why_where": "在哪里"
   },
   "medical": {
     "title": "💊 药品与药箱",

@@ -1193,6 +1193,12 @@ try {
             saveSettings();
             break;
 
+        // POST location_rename — rename a custom storage location and move the stock with
+        // it. One action, because a label-only swap in the client would orphan the rows.
+        case 'location_rename':
+            locationRenameAction($db);
+            break;
+
         case 'get_settings':
             getServerSettings();
             break;
@@ -1896,13 +1902,69 @@ function inventorySlugifyCustomLocation(string $name): string {
 }
 
 /**
+ * A readable label for a custom-location slug: `custom_dispensa_cucina` → "Dispensa cucina".
+ * Used only for a place whose label was lost (see inventoryOrphanCustomLocations()).
+ */
+function inventoryLabelFromSlug(string $slug): string
+{
+    $name = preg_replace('/^custom_/', '', $slug) ?? $slug;
+    $name = trim(str_replace('_', ' ', $name));
+    if ($name === '') {
+        return $slug;
+    }
+    return mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
+}
+
+/**
+ * Custom places that still hold stock but lost their label.
+ *
+ * `CUSTOM_LOCATIONS` is the declared list, but a place can exist without it: it was created
+ * on a device whose save never reached the server (the Settings card used to keep a new
+ * place local until "Salva"), so its pantry rows kept a slug no label pointed at. The rows
+ * then showed a raw `custom_…` name and — worse — every add to that place answered
+ * **"Invalid location"**, because the allow-list was built from `CUSTOM_LOCATIONS` alone.
+ *
+ * A place with stock IS a place: it is adopted here with a label derived from its own slug.
+ * It disappears by itself as soon as the household renames it (the rename writes it into
+ * `CUSTOM_LOCATIONS`) or deletes it once empty — both go through the declared list.
+ *
+ * @return array<string,string> slug => label, orphans only
+ */
+function inventoryOrphanCustomLocations(): array
+{
+    $out = [];
+    try {
+        if (!function_exists('getDB')) {
+            return $out;
+        }
+        $db = getDB();
+        if (!$db instanceof PDO) {
+            return $out;
+        }
+        $builtins = array_map('mb_strtolower', inventoryBuiltinLocations());
+        $rows = $db->query("SELECT DISTINCT location FROM inventory WHERE location LIKE 'custom\\_%' ESCAPE '\\'")
+                   ->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $slug) {
+            $slug = mb_strtolower(trim((string)$slug));
+            if ($slug === '' || in_array($slug, $builtins, true)) {
+                continue;
+            }
+            $out[$slug] = inventoryLabelFromSlug($slug);
+        }
+    } catch (Throwable $e) {
+        EverLog::warn('custom locations with stock could not be read', [
+            'event'  => 'custom_locations_orphans_unreadable',
+            'reason' => $e->getMessage(),
+        ]);
+    }
+    return $out;
+}
+
+/**
  * @return array<string,string> slug => display label
  */
 function inventoryCustomLocationMap(): array {
     $raw = env('CUSTOM_LOCATIONS', '');
-    if ($raw === '') {
-        return [];
-    }
     $out = [];
     foreach (explode(',', $raw) as $part) {
         $label = trim($part);
@@ -1914,6 +1976,12 @@ function inventoryCustomLocationMap(): array {
             continue;
         }
         $out[$slug] = $label;
+    }
+    // A place that still has stock is a place, even when its label went missing.
+    foreach (inventoryOrphanCustomLocations() as $slug => $label) {
+        if (!isset($out[$slug])) {
+            $out[$slug] = $label;
+        }
     }
     return $out;
 }
@@ -9429,9 +9497,13 @@ function medStatusAction(): void {
         $setupDone = in_array(strtolower(trim((string)($stmt->fetchColumn() ?: ''), " \t\n\r\"")), ['1', 'true', 'yes', 'on'], true);
     } catch (Throwable $e) { /* never asked */ }
     // Which country's labels are on the box: the app refuses to guess (an English UI says
-    // nothing about the pharmacy), so the household picks it and the schema follows.
-    $country = medicalActiveCountry($db);
+    // nothing about the pharmacy), so the household picks it and the schema follows. The
+    // client's UI language is the last fallback behind `MED_COUNTRY` / `med_country`.
+    $country = medicalActiveCountry($db, (string)($_GET['lang'] ?? ''));
     $schema = medicalCountrySchema($country);
+    // The medicine cabinet itself, as stored: the client needs it at BOOT to paint the place
+    // with its own pill and right after Dispensa, not only after someone opens this card.
+    $medLocations = medicalLocationSlugs(_medicalSettingsMap($db));
     $countries = [];
     foreach ((array)(medicalCodeSchemas()['countries'] ?? []) as $cc => $block) {
         $countries[] = ['cc' => (string)$cc, 'status' => (string)($block['status'] ?? 'none')];
@@ -9446,6 +9518,8 @@ function medStatusAction(): void {
         'country' => $country,
         'countries' => $countries,
         'schema' => $schema,
+        // Where the medicine cabinet is (label or slug, as stored): the client normalises it.
+        'medical_locations' => array_values($medLocations),
         'unsupported_note_key' => (string)(medicalCodeSchemas()['unsupported_note_key'] ?? 'medical.country_none_hint'),
     ], JSON_UNESCAPED_UNICODE);
 }
@@ -9639,6 +9713,10 @@ function getFreeApis(): void {
             // Only a real http(s) URL becomes a link: the field cannot become javascript:.
             'url'     => preg_match('#^https?://#i', $url) ? $url : '',
             'licence' => (string)($api['licence'] ?? ''),
+            // Same two flags the generated file carries: a horizontal wordmark needs a wide
+            // box, and `splash: false` keeps it off the boot splash (see data/free_apis.json).
+            'wide'    => !empty($api['wide']),
+            'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
         ];
     }
     echo json_encode(['success' => true, 'apis' => $out], JSON_UNESCAPED_UNICODE);
@@ -10021,6 +10099,178 @@ function saveSettings(): void {
         'success' => false,
         'error'   => 'Could not write .env file (permessi insufficienti sul server)',
     ]);
+}
+
+/**
+ * POST location_rename — give a custom storage location a new name.
+ *
+ * A custom location is three things at once, and they must not disagree:
+ *   - a display label in `CUSTOM_LOCATIONS` (.env, or its DB fallback when the file is
+ *     read-only),
+ *   - a slug on every pantry row (`inventory.location`, e.g. `custom_armadietto_farmaci`),
+ *   - a value in `app_settings.medical_locations`, where the first-run wizard stored the
+ *     label the household typed.
+ * Renaming only the label would leave the pantry pointing at a place that no longer exists
+ * (the tab stays empty and the medicine tint disappears), so this action moves the stock, the
+ * history and the medicine marking together, and only then writes the new label. Every
+ * refusal carries an `error_key`: the client prints it through `t()`, never the English prose.
+ */
+function locationRenameAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $old = trim((string)($input['old'] ?? ''));
+    $new = trim((string)($input['new'] ?? ''));
+
+    $map = inventoryCustomLocationMap();          // slug => label
+    $oldSlug = $old !== '' ? inventorySlugifyCustomLocation($old) : '';
+    if ($old === '' || $oldSlug === '' || !isset($map[$oldSlug])) {
+        EverLog::warn('location rename: unknown location', ['event' => 'location_rename_unknown', 'from' => $old]);
+        http_response_code(404);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Unknown location',
+            'error_key' => 'settings.custom_locations.rename_missing',
+        ]);
+        return;
+    }
+    $oldLabel = (string)$map[$oldSlug];
+
+    // `CUSTOM_LOCATIONS` is a comma separated list and the dashboard prints the label as
+    // typed: a comma would split the place in two. 40 characters is the input's own limit.
+    if ($new === '' || mb_strlen($new) > 40 || str_contains($new, ',') || str_contains($new, "\n")) {
+        http_response_code(400);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Invalid location name',
+            'error_key' => 'settings.custom_locations.invalid',
+        ]);
+        return;
+    }
+    $builtinKeys = array_map('mb_strtolower', inventoryBuiltinLocations());
+    $newSlug = inventorySlugifyCustomLocation($new);
+    if (in_array(mb_strtolower($new), $builtinKeys, true) || in_array($newSlug, $builtinKeys, true)) {
+        http_response_code(400);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Reserved name',
+            'error_key' => 'settings.custom_locations.reserved',
+        ]);
+        return;
+    }
+    if (isset($map[$newSlug]) && $newSlug !== $oldSlug) {
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Location already exists',
+            'error_key' => 'error.already_exists',
+        ]);
+        return;
+    }
+
+    $moved = 0;
+    $inTransaction = false;
+    try {
+        // 1) The stock and its history follow the new slug (a label-only change keeps them).
+        if ($newSlug !== $oldSlug) {
+            $db->beginTransaction();
+            $inTransaction = true;
+            $stmt = $db->prepare('UPDATE inventory SET location = ? WHERE location = ?');
+            $stmt->execute([$newSlug, $oldSlug]);
+            $moved = (int)$stmt->rowCount();
+            $db->prepare('UPDATE transactions SET location = ? WHERE location = ?')
+               ->execute([$newSlug, $oldSlug]);
+        }
+
+        // 2) The label list, in the position the household gave it.
+        $labels = array_values($map);
+        $pos = array_search($oldLabel, $labels, true);
+        if ($pos === false) {
+            $labels[] = $new;
+        } else {
+            $labels[$pos] = $new;
+        }
+        $updates = ['CUSTOM_LOCATIONS' => implode(',', $labels)];
+        $envFile = evershelfEnvFile();
+        $written = false;
+        if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
+            $written = evershelfWriteEnvFile($envFile, $updates, __DIR__ . '/../.env.example');
+        }
+        if ($written) {
+            clearEnvOverrides(['CUSTOM_LOCATIONS']);
+        } elseif (!saveEnvOverrides($updates) || env('CUSTOM_LOCATIONS') !== $updates['CUSTOM_LOCATIONS']) {
+            // A rename that is not read back is worse than an error: the stock has moved and
+            // the label would still be the old one (same rule as saveSettings, issue #261).
+            throw new RuntimeException('settings_not_persisted');
+        }
+
+        if ($inTransaction) {
+            $db->commit();
+        }
+    } catch (Throwable $e) {
+        if ($inTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        EverLog::error('location rename failed', [
+            'event'  => 'location_rename_failed',
+            'from'   => $oldLabel,
+            'to'     => $new,
+            'reason' => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Could not rename the location',
+            'error_key' => 'settings.custom_locations.rename_failed',
+        ]);
+        return;
+    }
+
+    // 3) The marked medicine location follows the rename, whether it was stored as the label
+    //    the wizard typed or as the slug a newer client sends.
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'medical_locations'");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        if ($raw !== false && $raw !== null) {
+            $list = json_decode((string)$raw, true);
+            $list = is_array($list) ? $list : [];
+            $changed = false;
+            foreach ($list as $i => $value) {
+                $v = strtolower(trim((string)$value));
+                if ($v === strtolower($oldLabel) || $v === $oldSlug) {
+                    $list[$i] = $new;
+                    $changed = true;
+                }
+            }
+            if ($changed) {
+                $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('medical_locations', ?, datetime('now'))
+                              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+                   ->execute([json_encode(array_values($list), JSON_UNESCAPED_UNICODE)]);
+            }
+        }
+    } catch (Throwable $e) {
+        EverLog::warn('medical location not renamed', [
+            'event'  => 'location_rename_medical_skipped',
+            'reason' => $e->getMessage(),
+        ]);
+    }
+
+    EverLog::info('renamed a storage location', [
+        'event' => 'location_rename',
+        'from'  => $oldLabel,
+        'to'    => $new,
+        'items' => $moved,
+        'slug'  => $newSlug,
+    ]);
+
+    echo json_encode([
+        'success'  => true,
+        'label'    => $new,
+        'old_slug' => $oldSlug,
+        'new_slug' => $newSlug,
+        'moved'    => $moved,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== GEMINI AI FUNCTIONS =====

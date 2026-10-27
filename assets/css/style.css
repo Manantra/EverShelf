@@ -305,24 +305,50 @@ body {
 }
 
 /* Splash: the free services we stand on ---------------------------------------------
-   A quiet row under the boot rail: the same marks the Credits card and the footer show.
-   It must stay legible on the dark splash and must never look like a menu (the splash is
-   decorative; the licences and the links live in Settings). */
+   A line that says what the marks are, then the official logos of the services the app
+   really queries. **Logos only** — the names are not printed here (they wrapped into three
+   lines on a phone, and the splash is not a menu): the names, the licences and the
+   "why/where" live in Settings → API gratuite. Only logos that read at 22 px are painted
+   (`splash` in data/free_apis.json). */
+.preloader-apis-title {
+    margin: 4px 0 0;
+    max-width: 92vw;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: rgba(255, 255, 255, 0.62);
+    text-align: center;
+}
 .preloader-apis {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 8px 16px;
+    gap: 10px 18px;
     max-width: 92vw;
-    margin-top: 4px;
-    opacity: 0.62;
+    margin-top: 8px;
 }
 .preloader-api {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     color: rgba(255, 255, 255, 0.9);
+    /* One logo at a time, like a row of lamps: `--i` (set by _renderPreloaderApis) offsets
+       each delay, so the light travels along the row while the boot rail settles. */
+    opacity: 0.55;
+    animation: preloader-api-glow 2.4s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 420ms);
+    will-change: opacity, filter, transform;
+}
+@keyframes preloader-api-glow {
+    0%, 10%   { opacity: 0.55; filter: none; transform: scale(1); }
+    16%, 26%  { opacity: 1; transform: scale(1.12);
+                filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.85))
+                        drop-shadow(0 0 10px var(--brand-primary, #10b981)); }
+    40%, 100% { opacity: 0.55; filter: none; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .preloader-api { animation: none; opacity: 0.8; filter: none; transform: none; }
 }
 .preloader-api-mark {
     display: inline-flex;
@@ -339,28 +365,19 @@ body {
     letter-spacing: 0.02em;
 }
 /* Official logos on the splash: small, square, no frame of their own (the icons already
-   are the frame). The monogram stays as the fallback if a file is missing. */
-.preloader-api-logo {
-    width: 18px;
-    height: 18px;
+   are the frame). The extra `.preloader-api` parent is on purpose: `surfaces.css` loads
+   after this file and sets `.free-api-logo` to 28 px, so a bare class here would lose. */
+.preloader-api .preloader-api-logo {
+    width: 22px;
+    height: 22px;
 }
-.preloader-api-logo img { border-radius: 4px; }
+.preloader-api-logo img { border-radius: 5px; }
 .preloader-api-logo .free-api-mark {
-    min-width: 18px;
-    height: 18px;
+    min-width: 22px;
+    height: 22px;
     padding: 0 3px;
-    border-radius: 4px;
+    border-radius: 5px;
     font-size: 8px;
-}
-.preloader-api-name {
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-}
-@media (max-height: 560px) {
-    /* A short window: the boot rail is the message, the credits are a footnote. */
-    .preloader-api-name { display: none; }
 }
 
 @media (min-width: 641px) {
@@ -8256,6 +8273,28 @@ body.cooking-mode-active .app-header {
 .appliance-item .appliance-remove:active {
     background: #fee2e2;
 }
+
+/* A custom location can be renamed as well as removed: the pencil sits next to the ✕,
+   neutral, because it does not destroy anything. */
+.appliance-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+}
+.appliance-item .appliance-rename {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 7px;
+    border-radius: 50%;
+    transition: background 0.2s, color 0.2s;
+}
+.appliance-item .appliance-rename:hover { color: var(--text-main); }
+.appliance-item .appliance-rename:active { background: var(--surface-bg); }
 
 .appliance-quick-tags {
     display: flex;

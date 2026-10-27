@@ -37,6 +37,11 @@ foreach ($data['apis'] as $api) {
         // Only a real http(s) URL: the field must never become a javascript: link.
         'url'     => preg_match('#^https?://#i', $url) ? $url : '',
         'licence' => (string)($api['licence'] ?? ''),
+        // A horizontal wordmark needs a wide box (a 28 px square turns it into a sliver),
+        // and `splash: false` keeps it off the boot splash: only marks readable at a glance
+        // belong there. Both are data, so adding a service needs no code change.
+        'wide'    => !empty($api['wide']),
+        'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
     ];
 }
 // Reference sources: the documents the app's own DATA files are built from (the medical

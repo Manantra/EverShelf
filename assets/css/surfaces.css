@@ -1246,6 +1246,11 @@ body {
 .free-api-logo .free-api-mark { display: none; }
 .free-api-logo.is-fallback img { display: none; }
 .free-api-logo.is-fallback .free-api-mark { display: inline-flex; }
+/* A horizontal wordmark (Open Products / Beauty / Pet Food Facts are 7:1) is unreadable in
+   a 28 px square: those logos get a wide box, and `object-fit: contain` keeps the whole mark
+   visible instead of showing a sliver. See `wide` in data/free_apis.json. */
+.free-api-logo.is-wide { width: 112px; }
+.credit-block-logo.is-wide { width: 140px; height: 40px; }
 
 /* ── The dedicated thanks page (Settings → Crediti) ───────────────────────── */
 .credits-page-title {
@@ -1293,6 +1298,22 @@ body {
     line-height: 1.45;
     color: var(--text-muted);
 }
+/* The two labels of the "which API, why, where" dialog: small and quiet, because the
+   sentence that follows is the answer, not the question. */
+.api-info-label {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.api-info-card .credits-list { margin-top: 10px; }
 .credit-block-meta {
     display: flex;
     flex-wrap: wrap;

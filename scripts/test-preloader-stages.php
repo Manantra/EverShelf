@@ -216,6 +216,21 @@ assert_true(preg_match('/function _renderPreloaderApis\(\)[\s\S]{0,700}EVERSHELF
     'the splash credits the generated list, not a hardcoded row');
 assert_true(stripos((string)file_get_contents($root . '/sw.js'), 'free_apis.generated.js') !== false,
     'the generated list is in the service-worker shell (offline boot)');
+// The line above the marks says what they are: a real translated sentence, not a tooltip.
+assert_true(str_contains($html, 'data-i18n="startup.free_apis_lead"')
+        && str_contains($css, '.preloader-apis-title'),
+    'the splash names the free APIs above their logos');
+// One logo at a time, like a row of lamps: `--i` staggers the glow, one keyframes rule.
+assert_true(str_contains($css, '@keyframes preloader-api-glow')
+        && str_contains($css, 'animation-delay: calc(var(--i, 0) * 420ms)')
+        && str_contains($app, 'style="--i:${delay}"'),
+    'the splash logos glow one by one, in order');
+assert_true(preg_match('/@media \(prefers-reduced-motion: reduce\) \{[^@]*?\.preloader-api \{[^}]*animation: none/s', $css) === 1,
+    'the glowing logos respect prefers-reduced-motion');
+// A logo that cannot be read at 22 px is not painted here (a 7:1 wordmark is an invisible
+// sliver): those live in Settings → API gratuite, with their names.
+assert_true(str_contains($app, "if (api.splash === false) return '';"),
+    'the splash skips the logos the data marks as unreadable at that size');
 
 // ── [5c] debug vs production: the check list is not for the household ──────
 // The per-check lines ("Controllo PHP", "PHP upload (16M)"…) are developer noise on a
@@ -227,8 +242,14 @@ assert_true(preg_match('/if \(_bootDebug\) setProgress\(pct, lbl,/', $app) === 1
     'the per-check line is painted only in debug');
 assert_true(str_contains($app, 'if (_bootDebug) await new Promise(r => setTimeout(r, 40));'),
     'the 40 ms per check is debug-only (no artificial wait for the household)');
-assert_true(str_contains($app, '(_bootDebug ? 3000 : 600)'),
-    'the 3 s cold-boot splash is kept only in debug');
+// The splash lasts AT LEAST 3 s on every boot — cold, warm, debug or not: the household
+// asked for the rail to settle, not for a boot that flashes past when the server is fast.
+assert_true(str_contains($app, 'const _SPLASH_MIN_MS = 3000;'),
+    'the splash floor is declared once, at 3 s');
+assert_true(str_contains($app, '_SPLASH_MIN_MS - elapsed'),
+    'the minimum splash delay is computed from the 3 s floor');
+assert_true(!str_contains($app, 'warmBoot') && !str_contains($app, 'evershelf_booted'),
+    'no boot kind may skip the minimum splash any more');
 assert_true(str_contains($app, "preloader.classList.add('is-lifting')")
         && str_contains($css, '#app-preloader.is-lifting'),
     'the splash lifts to the app colour before fading (no dark→white flashbang)');
@@ -285,6 +306,7 @@ assert_true(str_contains($bump, 'rev-parse --abbrev-ref HEAD')
 $locales = ['it', 'en', 'de', 'fr', 'es', 'zh'];
 $needed  = array_values($mapped);
 $needed[] = 'startup.version';
+$needed[] = 'startup.free_apis_lead';
 foreach ($locales as $loc) {
     $data = json_decode((string)file_get_contents($root . '/translations/' . $loc . '.json'), true);
     assert_true(is_array($data), $loc . '.json is valid JSON');

@@ -1799,13 +1799,21 @@
     },
     "custom_locations": {
       "title": "📍 Eigene Lagerorte",
-      "hint": "Orte zusätzlich zu Vorrat, Kühlschrank, Gefrierfach und Sonstiges (z. B. Keller, Garage). Namen bleiben unverändert.",
+      "hint": "Orte zusätzlich zu Vorrat, Kühlschrank und Gefrierfach (z. B. Keller, Garage). Namen bleiben unverändert.",
       "builtin_hint": "Vordefiniert (nicht entfernbar): Vorrat, Kühlschrank, Gefrierfach.",
       "placeholder": "Z. B.: Keller, Garage…",
       "empty": "Noch keine eigenen Orte",
-      "added": "Ort hinzugefügt — Speichern tippen zum Sync",
+      "added": "Ort hinzugefügt",
       "reserved": "Name ist für einen Standardort reserviert",
-      "in_use": "„{name}“ kann nicht entfernt werden: noch {n} Artikel dort"
+      "in_use": "„{name}“ kann nicht entfernt werden: noch {n} Artikel dort",
+      "rename": "Umbenennen",
+      "rename_title": "Ort umbenennen",
+      "rename_label": "Neuer Name",
+      "rename_hint": "Der neue Name ersetzt den alten überall: Vorrat, Verlauf und Medikamente. Kein Produkt wird verschoben.",
+      "renamed": "Ort umbenannt in „{name}“",
+      "rename_missing": "Diesen Ort gibt es nicht mehr: Seite neu laden.",
+      "invalid": "Ungültiger Name: 1 bis 40 Zeichen, ohne Kommas.",
+      "rename_failed": "Der Ort konnte nicht umbenannt werden."
     },
     "ai": {
       "title": "🤖 Künstliche Intelligenz",
@@ -2603,7 +2611,8 @@
     "hint_curl_ssl": "cURL ohne SSL-Unterstützung — HTTPS-Aufrufe können fehlschlagen",
     "hint_curl_missing": "cURL ist nicht verfügbar",
     "hint_internet": "Gemini-Server nicht erreichbar — KI-Funktionen benötigen eine Internetverbindung",
-    "hint_missing_tables_inline": "fehlend: {list}"
+    "hint_missing_tables_inline": "fehlend: {list}",
+    "free_apis_lead": "EverShelf nutzt diese kostenlosen APIs"
   },
   "stats_monthly": {
     "title": "Monatsstatistik",
@@ -2808,7 +2817,12 @@
     "api_open_beauty_facts": "Strichcodes von Kosmetik und Hygieneprodukten",
     "api_open_beauty_facts_where": "Cremes, Reiniger, Apothekenartikel, die weder Essen noch Medikament sind.",
     "api_open_pet_food_facts": "Strichcodes von Tierfutter",
-    "api_open_pet_food_facts_where": "Schließt die Kette unbekannter Codes: kein Lebensmittel, keine Para-Pharmazie, keine Kosmetik — oft Tierfutter."
+    "api_open_pet_food_facts_where": "Schließt die Kette unbekannter Codes: kein Lebensmittel, keine Para-Pharmazie, keine Kosmetik — oft Tierfutter.",
+    "why_button": "Welche kostenlosen APIs wir nutzen, warum und wo",
+    "why_title": "Die kostenlosen APIs, die wir nutzen",
+    "why_lead": "Kein bezahlter Dienst, kein Schlüssel, kein Tracking: hier steht genau, welchen kostenlosen Dienst wir aufrufen, warum und an welcher Stelle der App.",
+    "why_usage": "Warum",
+    "why_where": "Wo"
   },
   "medical": {
     "title": "💊 Medikamente und Schrank",

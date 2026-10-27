@@ -70,12 +70,82 @@ foreach ($apis as $api) {
 // No remote logo: a third-party request behind a thank-you is a tracking pixel.
 $jsonText = (string)file_get_contents($root . '/data/free_apis.json');
 
+// ── A logo must be readable where it is shown ──────────────────────────────
+// The splash paints a 22 px box, the chips a 28 px one: a HORIZONTAL wordmark (7:1) becomes
+// a sliver there — which is exactly why three logos "were not there". The real aspect ratio
+// of every file decides the flags, so a future logo cannot slip into the splash unreadable.
+$shapeErrors = [];
+foreach ($apis as $api) {
+    $id   = (string)($api['id'] ?? '');
+    $file = $root . '/' . (string)($api['logo'] ?? '');
+    if (!is_file($file)) {
+        continue;
+    }
+    $w = 0;
+    $h = 0;
+    if (str_ends_with($file, '.svg')) {
+        $head = (string)file_get_contents($file, false, null, 0, 1500);
+        if (preg_match('/width="(\d+)"/', $head, $mw) && preg_match('/height="(\d+)"/', $head, $mh)) {
+            $w = (int)$mw[1];
+            $h = (int)$mh[1];
+        }
+    } else {
+        $head = (string)file_get_contents($file, false, null, 0, 33);
+        // PNG IHDR: width at byte 16, height at byte 20, both big-endian uint32.
+        $dim  = unpack('Nw/Nh', substr($head, 16, 8));
+        $w = (int)($dim['w'] ?? 0);
+        $h = (int)($dim['h'] ?? 0);
+    }
+    if ($w <= 0 || $h <= 0) {
+        $shapeErrors[] = "{$id}: image size unreadable";
+        continue;
+    }
+    $isWordmark = ($w / $h) > 2;
+    $markedWide   = ($api['wide'] ?? false) === true;
+    $markedSplash = ($api['splash'] ?? true) !== false;
+    if ($isWordmark && (!$markedWide || $markedSplash)) {
+        $shapeErrors[] = "{$id}: {$w}x{$h} is a wordmark but not marked wide + splash:false";
+    }
+    if (!$isWordmark && $markedWide) {
+        $shapeErrors[] = "{$id}: {$w}x{$h} is square but marked wide";
+    }
+}
+check('every wordmark logo is marked wide and kept off the splash', $shapeErrors === [], implode(', ', $shapeErrors));
+check('the generated file and the API carry both flags',
+    str_contains((string)file_get_contents($root . '/assets/js/free_apis.generated.js'), '"wide":true')
+    && str_contains((string)file_get_contents($root . '/api/index.php'), "'wide'    => !empty(\$api['wide'])")
+    && str_contains((string)file_get_contents($root . '/scripts/gen-free-apis-js.php'), "'splash'  => !array_key_exists('splash', \$api)"));
+check('the logo helper gives a wordmark a wide box',
+    str_contains($app, "const wide = (api && api.wide === true) ? ' is-wide' : '';")
+    && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'), '.free-api-logo.is-wide'));
+
 // ── Four surfaces, one list ────────────────────────────────────────────────
 check('the splash paints the credits', str_contains($html, 'id="preloader-apis"')
     && str_contains($app, 'function _renderPreloaderApis(')
     && str_contains($app, '_renderPreloaderApis();'));
 check('the splash uses the official logo helper',
     str_contains($app, "_freeApiLogoHtml(api, 'preloader-api-logo')"));
+// The splash prints the MARKS ONLY: the names wrapped onto three lines on a phone, and the
+// splash is not a menu — the names, the licences and the why/where live in Settings.
+preg_match('/function _renderPreloaderApis\(\)[\s\S]*?\n\}/', $app, $splashFn);
+$splashBody = $splashFn[0] ?? '';
+check('the splash body is extractable', $splashBody !== '');
+check('the splash never prints the service names', !str_contains($splashBody, 'preloader-api-name'));
+check('the dead name style is gone from the stylesheet',
+    !str_contains((string)file_get_contents($root . '/assets/css/style.css'), '.preloader-api-name'));
+// The button the household looks for when it asks what leaves the house: it sits in the
+// free-API card, immediately above the support card (and its buttons).
+$creditsCardAt = strpos($html, 'id="settings-free-apis-card"');
+$supportCardAt = strpos($html, 'id="settings-support-card"');
+check('the free-API card opens the "why/where" dialog above the support card',
+    str_contains($html, 'onclick="_openFreeApisDialog()"')
+    && str_contains($app, 'function _openFreeApisDialog(')
+    && $creditsCardAt !== false && $supportCardAt !== false && $creditsCardAt < $supportCardAt);
+check('the dialog answers "why" and "in which context" from the same credited list',
+    str_contains($app, 'credits.why_usage') && str_contains($app, 'credits.why_where')
+    && str_contains($app, '_freeApiUsage(api)') && str_contains($app, '_freeApiWhere(api)')
+    && str_contains($app, "ov.id = 'free-apis-overlay'")
+    && str_contains($app, "'free-apis-overlay': () => _closeFreeApisDialog()"));
 // The overview does NOT carry the credits any more: on a phone that footer took a third of
 // the screen right above the nav bar, stealing space from the food lists (audit, round 14).
 // The splash shows the marks at boot, Settings keeps the card and the dedicated page.
@@ -117,6 +187,12 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
         && trim((string)($credits['back'] ?? '')) !== '');
     check("translations/{$loc}.json keeps the logo disclaimer",
         trim((string)($credits['logo_note'] ?? '')) !== '');
+    check("translations/{$loc}.json answers which API, why and where",
+        trim((string)($credits['why_button'] ?? '')) !== ''
+        && trim((string)($credits['why_title'] ?? '')) !== ''
+        && trim((string)($credits['why_lead'] ?? '')) !== ''
+        && trim((string)($credits['why_usage'] ?? '')) !== ''
+        && trim((string)($credits['why_where'] ?? '')) !== '');
     check("translations/{$loc}.json names the settings tab",
         trim((string)($doc['settings']['tab_credits'] ?? '')) !== '');
     foreach ($apis as $api) {

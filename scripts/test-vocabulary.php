@@ -217,6 +217,10 @@ foreach ((array)($freeApis['apis'] ?? []) as $api) {
             : '',
         'url'     => preg_match('#^https?://#i', $url) ? $url : '',
         'licence' => (string)($api['licence'] ?? ''),
+        // Same two flags the generator writes: a horizontal wordmark needs a wide box, and
+        // `splash: false` keeps a logo that cannot be read at 22 px off the boot splash.
+        'wide'    => !empty($api['wide']),
+        'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
     ];
 }
 $freeGenerated = (string)file_get_contents($root . '/assets/js/free_apis.generated.js');

@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "note": "The free services this app actually talks to. Shown on the splash, at the bottom of the dashboard and in Settings → Credits, with the licence each one asks to be credited with. `logo` is the official icon, vendored under assets/img/apis/ (no external request at runtime); `mark` is the neutral monogram used as the fallback if an image is missing.",
+    "note": "The free services this app actually talks to. Shown on the splash and in Settings → Credits, with the licence each one asks to be credited with. `logo` is the official icon, vendored under assets/img/apis/ (no external request at runtime); `mark` is the neutral monogram used as the fallback if an image is missing. `wide: true` marks a HORIZONTAL wordmark: it needs a wide box to be readable, not a 28 px square. `splash: false` keeps a logo off the boot splash — a 7:1 wordmark squashed into 22 px is an invisible sliver, and the splash shows only the marks that read at a glance; the full list, with the names, the licences and the why/where, lives in Settings → API gratuite.",
     "logo_note": "Logos belong to their projects and are used only to identify the service (nominative use). Sources: the projects' own published brand assets.",
     "apis": [
         {
@@ -34,6 +34,8 @@
             "logo": "assets/img/apis/open-products-facts.svg",
             "url": "https://world.openproductsfacts.org",
             "licence": "ODbL · CC-BY-SA",
+            "wide": true,
+            "splash": false,
             "note": "Parafarmaci, dispositivi, integratori: risolve i codici che il cibo non conosce."
         },
         {
@@ -43,6 +45,8 @@
             "logo": "assets/img/apis/open-beauty-facts.svg",
             "url": "https://world.openbeautyfacts.org",
             "licence": "ODbL · CC-BY-SA",
+            "wide": true,
+            "splash": false,
             "note": "Cosmetici e igiene: creme, detergenti, prodotti da banco."
         },
         {
@@ -52,6 +56,8 @@
             "logo": "assets/img/apis/open-pet-food-facts.svg",
             "url": "https://world.openpetfoodfacts.org",
             "licence": "ODbL · CC-BY-SA",
+            "wide": true,
+            "splash": false,
             "note": "Mangimi per animali: chiude la catena dei codici non alimentari (umani)."
         }
     ],

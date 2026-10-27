@@ -270,6 +270,29 @@ check('an unknown EAN is not a dead end: the household is asked',
     && str_contains($app, '_medOfferMedicalFallback(code);')
     && str_contains($app, 'medical.fallback_yes')
     && str_contains($app, 'medical.no_catalogue'));
+
+// The Italian box from the bug report: AIC `A017837016` (A + 9 digits, Code 39), Pharmacode
+// 3–7 digits. Neither is an EAN, so neither may be dropped by the EAN length floor nor sent
+// to five food catalogues before the medicine entry opens.
+check('a national medicine code is answered before any catalogue request',
+    (bool)preg_match('/function _medNationalCode\(code\)[\s\S]{0,600}?return clean \? \{ code: clean, type: det\.type \} : null;/s', $app)
+    && str_contains($app, 'const national = _medOn() ? _medNationalCode(barcode) : null;')
+    && (bool)preg_match('/if \(national && !_localRowForBarcode\(national\.code\)\) \{[\s\S]{0,220}?_medStartManualEntry\(national\.code, true\);/s', $app));
+check('the EAN length floor no longer drops a Pharmacode or an AIC',
+    (bool)preg_match('/const national = _medOn\(\) \? _medNationalCode\(raw\) : null;\s*if \(digits\.length < 8 && !national\) return false;/s', $app));
+check('the pack code keeps its letters (the A of the AIC)',
+    str_contains($app, "replace(/[^0-9A-Z]/g, '')")
+    && str_contains($app, 'const scanCode = national ? national.code : digits;')
+    && (bool)preg_match('/_finalizeBarcode\(scanCode, method\);/s', $app));
+check('a medicine code is not pre-fetched from the food catalogues',
+    (bool)preg_match('/if \(!national\) _scheduleSpeculativeBarcodePrefetch\(digits\);/s', $app));
+check('a medicine already in the pantry opens its own row, not the blank form',
+    str_contains($app, 'function _localRowForBarcode(')
+    && str_contains($app, 'if (national && !_localRowForBarcode(national.code))'));
+check('the country schema falls back to the UI language (no APP_LANG needed)',
+    str_contains($app, "api('med_status', { lang: _currentLang || '' })")
+    && (bool)preg_match('/function medicalActiveCountry\(\?PDO \$db = null, string \$uiLang = .{0,10}\)/s', $lib)
+    && str_contains($api, "medicalActiveCountry(\$db, (string)(\$_GET['lang'] ?? ''))"));
 check('the answer routes to the right form (medicine arms the toggle, food does not)',
     (bool)preg_match('/function _medFallbackMedicine\(\)[\s\S]{0,200}?_medStartManualEntry\(code, true\)/s', $app)
     && (bool)preg_match('/function _medFallbackFood\(\)[\s\S]{0,200}?startManualEntry\(code\)/s', $app)

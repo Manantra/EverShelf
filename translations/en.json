@@ -1799,13 +1799,21 @@
     },
     "custom_locations": {
       "title": "📍 Custom storage locations",
-      "hint": "Add places beyond Pantry, Fridge, Freezer and Other (e.g. Cellar, Garage). Names are kept as you type them.",
+      "hint": "Add places beyond Pantry, Fridge and Freezer (e.g. Cellar, Garage). Names are kept as you type them.",
       "builtin_hint": "Built-in (not removable): Pantry, Fridge, Freezer.",
       "placeholder": "E.g.: Cellar, Garage box…",
       "empty": "No custom locations yet",
-      "added": "Location added — tap Save to sync",
+      "added": "Location added",
       "reserved": "That name is reserved for a built-in location",
-      "in_use": "Cannot remove “{name}”: {n} item(s) still stored there"
+      "in_use": "Cannot remove “{name}”: {n} item(s) still stored there",
+      "rename": "Rename",
+      "rename_title": "Rename the location",
+      "rename_label": "New name",
+      "rename_hint": "The new name replaces the old one everywhere: pantry, history and medicines. No product is moved.",
+      "renamed": "Location renamed to “{name}”",
+      "rename_missing": "That location no longer exists: reload the page.",
+      "invalid": "Invalid name: use 1 to 40 characters, without commas.",
+      "rename_failed": "I could not rename the location."
     },
     "ai": {
       "title": "🤖 Artificial intelligence",
@@ -2603,7 +2611,8 @@
     "hint_curl_ssl": "cURL without SSL support — HTTPS calls may fail",
     "hint_curl_missing": "cURL is not available",
     "hint_internet": "Cannot reach Gemini servers — AI features need an internet connection",
-    "hint_missing_tables_inline": "missing: {list}"
+    "hint_missing_tables_inline": "missing: {list}",
+    "free_apis_lead": "EverShelf uses these free APIs"
   },
   "stats_monthly": {
     "title": "Monthly Stats",
@@ -2808,7 +2817,12 @@
     "api_open_beauty_facts": "Barcodes of cosmetics and hygiene products",
     "api_open_beauty_facts_where": "Creams, cleansers, pharmacy items that are neither food nor medicines.",
     "api_open_pet_food_facts": "Barcodes of pet food",
-    "api_open_pet_food_facts_where": "It closes the chain of unknown codes: if it is not human food, parapharmacy or cosmetics, it is often pet food."
+    "api_open_pet_food_facts_where": "It closes the chain of unknown codes: if it is not human food, parapharmacy or cosmetics, it is often pet food.",
+    "why_button": "Which free APIs we use, why and where",
+    "why_title": "The free APIs we use",
+    "why_lead": "No paid service, no key, no tracking: here is exactly which free service we call, why we call it and where in the app it happens.",
+    "why_usage": "Why",
+    "why_where": "Where"
   },
   "medical": {
     "title": "💊 Medicines and cabinet",

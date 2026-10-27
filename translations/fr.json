@@ -1799,13 +1799,21 @@
     },
     "custom_locations": {
       "title": "📍 Emplacements personnalisés",
-      "hint": "Ajoutez des lieux en plus du Garde-manger, Frigo, Congélateur et Autre (ex. Cave, Garage). Les noms restent tels quels.",
+      "hint": "Ajoutez des lieux en plus du Garde-manger, du Frigo et du Congélateur (ex. Cave, Garage). Les noms restent tels quels.",
       "builtin_hint": "Prédéfinis (non supprimables) : Garde-manger, Frigo, Congélateur.",
       "placeholder": "Ex. : Cave, Box garage…",
       "empty": "Aucun emplacement personnalisé",
-      "added": "Emplacement ajouté — enregistrez pour synchroniser",
+      "added": "Emplacement ajouté",
       "reserved": "Nom réservé à un emplacement prédéfini",
-      "in_use": "Impossible de supprimer « {name} » : {n} article(s) encore stocké(s)"
+      "in_use": "Impossible de supprimer « {name} » : {n} article(s) encore stocké(s)",
+      "rename": "Renommer",
+      "rename_title": "Renommer l’emplacement",
+      "rename_label": "Nouveau nom",
+      "rename_hint": "Le nouveau nom remplace l’ancien partout : garde-manger, historique et médicaments. Aucun produit n’est déplacé.",
+      "renamed": "Emplacement renommé en « {name} »",
+      "rename_missing": "Cet emplacement n’existe plus : rechargez la page.",
+      "invalid": "Nom invalide : de 1 à 40 caractères, sans virgules.",
+      "rename_failed": "Impossible de renommer l’emplacement."
     },
     "ai": {
       "title": "🤖 Intelligence artificielle",
@@ -2603,7 +2611,8 @@
     "hint_curl_ssl": "cURL sans support SSL — les appels HTTPS peuvent échouer",
     "hint_curl_missing": "cURL n'est pas disponible",
     "hint_internet": "Serveurs Gemini inaccessibles — les fonctions IA nécessitent une connexion Internet",
-    "hint_missing_tables_inline": "manquantes : {list}"
+    "hint_missing_tables_inline": "manquantes : {list}",
+    "free_apis_lead": "EverShelf utilise ces API gratuites"
   },
   "stats_monthly": {
     "title": "Statistiques Mensuelles",
@@ -2808,7 +2817,12 @@
     "api_open_beauty_facts": "Codes-barres des cosmétiques et produits d’hygiène",
     "api_open_beauty_facts_where": "Crèmes, nettoyants, produits de pharmacie qui ne sont ni aliments ni médicaments.",
     "api_open_pet_food_facts": "Codes-barres des aliments pour animaux",
-    "api_open_pet_food_facts_where": "Ferme la chaîne des codes inconnus : ni aliment humain, ni parapharmacie, ni cosmétique — souvent des croquettes."
+    "api_open_pet_food_facts_where": "Ferme la chaîne des codes inconnus : ni aliment humain, ni parapharmacie, ni cosmétique — souvent des croquettes.",
+    "why_button": "Quelles API gratuites nous utilisons, pourquoi et où",
+    "why_title": "Les API gratuites que nous utilisons",
+    "why_lead": "Aucun service payant, aucune clé, aucun pistage : voici exactement quel service gratuit nous appelons, pourquoi et à quel moment de l’app.",
+    "why_usage": "Pourquoi",
+    "why_where": "Où"
   },
   "medical": {
     "title": "💊 Médicaments et armoire",

@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261027t">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027t">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027t">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261027z">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027z">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027z">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027t">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027t">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027z">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027z">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261027t"></script>
-    <script src="assets/js/core/auth.js?v=20261027t"></script>
+    <script src="assets/js/core/dom.js?v=20261027z"></script>
+    <script src="assets/js/core/auth.js?v=20261027z"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261027t"></script>
+    <script src="assets/js/core/support.js?v=20261027z"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027t';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027z';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027t';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027z';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261027t"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261027z"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -114,7 +114,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.26.0</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.27.0</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -163,10 +163,13 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <!-- The free services we stand on, on the splash too: the same marks as the
-             Credits card and the footer, painted from assets/js/free_apis.generated.js
-             (no fetch, no token — the splash is up before the pairing). Decorative:
-             the accessible credit with the licences lives in Settings. -->
+        <!-- The free services we stand on, on the splash too: the line above them says what
+             they are (startup.free_apis_lead), then the marks painted from
+             assets/js/free_apis.generated.js (no fetch, no token — the splash is up before
+             the pairing). Only the logos that read at 22 px appear here (`splash` in
+             data/free_apis.json); the full list with the names, the licences and the
+             why/where lives in Settings → API gratuite. The logos are decorative. -->
+        <p class="preloader-apis-title" data-i18n="startup.free_apis_lead">EverShelf usa queste API gratuite</p>
         <div class="preloader-apis" id="preloader-apis" aria-hidden="true"></div>
     </div>
 </div>
@@ -180,7 +183,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.26.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.27.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1225,8 +1228,8 @@
                 </div>
                 <div class="settings-card">
                     <h4 data-i18n="settings.custom_locations.title">📍 Luoghi di conservazione</h4>
-                    <p class="settings-hint" data-i18n="settings.custom_locations.hint">Aggiungi posti oltre a Dispensa, Frigo, Freezer e Altro (es. Cantina, Garage). I nomi restano così come li scrivi.</p>
-                    <p class="settings-hint" data-i18n="settings.custom_locations.builtin_hint">Predefiniti (non rimovibili): Dispensa, Frigo, Freezer, Altro.</p>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.hint">Aggiungi posti oltre a Dispensa, Frigo e Freezer (es. Cantina, Garage). I nomi restano così come li scrivi.</p>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.builtin_hint">Predefiniti (non rimovibili): Dispensa, Frigo, Freezer.</p>
                     <div class="appliances-list" id="custom-locations-list"></div>
                     <div class="form-group mt-2">
                         <div class="barcode-input-row">
@@ -2783,6 +2786,12 @@
                     <h4 data-i18n="credits.card_title">🔌 API gratuite</h4>
                     <p class="settings-hint" data-i18n="credits.card_hint">EverShelf le usa quando servono; senza, l'app funziona lo stesso. Nessuna chiave a pagamento, nessun tracciamento.</p>
                     <div class="settings-free-apis" id="settings-free-apis"></div>
+                    <!-- The question this card has to answer before the licence list: WHICH
+                         service, WHY we call it and IN WHICH context. It is the button right
+                         above the support one (the one a household looks for when it wants to
+                         know what leaves the house). -->
+                    <button type="button" class="btn btn-primary full-width" id="btn-free-apis-why"
+                            onclick="_openFreeApisDialog()" data-i18n="credits.why_button">Quali API gratuite usiamo, perché e dove</button>
                     <button type="button" class="btn btn-outline full-width" onclick="_openCreditsPage()" data-i18n="credits.open_page">Apri i ringraziamenti</button>
                     <footer class="app-footer" id="app-footer">
                         <p class="app-footer-title" data-i18n="credits.title">Grazie a queste API gratuite</p>
@@ -3227,15 +3236,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261027t"></script>
-<script src="assets/js/food_facts.generated.js?v=20261027t"></script>
-<script src="assets/js/free_apis.generated.js?v=20261027t"></script>
-<script src="assets/js/core/vocab.js?v=20261027t"></script>
-<script src="assets/js/app.js?v=20261027t"></script>
-<script src="assets/js/audit.js?v=20261027t"></script>
-<script src="assets/js/receipt.js?v=20261027t"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261027t"></script>
-<script src="assets/js/settings_search.js?v=20261027t"></script>
+<script src="assets/js/vocab.generated.js?v=20261027z"></script>
+<script src="assets/js/food_facts.generated.js?v=20261027z"></script>
+<script src="assets/js/free_apis.generated.js?v=20261027z"></script>
+<script src="assets/js/core/vocab.js?v=20261027z"></script>
+<script src="assets/js/app.js?v=20261027z"></script>
+<script src="assets/js/audit.js?v=20261027z"></script>
+<script src="assets/js/receipt.js?v=20261027z"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261027z"></script>
+<script src="assets/js/settings_search.js?v=20261027z"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

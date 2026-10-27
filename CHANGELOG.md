@@ -5,6 +5,95 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **Settings now answers "which free API do we use, why, and in which context" in one tap.**
+  A primary button sits in the free-API card, immediately above the support card and its
+  buttons: it opens a dialog with one block per service the app really queries — the official
+  logo, **why** we call it (`credits.api_*`), **where** in the app it happens
+  (`credits.api_*_where`), the licence and the project's own URL, plus the note that no free
+  catalogue covers medicines. Everything is painted from the generated
+  `assets/js/free_apis.generated.js` (offline, before any token) so the dialog and the
+  **Crediti** page can never disagree; its footer still leads to the full thanks page.
+- **A custom storage location can be renamed**, not only added and deleted: a pencil next to
+  the ✕ opens a small dialog (`location-rename-overlay`, Esc closes it) that posts
+  `location_rename`. The new name is **one server action, because a location is three rows**:
+  the label in `CUSTOM_LOCATIONS` (.env, or the SQLite fallback when the file is read-only,
+  read back before answering), the slug on `inventory.location`, and the label stored in
+  `app_settings.medical_locations` by the medicine wizard. Stock and history move with the
+  slug inside one transaction, so the pantry tab never points at a place that no longer
+  exists; refusals (reserved builtin, duplicate, comma, > 40 chars) answer with an `error_key`
+  translated in all six locales.
+
+### Changed
+- **The medicine cabinet always sits right after Dispensa, and wears a 💊 instead of the
+  cardboard box.** A custom location used to be appended in the order it was typed, with the
+  same 📦 as a cellar: the cabinet ended up last in the dashboard rail, in the pantry tabs and
+  in the add/use pickers, looking like any other place. The one ordered list
+  (`mergeCustomLocations`) is now Dispensa → the marked medicine cabinet → the fridges → the
+  other custom places, `MEDICAL_LOCATION_ICON` / `CUSTOM_LOCATION_ICON` are declared once, and
+  the Settings card and the medical picker read the same list (the picker used to invent its
+  own order and `LOCATION_META`, which never existed). `med_status` now also returns
+  `medical_locations`, so a brand-new device paints the cabinet correctly at boot instead of
+  only after someone opens the medical settings.
+- **The splash prints the logos of the free APIs only, no names** — and only the ones that
+  read at that size. The row under the boot rail wrapped onto three lines on a phone and read
+  like a menu; three of the six marks are **horizontal wordmarks** (Open Products / Beauty /
+  Pet Food Facts are 7:1), which a 22 px square squashes into an invisible sliver — that was
+  the "the last three logos are missing" report. The shape is now **data**
+  (`wide` / `splash` in `data/free_apis.json`): the splash paints only the three readable
+  marks, while the Settings card, the dialog and the thanks page give a wordmark a wide box
+  instead of a sliver, with its name. A line above them says what they are
+  (`startup.free_apis_lead`, six locales), and the logos **light up one by one** (`--i`
+  staggers a glow animation; `prefers-reduced-motion` switches it off). The files stay local:
+  no third-party request behind a thank-you.
+- **The splash lasts at least 3 s on every boot.** The warm-reload shortcut (250/500 ms) is
+  gone: a fast server no longer makes the boot rail flash past, and the same 3 s floor applies
+  in debug and production.
+
+### Fixed
+- **"Invalid location" when adding a product to a place you had just created.** The Settings
+  card kept a new custom location **in the browser only** — the page-wide "Salva" was what
+  wrote it — while the pantry validates the location **server-side** against
+  `CUSTOM_LOCATIONS`: the first product saved there answered `Invalid location`. Creating a
+  place now persists it before showing it (add, remove, the medical wizard and the first-run
+  setup share one writer, `_saveCustomLocations()`), and a refused save is reported instead of
+  leaving a phantom place in the pickers. The toast no longer says "premi Salva" and the card
+  no longer mentions the removed "Altro" location (six locales). The server also **adopts a
+  custom place that still holds stock but lost its label** (`inventoryOrphanCustomLocations()`
+  → `inventoryLabelFromSlug()`), so the existing `Dispensa cucina` reappears as "Dispensa
+  cucina" — readable, and it accepts products again — instead of being an invisible slug.
+- **The Italian medicine label from a real photo is recognised.** Three defects stacked on the
+  same path: (1) `_tryConfirmBarcode()` dropped every code shorter than 8 digits, so the
+  documented Pharmacode/Laetus (3–7 digits) never reached the medicine detection; (2) the
+  AIC — `A017837016`, `A` + 9 digits, Code 39 — lost its `A` to the digit-only cache key and
+  was only checked **after** five food-catalogue requests had answered "not found" (offline:
+  an error toast); (3) the country schema fell back only on `APP_LANG`, so an Italian UI over
+  an instance that never set it got **no schema at all**. Now a national code
+  (`_medNationalCode()`) is answered before any request, keeps the box's own code, and
+  `med_status?lang=` falls back to the UI language. Verified against the three codes printed
+  on the report's photo (`A017837016`, `A034548040`, `A012745182`).
+- **A medicine cabinet marked with the typed label is a medicine row again.** The wizard stored
+  "Armadietto Farmaci" while `inventory.location` holds `custom_armadietto_farmaci`, and the
+  two were compared raw: `_medLocationKey()` now normalises both forms (and the picker offers
+  the slug), so the tint, the block and the recipe exclusion apply to the real cabinet.
+
+### Guard
+- `scripts/test-location-rename.php` (new): the action is dispatched, the handler moves stock
+  + history + the medicine marking in one transaction, rewrites the label list in place,
+  writes/reads back the env value, refuses with `error_key`s, and the client paints a pencil,
+  a dialog and calls the action; every label exists in six locales.
+- `scripts/test-credits.php`: the splash body must not print `preloader-api-name`, the free-API
+  card opens the dialog above the support card, and the five `credits.why_*` keys exist in all
+  six locales. `scripts/test-preloader-stages.php` now locks the 3 s floor and the absence of
+  the warm-boot shortcut; `scripts/test-medical.php` locks the national-code short-circuit,
+  the relaxed length floor and the UI-language country fallback.
+- `scripts/test-location-order.php` (new): runs the shipped `mergeCustomLocations()` in node
+  and locks the one order (Dispensa → 💊 cabinet → fridges → rest) and the one pair of icons,
+  whatever order the places were typed in and whether the marking was stored as a label or a
+  slug.
+
 ## [Unreleased] — Ideas & Roadmap
 
 > Ideas collected during development. No priority or date implied.

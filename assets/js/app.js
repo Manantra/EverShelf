@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027t'; // bump when translations change
+const _I18N_VERSION = '20261027z'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2161,6 +2161,14 @@ let LOCATIONS = {
     'freezer': { icon: '❄️', label: t('locations.freezer') },
 };
 
+/**
+ * A custom storage location is drawn with a cardboard box — unless it is the medicine
+ * cabinet, which wears the same pill as the medical UI. One pair of constants, so the
+ * rail, the pantry tabs, the pickers and the Settings list cannot disagree.
+ */
+const MEDICAL_LOCATION_ICON = '💊';
+const CUSTOM_LOCATION_ICON = '📦';
+
 function slugifyCustomLocation(name) {
     let s = String(name || '').trim().toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -2170,18 +2178,51 @@ function slugifyCustomLocation(name) {
     return s.startsWith('custom_') ? s : 'custom_' + s;
 }
 
+/**
+ * The slugs the household marked as the medicine cabinet (Settings → Farmaci).
+ *
+ * `medical_locations` may hold the typed label ("Armadietto Farmaci") or the slug
+ * (`custom_armadietto_farmaci`) depending on the client that saved it: `_medLocationKey()`
+ * reads both as the same place.
+ */
+function _medicalLocationKeys() {
+    return (getSettings().medical_locations || []).map(_medLocationKey).filter(Boolean);
+}
+
+/** Is this location the medicine cabinet? Accepts the slug and the typed label. */
+function isMedicalLocation(key, label) {
+    const meds = _medicalLocationKeys();
+    if (!meds.length) return false;
+    const candidates = [];
+    if (key) candidates.push(key);
+    if (label) candidates.push(label);
+    return candidates.some(v => meds.includes(_medLocationKey(v)));
+}
+
 function mergeCustomLocations(names) {
-    const next = {};
-    for (const [key, meta] of Object.entries(BUILTIN_LOCATIONS)) {
-        next[key] = { icon: meta.icon, label: t(meta.labelKey) };
-    }
+    const medical = [];
+    const rest = [];
     (names || []).forEach(label => {
         const name = String(label || '').trim();
         if (!name) return;
         const key = slugifyCustomLocation(name);
         if (BUILTIN_LOCATIONS[key] || BUILTIN_LOCATIONS[name]) return;
-        next[key] = { icon: '📦', label: name };
+        const icon = isMedicalLocation(key, name) ? MEDICAL_LOCATION_ICON : CUSTOM_LOCATION_ICON;
+        (icon === MEDICAL_LOCATION_ICON ? medical : rest).push([key, { icon, label: name }]);
     });
+
+    // The order every surface shows (dashboard rail, pantry tabs, add/use pickers):
+    // Dispensa first, the medicine cabinet right after it, then the fridges and the other
+    // custom places. Where the household happened to type the pharmacy must not decide
+    // where it sits — a medicine cabinet buried at the end of the list is a cabinet nobody
+    // opens.
+    const next = {};
+    for (const [key, meta] of Object.entries(BUILTIN_LOCATIONS)) {
+        next[key] = { icon: meta.icon, label: t(meta.labelKey) };
+        if (key === 'dispensa') medical.forEach(([k, m]) => { next[k] = m; });
+    }
+    rest.forEach(([k, m]) => { next[k] = m; });
+
     LOCATIONS = next;
     rebuildLocationPickers();
 }
@@ -2211,6 +2252,23 @@ function rebuildLocationPickers() {
     renderSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value);
 }
 
+/**
+ * Persist the custom-location list on the server (`CUSTOM_LOCATIONS`).
+ *
+ * The server is the one that decides whether a pantry row's location is valid, so a place
+ * that exists only in this browser is exactly how "Location added" turned into
+ * "Invalid location" on the first product saved there. Returns true only when the server
+ * accepted the list; the caller paints nothing otherwise.
+ */
+async function _saveCustomLocations(list) {
+    const res = await api('save_settings', {}, 'POST', { custom_locations: list }).catch(() => null);
+    if (!res || res.success === false) {
+        showToast((res && res.error) || t('error.save'), 'error');
+        return false;
+    }
+    return true;
+}
+
 function renderCustomLocations(list) {
     const container = document.getElementById('custom-locations-list');
     if (!container) return;
@@ -2219,15 +2277,120 @@ function renderCustomLocations(list) {
         container.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">${t('settings.custom_locations.empty')}</p>`;
         return;
     }
-    container.innerHTML = items.map((name, i) => `
+    container.innerHTML = items.map((name, i) => {
+        // The medicine cabinet wears the pill here too, not a cardboard box.
+        const icon = isMedicalLocation(slugifyCustomLocation(name), name) ? MEDICAL_LOCATION_ICON : CUSTOM_LOCATION_ICON;
+        return `
         <div class="appliance-item">
-            <span>📦 ${escapeHtml(name)}</span>
-            <button class="appliance-remove" onclick="removeCustomLocation(${i})" title="${t('btn.delete')}">✕</button>
+            <span>${icon} ${escapeHtml(name)}</span>
+            <span class="appliance-actions">
+                <button class="appliance-rename" onclick="renameCustomLocation(${i})"
+                        title="${escapeAttr(t('settings.custom_locations.rename'))}"
+                        aria-label="${escapeAttr(t('settings.custom_locations.rename'))}">✏️</button>
+                <button class="appliance-remove" onclick="removeCustomLocation(${i})" title="${escapeAttr(t('btn.delete'))}"
+                        aria-label="${escapeAttr(t('btn.delete'))}">✕</button>
+            </span>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
-function addCustomLocation() {
+/**
+ * Rename a custom storage location.
+ *
+ * The label is what the household typed, the slug (`custom_armadietto_farmaci`) is what
+ * `inventory.location` holds: both the stock and the history rows follow the new name, and
+ * so does the medicine marking — the server does the three of them in one action
+ * (`location_rename`), because a client-side swap of the label would orphan the pantry.
+ */
+function renameCustomLocation(idx) {
+    const s = getSettings();
+    const oldName = String(((s.custom_locations || [])[idx]) || '').trim();
+    if (!oldName) return;
+    _closeLocationRename();
+
+    const ov = document.createElement('div');
+    ov.id = 'location-rename-overlay';
+    ov.className = 'modal-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML = `
+        <div class="modal-content location-rename-card">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('settings.custom_locations.rename_title'))}</h3>
+                <button type="button" class="modal-close" onclick="_closeLocationRename()"
+                        aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+            </div>
+            <p class="settings-hint">${escapeHtml(t('settings.custom_locations.rename_hint'))}</p>
+            <label class="settings-label" for="location-rename-input">${escapeHtml(t('settings.custom_locations.rename_label'))}</label>
+            <input type="text" id="location-rename-input" class="form-input" maxlength="40"
+                   autocomplete="off" value="${escapeAttr(oldName)}"
+                   placeholder="${escapeAttr(t('settings.custom_locations.placeholder'))}">
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_closeLocationRename()">${escapeHtml(t('btn.cancel'))}</button>
+                <button type="button" class="btn btn-primary" id="location-rename-save" onclick="_submitCustomLocationRename()">${escapeHtml(t('btn.save'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(ov);
+    ov.style.display = 'flex';
+    window._locationRenameIndex = idx;
+    window._locationRenameOld = oldName;
+    const input = document.getElementById('location-rename-input');
+    if (input) {
+        input.focus();
+        input.select();
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); _submitCustomLocationRename(); }
+        });
+    }
+}
+
+function _closeLocationRename() {
+    const ov = document.getElementById('location-rename-overlay');
+    if (ov) ov.remove();
+    window._locationRenameIndex = null;
+    window._locationRenameOld = '';
+}
+
+/** Save the rename: the server moves stock + history, then the client repaints. */
+async function _submitCustomLocationRename() {
+    const oldName = String(window._locationRenameOld || '');
+    const input = document.getElementById('location-rename-input');
+    const newName = String((input && input.value) || '').trim();
+    const btn = document.getElementById('location-rename-save');
+    if (!oldName || !newName) { if (input) input.focus(); return; }
+    if (newName === oldName) { _closeLocationRename(); return; }
+    if (btn) btn.disabled = true;
+
+    const res = await api('location_rename', {}, 'POST', { old: oldName, new: newName }).catch(() => null);
+    if (!res || res.success === false) {
+        if (btn) btn.disabled = false;
+        showToast((res && res.error) || t('settings.custom_locations.rename_failed'), 'error');
+        return;
+    }
+
+    const s = getSettings();
+    s.custom_locations = s.custom_locations || [];
+    const at = s.custom_locations.findIndex(v => String(v) === oldName);
+    const pos = at >= 0 ? at : Number(window._locationRenameIndex);
+    // The canonical key of the OLD name, taken before the list changes (see _medLocationKey).
+    const oldKey = _medLocationKey(oldName);
+    if (Number.isInteger(pos) && pos >= 0 && pos < s.custom_locations.length) s.custom_locations[pos] = newName;
+    // The marked medicine location follows the rename, whether it was stored as the typed
+    // label or as the slug: otherwise the cabinet would lose its pill and its position.
+    s.medical_locations = (s.medical_locations || []).map(v =>
+        _medLocationKey(v) === oldKey ? newName : v);
+    saveSettingsToStorage(s);
+    mergeCustomLocations(s.custom_locations);
+    renderCustomLocations(s.custom_locations);
+    if (_medOn()) { _medRenderLocationPicker(); _renderMedLocations(); }
+    _closeLocationRename();
+    showToast(t('settings.custom_locations.renamed').replace('{name}', newName), 'success');
+    refreshCurrentPage();
+    loadDashboard();
+}
+
+async function addCustomLocation() {
     const input = document.getElementById('new-custom-location-input');
     const name = (input?.value || '').trim();
     if (!name) return;
@@ -2242,10 +2405,14 @@ function addCustomLocation() {
         showToast(t('error.already_exists'), 'error');
         return;
     }
-    s.custom_locations.push(name);
+    // Save FIRST, paint after: the pantry validates a location server-side, so a place that
+    // only exists in this browser would answer "Invalid location" on the first product.
+    const next = [...s.custom_locations, name];
+    if (!(await _saveCustomLocations(next))) return;
+    s.custom_locations = next;
     saveSettingsToStorage(s);
-    mergeCustomLocations(s.custom_locations);
-    renderCustomLocations(s.custom_locations);
+    mergeCustomLocations(next);
+    renderCustomLocations(next);
     if (input) input.value = '';
     showToast(t('settings.custom_locations.added'), 'success');
 }
@@ -2267,10 +2434,13 @@ async function removeCustomLocation(idx) {
         showToast(t('settings.custom_locations.in_use').replace('{n}', count).replace('{name}', name), 'error');
         return;
     }
-    s.custom_locations.splice(idx, 1);
+    // Same rule as adding: the server list is the one the pantry validates against.
+    const next = s.custom_locations.filter((_, i) => i !== idx);
+    if (!(await _saveCustomLocations(next))) return;
+    s.custom_locations = next;
     saveSettingsToStorage(s);
-    mergeCustomLocations(s.custom_locations);
-    renderCustomLocations(s.custom_locations);
+    mergeCustomLocations(next);
+    renderCustomLocations(next);
 }
 
 const CATEGORY_ICONS = {
@@ -5193,7 +5363,9 @@ function _freeApiLogoHtml(api, cls) {
     const name = String((api && api.name) || (api && api.id) || '');
     const mark = escapeHtml(String((api && api.mark) || name.slice(0, 3)));
     const logo = String((api && api.logo) || '');
-    const extra = cls ? ' ' + String(cls) : '';
+    // A horizontal wordmark gets a wide box: a 28 px square would squash it into a sliver.
+    const wide = (api && api.wide === true) ? ' is-wide' : '';
+    const extra = (cls ? ' ' + String(cls) : '') + wide;
     if (!logo) {
         return `<span class="free-api-mark${extra}" aria-hidden="true">${mark}</span>`;
     }
@@ -5355,12 +5527,79 @@ function _openCreditsPage() {
 }
 
 /**
+ * The dialog behind the Settings button that sits right above "Sostieni EverShelf":
+ * exactly WHICH free service we call, WHY we call it and IN WHICH context.
+ *
+ * Painted from the generated list (`assets/js/free_apis.generated.js`), so it works offline
+ * and before any token exists; the sentences are the same `credits.api_*` / `..._where` keys
+ * the Crediti page uses, so the two surfaces can never disagree. Nothing here is a link the
+ * app invents: each row carries its own licence and the project's own URL.
+ */
+function _openFreeApisDialog() {
+    _closeFreeApisDialog();
+    const list = (typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
+        ? EVERSHELF_FREE_APIS
+        : [];
+    const whyLabel = escapeHtml(t('credits.why_usage'));
+    const whereLabel = escapeHtml(t('credits.why_where'));
+    const rows = list.map(api => {
+        const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
+        if (!name) return '';
+        const why = String(_freeApiUsage(api) || '');
+        const where = String(_freeApiWhere(api) || '');
+        const licence = escapeHtml(String((api && api.licence) || ''));
+        const url = (api && api.url) ? String(api.url) : '';
+        return `<article class="credit-block">`
+            + _freeApiLogoHtml(api, 'credit-block-logo')
+            + `<div class="credit-block-body">`
+            + `<h4 class="credit-block-name">${name}</h4>`
+            + (why ? `<p class="credit-block-usage"><span class="api-info-label">${whyLabel}</span> ${escapeHtml(why)}</p>` : '')
+            + (where ? `<p class="credit-block-where"><span class="api-info-label">${whereLabel}</span> ${escapeHtml(where)}</p>` : '')
+            + `<p class="credit-block-meta">`
+            + (licence ? `<span class="credit-licence">${licence}</span>` : '')
+            + (url ? `<a class="credit-link" href="${escapeAttr(url)}" target="_blank" rel="noopener">${escapeHtml(url.replace(/^https?:\/\//, ''))}</a>` : '')
+            + `</p></div></article>`;
+    }).join('');
+
+    const ov = document.createElement('div');
+    ov.id = 'free-apis-overlay';
+    ov.className = 'modal-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML = `
+        <div class="modal-content api-info-card">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('credits.why_title'))}</h3>
+                <button type="button" class="modal-close" onclick="_closeFreeApisDialog()"
+                        aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+            </div>
+            <p class="settings-hint">${escapeHtml(t('credits.why_lead'))}</p>
+            <div class="credits-list">${rows}</div>
+            <p class="credits-note">${escapeHtml(t('credits.medicines_note'))}</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_closeFreeApisDialog()">${escapeHtml(t('btn.close'))}</button>
+                <button type="button" class="btn btn-primary" onclick="_closeFreeApisDialog(); _openCreditsPage()">${escapeHtml(t('credits.open_page'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(ov);
+    ov.style.display = 'flex';
+}
+
+function _closeFreeApisDialog() {
+    const ov = document.getElementById('free-apis-overlay');
+    if (ov) ov.remove();
+}
+
+/**
  * The free services behind the app, on the splash as well.
  *
  * Painted from the generated list, never from the API: the splash is on screen before a
- * token exists and has to work offline. Logo + name only — a splash is not a menu — and it
- * is decorative (`aria-hidden`), because the accessible credit with the licences lives in
- * Settings → Crediti.
+ * token exists and has to work offline. **Logos only** — no names: the splash is a boot
+ * screen, not a menu, and the labels wrapped into three lines on a phone. Only the marks that
+ * read at a glance are shown (`splash` in data/free_apis.json): a 7:1 horizontal wordmark
+ * squashed into 22 px is an invisible sliver, and those live in Settings → API gratuite
+ * together with all the others. Each logo lights up in turn (`--i` staggers the glow), and the
+ * line above them says what they are: `startup.free_apis_lead`.
  */
 function _renderPreloaderApis() {
     const el = document.getElementById('preloader-apis');
@@ -5368,10 +5607,13 @@ function _renderPreloaderApis() {
     const list = (typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
         ? EVERSHELF_FREE_APIS
         : [];
+    let order = 0;
     el.innerHTML = list.map(api => {
-        const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
-        if (!name) return '';
-        return `<span class="preloader-api">${_freeApiLogoHtml(api, 'preloader-api-logo')}<span class="preloader-api-name">${name}</span></span>`;
+        if (!api || !(api.id || api.name)) return '';
+        // An unreadable logo is not shown here: the full, named list is one tap away.
+        if (api.splash === false) return '';
+        const delay = order++;
+        return `<span class="preloader-api" style="--i:${delay}">${_freeApiLogoHtml(api, 'preloader-api-logo')}</span>`;
     }).join('');
 }
 
@@ -12906,7 +13148,10 @@ let _medStatus = { enabled: false, accepted: false, setupDone: false, categories
 /** Read the module state from the server (single source: env + the shared settings). */
 async function _medRefreshStatus() {
     try {
-        const r = await api('med_status');
+        // The UI language is the last fallback for the country whose labels are on the box:
+        // an Italian interface over an instance with no MED_COUNTRY/APP_LANG used to get NO
+        // schema at all, so every Italian medicine said "no schema for this country".
+        const r = await api('med_status', { lang: _currentLang || '' });
         if (r && r.success) {
             _medStatus = {
                 enabled: !!r.enabled,
@@ -12918,6 +13163,15 @@ async function _medRefreshStatus() {
                 schema: r.schema && typeof r.schema === 'object' ? r.schema : null,
                 unsupportedNoteKey: String(r.unsupported_note_key || 'medical.country_none_hint'),
             };
+            // The cabinet is painted with its own pill and sits right after Dispensa on EVERY
+            // boot, on every device: the server owns the list, and the client used to learn it
+            // only after someone opened the medical settings.
+            if (Array.isArray(r.medical_locations)) {
+                const s = getSettings();
+                s.medical_locations = r.medical_locations.map(v => String(v));
+                _settingsCache = s;
+                mergeCustomLocations(s.custom_locations || []);
+            }
         }
     } catch (e) {
         _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, unsupportedNoteKey: 'medical.country_none_hint' };
@@ -12992,6 +13246,44 @@ function _medDetectCode(code) {
     return out;
 }
 
+/**
+ * A NATIONAL short code — the pack's own number: an Italian AIC printed as `A017837016`, a
+ * Pharmacode/Laetus, a German PZN, a Spanish CN, a US NDC. No food catalogue can know it, so
+ * the scanner must not spend five requests asking; an EAN stays on the food path first
+ * (Open Products Facts may well know the pack), which is why this returns null for one.
+ *
+ * The code is returned exactly as the box prints it, letters included: the `A` of the AIC is
+ * part of the label and used to be thrown away by the digit-only cache key.
+ *
+ * @returns {{code:string, type:string}|null}
+ */
+function _medNationalCode(code) {
+    const det = _medDetectCode(code);
+    if (!det.detected || !det.type) return null;
+    if (det.type === 'ean13' || det.type === 'pzn_in_ean') return null;
+    const clean = String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+    return clean ? { code: clean, type: det.type } : null;
+}
+
+/**
+ * Is this code already one of OUR products?
+ *
+ * A medicine the household already catalogued must open its own row, not a blank manual
+ * entry: the local answer costs one database row on our server and never leaves it. Reading
+ * the pantry cache first also keeps the medicine shortcut from hiding a known box.
+ */
+function _localRowForBarcode(code) {
+    const digits = _barcodeCacheKey(code);
+    if (!digits) return null;
+    for (const pool of [currentInventory, _allInventoryCache]) {
+        if (!Array.isArray(pool)) continue;
+        const hit = pool.find(row => _barcodeCacheKey(row && row.barcode) === digits);
+        if (hit) return hit;
+    }
+    const cached = _barcodePersistGet(digits) || (_barcodeSessionCache ? _barcodeSessionCache.get(digits) : null);
+    return (cached && cached.found && cached.source === 'local') ? cached : null;
+}
+
 /** The country name in the user's own language, without 17 translation keys. */
 function _medCountryLabel(cc) {
     const code = String(cc || '').toUpperCase();
@@ -13008,30 +13300,42 @@ function _medCountryLabel(cc) {
 function _isMedicalRow(item) {
     if (!item) return false;
     if (item.is_medical === true || item.is_medical === 1 || item.is_medical === '1') return true;
-    const loc = String(item.location || '').trim().toLowerCase();
+    const loc = _medLocationKey(item.location);
     if (!loc) return false;
-    const meds = (getSettings().medical_locations || []).map(v => String(v).trim().toLowerCase());
+    const meds = (getSettings().medical_locations || []).map(_medLocationKey);
     return meds.includes(loc);
 }
 
-/** The locations the household can mark as medical: the built-ins plus the custom ones. */
+/**
+ * One canonical form for a location, whether it is a slug or the typed label.
+ *
+ * `inventory.location` holds the slug (`custom_armadietto_farmaci`) while the medical
+ * wizard used to store the label the household typed ("Armadietto Farmaci"): comparing the
+ * two raw strings is why a cabinet marked as medical was never recognised as one.
+ */
+function _medLocationKey(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (raw.toLowerCase().startsWith('custom_')) return raw.toLowerCase();
+    const custom = (getSettings().custom_locations || [])
+        .find(name => String(name).trim().toLowerCase() === raw.toLowerCase());
+    return custom ? slugifyCustomLocation(custom) : raw.toLowerCase();
+}
+
+/**
+ * The locations the household can mark as medical, in the app's ONE location order
+ * (Dispensa → medicine cabinet → fridges → other custom places) and with the icons that
+ * order already carries. `label` is the plain name: the caller adds the icon, so a pill
+ * cannot print it twice.
+ *
+ * @returns {Array<{slug:string, icon:string, label:string}>}
+ */
 function _medLocationChoices() {
-    const out = [];
-    const seen = new Set();
-    const meta = (typeof LOCATION_META !== 'undefined' && LOCATION_META) ? LOCATION_META : {};
-    ['dispensa', 'frigo', 'freezer'].forEach(slug => {
-        const label = (meta[slug] && meta[slug].labelKey) ? t(meta[slug].labelKey) : slug;
-        out.push({ slug, label: `${(meta[slug] && meta[slug].icon) || '📦'} ${label}` });
-        seen.add(slug.toLowerCase());
-    });
-    (getSettings().custom_locations || []).forEach(name => {
-        const slug = String(name).trim();
-        if (slug && !seen.has(slug.toLowerCase())) {
-            out.push({ slug, label: `📦 ${slug}` });
-            seen.add(slug.toLowerCase());
-        }
-    });
-    return out;
+    return Object.entries(LOCATIONS).map(([slug, meta]) => ({
+        slug,
+        icon: meta.icon || CUSTOM_LOCATION_ICON,
+        label: meta.label,
+    }));
 }
 
 /** Paint the Settings card + the dashboard block from the current state. */
@@ -13056,9 +13360,10 @@ function _medRenderLocationPicker() {
     const sel = document.getElementById('med-location-select');
     if (!sel) return;
     const choices = _medLocationChoices();
-    const marked = (getSettings().medical_locations || []).map(v => String(v).toLowerCase());
+    // Both forms (the legacy typed label and the slug) read as the same place.
+    const marked = (getSettings().medical_locations || []).map(_medLocationKey);
     sel.innerHTML = `<option value="">${escapeHtml(t('medical.location_pick'))}</option>` +
-        choices.map(c => `<option value="${escapeAttr(c.slug)}" ${marked.includes(c.slug.toLowerCase()) ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('');
+        choices.map(c => `<option value="${escapeAttr(c.slug)}" ${marked.includes(String(c.slug).toLowerCase()) ? 'selected' : ''}>${escapeHtml(`${c.icon} ${c.label}`)}</option>`).join('');
 }
 
 /** The marked medical locations, as pills (one dedicated location is the normal case). */
@@ -13106,7 +13411,8 @@ function _renderMedLocations() {
 }
 
 function _medLocationLabel(slug) {
-    const hit = _medLocationChoices().find(c => String(c.slug).toLowerCase() === String(slug).toLowerCase());
+    const want = _medLocationKey(slug);
+    const hit = _medLocationChoices().find(c => _medLocationKey(c.slug) === want);
     return hit ? hit.label : String(slug);
 }
 
@@ -13117,7 +13423,8 @@ async function onMedLocationPick(sel) {
 }
 
 async function onMedLocationUnmark(slug) {
-    const list = (getSettings().medical_locations || []).filter(v => String(v).toLowerCase() !== String(slug).toLowerCase());
+    const key = _medLocationKey(slug);
+    const list = (getSettings().medical_locations || []).filter(v => _medLocationKey(v) !== key);
     await _medSetLocations(list);
 }
 
@@ -13134,10 +13441,10 @@ async function onMedLocationCreate() {
         return;
     }
     if (!s.custom_locations.some(v => String(v).toLowerCase() === name.toLowerCase())) {
-        s.custom_locations.push(name);
-        // The .env write is the existing settings path (CUSTOM_LOCATIONS); a read-only file
-        // still leaves the location usable in this browser, which is what matters now.
-        api('save_settings', {}, 'POST', { custom_locations: s.custom_locations }).catch(() => {});
+        // Persist before using it: a location the server does not know refuses every add.
+        const next = [...s.custom_locations, name];
+        if (!(await _saveCustomLocations(next))) return;
+        s.custom_locations = next;
     }
     saveSettingsToStorage(s);
     mergeCustomLocations(s.custom_locations);
@@ -13154,6 +13461,9 @@ async function _medSetLocations(list) {
     saveSettingsToStorage(s);
     await _medSaveInstanceSettings({ medical_locations: clean, med_setup_done: clean.length > 0 });
     _medStatus.setupDone = clean.length > 0;
+    // Marking (or unmarking) a place changes its pill and its position: repaint the one list
+    // every surface reads, instead of leaving a medicine cabinet drawn as a cardboard box.
+    mergeCustomLocations(s.custom_locations || []);
     _renderMedLocations();
     _renderMedClassify();
     loadDashboard();
@@ -13163,11 +13473,12 @@ async function _medSetLocations(list) {
 async function onMedLocationChange(input) {
     if (!input) return;
     const slug = String(input.value || '');
+    const key = _medLocationKey(slug);
     let list = (getSettings().medical_locations || []).map(v => String(v));
     if (input.checked) {
-        if (!list.some(v => v.toLowerCase() === slug.toLowerCase())) list.push(slug);
+        if (!list.some(v => _medLocationKey(v) === key)) list.push(slug);
     } else {
-        list = list.filter(v => v.toLowerCase() !== slug.toLowerCase());
+        list = list.filter(v => _medLocationKey(v) !== key);
     }
     await _medSetLocations(list);
 }
@@ -13514,12 +13825,14 @@ async function _medSetupFinish() {
         return;
     }
     if (created && !existing) {
-        // A brand-new location: same path the Settings card uses (CUSTOM_LOCATIONS).
+        // A brand-new location: same path the Settings card uses (CUSTOM_LOCATIONS), and the
+        // same rule — the server has to know the place before the pantry can accept it.
         const s0 = getSettings();
         s0.custom_locations = s0.custom_locations || [];
         if (!s0.custom_locations.some(v => String(v).toLowerCase() === created.toLowerCase())) {
-            s0.custom_locations.push(created);
-            api('save_settings', {}, 'POST', { custom_locations: s0.custom_locations }).catch(() => {});
+            const next = [...s0.custom_locations, created];
+            if (!(await _saveCustomLocations(next))) return;
+            s0.custom_locations = next;
         }
         saveSettingsToStorage(s0);
         mergeCustomLocations(s0.custom_locations);
@@ -13719,6 +14032,10 @@ const _OVERLAY_CLOSERS = {
     'med-search-overlay': () => _medCloseSearch(),
     'med-setup-overlay': () => _medCloseSetup(),
     'med-fallback-overlay': () => _medCloseFallback(true),
+    // The two dialogs the Settings page opens in place: the free-API explanation and the
+    // location rename. Esc closes them without leaving a half-typed rename behind.
+    'free-apis-overlay': () => _closeFreeApisDialog(),
+    'location-rename-overlay': () => _closeLocationRename(),
 };
 
 /** Focusable children of a dialog, in tab order. */
@@ -14652,7 +14969,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027t';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027z';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14662,7 +14979,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027t';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027z';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -14775,8 +15092,19 @@ function _finalizeBarcode(code, method) {
  * @param {{boundingBox?: DOMRectReadOnly|object, videoEl?: HTMLVideoElement}|null} [geo]
  */
 function _tryConfirmBarcode(code, format, method, geo = null) {
-    let digits = String(code || '').replace(/\D/g, '');
-    if (!digits || digits.length < 8) return false;
+    const raw = String(code || '').trim().toUpperCase();
+    let digits = raw.replace(/\D/g, '');
+    if (!digits) return false;
+
+    // A medicine pack carries its OWN number, not an EAN: the Italian Pharmacode is 3–7
+    // digits, the AIC is `A` + 9. The 8-digit floor below is an EAN floor, and applying it to
+    // those codes is what made the documented "Pharmacode → prefilled manual entry" path
+    // dead (only 8+ digit codes ever reached the medical detection).
+    const national = _medOn() ? _medNationalCode(raw) : null;
+    if (digits.length < 8 && !national) return false;
+    // Keep the box's own code for the medicine path (the `A` of the AIC included); the food
+    // path stays digit-only, which is what every catalogue expects.
+    const scanCode = national ? national.code : digits;
 
     // UPC-A (12) → EAN-13 with leading 0 so the checksum path and the server
     // candidate list agree on one canonical form.
@@ -14815,11 +15143,12 @@ function _tryConfirmBarcode(code, format, method, geo = null) {
         return true;
     }
 
-    if (digits === _scanLastCode) _scanConsecCount++;
-    else { _scanLastCode = digits; _scanConsecCount = 1; }
-    _showScanLiveCode(digits);
-    _setScanStatus(t('scan.status_partial').replace('{code}', digits), 'partial', method);
-    _scheduleSpeculativeBarcodePrefetch(digits);
+    if (scanCode === _scanLastCode) _scanConsecCount++;
+    else { _scanLastCode = scanCode; _scanConsecCount = 1; }
+    _showScanLiveCode(scanCode);
+    _setScanStatus(t('scan.status_partial').replace('{code}', scanCode), 'partial', method);
+    // A national medicine code has no catalogue to pre-fetch from: skip the wasted request.
+    if (!national) _scheduleSpeculativeBarcodePrefetch(digits);
     // Non-EAN (Code128/39): one hit from native is enough; ZBar still wants 2
     const need = (method === 'Native') ? 1 : 2;
     if (_scanConsecCount >= need) {
@@ -14830,7 +15159,7 @@ function _tryConfirmBarcode(code, format, method, geo = null) {
                 _setScanTrackTarget(rect, 'lock');
             }
         }
-        _finalizeBarcode(digits, method);
+        _finalizeBarcode(scanCode, method);
         return true;
     }
     return false;
@@ -15658,6 +15987,19 @@ async function onBarcodeDetected(barcode) {
     }
     const fastPath = _spesaMode || _shoppingBoughtFlow;
 
+    // A national medicine code (AIC / Pharmacode / PZN / CN / NDC) is the pack's own
+    // number: no food catalogue knows it, so asking five of them before opening the
+    // medicine entry was five wasted requests and a "not found" (offline: an error) on a box
+    // the app had already recognised. Answer here, at once — unless the box is already one of
+    // our products: then the ordinary local lookup opens its row (and makes no external call).
+    const national = _medOn() ? _medNationalCode(barcode) : null;
+    if (national && !_localRowForBarcode(national.code)) {
+        _setScanHudState('idle');
+        _setScanStatus(t('scan.status_scanning'), '', '');
+        _medStartManualEntry(national.code, true);
+        return;
+    }
+
     // Prefer in-viewport lookup HUD over full-screen spinner (keeps stream visible)
     _setScanHudState('lookup');
     _setScanStatus(t('scan.status_lookup'), 'retry', '');
@@ -15677,10 +16019,10 @@ async function onBarcodeDetected(barcode) {
         }
 
         // EverShelf Med: no drug catalogue is queried (see MED in the wiki), so a box the food
-        // catalogues do not know is NOT a failure. A Pharmacode/Laetus (4-7 digits or base-32)
-        // goes straight to the manual entry; an EAN the food world does not know is ambiguous,
-        // so the household decides instead of the app guessing.
-        if (_medStatus.enabled) {
+        // catalogues do not know is NOT a failure. An EAN the food world does not know is
+        // ambiguous, so the household decides instead of the app guessing; a code the country
+        // schema names as a medicine goes straight to the prefilled manual entry.
+        if (_medOn()) {
             _setScanHudState('idle');
             _setScanStatus(t('scan.status_scanning'), '', '');
             const det = _medDetectCode(code);
@@ -31317,6 +31659,8 @@ function initInactivityWatcher() {
 
 // ===== INITIALIZATION =====
 const _splashStart = Date.now();
+/** The splash is never shorter than this, however fast the boot was (see `_initApp`). */
+const _SPLASH_MIN_MS = 3000;
 document.addEventListener('DOMContentLoaded', () => {
     // The splash is already on screen: credit the free services it rides on before any
     // network call (the list is generated data, no fetch, no token). The dashboard footer
@@ -32838,7 +33182,10 @@ async function _initApp() {
     // EverShelf Med (opt-in): the switch is instance-level, so the boot asks the server
     // once and, only when the module is on, repaints the dashboard with its own block.
     _medRefreshStatus().then(() => {
-        if (_medOn()) loadDashboard();
+        // The medical status also tells us WHERE the cabinet is: when it is marked, the
+        // location list has just been re-ordered (Dispensa → 💊 → …), so the dashboard is
+        // repainted once with the right pill and position — module on or off.
+        if (_medOn() || (getSettings().medical_locations || []).length) loadDashboard();
         else _medMaybeAskSetup();
     }).catch(() => {});
     // A removed location is a one-time piece of news: say it after the app is visible.
@@ -32875,20 +33222,15 @@ async function _initApp() {
         if (ver) preloaderVer.textContent = ver;
     }
 
-    // Hide preloader — enforce minimum 3 s splash regardless of load speed
+    // Hide preloader — the splash never lasts less than 3 s, however fast the boot was.
+    // The rail settling is the app's handshake with the household (and the only moment the
+    // gift-horse credits are on screen), so a warm reload may not skip it either: what
+    // changes between a cold boot and a reload is the work behind the rail, never the time
+    // the user is given to read it.
     const preloader = document.getElementById('app-preloader');
     if (preloader) {
         const elapsed = Date.now() - _splashStart;
-        // A reload inside a session that was already running (language change, the
-        // kiosk ↻, an update) is not a cold boot: paying the full splash makes it
-        // look like a reset, so keep only the fade. The first boot of a session
-        // keeps the 3 s rail that tells the user what is being checked.
-        let warmBoot = false;
-        try {
-            warmBoot = sessionStorage.getItem('evershelf_booted') === '1';
-            sessionStorage.setItem('evershelf_booted', '1');
-        } catch (e) { /* private mode: always show the full splash */ }
-        const minDelay = Math.max(0, (warmBoot ? (_bootDebug ? 500 : 250) : (_bootDebug ? 3000 : 600)) - elapsed);
+        const minDelay = Math.max(0, _SPLASH_MIN_MS - elapsed);
         setTimeout(() => {
             // Last icon of the rail: settings, wizard and dashboard are done
             _preloaderStage('ui', 'done');

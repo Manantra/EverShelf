@@ -1799,13 +1799,21 @@
     },
     "custom_locations": {
       "title": "📍 Luoghi di conservazione",
-      "hint": "Aggiungi posti oltre a Dispensa, Frigo, Freezer e Altro (es. Cantina, Garage). I nomi restano così come li scrivi.",
+      "hint": "Aggiungi posti oltre a Dispensa, Frigo e Freezer (es. Cantina, Garage). I nomi restano così come li scrivi.",
       "builtin_hint": "Predefiniti (non rimovibili): Dispensa, Frigo, Freezer.",
       "placeholder": "Es: Cantina, Box garage…",
       "empty": "Nessun luogo personalizzato",
-      "added": "Luogo aggiunto — premi Salva per sincronizzare",
+      "added": "Luogo aggiunto",
       "reserved": "Nome riservato a un luogo predefinito",
-      "in_use": "Impossibile rimuovere “{name}”: ci sono ancora {n} prodotti"
+      "in_use": "Impossibile rimuovere “{name}”: ci sono ancora {n} prodotti",
+      "rename": "Rinomina",
+      "rename_title": "Rinomina il luogo",
+      "rename_label": "Nuovo nome",
+      "rename_hint": "Il nuovo nome prende il posto del vecchio ovunque: dispensa, storico e farmaci. I prodotti restano dove sono.",
+      "renamed": "Luogo rinominato in «{name}»",
+      "rename_missing": "Questo luogo non esiste più: ricarica la pagina.",
+      "invalid": "Nome non valido: usa da 1 a 40 caratteri, senza virgole.",
+      "rename_failed": "Non ho potuto rinominare il luogo."
     },
     "ai": {
       "title": "🤖 Intelligenza artificiale",
@@ -2603,7 +2611,8 @@
     "hint_curl_ssl": "cURL senza supporto SSL — le chiamate HTTPS potrebbero fallire",
     "hint_curl_missing": "cURL non disponibile",
     "hint_internet": "Impossibile raggiungere i server Gemini — le funzioni AI richiedono una connessione a Internet",
-    "hint_missing_tables_inline": "mancanti: {list}"
+    "hint_missing_tables_inline": "mancanti: {list}",
+    "free_apis_lead": "EverShelf usa queste API gratuite"
   },
   "stats_monthly": {
     "title": "Statistiche Mensili",
@@ -2808,7 +2817,12 @@
     "api_open_beauty_facts": "Codici a barre di cosmetici e prodotti per l’igiene",
     "api_open_beauty_facts_where": "Creme, detergenti, prodotti da banco che non sono né cibo né farmaci.",
     "api_open_pet_food_facts": "Codici a barre dei mangimi per animali",
-    "api_open_pet_food_facts_where": "Chiude la catena dei codici sconosciuti: se non è cibo umano, para-farmacia o cosmetico, è spesso pet food."
+    "api_open_pet_food_facts_where": "Chiude la catena dei codici sconosciuti: se non è cibo umano, para-farmacia o cosmetico, è spesso pet food.",
+    "why_button": "Quali API gratuite usiamo, perché e dove",
+    "why_title": "Le API gratuite che usiamo",
+    "why_lead": "Nessun servizio a pagamento, nessuna chiave, nessun tracciamento: ecco esattamente quali servizi gratuiti chiamiamo, perché li chiamiamo e in quale momento dell’app.",
+    "why_usage": "Perché",
+    "why_where": "Dove"
   },
   "medical": {
     "title": "💊 Farmaci e armadietto",

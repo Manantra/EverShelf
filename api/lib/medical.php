@@ -204,8 +204,12 @@ function medicalCountrySchema(string $cc): ?array
  * Which country's labels are on the box. `MED_COUNTRY` wins, then the instance language
  * (it→IT, de→DE, fr→FR, es→ES); anything else stays empty instead of guessing (an English UI
  * says nothing about the country of the pharmacy).
+ *
+ * `$uiLang` is the client's own UI language, used only as the LAST fallback: an Italian
+ * interface over an instance that never set `APP_LANG` still carries Italian boxes, and
+ * without this every Italian medicine answered "no schema for this country".
  */
-function medicalActiveCountry(?PDO $db = null): string
+function medicalActiveCountry(?PDO $db = null, string $uiLang = ''): string
 {
     $env = strtoupper(trim((string)env('MED_COUNTRY', '')));
     if ($env !== '') {
@@ -224,6 +228,9 @@ function medicalActiveCountry(?PDO $db = null): string
         return $stored;
     }
     $lang = strtolower(substr(trim((string)env('APP_LANG', '')), 0, 2));
+    if ($lang === '') {
+        $lang = strtolower(substr(trim($uiLang), 0, 2));
+    }
     $map = ['it' => 'IT', 'de' => 'DE', 'fr' => 'FR', 'es' => 'ES'];
     return $map[$lang] ?? '';
 }

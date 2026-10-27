@@ -1799,13 +1799,21 @@
     },
     "custom_locations": {
       "title": "📍 Ubicaciones personalizadas",
-      "hint": "Añade sitios además de Despensa, Nevera, Congelador y Otro (p. ej. Bodega, Garaje). Los nombres se conservan tal cual.",
+      "hint": "Añade sitios además de Despensa, Nevera y Congelador (p. ej. Bodega, Garaje). Los nombres se conservan tal cual.",
       "builtin_hint": "Predefinidos (no eliminables): Despensa, Nevera, Congelador.",
       "placeholder": "Ej.: Bodega, Box garaje…",
       "empty": "Sin ubicaciones personalizadas",
-      "added": "Ubicación añadida — pulsa Guardar para sincronizar",
+      "added": "Ubicación añadida",
       "reserved": "Nombre reservado para una ubicación predefinida",
-      "in_use": "No se puede quitar “{name}”: quedan {n} producto(s)"
+      "in_use": "No se puede quitar “{name}”: quedan {n} producto(s)",
+      "rename": "Renombrar",
+      "rename_title": "Renombrar el lugar",
+      "rename_label": "Nuevo nombre",
+      "rename_hint": "El nuevo nombre sustituye al anterior en todas partes: despensa, historial y medicamentos. Ningún producto se mueve.",
+      "renamed": "Lugar renombrado a «{name}»",
+      "rename_missing": "Ese lugar ya no existe: recarga la página.",
+      "invalid": "Nombre no válido: de 1 a 40 caracteres, sin comas.",
+      "rename_failed": "No he podido renombrar el lugar."
     },
     "ai": {
       "title": "🤖 Inteligencia artificial",
@@ -2603,7 +2611,8 @@
     "hint_curl_ssl": "cURL sin soporte SSL — las llamadas HTTPS pueden fallar",
     "hint_curl_missing": "cURL no está disponible",
     "hint_internet": "No se puede acceder a los servidores de Gemini — las funciones de IA necesitan conexión a Internet",
-    "hint_missing_tables_inline": "faltan: {list}"
+    "hint_missing_tables_inline": "faltan: {list}",
+    "free_apis_lead": "EverShelf usa estas API gratuitas"
   },
   "stats_monthly": {
     "title": "Estadísticas Mensuales",
@@ -2808,7 +2817,12 @@
     "api_open_beauty_facts": "Códigos de barras de cosméticos y productos de higiene",
     "api_open_beauty_facts_where": "Cremas, limpiadores, productos de farmacia que no son ni comida ni medicamentos.",
     "api_open_pet_food_facts": "Códigos de barras de comida para animales",
-    "api_open_pet_food_facts_where": "Cierra la cadena de códigos desconocidos: si no es comida humana, parafarmacia o cosmética, suele ser pienso."
+    "api_open_pet_food_facts_where": "Cierra la cadena de códigos desconocidos: si no es comida humana, parafarmacia o cosmética, suele ser pienso.",
+    "why_button": "Qué API gratuitas usamos, por qué y dónde",
+    "why_title": "Las API gratuitas que usamos",
+    "why_lead": "Ningún servicio de pago, ninguna clave, ningún rastreo: aquí está exactamente qué servicio gratuito llamamos, por qué y en qué momento de la app.",
+    "why_usage": "Por qué",
+    "why_where": "Dónde"
   },
   "medical": {
     "title": "💊 Medicamentos y botiquín",
