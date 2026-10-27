@@ -158,6 +158,47 @@ function _invImageHtml(imageUrl, catIcon) {
     return `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${fallback}'">`;
 }
 
+/**
+ * One picture for a product, everywhere: 44×44 in a neutral frame.
+ *
+ * A packaging is recognised in milliseconds; a title like "Vino bianco Trebbiano IGT
+ * Rubicone (Vesoletto)" has to be read word by word. Barcode pictures (Open Food Facts)
+ * arrive as white or transparent PNGs of wildly different shapes, so the frame is part of
+ * the component: light surface, hairline border, `object-fit: contain`.
+ *
+ * The fallback is never a broken image and never an empty square: the category emoji sits
+ * UNDER the picture and is revealed when the URL is missing or fails to load (`is-icon`).
+ * `opts.icon === false` returns nothing at all (a list already grouped by category shows
+ * the emoji once, in its header).
+ */
+function _productThumbHtml(item, opts = {}) {
+    const it = item || {};
+    const url = _validProductImageUrl(it.image_url) ? String(it.image_url).trim() : '';
+    if (!url && opts.icon === false) return '';
+    const icon = CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦';
+    const extra = opts.className ? ' ' + String(opts.className) : '';
+    return `<span class="product-thumb${url ? '' : ' is-icon'}${extra}" aria-hidden="true">`
+        + `<span class="product-thumb-emoji">${escapeHtml(icon)}</span>`
+        + (url
+            // escapeAttr, not escapeHtml: this lands inside a quoted attribute, and a URL
+            // the user can type must not be able to close it.
+            ? `<img class="product-thumb-img" src="${escapeAttr(url)}" alt="" loading="lazy" decoding="async"`
+              + ` onerror="this.parentElement.classList.add('is-icon')">`
+            : '')
+        + '</span>';
+}
+
+/**
+ * The banner's leading slot: the product's photo when we have one, the situation emoji
+ * when we do not (⚠️ / 👀 / 📦 still say what the notice is about).
+ */
+function _bannerIconSet(el, data, emoji) {
+    if (!el) return;
+    const hasPhoto = !!data && _validProductImageUrl(data.image_url);
+    el.innerHTML = hasPhoto ? _productThumbHtml(data) : escapeHtml(String(emoji || ''));
+    el.classList.toggle('has-thumb', hasPhoto);
+}
+
 function _shouldRegisterServiceWorker() {
     if (!('serviceWorker' in navigator)) return false;
     if (window.location.pathname.includes('/demo')) return false;
@@ -1401,7 +1442,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261026l'; // bump when translations change
+const _I18N_VERSION = '20261027e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2400,13 +2441,58 @@ function getExpiredSafety(item, daysExpired) {
     return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_lowRisk_danger') };
 }
 
+/**
+ * The post-opening clock of a row, as the server computed it
+ * (data/opened_shelf_life.json — `{days_open, warn, critical, state, score}`).
+ * `null` for a sealed product: then the printed date is the only clock there is.
+ */
+function _openedPao(item) {
+    const p = item && item.pao;
+    if (!p || typeof p !== 'object') return null;
+    if (!p.state || !Number.isFinite(Number(p.days_open))) return null;
+    return p;
+}
+
+/** "È ancora buono" asked today: the banner stays quiet this long, then the clock returns. */
+const OPENED_SNOOZE_DAYS = 3;
+let _openedSnoozedCache = {};
+
+function _openedSnoozeKey(item) {
+    return String((item && item.id) || '');
+}
+
+function _openedIsSnoozed(item) {
+    const key = _openedSnoozeKey(item);
+    if (!key) return false;
+    const ts = Number((_openedSnoozedCache || {})[key] || 0);
+    return ts > 0 && (Date.now() - ts) < OPENED_SNOOZE_DAYS * 86400000;
+}
+
+function _openedSnooze(item) {
+    const key = _openedSnoozeKey(item);
+    if (!key) return;
+    const map = Object.assign({}, _openedSnoozedCache || {});
+    map[key] = Date.now();
+    // Prune what is older than a few windows, or the map grows for the life of the pantry.
+    const min = Date.now() - 10 * OPENED_SNOOZE_DAYS * 86400000;
+    Object.keys(map).forEach(k => { if (Number(map[k]) < min) delete map[k]; });
+    _openedSnoozedCache = map;
+    _saveToServer('opened_check_snoozed', map);
+}
+
 /** True when an expired/opened item deserves a dashboard banner (not merely informational). */
 function shouldShowExpiredBanner(item) {
+    // An opened row is judged by the post-opening clock first: the printed date says
+    // nothing about what happened after the seal was broken. This is what turns a wine
+    // open for 16 days from a generic "Controlla" into a real "probabilmente andato".
+    const pao = _openedPao(item);
+    if (pao && pao.state !== 'ok') return !_openedIsSnoozed(item);
     const days = item.days_expired ?? Math.abs(item.days_to_expiry ?? 0);
     if (getExpiredSafety(item, days).level === 'ok') return false;
     if (item.opened_at && item.is_edible === true) return false;
     return true;
 }
+
 
 // Localized labels for local categories (icon once — translations may already include emoji)
 const CATEGORY_LABELS = {
@@ -4241,6 +4327,7 @@ async function syncSettingsFromDB(serverSettings) {
             if (srv.auto_added_bring)    _autoAddedBringCache    = srv.auto_added_bring;
             if (srv.bring_blocklist)     _bringBlocklistCache    = srv.bring_blocklist;
             if (srv.no_expiry_dismissed) _noExpiryDismissedCache = srv.no_expiry_dismissed;
+            if (srv.opened_check_snoozed) _openedSnoozedCache = srv.opened_check_snoozed;
             if (srv.family_sibling_confirmed) _familySiblingConfirmedCache = srv.family_sibling_confirmed;
             if (srv.shopping_plan_days != null && srv.shopping_plan_days !== '') {
                 _shoppingPlanDaysCache = parseInt(srv.shopping_plan_days, 10) || null;
@@ -4912,8 +4999,160 @@ async function _submitBugReport() {
     }
 }
 
+/** The free services this instance talks to: one list, four places (splash, dashboard, card, page). */
+let _freeApisCache = null;
+
+/**
+ * The official logo of a service, with the monogram as the guaranteed fallback.
+ *
+ * The images are vendored under assets/img/apis/ (official icons from each project's own
+ * brand assets) so nothing is fetched from a third party at runtime — and a missing file
+ * falls back to the monogram instead of a broken-image icon.
+ */
+function _freeApiLogoHtml(api, cls) {
+    const name = String((api && api.name) || (api && api.id) || '');
+    const mark = escapeHtml(String((api && api.mark) || name.slice(0, 3)));
+    const logo = String((api && api.logo) || '');
+    const extra = cls ? ' ' + String(cls) : '';
+    if (!logo) {
+        return `<span class="free-api-mark${extra}" aria-hidden="true">${mark}</span>`;
+    }
+    return `<span class="free-api-logo${extra}" aria-hidden="true">`
+        + `<img src="${escapeAttr(logo)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('is-fallback')">`
+        + `<span class="free-api-mark">${mark}</span>`
+        + `</span>`;
+}
+
+/**
+ * What each service gives us: one line for the chips, plus the full note the credits page
+ * owes every service (where and for what we call it).
+ * A bare `t()` with a literal key per id, on purpose: the i18n audit only sees literal
+ * calls, and a key resolved through a variable would drop out of it.
+ */
+function _freeApiUsage(api) {
+    switch (api && api.id) {
+        case 'open_food_facts': return t('credits.api_open_food_facts');
+        case 'open_prices':     return t('credits.api_open_prices');
+        case 'open_meteo':      return t('credits.api_open_meteo');
+        default: return '';
+    }
+}
+
+function _freeApiWhere(api) {
+    switch (api && api.id) {
+        case 'open_food_facts': return t('credits.api_open_food_facts_where');
+        case 'open_prices':     return t('credits.api_open_prices_where');
+        case 'open_meteo':      return t('credits.api_open_meteo_where');
+        default: return '';
+    }
+}
+
+/** One compact credit chip: logo, name, what it gives us, licence. */
+function _freeApiCardHtml(api) {
+    const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
+    const usage = String(_freeApiUsage(api) || '');
+    const licence = escapeHtml(String((api && api.licence) || ''));
+    const inner = _freeApiLogoHtml(api)
+        + `<span class="free-api-body">`
+        + `<span class="free-api-name">${name}</span>`
+        + (usage ? `<span class="free-api-usage">${escapeHtml(usage)}</span>` : '')
+        + (licence ? `<span class="free-api-licence">${licence}</span>` : '')
+        + `</span>`;
+    return (api && api.url)
+        ? `<a class="free-api" href="${escapeAttr(String(api.url))}" target="_blank" rel="noopener">${inner}</a>`
+        : `<span class="free-api">${inner}</span>`;
+}
+
+/** One block of the dedicated thanks page: bigger logo, what, where, licence, link. */
+function _freeApiPageHtml(api) {
+    const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
+    const usage = String(_freeApiUsage(api) || '');
+    const where = String(_freeApiWhere(api) || '');
+    const licence = escapeHtml(String((api && api.licence) || ''));
+    const url = (api && api.url) ? String(api.url) : '';
+    return `<article class="credit-block">`
+        + _freeApiLogoHtml(api, 'credit-block-logo')
+        + `<div class="credit-block-body">`
+        + `<h4 class="credit-block-name">${name}</h4>`
+        + (usage ? `<p class="credit-block-usage">${escapeHtml(usage)}</p>` : '')
+        + (where ? `<p class="credit-block-where">${escapeHtml(where)}</p>` : '')
+        + `<p class="credit-block-meta">`
+        + (licence ? `<span class="credit-licence">${licence}</span>` : '')
+        + (url ? `<a class="credit-link" href="${escapeAttr(url)}" target="_blank" rel="noopener">${escapeHtml(url.replace(/^https?:\/\//, ''))}</a>` : '')
+        + `</p>`
+        + `</div></article>`;
+}
+
+/** Paint every credit surface from the same list. */
+async function _loadFreeApis() {
+    const targets = [
+        document.getElementById('app-footer-apis'),
+        document.getElementById('app-footer-dashboard-apis'),
+        document.getElementById('settings-free-apis'),
+        document.getElementById('settings-free-apis-page'),
+    ];
+    if (!targets.some(Boolean)) return;
+    // The generated list is the offline path (and it is the same file the splash paints):
+    // the API is only the fallback for an install whose service worker still serves an old
+    // bundle. Both come from data/free_apis.json.
+    if (_freeApisCache === null && typeof EVERSHELF_FREE_APIS !== 'undefined'
+        && Array.isArray(EVERSHELF_FREE_APIS) && EVERSHELF_FREE_APIS.length) {
+        _freeApisCache = EVERSHELF_FREE_APIS;
+    }
+    if (_freeApisCache === null) {
+        try {
+            const res = await api('free_apis');
+            _freeApisCache = (res && Array.isArray(res.apis)) ? res.apis : [];
+        } catch (e) {
+            _freeApisCache = [];
+        }
+    }
+    const chips = _freeApisCache.map(_freeApiCardHtml).join('');
+    const page = _freeApisCache.map(_freeApiPageHtml).join('');
+    ['app-footer-apis', 'app-footer-dashboard-apis', 'settings-free-apis'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = chips;
+    });
+    const pageEl = document.getElementById('settings-free-apis-page');
+    if (pageEl) pageEl.innerHTML = page;
+}
+
+/** From the Info card (or anywhere) to the dedicated thanks page. */
+function _openCreditsPage() {
+    showPage('settings');
+    setTimeout(() => {
+        const btn = document.querySelector('.settings-tab[data-tab="tab-credits"]');
+        if (btn) switchSettingsTab(btn, 'tab-credits');
+        const card = document.querySelector('#tab-credits .credits-page');
+        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+}
+
+/**
+ * The free services behind the app, on the splash as well.
+ *
+ * Painted from the generated list, never from the API: the splash is on screen before a
+ * token exists and has to work offline. Logo + name only — a splash is not a menu — and it
+ * is decorative (`aria-hidden`), because the accessible credit with the licences lives in
+ * Settings → Crediti.
+ */
+function _renderPreloaderApis() {
+    const el = document.getElementById('preloader-apis');
+    if (!el || el.childElementCount) return;
+    const list = (typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
+        ? EVERSHELF_FREE_APIS
+        : [];
+    el.innerHTML = list.map(api => {
+        const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
+        if (!name) return '';
+        return `<span class="preloader-api">${_freeApiLogoHtml(api, 'preloader-api-logo')}<span class="preloader-api-name">${name}</span></span>`;
+    }).join('');
+}
+
 async function loadSettingsUI() {
     const s = getSettings();
+    // Credits/footer: free services, fetched once per session.
+    _loadFreeApis().catch(() => {});
     const aiEnEl = document.getElementById('setting-ai-enabled');
     if (aiEnEl) aiEnEl.checked = s.ai_enabled !== false;
     _setSelectedAiProvider(s.ai_provider || 'gemini');
@@ -8137,6 +8376,21 @@ function _captureStatus(key, params) {
     if (el) el.textContent = t(key, params);
 }
 
+/**
+ * "SHELFY did not understand" — the honest end of a sentence it cannot act on.
+ *
+ * The "Ho capito" chips are removed with it: naming a product above a message that says
+ * the app did not understand is the contradiction the audit found. And NOTHING is opened:
+ * creating an article is the user's decision, so a wrong parse can never land them in the
+ * empty "new product" form with the sheet already closed behind it.
+ */
+function _captureNotUnderstood(messageKey, params) {
+    const understood = document.getElementById('capture-understood');
+    if (understood) { understood.hidden = true; understood.innerHTML = ''; }
+    _captureShowChoices(null);
+    _captureStatus(messageKey || 'capture.not_understood', params);
+}
+
 /** The mic is offered only where the browser can actually listen (audit: no fake CTA). */
 function _captureSyncMicAvailability() {
     const mic = document.getElementById('capture-mic');
@@ -8232,6 +8486,7 @@ function _captureVoiceStop() {
     }
     _captureVoice.active = false;
     _captureVoice.text = '';
+    _captureVoice.stopRequested = false;
     try {
         if (_captureRec) { _captureRec.onend = null; _captureRec.onerror = null; _captureRec.stop(); }
     } catch (e) { /* already stopped */ }
@@ -8313,9 +8568,14 @@ function _captureShowChoices(rows) {
  * restart makes the browser play its start chime (a beep every few seconds, right in the
  * middle of the sentence) and throws away the interim transcript the user had already
  * spoken. One utterance, and if the browser ends without a final result the interim text
- * is used — that is the sentence.
+ * is used — that is the sentence. The one resume that is allowed is a session the BROWSER
+ * closed while the user was still talking (`_CAPTURE_RESTARTS_MAX`, bounded): submitting
+ * there was exactly the sentence arriving without its last word.
+ *
+ * `stopRequested` marks a session WE ended on the silence deadline: only then may `onend`
+ * hand the sentence over.
  */
-let _captureVoice = { active: false, text: '', timer: 0 };
+let _captureVoice = { active: false, text: '', timer: 0, stopRequested: false };
 /** The level meter is started lazily (see _captureStartVoice). */
 let _captureMeterStarted = false;
 
@@ -8496,9 +8756,10 @@ function _shelfyAddUnit(qty, unit) {
 /**
  * "Aggiungi …" → the add form with the quantity already set and the confirm armed.
  *
- * A product nobody has in the catalogue cannot be added blind: the manual form opens with
- * the spoken name instead, and the user confirms the category (no timer there — creating
- * an article is not a repeatable one-line action).
+ * When the catalogue does not know the spoken product there is nothing to add: the sheet
+ * stays open and says it did not understand. It used to close and open the empty "new
+ * product" form — the user asked to ADD something that already exists, not to create an
+ * article, and creating one is never the end of a wrong parse.
  */
 async function _shelfyOpenAdd(parsed) {
     const name = (parsed && parsed.product) || '';
@@ -8506,17 +8767,17 @@ async function _shelfyOpenAdd(parsed) {
     const spoken = _shelfyAddUnit(dictated, parsed && parsed.unit);
     const qty = spoken.qty;
     const unit = spoken.unit;
-    _closeCaptureSheet();
 
     const rows = await _captureFindProducts(name);
     const best = rows[0] || null;
     if (!best || best.score < 0.75) {
-        startManualEntry();
-        const nameEl = document.getElementById('pf-name');
-        if (nameEl) { nameEl.value = name; nameEl.focus(); }
-        showToast(t('capture.add_hint', { name: name || '—' }), 'info', 5000);
+        // "Aggiungi il latte" for an article the catalogue does not know used to close the
+        // sheet and open the empty "new product" form: the user asked to ADD something,
+        // not to create it. Say it instead, with the sheet still open for a retry.
+        _captureNotUnderstood('capture.no_product', { name: name || '—' });
         return;
     }
+    _closeCaptureSheet();
     try {
         const full = await api('product_get', { id: best.item.product_id });
         if (!full || !full.product) { showToast(t('error.generic'), 'error'); return; }
@@ -8581,22 +8842,52 @@ function _captureSpeechLang(navLang) {
  * "ho consumato 250"), and one more re-delivers a finished result. A plain append printed
  * "ho consumato ho consumato ho consumato 250 ho consumato 250 grammi …" for a single
  * sentence, so the join looks at the overlap instead of trusting either shape.
+ *
+ * The overlap is measured in WORDS and ignoring case. Comparing characters did two things
+ * users saw: it duplicated the whole sentence when the interim result was capitalised and
+ * the final one was not ("Ho mangiato" + "ho mangiato una mela" → "Ho mangiato ho mangiato
+ * una mela"), and it ate the beginning of the last word when one letter matched
+ * ("aggiungi il" + "latte" → "aggiungi il atte": the sentence lost its product).
  */
 function _captureJoinText(heard, next) {
-    const a = String(heard || '').trim();
-    const b = String(next || '').trim();
+    const a = String(heard || '').replace(/\s+/g, ' ').trim();
+    const b = String(next || '').replace(/\s+/g, ' ').trim();
     if (!a) return b;
     if (!b) return a;
-    if (b.startsWith(a)) return b;      // the new text already says the whole sentence
-    if (a.startsWith(b)) return a;      // a shorter echo of what we have: keep the longer
-    let n = 0;
-    for (let i = Math.min(a.length, b.length); i > 0; i--) {
-        if (a.slice(-i) === b.slice(0, i)) { n = i; break; }
+    const la = a.toLowerCase();
+    const lb = b.toLowerCase();
+    if (lb.startsWith(la)) return b;    // the new text already says the whole sentence
+    if (la.startsWith(lb)) return a;    // a shorter echo of what we have: keep the longer
+    const aw = a.split(' ');
+    const bw = b.split(' ');
+    // Longest run of words we already have that opens the new text (whole words only, so
+    // no letter can be swallowed): "ho consumato" + "250 grammi di pasta" → both.
+    for (let k = Math.min(aw.length, bw.length); k > 0; k--) {
+        if (aw.slice(aw.length - k).join(' ').toLowerCase() === bw.slice(0, k).join(' ').toLowerCase()) {
+            return `${a} ${bw.slice(k).join(' ')}`.replace(/\s+/g, ' ').trim();
+        }
     }
-    return `${a} ${b.slice(n)}`.replace(/\s+/g, ' ').trim();
+    // A word the browser was still spelling out ("la" → "latte") is one word, not two.
+    const lastA = aw[aw.length - 1] || '';
+    const firstB = bw[0] || '';
+    if (lastA.length >= 2 && firstB.toLowerCase().startsWith(lastA.toLowerCase())) {
+        return aw.slice(0, -1).concat([firstB], bw.slice(1)).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    return `${a} ${b}`.replace(/\s+/g, ' ').trim();
 }
 
-const _CAPTURE_SILENCE_MS = 1800;
+// How long a silence ends the sentence. Too short and a natural pause between "ho usato"
+// and "2 arance" closed it before the last word was spoken.
+const _CAPTURE_SILENCE_MS = 2500;
+/**
+ * How many times a session the BROWSER ended on its own is resumed before we hand over
+ * what we have. Chrome on Android closes the recognition session at the first final
+ * phrase even with `continuous = true`; submitting there cut "Ho usato 2 arance" at
+ * "Ho usato 2" and "Aggiungi il latte" at "Aggiungi il" — the last word never arrived.
+ * A resume keeps the same sentence (nothing is heard twice); the bound only stops an
+ * endless resume on a microphone that is not delivering anything.
+ */
+const _CAPTURE_RESTARTS_MAX = 4;
 
 async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -8609,17 +8900,22 @@ async function _captureStartVoice() {
     if (un) un.hidden = true;
     _captureStatus('capture.listening');
     _captureSetState('listening');
-    _captureVoice = { active: true, text: '', timer: 0 };
+    _captureVoice = { active: true, text: '', timer: 0, stopRequested: false };
     _captureMeterStarted = false;
     /** The sentence as heard so far: it survives a result list the browser resets. */
     let heard = '';
     let submitted = false;
+    /** Sessions resumed because the browser ended them mid-sentence (see the constant). */
+    let restarts = 0;
 
     /** The user is still talking: push the deadline that closes this one session. */
     const armSilenceStop = () => {
         if (_captureVoice.timer) { try { clearTimeout(_captureVoice.timer); } catch (e) {} }
         _captureVoice.timer = setTimeout(() => {
             _captureVoice.timer = 0;
+            // OUR deadline, not the browser's: this stop is the end of the sentence, so
+            // `onend` may hand it over. Any other `onend` means it was cut.
+            _captureVoice.stopRequested = true;
             try { if (_captureRec) _captureRec.stop(); } catch (e) { /* already ended */ }
         }, _CAPTURE_SILENCE_MS);
     };
@@ -8634,7 +8930,15 @@ async function _captureStartVoice() {
         _captureSubmit(said, { voice: true });
     };
 
-    try {
+    /**
+     * Wire ONE recognition session.
+     *
+     * Called once inside the tap (the gesture that allows the microphone) and again when
+     * the browser ended the session on its own while the user was still talking: a
+     * recogniser resumed from `onend` keeps working, it just never hears the same word
+     * twice because `heard` is ours.
+     */
+    const startSession = () => {
         _captureRec = new Ctor();
         _captureRec.lang = _captureSpeechLang();
         _captureRec.interimResults = true;
@@ -8669,12 +8973,28 @@ async function _captureStartVoice() {
             // "no-speech" / "aborted": onend decides, and the interim text still counts.
         };
         _captureRec.onend = () => {
+            const deadlineReached = _captureVoice.stopRequested;
             _captureRec = null;
             if (_captureVoice.timer) { try { clearTimeout(_captureVoice.timer); } catch (e) {} _captureVoice.timer = 0; }
             _captureStopMeter();
-            if (!_captureVoice.active) return;
+            if (!_captureVoice.active) return;      // sheet closed, microphone denied
             // The whole utterance, finals plus the text the browser never finalised.
             const said = heard.trim();
+            if (!deadlineReached && said && restarts < _CAPTURE_RESTARTS_MAX) {
+                // The BROWSER closed the session, not us, and the user may still be
+                // talking: resuming it is what saves the last word ("Ho usato 2" became
+                // "Ho usato 2 arance"). The deadline is re-armed, so a user who has
+                // really finished still ends the sentence `_CAPTURE_SILENCE_MS` later.
+                restarts++;
+                _captureVoice.stopRequested = false;
+                _captureMeterStarted = false;
+                armSilenceStop();
+                try {
+                    startSession();
+                    _captureSetState('listening');
+                    return;
+                } catch (e) { /* the browser refused the resume: hand over what we have */ }
+            }
             if (said) { finish(said); return; }
             _captureVoice.active = false;
             _captureSetState('idle');
@@ -8683,6 +9003,10 @@ async function _captureStartVoice() {
         // Started inside the user gesture (the tap), before any await: Safari and stricter
         // browsers refuse a recogniser started later.
         _captureRec.start();
+    };
+
+    try {
+        startSession();
         // The meter (getUserMedia) starts on the first result, not before: two clients on
         // the microphone at the same instant is what made the recogniser hear nothing on
         // some phones, and the meter is only cosmetic.
@@ -8974,9 +9298,7 @@ async function _captureSubmit(raw, opts) {
     // retype). This used to fall through to the add form of an empty name — and printing
     // the "Ho capito" chips above "SHELFY non ha capito" was a contradiction.
     if (!_captureIsActionable(parsed)) {
-        const understood = document.getElementById('capture-understood');
-        if (understood) { understood.hidden = true; understood.innerHTML = ''; }
-        _captureStatus('capture.not_understood');
+        _captureNotUnderstood('capture.not_understood');
         return;
     }
 
@@ -9004,7 +9326,7 @@ async function _captureSubmit(raw, opts) {
     const best = rows[0] || null;
 
     if (parsed.intent === 'throw') {
-        if (!best) { _captureStatus('capture.no_product', { name: parsed.product || text }); return; }
+        if (!best) { _captureNotUnderstood('capture.no_product', { name: parsed.product || text }); return; }
         go(() => {
             showToast(t('capture.throw_hint', { name: best.item.name }), 'success');
             showAlertItemDetail(best.item.inventory_id || best.item.id, best.item.product_id);
@@ -9034,13 +9356,9 @@ async function _captureSubmit(raw, opts) {
         return;
     }
     // Only a derived article matched ("arancia" vs "Succo di arancia"): that is not the
-    // product, so propose adding what was actually said.
-    _captureStatus('capture.no_product', { name: parsed.product || text });
-    go(() => {
-        startManualEntry();
-        const nameEl = document.getElementById('pf-name');
-        if (nameEl) { nameEl.value = parsed.product || ''; nameEl.focus(); }
-    });
+    // product, so say it. This used to open the empty "new product" form — creating an
+    // article is the user's decision, never the end of a wrong parse.
+    _captureNotUnderstood('capture.no_product', { name: parsed.product || text });
 }
 
 /** Name + brand of a dashboard row on one line (they wrap only when really narrow). */
@@ -9140,8 +9458,11 @@ async function loadDashboard() {
                 return `
                 <div class="alert-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
-                        ${_alertItemHead(item)}
-                        ${_alertItemMeta(item)}
+                        ${_productThumbHtml(item)}
+                        <div class="alert-item-main">
+                            ${_alertItemHead(item)}
+                            ${_alertItemMeta(item)}
+                        </div>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
@@ -9183,10 +9504,13 @@ async function loadDashboard() {
                 return `
                 <div class="alert-item expired-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
-                        ${_alertItemHead(item)}
-                        <div class="alert-item-meta-row">
-                            ${_alertItemMeta(item)}
-                            <span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>
+                        ${_productThumbHtml(item)}
+                        <div class="alert-item-main">
+                            ${_alertItemHead(item)}
+                            <div class="alert-item-meta-row">
+                                ${_alertItemMeta(item)}
+                                <span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>
+                            </div>
                         </div>
                     </div>
                     <div class="alert-item-badges">
@@ -9336,7 +9660,10 @@ async function loadDashboard() {
                 return `
                 <div class="alert-item alert-item-clickable${!isEdible ? ' alert-item-spoiled' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
-                        ${_alertItemHead(item)}
+                        ${_productThumbHtml(item)}
+                        <div class="alert-item-main">
+                            ${_alertItemHead(item)}
+                        </div>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-qty">${locInfo.icon} ${locInfo.label}</span>
@@ -9422,8 +9749,11 @@ async function loadStaleDashboardItems() {
             // an inert div: "aperti da troppo tempo non accade nulla nemmeno su desktop").
             return `<div class="alert-item stale-item alert-item-clickable" data-alert-inv-id="${iid}" data-alert-product-id="${pid}">
                 <div class="alert-item-info">
-                    ${_alertItemHead(item)}
-                    ${_alertItemMeta(item, unusedLabel)}
+                    ${_productThumbHtml(item)}
+                    <div class="alert-item-main">
+                        ${_alertItemHead(item)}
+                        ${_alertItemMeta(item, unusedLabel)}
+                    </div>
                 </div>
                 <div class="alert-item-badges stale-actions">
                     ${openedBadge}
@@ -9700,6 +10030,7 @@ function _bannerEntryKey(entry) {
     const d = entry.data || {};
     switch (entry.type) {
         case 'expired':
+        case 'opened':
         case 'expiring':
         case 'review':
         case 'no_expiry':
@@ -9780,11 +10111,18 @@ async function loadBannerAlerts() {
                 }
             }
 
-            if (daysExpired === null) return; // not expired by any measure
+            // The post-opening clock decides too (server-computed, deterministic): a row can
+            // be due while its printed date is still far away — that is the whole point of
+            // a PAO ("aperto da 16 giorni" on a wine that "expires" in 2027).
             const serverOi = openedStatsById[item.id];
+            const pao = _openedPao(serverOi) || _openedPao(item);
+            if (daysExpired === null && !(pao && pao.state !== 'ok')) return;
             const bannerItem = { ...(serverOi ? { ...item, ...serverOi } : item), days_expired: daysExpired };
+            if (pao) bannerItem.pao = pao;
             if (!shouldShowExpiredBanner(bannerItem)) return;
-            _bannerQueue.push({ type: 'expired', data: bannerItem });
+            // A row the PAO clock flagged is the "opened too long" notice: its own layout,
+            // its own priorities (see _bannerPriority) and a recovery action.
+            _bannerQueue.push({ type: (pao && pao.state !== 'ok') ? 'opened' : 'expired', data: bannerItem });
             _queuedItemIds.add(item.id);
         });
 
@@ -9809,7 +10147,8 @@ async function loadBannerAlerts() {
             const daysOI = Math.abs(oi.days_to_expiry ?? 0);
             const bannerItem = { ...live, ...oi, days_expired: daysOI };
             if (!shouldShowExpiredBanner(bannerItem)) return;
-            _bannerQueue.push({ type: 'expired', data: bannerItem });
+            const paoOI = _openedPao(bannerItem);
+            _bannerQueue.push({ type: (paoOI && paoOI.state !== 'ok') ? 'opened' : 'expired', data: bannerItem });
             _queuedItemIds.add(oi.id);
         });
 
@@ -9980,12 +10319,23 @@ async function loadBannerAlerts() {
  * Higher = more important = shown first.
  *
  * Priority tiers:
+ *   3000+   : an opened row past its critical PAO threshold (probably spoiled)
+ *   1500+   : an opened row past its warning threshold (check it)
  *   1000+ : expired (longer ago = higher)
  *   500-799: anomalies (data discrepancies)
  *   200-499: suspicious quantities (low stock > high stock > package)
  *   100-199: consumption predictions (higher deviation% = higher)
  */
 function _bannerPriority(entry) {
+    // The post-opening clock (data/opened_shelf_life.json) wins over everything else: a
+    // wine open for 16 days at 4–10 is the thing to act on now, not a stock discrepancy.
+    // Among opened rows the score (days open ÷ critical) decides which one leads.
+    const pao = _openedPao(entry && entry.data);
+    if (pao) {
+        const score = Math.min(Number(pao.score) || 0, 99);
+        if (pao.state === 'critical') return 3000 + score;
+        if (pao.state === 'warn') return 1500 + score;
+    }
     switch (entry.type) {
         case 'expired': {
             const d = entry.data.days_expired || 0;
@@ -10050,6 +10400,8 @@ function renderBannerItem() {
     const banner = document.getElementById('alert-banner');
     if (!banner || _bannerQueue.length === 0) { if (banner) banner.style.display = 'none'; return; }
     if (_bannerIndex >= _bannerQueue.length) _bannerIndex = 0;
+    /** Other opened rows waiting behind this one (the notice lists them in one tap). */
+    let openedOthers = 0;
 
     const entry = _bannerQueue[_bannerIndex];
     const iconEl    = document.getElementById('alert-banner-icon');
@@ -10060,7 +10412,42 @@ function renderBannerItem() {
     const s = getSettings();
     const hasScale = s.scale_enabled && s.scale_gateway_url && _scaleConnected;
 
-    if (entry.type === 'expired') {
+    if (entry.type === 'opened') {
+        // ── "Opened too long": the post-opening clock, not the printed date ────────────
+        // The message names the limit it crossed ("aperto da 16 gg · consigliato 4–10 gg"),
+        // the rail says how bad it is (amber / red), and the strip answers the only two
+        // questions that matter: throw it, or use it up in a recipe. Finishing, correcting
+        // and "it is still good" live one tap away in the ⋮ — nothing is hidden, the two
+        // decisions that need to be fast are simply not behind a menu.
+        const item = entry.data;
+        const pao = _openedPao(item) || { state: 'warn', days_open: 0, warn: 0, critical: 0, score: 0 };
+        const critical = pao.state === 'critical';
+        banner.className = `alert-banner banner-opened ${critical ? 'is-critical' : 'is-warn'}`;
+        _bannerIconSet(iconEl, item, critical ? '🗑️' : '👀');
+        titleEl.innerHTML = `${escapeHtml(item.name)}${item.brand ? ` <span class="banner-brand">(${escapeHtml(item.brand)})</span>` : ''}`;
+        const locMeta = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location || '' };
+        const limitText = Number(pao.critical) >= 9999
+            ? t('dashboard.banner_opened_limit_none')
+            : t('dashboard.banner_opened_limit', { warn: pao.warn, critical: pao.critical });
+        detailEl.innerHTML = `
+            <div class="banner-fact">${escapeHtml(t('dashboard.banner_opened_since', { days: pao.days_open, location: locMeta.label || item.location || '' }))}${limitText ? ' · ' + escapeHtml(limitText) : ''}</div>
+            ${_alertItemMeta(item)}
+            <div class="banner-verdict safety-pill safety-pill-${critical ? 'danger' : 'warning'}">${critical ? '🗑️' : '👀'} ${escapeHtml(t(critical ? 'dashboard.banner_opened_verdict_critical' : 'dashboard.banner_opened_verdict_warn'))}</div>`;
+        const itemId = Number(item.id) || 0;
+        const productId = Number(item.product_id) || 0;
+        const moreLabel = escapeAttr(t('dashboard.banner_opened_more_actions'));
+        actionsEl.innerHTML =
+            `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`
+            + `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`
+            + `<button type="button" class="btn-banner btn-banner-more" id="alert-banner-more-btn" onclick="event.stopPropagation();_bannerMenuToggle()" aria-expanded="false" aria-controls="alert-banner-menu" title="${moreLabel}" aria-label="${moreLabel}">⋮</button>`
+            + `<div class="alert-banner-menu" id="alert-banner-menu" hidden>`
+            +   `<button type="button" class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${escapeHtml(t('dashboard.banner_expired_action_finished'))}</button>`
+            +   `<button type="button" class="btn-banner btn-banner-edit" onclick="editReviewItem(${itemId}, ${productId})">${escapeHtml(t('dashboard.banner_expired_action_modify'))}</button>`
+            +   `<button type="button" class="btn-banner btn-banner-ok" onclick="bannerStillGood()">✅ ${escapeHtml(t('dashboard.banner_opened_action_still_good'))}</button>`
+            + `</div>`;
+        openedOthers = _openedQueueSiblings(item);
+
+    } else if (entry.type === 'expired') {
         const item = entry.data;
         const isOpenedExpiry = !!item.opened_at;
         const safety = getExpiredSafety(item, item.days_expired);
@@ -10081,13 +10468,13 @@ function renderBannerItem() {
 
         if (safety.level === 'danger') {
             banner.className = 'alert-banner banner-expired banner-expired-danger';
-            iconEl.textContent = '🚫';
+            _bannerIconSet(iconEl, item, '🚫');
         } else if (safety.level === 'warning') {
             banner.className = 'alert-banner banner-expired banner-expired-warning';
-            iconEl.textContent = '👀';
+            _bannerIconSet(iconEl, item, '👀');
         } else {
             banner.className = 'alert-banner banner-expired banner-expired-ok';
-            iconEl.textContent = '✅';
+            _bannerIconSet(iconEl, item, '✅');
         }
         // Title: product + brand. The stock situation and the verdict go in the
         // detail as separate, plain-language lines instead of one long sentence.
@@ -10125,7 +10512,7 @@ function renderBannerItem() {
         const isLow  = !!item._isLow; // set when banner item was built
         const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
         banner.className = 'alert-banner';
-        iconEl.textContent = '⚠️';
+        _bannerIconSet(iconEl, item, '⚠️');
         let titleText, detailText;
         if (suspDq && !isLow) {
             titleText = `${t('dashboard.banner_review_unusual_pkg_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
@@ -10155,7 +10542,7 @@ function renderBannerItem() {
         const dailyRate = parseFloat(pred.daily_rate) || 0;
         const daysSince = parseInt(pred.days_since_restock) || 0;
         banner.className = 'alert-banner banner-prediction';
-        iconEl.textContent = '📊';
+        _bannerIconSet(iconEl, pred, '📊');
         titleEl.textContent = `${t('dashboard.banner_prediction_title')}: ${pred.name}${pred.brand ? ' (' + pred.brand + ')' : ''}`;
         let rateText = '';
         if (dailyRate > 0) {
@@ -10181,7 +10568,7 @@ function renderBannerItem() {
     } else if (entry.type === 'finished') {
         const fin = entry.data;
         banner.className = 'alert-banner banner-finished';
-        iconEl.textContent = fin.vanished ? '👻' : '📦';
+        _bannerIconSet(iconEl, fin, fin.vanished ? '👻' : '📦');
         const barcodeSuffix = fin.barcode && fin.barcode.length >= 3
             ? ` <span style="font-family:monospace;font-size:0.7em;opacity:0.6">…${escapeHtml(fin.barcode.slice(-3))}</span>`
             : '';
@@ -10219,7 +10606,7 @@ function renderBannerItem() {
         const an = entry.data;
         const isPhantom = an.direction === 'phantom';
         banner.className = 'alert-banner banner-anomaly';
-        iconEl.textContent = '🔍';
+        _bannerIconSet(iconEl, an, '🔍');
         if (isPhantom) {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_phantom_title')}`;
             detailEl.innerHTML = t('dashboard.banner_anomaly_phantom_detail', { inv_qty: an.inv_qty, unit: an.unit, expected_qty: an.expected_qty }) + _bannerLocationLine(an);
@@ -10239,7 +10626,7 @@ function renderBannerItem() {
     } else if (entry.type === 'dup_loss_check') {
         const ch = entry.data;
         banner.className = 'alert-banner banner-dup-loss';
-        iconEl.textContent = '🧪';
+        _bannerIconSet(iconEl, ch, '🧪');
 
         const locInfo = LOCATIONS[normalizeLocationKey(ch.location)] || { icon: '📦', label: ch.location || '—' };
         const locText = `${locInfo.icon} ${locInfo.label}`;
@@ -10263,7 +10650,7 @@ function renderBannerItem() {
     } else if (entry.type === 'no_expiry') {
         const item = entry.data;
         banner.className = 'alert-banner banner-no-expiry';
-        iconEl.textContent = '📅';
+        _bannerIconSet(iconEl, item, '📅');
         titleEl.textContent = t('dashboard.banner_no_expiry_title').replace('{name}', item.name + (item.brand ? ' (' + item.brand + ')' : ''));
         detailEl.textContent = t('dashboard.banner_no_expiry_detail') + _bannerLocationText(item);
         const pid = item.product_id || item.id;
@@ -10281,6 +10668,16 @@ function renderBannerItem() {
         counterEl.innerHTML = dots;
     } else {
         counterEl.innerHTML = '';
+    }
+    // The notice names the row that matters most; the others stay one tap away instead of
+    // forcing the user to guess what the dots hide.
+    if (openedOthers > 0) {
+        const note = document.createElement('button');
+        note.type = 'button';
+        note.className = 'banner-opened-more';
+        note.textContent = t('dashboard.banner_opened_more', { n: openedOthers });
+        note.addEventListener('click', _showOpenedTab);
+        counterEl.appendChild(note);
     }
     banner.style.display = '';
 }
@@ -10702,6 +11099,65 @@ function dismissBannerItemAfterAction() {
     }
     if (_bannerIndex >= _bannerQueue.length) _bannerIndex = 0;
     renderBannerItem();
+
+/** How many other opened rows are waiting (the notice shows the one that matters most). */
+function _openedQueueSiblings(item) {
+    const id = Number(item && item.id) || 0;
+    return _bannerQueue.filter(e => e && e.type === 'opened' && (Number(e.data && e.data.id) || 0) !== id).length;
+}
+
+/** Open the "Aperti" tab under the dashboard, where every opened row is listed. */
+function _showOpenedTab() {
+    try { showPage('dashboard'); } catch (e) { /* already on the dashboard */ }
+    setTimeout(() => {
+        try { _stockHubSelect('opened'); } catch (e) { /* hub hidden: nothing to select */ }
+        const hub = document.getElementById('stock-hub');
+        if (hub && hub.scrollIntoView) hub.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+}
+
+/**
+ * Rescue instead of waste: a forgotten-but-safe ingredient still makes dinner.
+ * SHELFY asks the recipe engine for something that uses it up.
+ */
+function bannerUseInRecipe() {
+    const entry = _bannerQueue[_bannerIndex];
+    const name = entry && entry.data && entry.data.name ? String(entry.data.name) : '';
+    if (!name) return;
+    dismissBannerItemAfterAction();
+    startRecipeFromProduct(name);
+}
+
+/** "È ancora buono": quiet for a few days, then the post-opening clock speaks again. */
+function bannerStillGood() {
+    const entry = _bannerQueue[_bannerIndex];
+    const item = entry && entry.data;
+    if (!item) return;
+    _openedSnooze(item);
+    dismissBannerItemAfterAction();
+    showToast(t('dashboard.banner_opened_snoozed'), 'success');
+}
+
+/** The compact ⋮ of the opened strip: reveals the secondary actions in place. */
+function _bannerMenuToggle() {
+    const menu = document.getElementById('alert-banner-menu');
+    if (!menu) return;
+    menu.hidden = !menu.hidden;
+    const btn = document.getElementById('alert-banner-more-btn');
+    if (btn) btn.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+    if (!menu.hidden) {
+        // A tap anywhere else closes it: it is a menu, not a dialog.
+        setTimeout(() => document.addEventListener('click', _bannerMenuClose, { once: true }), 0);
+    }
+}
+
+function _bannerMenuClose() {
+    const menu = document.getElementById('alert-banner-menu');
+    if (menu) menu.hidden = true;
+    const btn = document.getElementById('alert-banner-more-btn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
 }
 
 /** Current stock is already correct — align ledger, do not restore and do not add to shopping. */
@@ -12858,7 +13314,7 @@ async function submitEditInventory(e, id, productId) {
             if (entry) {
                 if (entry.type === 'review') setReviewConfirmed(entry.data.id);
                 else if (entry.type === 'prediction') setReviewConfirmed('pred_' + entry.data.inventory_id);
-                else if (entry.type === 'expired') setReviewConfirmed('exp_' + entry.data.id);
+                else if (entry.type === 'expired' || entry.type === 'opened') setReviewConfirmed('exp_' + entry.data.id);
                 else if (entry.type === 'expiring') setReviewConfirmed('exps_' + entry.data.id);
                 else if (entry.type === 'anomaly') _bannerMarkAnomalyDismissed(entry.data);
             }
@@ -13075,7 +13531,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261026l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -13085,7 +13541,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261026l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29578,6 +30034,11 @@ function initInactivityWatcher() {
 // ===== INITIALIZATION =====
 const _splashStart = Date.now();
 document.addEventListener('DOMContentLoaded', () => {
+    // The splash is already on screen: credit the free services it rides on before any
+    // network call (the list is generated data, no fetch, no token). The dashboard footer
+    // and the Settings card read the same list, so they are painted here too.
+    _renderPreloaderApis();
+    _loadFreeApis().catch(() => {});
     // Load translations first, then initialize the app
     loadTranslations(_currentLang).then(() => {
         _initApp();

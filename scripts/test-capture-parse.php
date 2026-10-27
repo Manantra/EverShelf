@@ -169,15 +169,27 @@ $actSrc = extract_fn($app, '_captureIsActionable');
 check('_captureIsActionable() is extractable', $actSrc !== '');
 $submitSrc = extract_fn($app, '_captureSubmit');
 $guardPos = strpos($submitSrc, 'if (!_captureIsActionable(parsed)) {');
-$openPos  = strpos($submitSrc, 'startManualEntry();');
+$notUnderstoodPos = strpos($submitSrc, '_captureNotUnderstood(');
 check('_captureSubmit() refuses an empty action before opening anything',
     str_contains($app, "if (parsed.intent === 'recipe') return true;")
     && $guardPos !== false
-    && ($openPos === false || $guardPos < $openPos));
+    && ($notUnderstoodPos === false || $guardPos < $notUnderstoodPos));
 check('the sheet never claims "I understood" above "not understood"',
-    // The chips ARE the interpretation: when there is nothing to interpret they hide.
-    preg_match('/if \(!_captureIsActionable\(parsed\)\) \{[\s\S]{0,300}capture-understood[\s\S]{0,250}capture\.not_understood/', $app) === 1
-    && str_contains($app, '_captureShowUnderstood(parsed);'));
+    // The chips ARE the interpretation: when there is nothing to interpret they hide, and
+    // the message says it did not understand. One helper owns both halves.
+    preg_match('/function _captureNotUnderstood\([^)]*\) \{[\s\S]{0,400}capture-understood[\s\S]{0,200}_captureStatus/', $app) === 1
+    && str_contains($app, '_captureShowUnderstood(parsed);')
+    && str_contains($app, "_captureNotUnderstood('capture.not_understood');")
+    && substr_count($app, "_captureNotUnderstood('capture.no_product'") >= 2);
+// The report: "se non capisce non deve aprire «Nuovo prodotto», deve scrivere che non ha
+// capito". Creating an article is the user's decision, never the end of a wrong parse.
+$submitBody = extract_fn($app, '_captureSubmit');
+$openAddBody = extract_fn($app, '_shelfyOpenAdd');
+check('a spoken sentence never opens the "new product" form',
+    $submitBody !== '' && $openAddBody !== ''
+    && !str_contains($submitBody, 'startManualEntry(')
+    && !str_contains($openAddBody, 'startManualEntry(')
+    && substr_count($submitBody . $openAddBody, '_captureNotUnderstood(') >= 2);
 if ($actSrc !== '') {
     $actHarness = vocab_prelude($root) . $matchers . $src . $actSrc . PHP_EOL . <<<'JS'
 const probes = ['ho usato', 'ho finito', '', 'ho usato 200 grammi di pasta', 'aggiungi il latte', 'cosa cucino con le uova'];
@@ -331,17 +343,75 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
 // `continuous = false` made the browser finalise "Ho usato" at the first pause and the
 // old `onresult` submitted that chunk, closing the sheet mid-sentence (and the restart
 // loop before it beeped). One session now runs until the user is silent.
-check('the recogniser runs one session per tap, stopped by silence (never restarted)',
+check('the recogniser runs one session per tap, and only our silence deadline submits',
     str_contains($app, '_captureRec.continuous = true;')
-    && str_contains($app, 'const _CAPTURE_SILENCE_MS = 1800;')
+    && preg_match('/const _CAPTURE_SILENCE_MS = (\d+);/', $app, $silenceNow) === 1
+    && (int)$silenceNow[1] >= 2000
     && str_contains($app, 'const armSilenceStop = () => {')
+    && str_contains($app, '_captureVoice.stopRequested = true;')
     && !str_contains($app, '_CAPTURE_VOICE_MAX_RESTARTS')
     && !str_contains($app, '_captureStartVoice(true)')
-    && str_contains($app, "_captureVoice = { active: false, text: '', timer: 0 };"));
+    && str_contains($app, "_captureVoice = { active: false, text: '', timer: 0, stopRequested: false };"));
+// The report: "si mangia sempre l'ultima parola". Chrome on Android closes the session at
+// the first final phrase even with `continuous = true`; submitting on that `onend` sent
+// "Ho usato 2" for "Ho usato 2 arance". A browser-ended session is now RESUMED (bounded),
+// and only the session our own deadline stopped hands the sentence over.
+check('a session the browser ends mid-sentence is resumed instead of submitted',
+    preg_match('/const _CAPTURE_RESTARTS_MAX = (\d+);/', $app, $resumeMax) === 1
+    && (int)($resumeMax[1] ?? 0) >= 1
+    && str_contains($app, 'const deadlineReached = _captureVoice.stopRequested;')
+    && str_contains($app, 'if (!deadlineReached && said && restarts < _CAPTURE_RESTARTS_MAX) {')
+    && str_contains($app, 'const startSession = () => {'));
 check('a final phrase never submits: only onend hands the sentence over',
     preg_match('/_captureRec\.onresult = \(ev\) => \{[\s\S]*?\n        \};/', $app, $onres) === 1
     && !str_contains($onres[0] ?? '', 'finish(')
     && str_contains($app, 'if (said) { finish(said); return; }'));
+
+// ── The transcript join: no doubled sentence, no eaten word ──────────────────
+// Chrome capitalises the interim result and lowercases the final one, so comparing the
+// RAW strings duplicated the phrase ("Ho mangiato ho mangiato una mela"); comparing single
+// characters could match one letter and swallow the start of a word ("aggiungi il latte"
+// arrived as "aggiungi il atte"). The join is now word-level and case-insensitive.
+$joinSrc = extract_fn($app, '_captureJoinText');
+check('_captureJoinText() is extractable', $joinSrc !== '');
+if ($joinSrc !== '') {
+    $joinHarness = $joinSrc . <<<'JS'
+const T = [
+    ['Ho mangiato', 'ho mangiato una mela'],
+    ['Ho mangiato', 'ho mangiato'],
+    ['aggiungi il', 'latte'],
+    ['Aggiungi il la', 'latte'],
+    ['ho consumato', '250 grammi di pasta'],
+    ['ho consumato', 'ho consumato 250'],
+    ['ho usato una', 'ho usato una banana'],
+    ['aggiungi il latte', 'latte'],
+    ['Ho usato 2', '2 arance'],
+];
+console.log(JSON.stringify(T.map(([a, b]) => _captureJoinText(a, b))));
+JS;
+    $tmpJ = sys_get_temp_dir() . '/join_' . getmypid() . '.js';
+    file_put_contents($tmpJ, $joinHarness);
+    $rawJ = shell_exec('node ' . escapeshellarg($tmpJ) . ' 2>/dev/null');
+    @unlink($tmpJ);
+    $joined = json_decode(trim((string)$rawJ), true);
+    check('the transcript join runs in node', is_array($joined), (string)$rawJ);
+    if (is_array($joined)) {
+        check('a capitalised interim and a lowercase final are ONE sentence',
+            ($joined[0] ?? '') === 'ho mangiato una mela' && ($joined[1] ?? '') === 'ho mangiato',
+            json_encode($joined));
+        check('the last word survives ("aggiungi il" + "latte")',
+            ($joined[2] ?? '') === 'aggiungi il latte' && ($joined[3] ?? '') === 'Aggiungi il latte',
+            json_encode($joined));
+        check('a restarted phrase is stitched once, never twice',
+            ($joined[4] ?? '') === 'ho consumato 250 grammi di pasta'
+            && ($joined[5] ?? '') === 'ho consumato 250'
+            && ($joined[6] ?? '') === 'ho usato una banana', json_encode($joined));
+        check('a shorter echo never erases the whole sentence',
+            ($joined[7] ?? '') === 'aggiungi il latte', json_encode($joined));
+        check('a repeated number is one quantity, not two',
+            ($joined[8] ?? '') === 'Ho usato 2 arance', json_encode($joined));
+    }
+}
 check('the silence timer ends the session and closing clears it',
     str_contains($app, '_captureVoice.timer = setTimeout(() => {')
     && preg_match('/function _captureVoiceStop\(\) \{[\s\S]{0,400}clearTimeout\(_captureVoice\.timer\)/', $app) === 1);
@@ -434,6 +504,18 @@ check('recording makes the ring turn faster',
 check('the ring is hidden with the button and still without motion',
     str_contains($app, 'if (wrap) wrap.hidden = !Ctor;')
     && preg_match('/prefers-reduced-motion: reduce\) \{\s*\.capture-mic-wrap::before \{ animation: none;/s', $css) === 1);
+// The sentence SHELFY heard is what the user checks before confirming an action: it must be
+// the largest text in the sheet, not a 15 px footnote in italics.
+check('the transcript is big and evident (highlighted, 1 rem+, semibold)',
+    preg_match('/\.capture-transcript \{([^}]*)\}/', $css, $trCss) === 1
+    && preg_match('/font-size:\s*([\d.]+)rem/', $trCss[1] ?? '', $trSize) === 1
+    && (float)($trSize[1] ?? 0) >= 1.0
+    && preg_match('/font-weight:\s*(\d{3})/', $trCss[1] ?? '', $trWeight) === 1
+    && (int)($trWeight[1] ?? 0) >= 600
+    && str_contains($trCss[1] ?? '', 'background: var(--brand-surface);')
+    && preg_match('/\.capture-transcript\.is-final \{[^}]*font-weight: (\d{3})/', $css, $trFinal) === 1
+    && (int)($trFinal[1] ?? 0) >= 600,
+    json_encode($trCss[1] ?? ''));
 
 // ── Round 6: the capture speaks with the SAME voice as the cooking steps ─────
 check('the capture never speaks (the recipes do)',
@@ -568,13 +650,15 @@ JS;
 $voiceSrc = extract_fn($app, '_captureStartVoice');
 $stopSrc  = extract_fn($app, '_captureVoiceStop');
 preg_match('/const _CAPTURE_SILENCE_MS = (\d+);/', $app, $silenceM);
+preg_match('/const _CAPTURE_RESTARTS_MAX = (\d+);/', $app, $restartsM);
 check('the voice loop is extractable',
-    $voiceSrc !== '' && $stopSrc !== '' && !empty($silenceM[1]),
-    json_encode($silenceM));
-if ($voiceSrc !== '' && $stopSrc !== '' && !empty($silenceM[1])) {
+    $voiceSrc !== '' && $stopSrc !== '' && !empty($silenceM[1]) && !empty($restartsM[1]),
+    json_encode([$silenceM, $restartsM]));
+if ($voiceSrc !== '' && $stopSrc !== '' && !empty($silenceM[1]) && !empty($restartsM[1])) {
     $voiceHarness = "const _CAPTURE_SILENCE_MS = " . $silenceM[1] . ";\n"
+        . "const _CAPTURE_RESTARTS_MAX = " . $restartsM[1] . ";\n"
         . "let _captureRec = null;\nlet _captureMeterStarted = false;\n"
-        . "let _captureVoice = { active: false, text: '', timer: 0 };\n"
+        . "let _captureVoice = { active: false, text: '', timer: 0, stopRequested: false };\n"
         . "const submitted = [];\n"
         . "const _statuses = [];\n"
         . "globalThis.document = { getElementById: () => null };\n"
@@ -593,6 +677,9 @@ class FakeRec {
     constructor() { FakeRec.last = this; FakeRec.started = false; }
     start() { FakeRec.started = true; }
     stop() { const self = this; setTimeout(() => { if (self.onend) self.onend(); }, 0); }
+    // The BROWSER closing the session on its own (Chrome on Android, first final phrase):
+    // no stop(), just onend. This is the shape that used to cut the last word.
+    endByBrowser() { const self = this; setTimeout(() => { if (self.onend) self.onend(); }, 0); }
     // The Web Speech API hands the WHOLE session list on every event, never just the new
     // chunk: that is what made the old append duplicate "ho ho ho usato…".
     emit(list) {
@@ -612,6 +699,20 @@ async function runSession(events) {
     }
     await new Promise(r => setTimeout(r, _CAPTURE_SILENCE_MS + 300));
     return { afterEachEvent: afterEachEvent, submitted: submitted.slice() };
+}
+// "Ho usato 2 arance" on a browser that closes the session after "Ho usato 2".
+async function runBrowserEnd() {
+    submitted.length = 0;
+    await _captureStartVoice();
+    const first = FakeRec.last;
+    first.emit([['Ho usato 2', true]]);
+    first.endByBrowser();
+    await new Promise(r => setTimeout(r, 60));
+    const resumed = FakeRec.last !== first;
+    const afterEnd = submitted.slice();
+    FakeRec.last.emit([['arance', true]]);
+    await new Promise(r => setTimeout(r, _CAPTURE_SILENCE_MS + 300));
+    return { resumed: resumed, afterEnd: afterEnd, submitted: submitted.slice() };
 }
 (async () => {
     const cut = await runSession([
@@ -638,9 +739,17 @@ async function runSession(events) {
         [['ho consumato', true]],
         [['250 grammi di pasta', true]]
     ]);
+    // The browser closes the session mid-sentence: resume, never submit the stub.
+    const browserEnd = await runBrowserEnd();
+    // And the same with a capitalised interim, the shape that duplicated the sentence.
+    const mixedCase = await runSession([
+        [['Ho mangiato', true]],
+        [['ho mangiato una mela', true]]
+    ]);
     console.log(JSON.stringify({
         cut: cut, repeated: repeated, resetCumulative: resetCumulative,
-        resetPieces: resetPieces, started: FakeRec.started
+        resetPieces: resetPieces, browserEnd: browserEnd, mixedCase: mixedCase,
+        started: FakeRec.started
     }));
 })();
 JS;
@@ -666,6 +775,14 @@ JS;
         check('a restarted list without the beginning is joined once',
             ($voice['resetPieces']['submitted'] ?? []) === ['ho consumato 250 grammi di pasta'],
             json_encode($voice['resetPieces']['submitted'] ?? null));
+        check('a session the browser closed mid-sentence is resumed, never submitted as is',
+            ($voice['browserEnd']['afterEnd'] ?? null) === []
+            && ($voice['browserEnd']['resumed'] ?? false) === true
+            && ($voice['browserEnd']['submitted'] ?? []) === ['Ho usato 2 arance'],
+            json_encode($voice['browserEnd'] ?? null));
+        check('a capitalised interim plus the lowercase final is one sentence, not two',
+            ($voice['mixedCase']['submitted'] ?? []) === ['ho mangiato una mela'],
+            json_encode($voice['mixedCase']['submitted'] ?? null));
     }
 }
 

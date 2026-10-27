@@ -263,6 +263,7 @@ function evershelfClientSettingsKeys(): array
         'auto_added_bring',
         'bring_blocklist',
         'no_expiry_dismissed',
+        'opened_check_snoozed',
         'family_sibling_confirmed',
         'shopping_plan_days',
         // Guided setup ledger (issue #301): answered once per instance, not per browser

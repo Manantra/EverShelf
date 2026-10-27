@@ -1209,6 +1209,12 @@ try {
             pairingCodeStatus();
             break;
 
+        // GET free_apis — the free services this instance talks to, for the credits
+        // card and the footer. Data only (data/free_apis.json): no key, no network.
+        case 'free_apis':
+            getFreeApis();
+            break;
+
         case 'ai_test':
             aiTestConnection();
             break;
@@ -8040,7 +8046,7 @@ function getStats(PDO $db): void {
     
     // Expiring soonest (top items needing attention)
     $expiring = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
@@ -8052,7 +8058,7 @@ function getStats(PDO $db): void {
     // Expired — vacuum-sealed items get extra days beyond printed expiry before being flagged
     $vacExtDays = (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30');
     $expiredStmt = $db->prepare("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL
@@ -8163,12 +8169,14 @@ function getStats(PDO $db): void {
                     $si['days_to_expiry'] = $sealedDays;
                     $si['is_edible']     = $sealedDays >= 0;
                     $si['has_opened_at'] = false;
+                    $si['pao'] = null;   // still sealed: the post-opening clock has not started
                     $opened[] = $si;
                 }
                 // Opened fractional part: use the already-computed opened shelf-life expiry
                 if ($item['days_to_expiry'] === null || $item['days_to_expiry'] <= 365) {
                     $fi = $item;
                     $fi['quantity'] = $frac;
+                    $fi['pao'] = openedShelfLifeSummary($fi);
                     $opened[] = $fi;
                 }
                 continue;
@@ -8181,6 +8189,9 @@ function getStats(PDO $db): void {
         if (!$item['has_opened_at'] && ($item['days_to_expiry'] === null || $item['days_to_expiry'] > 14)) continue;
         // Trace leftovers (≤20 g/ml etc.) are finished — don't show in Opened widget
         if (isInventoryDepleted($item)) continue;
+        // The deterministic post-opening clock (data/opened_shelf_life.json): the dashboard
+        // needs days_open + the two thresholds, not an AI guess.
+        $item['pao'] = openedShelfLifeSummary($item);
         $opened[] = $item;
     }
     // Sort by days_to_expiry ascending (soonest first; nulls last)
@@ -9344,6 +9355,40 @@ function dbCleanup(?PDO $db = null): void {
     } catch (Throwable $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
+}
+
+/**
+ * GET free_apis — the free services this instance talks to.
+ *
+ * The list is DATA (`data/free_apis.json`): a new integration is one row, never a
+ * template edit. The sentence that says what each one is used for is a translated UI
+ * string resolved by id (`_freeApiUsage`), so it follows the six locales.
+ */
+function getFreeApis(): void {
+    $path = __DIR__ . '/../data/free_apis.json';
+    $data = is_readable($path) ? json_decode((string)file_get_contents($path), true) : null;
+    $apis = is_array($data) && is_array($data['apis'] ?? null) ? $data['apis'] : [];
+    $out = [];
+    foreach ($apis as $api) {
+        if (!is_array($api) || trim((string)($api['id'] ?? '')) === '') {
+            continue;
+        }
+        $url = (string)($api['url'] ?? '');
+        $logo = (string)($api['logo'] ?? '');
+        $logoOk = preg_match('#^assets/img/[A-Za-z0-9_./-]+\.(svg|png)$#', $logo) && !str_contains($logo, '..');
+        $out[] = [
+            'id'      => (string)$api['id'],
+            'name'    => (string)($api['name'] ?? $api['id']),
+            'mark'    => (string)($api['mark'] ?? ''),
+            // A local asset only: the splash paints it offline, and a remote URL in the
+            // data must never turn into a request (or a tracking pixel) behind our back.
+            'logo'    => $logoOk ? $logo : '',
+            // Only a real http(s) URL becomes a link: the field cannot become javascript:.
+            'url'     => preg_match('#^https?://#i', $url) ? $url : '',
+            'licence' => (string)($api['licence'] ?? ''),
+        ];
+    }
+    echo json_encode(['success' => true, 'apis' => $out], JSON_UNESCAPED_UNICODE);
 }
 
 /**

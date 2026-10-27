@@ -293,6 +293,66 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Splash: the free services we stand on ---------------------------------------------
+   A quiet row under the boot rail: the same marks the Credits card and the footer show.
+   It must stay legible on the dark splash and must never look like a menu (the splash is
+   decorative; the licences and the links live in Settings). */
+.preloader-apis {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 16px;
+    max-width: 92vw;
+    margin-top: 4px;
+    opacity: 0.62;
+}
+.preloader-api {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.9);
+}
+.preloader-api-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 5px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+/* Official logos on the splash: small, square, no frame of their own (the icons already
+   are the frame). The monogram stays as the fallback if a file is missing. */
+.preloader-api-logo {
+    width: 18px;
+    height: 18px;
+}
+.preloader-api-logo img { border-radius: 4px; }
+.preloader-api-logo .free-api-mark {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 3px;
+    border-radius: 4px;
+    font-size: 8px;
+}
+.preloader-api-name {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+@media (max-height: 560px) {
+    /* A short window: the boot rail is the message, the credits are a footnote. */
+    .preloader-api-name { display: none; }
+}
+
 @media (min-width: 641px) {
     .preloader-stages { gap: clamp(10px, 4vw, 28px); }
     .preloader-stage { min-width: 44px; }

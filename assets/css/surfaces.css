@@ -147,6 +147,84 @@ body {
 .alert-item:active { background: var(--tone-info-soft); }
 .alert-item-clickable { cursor: pointer; }
 
+/* ── The product photo leads every row (photo pass) ──────────────────────────
+   A packaging is recognised in milliseconds, a title is read word by word, so the
+   dashboard, the banner and the pantry all open with the same 44×44 frame. The frame is
+   part of the component: barcode pictures arrive as white or transparent PNGs of wildly
+   different shapes, and `object-fit: contain` on a light surface makes them one family. */
+.product-thumb {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    overflow: hidden;
+}
+.product-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 2px;
+}
+/* Fallback: the category emoji sits UNDER the picture and is revealed only when there is
+   no picture or it failed to load — never a broken icon, never an empty square. */
+.product-thumb-emoji {
+    display: none;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+.product-thumb.is-icon .product-thumb-emoji { display: block; }
+.product-thumb.is-icon .product-thumb-img { display: none; }
+
+/* The row keeps its text column as the flexible child; the thumb is fixed. */
+.alert-item-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+.alert-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* The banner's leading slot is the same frame, sized to the strip. */
+.alert-banner-icon.has-thumb {
+    display: flex;
+    align-items: center;
+    line-height: 0;
+}
+.alert-banner-icon.has-thumb .product-thumb {
+    width: 44px;
+    height: 44px;
+}
+
+/* The pantry shows the same frame: 44 px, `contain` (a bottle is not cropped to its
+   label) and the category emoji as the fallback the row already renders. */
+.inv-image {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    font-size: 1.3rem;
+}
+.inv-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 2px;
+    border-radius: 7px;
+}
+
 /* Badges: same shape everywhere, the colour is the only difference. */
 .alert-item-badge,
 .alert-item-qty,
@@ -559,14 +637,15 @@ body {
 .capture-input-row .btn-accent:active { background: var(--brand-primary-hover); }
 
 .capture-hints {
+    /* Pills wrap on two centred rows instead of scrolling: the last one used to be cut in
+       half by the edge of the sheet, which read as a broken control. */
     display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    scrollbar-width: none;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
     margin: 10px 0 6px;
     padding-bottom: 2px;
 }
-.capture-hints::-webkit-scrollbar { display: none; }
 .capture-hint {
     flex: 0 0 auto;
     min-height: 32px;
@@ -782,19 +861,27 @@ body {
     transition: height 90ms ease-out;
 }
 
+/* What SHELFY heard: it is the sentence the user is checking before they confirm it, so it
+   is the largest text in the sheet — a highlighted block, not a footnote in 15 px. */
 .capture-transcript {
-    margin: 0 0 8px;
-    min-height: 1.2em;
+    margin: 0 0 10px;
+    padding: 10px 14px;
+    min-height: 1.4em;
+    border-radius: 12px;
+    background: var(--brand-surface);
     text-align: center;
-    font-size: 15px;
-    font-weight: 400;
+    font-size: 1.06rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: 0.005em;
     color: var(--text-muted);
     font-style: italic;
+    overflow-wrap: anywhere;
 }
 .capture-transcript.is-final {
     color: var(--text-main);
     font-style: normal;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .capture-understood,
@@ -869,6 +956,19 @@ body {
     padding: 1px 8px;
     font-size: 12px;
     font-weight: 600;
+}
+/* "Controlla" is a request for a look, not a verdict: a neutral tag, so it no longer
+   competes with the amber expiry badge it refers to. Danger ("Non mangiare", "Buttalo")
+   and "Va bene" keep their colour — those answer a question the user actually asked. */
+.safety-pill-warning {
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    border-color: var(--surface-border);
+}
+[data-theme="dark"] .safety-pill-warning {
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    border-color: var(--surface-border);
 }
 
 /* Row actions: keep the gap honest now that the row carries "Usa" + ⋮ (the extend
@@ -1048,16 +1148,21 @@ body {
    finishing is emerald, discarding is a soft red, correcting stock is sky, ignoring
    is neutral. Collapsing them behind a ⋮ hid the very actions the strip exists for. */
 .alert-banner-actions {
-    /* Every action is visible: they wrap on a phone instead of hiding behind a ⋮. */
+    /* Every action is visible: they wrap on a phone instead of hiding behind a ⋮.
+       Compact and right-aligned (the audit: a full-width row of equal pastel blocks read
+       as a control panel, not as the answers to one question). */
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    justify-content: flex-end;
 }
 .alert-banner-actions .btn-banner {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
+    flex: 0 0 auto;
+    min-width: 0;
     min-height: var(--touch-min);
     padding: 0 14px;
     border-radius: 10px;
@@ -1067,35 +1172,262 @@ body {
     font-size: 13px;
     font-weight: 600;
 }
-.alert-banner-actions .btn-banner-finish {
-    background: var(--brand-surface);
-    border-color: color-mix(in srgb, var(--brand-primary) 40%, transparent);
-    color: var(--brand-primary-hover);
-}
-.alert-banner-actions .btn-banner-throw {
-    background: var(--tone-danger-soft);
-    border-color: color-mix(in srgb, var(--tone-danger) 35%, transparent);
-    color: var(--tone-danger-text);
-}
-.alert-banner-actions .btn-banner-edit {
-    background: var(--tone-info-soft);
-    border-color: color-mix(in srgb, var(--tone-info) 35%, transparent);
-    color: var(--tone-info-text);
-}
-.alert-banner-actions .btn-banner-ok {
-    background: #F1F5F9;
-    border-color: var(--surface-border);
-    color: #475569;
-}
-.alert-banner-actions .btn-banner-ai {
+.alert-banner-actions .btn-banner-finish,
+.alert-banner-actions .btn-banner-throw,
+.alert-banner-actions .btn-banner-edit,
+.alert-banner-actions .btn-banner-ai,
+.alert-banner-actions .btn-banner-weigh,
+.alert-banner-actions .btn-banner-edit-qty {
     background: var(--surface-bg);
     border-color: var(--surface-border);
     color: var(--text-muted);
 }
-[data-theme="dark"] .alert-banner-actions .btn-banner { background: #1E293B; color: #CBD5E1; }
-[data-theme="dark"] .alert-banner-actions .btn-banner-finish { background: color-mix(in srgb, var(--brand-primary) 22%, transparent); color: #A7F3D0; }
-[data-theme="dark"] .alert-banner-actions .btn-banner-throw { background: color-mix(in srgb, var(--tone-danger) 22%, transparent); color: #FCA5A5; }
-[data-theme="dark"] .alert-banner-actions .btn-banner-edit { background: color-mix(in srgb, var(--tone-info) 22%, transparent); color: #7DD3FC; }
+.alert-banner-actions .btn-banner-finish:active,
+.alert-banner-actions .btn-banner-throw:active,
+.alert-banner-actions .btn-banner-edit:active,
+.alert-banner-actions .btn-banner-ai:active,
+.alert-banner-actions .btn-banner-weigh:active,
+.alert-banner-actions .btn-banner-edit-qty:active { background: var(--bg-app); }
+/* ── "Opened too long": the post-opening clock (PAO), not the printed date ─────
+   A white card with one hairline and a single accent rail: amber when the food is past
+   the point where quality starts to go ("check it"), red when it is past the point where
+   it is almost certainly spoiled. The strip answers the two decisions that must be fast —
+   throw it, or use it up — while the ⋮ opens the rest in place (nothing hidden, one tap). */
+.alert-banner.banner-opened { border-left-color: var(--tone-soon); }
+.alert-banner.banner-opened.is-critical { border-left-color: var(--tone-danger); }
+.alert-banner.banner-opened .banner-verdict { margin-top: 6px; }
+.alert-banner-actions .btn-banner-more {
+    min-width: var(--touch-min);
+    padding: 0 10px;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+.alert-banner-menu {
+    flex: 1 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--surface-border);
+}
+.alert-banner-menu[hidden] { display: none; }
+/* "e altri 2 prodotti aperti da verificare": a discrete line next to the carousel dots. */
+.banner-opened-more {
+    margin-left: 8px;
+    padding: 2px 4px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.banner-opened-more:hover { color: var(--text-main); }
+
+/* The logo of a service: the official icon, with the monogram as the guaranteed fallback
+   (a missing file must never leave a broken image in a thank-you). */
+.free-api-logo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+}
+.free-api-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+}
+.free-api-logo .free-api-mark { display: none; }
+.free-api-logo.is-fallback img { display: none; }
+.free-api-logo.is-fallback .free-api-mark { display: inline-flex; }
+
+/* ── The dedicated thanks page (Settings → Crediti) ───────────────────────── */
+.credits-page-title {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.credits-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 12px 0 10px;
+}
+.credit-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+}
+.credit-block-logo {
+    width: 44px;
+    height: 44px;
+}
+.credit-block-logo img { border-radius: 10px; }
+.credit-block-body { flex: 1 1 auto; min-width: 0; }
+.credit-block-name {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.credit-block-usage {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.credit-block-where {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.credit-block-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 0;
+}
+.credit-licence {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.credit-link {
+    font-size: 11.5px;
+    color: var(--brand-primary);
+    text-decoration: none;
+    word-break: break-all;
+}
+.credit-link:hover { text-decoration: underline; }
+.credits-note {
+    margin: 6px 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.app-footer-dashboard {
+    margin-top: 20px;
+    padding-bottom: 4px;
+}
+
+/* ── Credits: the free services behind the app ────────────────────────────────
+   The names in a row (a footer, not a wall of text), each with what it gives us and the
+   licence it asks to be credited with. The monogram is neutral on purpose: the official
+   logos are trademarks and are not shipped in the repository. */
+.settings-free-apis {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.app-footer {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+}
+.app-footer-title {
+    margin: 0 0 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.app-footer-apis {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+.app-footer-hint {
+    margin: 8px 0 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-light);
+}
+.free-api {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: inherit;
+    text-decoration: none;
+}
+.settings-free-apis .free-api { width: 100%; }
+a.free-api:hover { border-color: var(--brand-primary); }
+.free-api-mark {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--bg-app);
+    border: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+.free-api-body { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.free-api-name { font-size: 12px; font-weight: 700; color: var(--text-main); }
+.free-api-usage,
+.free-api-licence { font-size: 11px; color: var(--text-muted); }
+.free-api-licence { font-weight: 600; }
+
+/* The banner's primary actions: "Conferma", "Sì, è finito" and "Usa" are the same emerald
+   as "Esegui" — they are the answers that write the outcome. Everything else (finishing,
+   discarding, correcting stock, weighing) is a neutral secondary: the four pastel tones
+   (sky, pink, azure) made the banner read as a different app from the rows underneath and
+   gave every action the same volume. They stay INLINE: hiding them behind a ⋮ is the
+   regression this strip was rebuilt for. A destructive primary stays red — that is a
+   meaning, not a palette. */
+.alert-banner-actions .btn-banner-ok,
+.alert-banner-actions .btn-banner-confirm,
+.alert-banner-actions .btn-banner-throw-primary {
+    font-weight: 700;
+}
+.alert-banner-actions .btn-banner-ok,
+.alert-banner-actions .btn-banner-confirm {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+}
+.alert-banner-actions .btn-banner-ok:active,
+.alert-banner-actions .btn-banner-confirm:active { background: var(--brand-primary-hover); }
+.alert-banner-actions .btn-banner-throw-primary {
+    background: var(--tone-danger);
+    border-color: var(--tone-danger);
+    color: #fff;
+}
+[data-theme="dark"] .alert-banner-actions .btn-banner:not(.btn-banner-ok):not(.btn-banner-confirm):not(.btn-banner-use):not(.btn-banner-throw-primary) {
+    background: #1E293B;
+    color: #CBD5E1;
+    border-color: var(--surface-border);
+}
 
 /* "Dimenticati" was still painted purple by the theme while "In scadenza" was a white
    card: same component, two looks. Same surface now, and the tone stays on the rail. */
@@ -1334,6 +1666,19 @@ body {
     color: var(--text-muted);
 }
 .shelfy-how-list li { margin-bottom: 4px; }
+
+/* The assistant's primary action is the app's primary action: the purple "Iniziamo" was
+   the last leftover of the old accent, and it sat one tap away from the emerald "Esegui"
+   of the same assistant. One action colour, everywhere. */
+#shelfy-intro .btn-accent,
+.capture-sheet .btn-accent {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+    font-weight: 700;
+}
+#shelfy-intro .btn-accent:active,
+.capture-sheet .btn-accent:active { background: var(--brand-primary-hover); }
 
 /* Four candidates: picture or icon, name, brand, place, quantity. */
 .shelfy-pick {

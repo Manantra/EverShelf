@@ -33,6 +33,7 @@ require_once __DIR__ . '/lib/weather.php';
 require_once __DIR__ . '/lib/ai_provider.php';
 require_once __DIR__ . '/lib/ai_prompts.php';
 require_once __DIR__ . '/lib/seasonal.php';
+require_once __DIR__ . '/lib/opened_shelf_life.php';
 require_once __DIR__ . '/lib/i18n.php';
 require_once __DIR__ . '/lib/calendar_ics.php';
 require_once __DIR__ . '/lib/recipe_shopping.php';

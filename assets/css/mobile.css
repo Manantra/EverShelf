@@ -180,6 +180,13 @@
     .alert-item {
         padding: 9px;
     }
+    /* The banner strip is compact and right-aligned: a long answer ("Non è finito, ne ho
+       ancora 200 g") may wrap onto two lines instead of overflowing the notice. */
+    .alert-banner-actions .btn-banner {
+        white-space: normal;
+        flex: 0 1 auto;
+        max-width: 100%;
+    }
     .shop-row-visual {
         display: none;           /* decorative tile, 44 px the title needs */
     }

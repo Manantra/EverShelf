@@ -19,7 +19,8 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         "tab-scale": "alerts",
         "tab-backup": "system",
         "tab-calendar": "alerts",
-        "tab-info": "system"
+        "tab-info": "system",
+        "tab-credits": "system"
     },
     "entries": [
         {

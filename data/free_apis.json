@@ -1,0 +1,31 @@
+{
+    "version": 2,
+    "note": "The free services this app actually talks to. Shown on the splash, at the bottom of the dashboard and in Settings → Credits, with the licence each one asks to be credited with. `logo` is the official icon, vendored under assets/img/apis/ (no external request at runtime); `mark` is the neutral monogram used as the fallback if an image is missing.",
+    "logo_note": "Logos belong to their projects and are used only to identify the service (nominative use). Sources: the projects' own published brand assets.",
+    "apis": [
+        {
+            "id": "open_food_facts",
+            "name": "Open Food Facts",
+            "mark": "OFF",
+            "logo": "assets/img/apis/open-food-facts.svg",
+            "url": "https://world.openfoodfacts.org",
+            "licence": "ODbL · CC-BY-SA"
+        },
+        {
+            "id": "open_prices",
+            "name": "Open Prices",
+            "mark": "OP",
+            "logo": "assets/img/apis/open-prices.png",
+            "url": "https://prices.openfoodfacts.org",
+            "licence": "ODbL"
+        },
+        {
+            "id": "open_meteo",
+            "name": "Open-Meteo",
+            "mark": "OM",
+            "logo": "assets/img/apis/open-meteo.png",
+            "url": "https://open-meteo.com",
+            "licence": "CC BY 4.0"
+        }
+    ]
+}

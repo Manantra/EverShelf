@@ -132,11 +132,15 @@ check('capture hints are solid pills, not dashed placeholders',
     preg_match('/\.capture-hint \{[^}]*border: 1px solid var\(--surface-border\)/s', $css) === 1
     && !str_contains($css, 'border: 1px dashed var(--surface-border)'));
 // ── Round 5: colours that mean something, one card per tab ──────────────────
-check('the banner actions are inline, each with its own colour',
+// Round 13 (photo/palette pass): the strip keeps every action inline, but only the action
+// the user is being asked to perform NOW is solid emerald; finishing, discarding and
+// correcting stock are neutral secondaries. The pastel tones (sky, pink, azure) made the
+// banner look like a different app from the rows underneath.
+check('the banner actions are inline: one emerald primary, neutral secondaries',
     str_contains($app, 'actionsEl.innerHTML = btns;')
-    && preg_match('/\.alert-banner-actions \.btn-banner-finish \{[^}]*var\(--brand-surface\)/s', $css) === 1
-    && preg_match('/\.alert-banner-actions \.btn-banner-throw \{[^}]*var\(--tone-danger-soft\)/s', $css) === 1
-    && preg_match('/\.alert-banner-actions \.btn-banner-edit \{[^}]*var\(--tone-info-soft\)/s', $css) === 1);
+    && preg_match('/\.alert-banner-actions \.btn-banner-finish,\s*\n\.alert-banner-actions \.btn-banner-throw,[\s\S]{0,700}?background: var\(--surface-bg\);/', $css) === 1
+    && preg_match('/\.alert-banner-actions \.btn-banner-ok,\s*\n\.alert-banner-actions \.btn-banner-confirm \{[^}]*background: var\(--brand-primary\)/s', $css) === 1
+    && !preg_match('/\.alert-banner-actions \.btn-banner-(finish|throw|edit) \{[^}]*var\(--tone-(danger|info)-soft\)/s', $css));
 check('"Dimenticati" is the same card as "In scadenza"',
     preg_match('/\.alert-stale,\s*\[data-theme="dark"\] \.alert-stale \{[^}]*background: var\(--surface-bg\)/s', $css) === 1
     && preg_match('/\.alert-stale h3,\s*\[data-theme="dark"\] \.alert-stale h3 \{ color: var\(--text-light\)/s', $css) === 1);

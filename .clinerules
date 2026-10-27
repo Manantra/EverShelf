@@ -44,6 +44,11 @@ runtime/binary files — if a task truly needs one, ask first.
 - **Frontend**: plain JS, `escapeHtml()` before any `innerHTML`; no inline
   `onclick` with unescaped data; use the `api(action, payload)` wrapper (app.js
   ~line 5384).
+- **UI grammar**: one emerald (`--brand-primary`) per action strip for the action
+  that writes the outcome, neutral secondaries for the rest, no pastel per-button
+  colours; every banner action stays inline (never behind a ⋮). A product row opens
+  with `_productThumbHtml()` (44×44, neutral frame, category emoji fallback — never
+  a broken image or an empty square).
 - **Product titles** (`products.name`/`kind`) go exclusively through
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.
@@ -97,6 +102,9 @@ php scripts/test-docker-cron.php
 php scripts/test-backup-i18n.php
 php scripts/test-i18n-boot.php
 php scripts/test-vocabulary.php
+php scripts/test-product-thumb.php
+php scripts/test-opened-shelf-life.php
+php scripts/test-credits.php
 php scripts/test-seasonal-match.php
 # full list: ls scripts/test-*.php
 

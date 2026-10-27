@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.16.38l';
+const CACHE = 'evershelf-v1.19.0e';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -16,6 +16,11 @@ const SHELL = [
     BASE,
     BASE + 'index.html',
     BASE + 'manifest.json',
+    // The credits of the free services: the splash paints them before any fetch, so they
+    // must be in the shell (and they are tiny).
+    BASE + 'assets/img/apis/open-food-facts.svg',
+    BASE + 'assets/img/apis/open-prices.png',
+    BASE + 'assets/img/apis/open-meteo.png',
     BASE + 'assets/css/style.css',
     BASE + 'assets/css/corporate.css',
     BASE + 'assets/css/elegant.css',
@@ -28,6 +33,7 @@ const SHELL = [
     BASE + 'assets/js/settings_search.js',
     BASE + 'assets/js/vocab.generated.js',
     BASE + 'assets/js/food_facts.generated.js',
+    BASE + 'assets/js/free_apis.generated.js',
     BASE + 'assets/js/core/vocab.js',
     BASE + 'assets/js/core/auth.js',
     BASE + 'assets/js/core/dom.js',

@@ -1,0 +1,195 @@
+<?php
+/**
+ * PAO — the period after opening, from DATA (data/opened_shelf_life.json).
+ *
+ * Why this exists: the printed date on a package is only valid while the package is
+ * sealed. Once it is opened the clock that matters is the post-opening stability, and the
+ * old code answered it in two different ways — a 200-line regex chain in database.php for
+ * the stored date, an AI call (paid, non-deterministic, sometimes hallucinating "60 days
+ * for yoghurt") for the rest. This is the deterministic half: one table, two thresholds per
+ * macro-family and storage place, no model call and no network.
+ *
+ *   warn      the food starts to lose quality: "check it"
+ *   critical  almost certainly spoiled: "probably gone"
+ *
+ * Sources: USDA FoodKeeper (post-opening storage), EFSA/EC guidance on "best before" vs
+ * PAO, and Open Food Facts categories for the family mapping. The words are in the JSON,
+ * never here (one vocabulary, one place to change a name).
+ *
+ * The *stored* shelf life (opened_at + N days, written in the DB when a package is opened)
+ * keeps its own product-specific engine: this table decides the ALERT, so nothing that is
+ * already in the pantry changes its date behind the user's back.
+ */
+
+/**
+ * The table, read once per request. A missing or broken file is not fatal: the callers
+ * fall back to the location defaults and the app keeps working.
+ */
+function openedShelfLifeData(): array
+{
+    static $data = null;
+    if ($data !== null) {
+        return $data;
+    }
+    $path = dirname(__DIR__, 2) . '/data/opened_shelf_life.json';
+    $raw  = is_readable($path) ? (string)file_get_contents($path) : '';
+    $parsed = $raw !== '' ? json_decode($raw, true) : null;
+    if (!is_array($parsed) || empty($parsed['families'])) {
+        EverLog::warn('PAO table missing or unreadable', ['event' => 'pao_table_missing', 'path' => $path]);
+        $parsed = [
+            'defaults' => [
+                'frigo'    => ['warn' => 5,  'critical' => 10],
+                'dispensa' => ['warn' => 20, 'critical' => 45],
+                'freezer'  => ['warn' => 60, 'critical' => 120],
+            ],
+            'families'   => [],
+            'categories' => [],
+            'locations'  => [],
+        ];
+    }
+    $data = $parsed;
+    return $data;
+}
+
+/** 'frigo' | 'freezer' | 'dispensa' — a custom location is a pantry shelf by default. */
+function openedShelfLifeLocationKey(string $location): string
+{
+    $loc = mb_strtolower(trim($location));
+    if ($loc === '') {
+        return 'dispensa';
+    }
+    $map = (array)(openedShelfLifeData()['locations'] ?? []);
+    foreach ($map as $key => $aliases) {
+        foreach ((array)$aliases as $alias) {
+            if ($loc === mb_strtolower((string)$alias)) {
+                return (string)$key;
+            }
+        }
+    }
+    return in_array($loc, ['frigo', 'freezer', 'dispensa'], true) ? $loc : 'dispensa';
+}
+
+/** One keyword of the table as a matcher: prefix (`biscott*`) or whole word, CJK aware. */
+function openedShelfLifeKeywordMatches(string $haystack, string $keyword): bool
+{
+    $word = mb_strtolower(trim($keyword));
+    if ($word === '' || $haystack === '') {
+        return false;
+    }
+    if (preg_match('/[\x{3400}-\x{9FFF}]/u', $word)) {
+        return mb_stripos($haystack, $word) !== false;
+    }
+    $prefix = str_ends_with($word, '*');
+    if ($prefix) {
+        $word = rtrim($word, '*');
+    }
+    $edge = '(?<![\p{L}\p{N}])';
+    $tail = $prefix ? '[\p{L}\p{N}]*' : '';
+    $re = '/' . $edge . preg_quote($word, '/') . $tail . '(?![\p{L}\p{N}])/iu';
+    return preg_match($re, $haystack) === 1;
+}
+
+
+/**
+ * The family a product belongs to: keywords first (they are specific), then the category,
+ * then `other`. Returns the family row plus its `id`.
+ */
+function openedShelfLifeFamily(string $name, string $category): array
+{
+    $data = openedShelfLifeData();
+    $n = mb_strtolower(trim($name));
+    foreach ((array)($data['families'] ?? []) as $family) {
+        $id = (string)($family['id'] ?? '');
+        // Non-food is a category fact, not a word: it must not swallow "sale" or "sapone".
+        if ($id === 'non_food') {
+            continue;
+        }
+        foreach ((array)($family['match'] ?? []) as $keyword) {
+            if (openedShelfLifeKeywordMatches($n, (string)$keyword)) {
+                return $family + ['id' => $id, 'matched' => (string)$keyword];
+            }
+        }
+    }
+    $cat = mb_strtolower(trim($category));
+    $wanted = (string)($data['categories'][$cat] ?? 'other');
+    foreach ((array)($data['families'] ?? []) as $family) {
+        if ((string)($family['id'] ?? '') === $wanted) {
+            return $family + ['id' => $wanted, 'matched' => 'category:' . $cat];
+        }
+    }
+    return ['id' => 'other', 'matched' => '', 'warn' => null, 'critical' => null];
+}
+
+/**
+ * The two thresholds of one product in one place:
+ * `['warn' => int, 'critical' => int, 'family' => string, 'location' => string]`.
+ * A family that says nothing about this place inherits the defaults, so a yoghurt that
+ * ends up in the pantry keeps a short clock instead of borrowing a shelf life.
+ */
+function openedShelfLifeThresholds(string $name, string $category, string $location): array
+{
+    $loc = openedShelfLifeLocationKey($location);
+    $family = openedShelfLifeFamily($name, $category);
+    $spec = $family[$loc] ?? null;
+    if (!is_array($spec)) {
+        $spec = (array)(openedShelfLifeData()['defaults'][$loc] ?? ['warn' => 5, 'critical' => 10]);
+    }
+    $warn = max(0, (int)($spec['warn'] ?? 5));
+    $critical = max($warn + 1, (int)($spec['critical'] ?? 10));
+    return [
+        'warn'     => $warn,
+        'critical' => $critical,
+        'family'   => (string)($family['id'] ?? 'other'),
+        'location' => $loc,
+    ];
+}
+
+/** 'ok' | 'warn' | 'critical' — the state machine of the banner, nothing else. */
+function openedShelfLifeState(int $daysOpen, int $warn, int $critical): string
+{
+    if ($critical > 0 && $daysOpen >= $critical) {
+        return 'critical';
+    }
+    if ($warn > 0 && $daysOpen >= $warn) {
+        return 'warn';
+    }
+    return 'ok';
+}
+
+/**
+ * Everything the UI needs about one opened row, or null when it was never opened.
+ *
+ * @param array<string,mixed> $item inventory row (needs name, category, location, opened_at)
+ * @return array{days_open:int,warn:int,critical:int,family:string,state:string,score:float}|null
+ */
+function openedShelfLifeSummary(array $item): ?array
+{
+    $openedAt = trim((string)($item['opened_at'] ?? ''));
+    if ($openedAt === '') {
+        return null;
+    }
+    $ts = strtotime($openedAt);
+    if ($ts === false) {
+        return null;
+    }
+    $today = strtotime(date('Y-m-d'));
+    $openedDay = strtotime(date('Y-m-d', $ts));
+    $days = (int)max(0, round(($today - $openedDay) / 86400));
+
+    $t = openedShelfLifeThresholds(
+        (string)($item['name'] ?? ''),
+        (string)($item['category'] ?? ''),
+        (string)($item['location'] ?? '')
+    );
+    $state = openedShelfLifeState($days, $t['warn'], $t['critical']);
+    $score = $t['critical'] > 0 ? round($days / $t['critical'], 3) : 0.0;
+
+    return [
+        'days_open' => $days,
+        'warn'      => $t['warn'],
+        'critical'  => $t['critical'],
+        'family'    => $t['family'],
+        'state'     => $state,
+        'score'     => $score,
+    ];
+}

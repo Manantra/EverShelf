@@ -13,6 +13,180 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.19.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The official logos of the free services, everywhere — and a page that thanks them
+  properly.** The credits now use the projects' **own brand assets**, vendored under
+  `assets/img/apis/` (no third-party request at runtime, and a missing file falls back to the
+  monogram instead of a broken image):
+  Open Food Facts (`off-logo-icon-light.svg`), Open Prices and Open-Meteo (their published
+  app icons). They appear in **four** places, all fed by the same `data/free_apis.json` →
+  `assets/js/free_apis.generated.js`:
+  1. the **splash**, under the boot rail, painted before any token exists and offline;
+  2. at the **bottom of the overview** (`#app-footer-dashboard`);
+  3. the **Settings card** (🔌 API gratuite);
+  4. a **dedicated thanks page** — *Settings → 💚 Crediti* — where each service gets a
+     block with its logo, what it gives us, **where and for what we call it**, the licence
+     and the link, plus the note that the logos belong to their projects and are used only
+     to identify them.
+- **`scripts/test-credits.php`** (new, 62 checks) locks it all: the list, the logo files
+  really being images and never a remote URL, the four surfaces, the generated file in the
+  service-worker shell, one "where" sentence per service, and the copy in all six locales.
+
+### Changed
+- `data/free_apis.json` gained a `logo` field (version 2) and the `logo_note` attribution;
+  the generator and `GET free_apis` pass the logo through only when it is a **local**
+  `assets/img/*` path, so a thank-you can never become a tracking pixel.
+- The Settings tab strip gained a tab (`tab-credits`, section *system*); the search schema
+  was regenerated (`php scripts/gen-settings-schema.php`).
+
+## [1.18.1] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The splash credits the free services too.** The boot screen now shows the marks of the
+  open data providers under the boot rail — the same list as the footer and the Settings
+  card. It is painted from **`assets/js/free_apis.generated.js`** (generated from
+  `data/free_apis.json` by `php scripts/gen-free-apis-js.php`, in the service-worker shell):
+  at splash time there is no token yet and the app must boot offline, so the row cannot be a
+  fetch. Marks and names only, decorative for screen readers (`aria-hidden`) and quiet on a
+  short window (names drop below 560 px height); the accessible credit with the licences
+  stays in *Settings → 🔌 API gratuite*, and the Settings card now reads the same generated
+  file first, falling back to `GET free_apis` only if the bundle is stale.
+
+### Tests
+- `scripts/test-vocabulary.php` now locks `free_apis.generated.js` in sync with
+  `data/free_apis.json` (same rule as the vocabulary and the anti-waste facts), and
+  `scripts/test-preloader-stages.php` asserts the row, its style, the generated script in the
+  page and in the service-worker shell, and that the painting happens at `DOMContentLoaded`
+  from the data (never a hardcoded list).
+
+## [1.18.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The post-opening clock (PAO) is deterministic — and it is DATA.** The printed date on a
+  package only speaks for a sealed package; once it is opened the clock that matters is the
+  post-opening stability. It used to be answered by an **AI call** (paid, non-deterministic,
+  sometimes hallucinating “60 days for yoghurt”) on top of a 200-line regex chain. Now
+  `data/opened_shelf_life.json` carries **32 macro-families** with two thresholds per storage
+  place — `warn` (quality starts to go) and `critical` (almost certainly spoiled) — sourced
+  from USDA FoodKeeper + EFSA/EC guidance, with the keywords of the six languages in the
+  data and `api/lib/opened_shelf_life.php` as the only reader (`openedShelfLifeThresholds()`,
+  `openedShelfLifeState()`, `openedShelfLifeSummary()`). No model call, no network.
+- **The “opened too long” notice has its own state machine.** `getStats()` now ships a `pao`
+  block on every opened row (`days_open`, `warn`, `critical`, `state`, `score`), and the
+  banner judges an opened row **by that clock instead of the printed date**: a wine open for
+  17 days in the fridge (4 / 10) is now *critical* — “probabilmente andato” — where it used to
+  show a generic “Controlla” because the bottle “expires” in 2027. Amber rail for `warn`, red
+  for `critical`.
+- **Priority is a severity score** (`days open ÷ critical`): a critical opened row outranks
+  everything (3000+), a warning one comes next (1500+), then a printed-date danger. The notice
+  names the one that matters most and adds a discreet **“e altri N prodotti aperti da
+  verificare”** that jumps to the *Aperti* tab (a carousel of dots made the second product
+  invisible).
+- **A recovery action, not only a bin.** The opened notice answers the two decisions that must
+  be fast: **🗑️ Butta** (red primary) and **🍳 Usa per ricetta** (neutral, SHELFY asks the
+  recipe engine for a dish that uses it up). *Finito*, *Modifica* and **“È ancora buono”**
+  (snooze for 3 days, stored in `app_settings.opened_check_snoozed`) live behind a compact
+  **⋮** that opens **in place** — the primary actions are never hidden, the rest is one tap
+  deep, and the strip keeps the same one-colour grammar.
+- **Credits for the free services, in the app.** `data/free_apis.json` lists what this
+  instance actually talks to — **Open Food Facts** (ODbL · CC-BY-SA), **Open Prices** (ODbL),
+  **Open-Meteo** (CC BY 4.0) — with the licence each one asks to be credited with, served by
+  `GET free_apis` and rendered twice: a horizontal **footer** (names in a row, each with what
+  it gives us) and a **Settings → 🔌 API gratuite** card with a thank-you line. The monogram is
+  neutral on purpose: official logos are trademarks and are not shipped in the repo.
+
+### Changed
+- **A false positive fixed before it shipped:** shelled nuts were matching the “frutta”
+  keyword of fresh produce (critical after 25 days) and breadcrumbs were matching fresh bread
+  (critical after 148 days). Two extra families — `nuts_dried` and `breadcrumbs` — and a
+  `gnocc*` stem were added after checking the real pantry.
+
+### Tests
+- `scripts/test-opened-shelf-life.php` (new, 125 checks): the table schema, the thresholds the
+  audit asked for (wine 4/10, milk 3/6, sauces 3/7, soft cheese 4/8, mayonnaise 30/60,
+  biscuits 20/45, default 5/10), **23 real product names mapped to the right family** (with
+  the two false positives above), the state machine boundaries, the `pao` summary, the server
+  and client wiring, and the ten new keys in all six locales with their placeholders.
+
+## [1.17.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The product photo leads every row.** A packaging is recognised in milliseconds (the
+  colours of a biscuit box, the silhouette of a milk bottle); a title like “Vino bianco
+  Trebbiano IGT Rubicone (Vesoletto)” is read word by word. Home, the banner and the pantry
+  now open with the same **44×44** thumbnail in a neutral frame (light surface, hairline
+  border, 8 px radius, `object-fit: contain` so a transparent barcode PNG is not cropped),
+  rendered by one helper — `_productThumbHtml()` — and by `_bannerIconSet()` for the notice
+  strip. The fallback is **semantic and never empty**: the category emoji (🍎 🥛 🥫 …,
+  📦 when the category is unknown) sits under the picture and is revealed when the URL is
+  missing or fails to load, so a product nobody has photographed still has a face. The
+  pantry's `.inv-image` was brought to the same frame; the detail modal is untouched.
+  `getStats()` now ships `p.image_url` for the “in scadenza” and “scaduti” lists (the rows
+  had no photo to show), while the opened/forgotten lists already selected it.
+
+### Changed
+- **One action colour in the banner.** The strip kept four pastel tones ([Finito] sky,
+  [Buttato] pink, [Modifica] azure) that made the notice look like a different app from the
+  rows underneath: now only the answers that write the outcome (`Usa`, `Conferma`,
+  `Sì, è finito`) are solid emerald, everything else is a neutral secondary. Every action
+  stays **inline** — hiding them behind a ⋮ is the regression this strip was rebuilt for.
+- **SHELFY’s “Iniziamo” is emerald.** The purple `#7C3AED` left over from the old accent is
+  gone: the assistant’s primary is the app’s primary (`#059669`), one tap away from the
+  “Esegui” of the same sheet.
+- **“Controlla” is a neutral tag, not a yellow badge.** The safety verdict that asks for a
+  look no longer competes with the expiry badge it refers to; `Va bene`, `Non mangiare` and
+  `Buttalo` keep their colour — those answer the question the user actually asked.
+- **The example pills wrap instead of scrolling.** `.capture-hints` goes `flex-wrap: wrap`
+  with `justify-content: center`: the last pill was cut in half by the edge of the sheet.
+
+### Tests
+- `scripts/test-product-thumb.php` (new) locks the component, the 44×44/`contain`/neutral
+  frame, the emoji fallback (and the 📦 default), the escaped URL, the banner and pantry
+  wiring and both `getStats()` queries; `scripts/test-ui-palette.php` now asserts the banner
+  grammar (emerald answers + neutral secondaries) instead of the pastel classes.
+
+## [1.16.39] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **SHELFY no longer swallows the last word.** Two shapes did it. The transcript join
+  compared *characters*, so a one-letter overlap was enough to eat the start of the next
+  word: `"aggiungi il"` + `"latte"` became `"aggiungi il atte"` (the product then did not
+  exist) — the join is now **word-level**. And Chrome on Android closes the recognition
+  session at the first final phrase even with `continuous = true`: `onend` submitted right
+  there, so `"Ho usato 2 arance"` arrived as `"Ho usato 2"`. A session the **browser**
+  ended mid-sentence is now **resumed** (`_CAPTURE_RESTARTS_MAX`, bounded) and keeps the
+  same sentence; only the session **our own silence deadline** stopped may hand the
+  sentence over (`_captureVoice.stopRequested`). The deadline itself goes from 1.8 s to
+  2.5 s, because a natural pause between `"ho usato"` and `"2 arance"` was closing it.
+- **No more doubled phrases.** Chrome capitalises the interim result and lowercases the
+  final one: `"Ho mangiato"` + `"ho mangiato una mela"` printed `"Ho mangiato ho mangiato
+  una mela"`, because the raw-string comparison saw two different prefixes. The join
+  ignores case now, and a word the browser was still spelling out (`"la"` → `"latte"`) is
+  one word, not two.
+- **A sentence it cannot act on says so — it never opens “Nuovo prodotto”.** Both
+  fallbacks (an add intent with no catalogue match, a spoken name with only a derived
+  article in the pantry) closed the sheet and opened the empty new-product form, for a
+  product that does not exist. They now say “I did not understand” (`_captureNotUnderstood()`,
+  which also removes the “Ho capito” chips) and leave the sheet open for a retry. Creating
+  an article stays the user's decision.
+- **`capture.no_product` no longer promises an add form** (all six locales): it reads
+  “I did not understand: {name} is not in the pantry. Try the exact name.”
+
+### Changed
+- **The sentence SHELFY heard is the biggest text in the sheet.** It is what the user
+  checks before confirming an action, and it was a 15 px italic footnote: now a highlighted
+  block, 1.06 rem and semibold (bold once final), with `overflow-wrap` so a long word
+  cannot escape the card.
+
+### Tests
+- `scripts/test-capture-parse.php` locks it: the join in node (case, word boundary,
+  restarted phrase, shorter echo, repeated number), a fake recogniser that closes the
+  session mid-sentence (nothing may be submitted at that moment, the resumed session must
+  deliver `"Ho usato 2 arance"` once), no capture path may call `startManualEntry()`, and
+  the transcript CSS must stay 1 rem+ / semibold on a tinted background.
+
 ## [1.16.38] - 2026-10-26 · branch `refactor_25_10_2026`
 
 ### Fixed

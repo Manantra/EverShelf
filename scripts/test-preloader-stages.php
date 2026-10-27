@@ -201,6 +201,22 @@ assert_true(preg_match('/@media \(prefers-reduced-motion: reduce\) \{(?:(?!\n\})
 assert_true(str_contains($css, '.preloader-stage-caption') && str_contains($html, 'id="preloader-stage-caption"'),
     'the running stage is named under the rail (the only label on a phone)');
 
+// ── [5b] the splash credits the free services it rides on ──────────────────
+// Same list as the footer and the Settings card, painted from the generated data before
+// any fetch: at splash time there is no token yet, and offline it must still be there.
+$app = (string)file_get_contents($root . '/assets/js/app.js');
+assert_true(str_contains($html, 'id="preloader-apis"') && str_contains($css, '.preloader-apis'),
+    'the splash carries the credits row and its style');
+assert_true(str_contains($html, 'assets/js/free_apis.generated.js'),
+    'the splash loads the generated list (no fetch, no token)');
+assert_true(str_contains($app, 'function _renderPreloaderApis(')
+        && str_contains($app, '_renderPreloaderApis();'),
+    'the row is painted at DOMContentLoaded, before the app authenticates');
+assert_true(preg_match('/function _renderPreloaderApis\(\)[\s\S]{0,700}EVERSHELF_FREE_APIS/', $app) === 1,
+    'the splash credits the generated list, not a hardcoded row');
+assert_true(stripos((string)file_get_contents($root . '/sw.js'), 'free_apis.generated.js') !== false,
+    'the generated list is in the service-worker shell (offline boot)');
+
 // ── [6] the version is loud, and bump-version.sh still finds it ────────────
 assert_true(preg_match('/id="preloader-version">v\d+\.\d+\.\d+</', $html) === 1,
     'the splash chip holds a semver, in the shape bump-version.sh rewrites');

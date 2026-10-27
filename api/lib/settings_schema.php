@@ -23,6 +23,7 @@ function evershelfSettingsSchema(): array
     'tab-backup' => 'system',
     'tab-calendar' => 'alerts',
     'tab-info' => 'system',
+    'tab-credits' => 'system',
   ),
   'entries' => 
   array (

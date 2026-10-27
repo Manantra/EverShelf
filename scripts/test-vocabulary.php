@@ -201,6 +201,28 @@ $factsGenerated = (string)file_get_contents($root . '/assets/js/food_facts.gener
 assert_true(str_contains($factsGenerated, json_encode($facts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
     'assets/js/food_facts.generated.js is in sync with data/food_facts_fallback.json (run php scripts/gen-food-facts-js.php)');
 
+// The free services are DATA too: the splash, the footer and the Settings card read the
+// same list, and the browser needs it before it has a token (so it is generated, not fetched).
+$freeApis = json_decode((string)file_get_contents($root . '/data/free_apis.json'), true);
+assert_true(is_array($freeApis) && !empty($freeApis['apis']), 'data/free_apis.json lists the free services');
+$freeExpected = [];
+foreach ((array)($freeApis['apis'] ?? []) as $api) {
+    $url = (string)($api['url'] ?? '');
+    $freeExpected[] = [
+        'id'      => (string)($api['id'] ?? ''),
+        'name'    => (string)($api['name'] ?? ($api['id'] ?? '')),
+        'mark'    => (string)($api['mark'] ?? ''),
+        'logo'    => (str_starts_with((string)($api['logo'] ?? ''), 'assets/img/') && !str_contains((string)($api['logo'] ?? ''), '..'))
+            ? (string)$api['logo']
+            : '',
+        'url'     => preg_match('#^https?://#i', $url) ? $url : '',
+        'licence' => (string)($api['licence'] ?? ''),
+    ];
+}
+$freeGenerated = (string)file_get_contents($root . '/assets/js/free_apis.generated.js');
+assert_true(str_contains($freeGenerated, json_encode($freeExpected, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+    'assets/js/free_apis.generated.js is in sync with data/free_apis.json (run php scripts/gen-free-apis-js.php)');
+
 // ── No language name and no sentence of prose inside app.js ────────────────
 $appCode = strip_comments((string)file_get_contents($root . '/assets/js/app.js'));
 foreach ($vocab as $code => $data) {
