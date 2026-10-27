@@ -340,7 +340,8 @@
     "detail_consume_all": "已全部用完",
     "detail_other_actions": "其他操作",
     "detail_more": "详情",
-    "detail_consumed": "已记录 {qty} 的 {name}"
+    "detail_consumed": "已记录 {qty} 的 {name}",
+    "location_filter": "按位置筛选"
   },
   "scan": {
     "title": "扫描",

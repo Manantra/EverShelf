@@ -8776,45 +8776,60 @@ function getMacroStats(PDO $db): void {
 }
 
 // ===== RECENT & POPULAR PRODUCTS =====
+/**
+ * GET recent_popular_products — the quick-access rail of the pantry.
+ *
+ * `location` narrows BOTH the history and the stock to the place being looked at: opening
+ * "Dispensa cucina" used to show what the whole house had used last, which is not what a
+ * place is. Without `location` the rail is the whole pantry, as before.
+ */
 function recentPopularProducts(PDO $db): void {
     EverLog::debug('recentPopularProducts');
+    $location = trim((string)($_GET['location'] ?? ''));
+    $locSql = $location !== '' ? ' AND LOWER(COALESCE(t.location, \'\')) = LOWER(?)' : '';
+    $stockSql = $location !== '' ? ' AND LOWER(COALESCE(i.location, \'\')) = LOWER(?)' : '';
+    $locArgs = $location !== '' ? [$location] : [];
+
     // Last 4 distinct products used (type='out'), most recent first
-    $recentStmt = $db->query("
+    $recentStmt = $db->prepare("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
                MAX(t.created_at) as last_used,
                COALESCE((SELECT SUM(i.quantity) FROM inventory i
-                         WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
+                         WHERE i.product_id = p.id AND i.quantity > 0{$stockSql}), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
-        WHERE t.type = 'out'
+        WHERE t.type = 'out'{$locSql}
         GROUP BY t.product_id
         ORDER BY last_used DESC
         LIMIT 4
     ");
+    $recentStmt->execute(array_merge($locArgs, $locArgs));
     $recent = $recentStmt->fetchAll(PDO::FETCH_ASSOC);
     $recentIds = array_map(fn($r) => (int)$r['product_id'], $recent);
 
     // Top 12 most frequently used products (to allow filtering out recent ones client-side)
-    $popularStmt = $db->query("
+    $popularStmt = $db->prepare("
         SELECT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
                COUNT(*) as usage_count,
                COALESCE((SELECT SUM(i.quantity) FROM inventory i
-                         WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
+                         WHERE i.product_id = p.id AND i.quantity > 0{$stockSql}), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
         WHERE t.type = 'out'
-          AND t.created_at >= datetime('now', '-90 days')
+          AND t.created_at >= datetime('now', '-90 days'){$locSql}
         GROUP BY t.product_id
         ORDER BY usage_count DESC
         LIMIT 12
     ");
+    $popularStmt->execute(array_merge($locArgs, $locArgs));
     $popular = $popularStmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
         'recent' => $recent,
         'popular' => $popular,
         'recent_ids' => $recentIds,
-    ]);
+        'location' => $location,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== CONSUMPTION PREDICTIONS =====

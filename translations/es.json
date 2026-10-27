@@ -340,7 +340,8 @@
     "detail_consume_all": "Lo he usado todo",
     "detail_other_actions": "Otras acciones",
     "detail_more": "Detalles",
-    "detail_consumed": "{qty} de {name} registrados"
+    "detail_consumed": "{qty} de {name} registrados",
+    "location_filter": "Filtrar por lugar"
   },
   "scan": {
     "title": "Escáner",

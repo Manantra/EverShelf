@@ -340,7 +340,8 @@
     "detail_consume_all": "Alles verbraucht",
     "detail_other_actions": "Weitere Aktionen",
     "detail_more": "Details",
-    "detail_consumed": "{qty} von {name} erfasst"
+    "detail_consumed": "{qty} von {name} erfasst",
+    "location_filter": "Nach Ort filtern"
   },
   "scan": {
     "title": "Scannen",

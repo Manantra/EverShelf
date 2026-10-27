@@ -245,5 +245,40 @@ if (is_array($picked)) {
         ($picked['(empty)'] ?? null) === []);
 }
 
+// ── The location FILTER: one dropdown + the cabinet's own pill ──────────────
+// "The selection of locations cannot stay a linear row, it becomes unmanageable — except the
+// medicine cabinet, which stays outside". The pantry filter is now a native select (the whole
+// list, always showing where you are) plus a dedicated, always-visible cabinet pill.
+check('the pantry filters locations with a dropdown',
+    str_contains($html, 'id="location-select"')
+    && str_contains($html, 'data-i18n-aria="inventory.location_filter"')
+    && str_contains($app, 'id="location-select"')
+    && str_contains((string)file_get_contents($root . '/assets/css/style.css'), '.location-tabs .location-select'));
+check('the cabinet keeps its own pill, out of the dropdown',
+    (bool)preg_match('/const medical = entries\.filter\(\(\[key\]\) => isMedicalLocation\(key\)\);/', $app)
+    && (bool)preg_match('/const rest = entries\.filter\(\(\[key\]\) => !isMedicalLocation\(key\)\);/', $app)
+    && (bool)preg_match('/\.concat\(rest\.map\(\(\[key, meta\]\) =>/', $app)
+    && str_contains($app, 'class="tab tab-medical"'));
+check('while the cabinet is open the dropdown cannot claim "Tutti"',
+    (bool)preg_match('/if \(locKey && isMedicalLocation\(locKey\)\) \{[\s\S]{0,600}?opt\.disabled = true;/s', $app));
+check('the filter label exists in six locales', array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+    $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+    return $c && trim((string)($d['inventory']['location_filter'] ?? '')) !== '';
+}, true));
+
+// ── Opening a place means "that place" ──────────────────────────────────────
+// "I put 5 products in Dispensa cucina and I see 1": a leftover search query (and a tag
+// filter) followed the household from another place, and the search itself looked at the
+// whole house. Both now stay inside the place on screen.
+check('opening a place clears a leftover search and tag filter',
+    (bool)preg_match('/function filterLocation\(loc\) \{[\s\S]{0,900}?_inventorySearchQuery = \'\';/s', $app)
+    && (bool)preg_match('/function filterLocation\(loc\) \{[\s\S]{0,1200}?_inventoryTagFilter = \[\];/s', $app));
+check('the search stays inside the place on screen',
+    (bool)preg_match('/const pool = _inventoryVisibleItems\(currentInventory\);/', $app));
+check('the quick-access rail is the place\'s own history, not the house\'s',
+    str_contains($app, "api('recent_popular_products', currentLocation ? { location: currentLocation } : {})")
+    && (bool)preg_match('/function recentPopularProducts\(PDO \$db\): void \{[\s\S]{0,900}?\(t\.location/', $api)
+    && (bool)preg_match("/\\\$locSql = \\\$location !== '' \\? ' AND LOWER\\(COALESCE\\(t\\.location/s", $api));
+
 echo "\n{$checks} checks, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

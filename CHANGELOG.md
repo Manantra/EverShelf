@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own order and `LOCATION_META`, which never existed). `med_status` now also returns
   `medical_locations`, so a brand-new device paints the cabinet correctly at boot instead of
   only after someone opens the medical settings.
+- **The pantry's location filter is a dropdown, and the medicine cabinet keeps its own pill.**
+  A linear row of tabs stops working at the fourth place: `#location-tabs` now holds a native
+  `<select>` (`#location-select`, `inventory.location_filter`) with every place plus "Tutti",
+  and the marked cabinet stays **outside** the list as an always-visible 💊 pill — a cabinet
+  buried in a menu is a cabinet nobody opens. While the cabinet is open the select shows a
+  disabled entry with its name, so it never claims "Tutti" over the cabinet's stock.
 - **Adding a medicine is not adding food any more.** Scanning a recognised code opened the
   ordinary product form — "Scatta foto e identifica con AI", the food category, unit/package,
   tags and a **Famiglia** field that suggested "Spaghetti" — plus a switch asking "is it a
@@ -65,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in debug and production.
 
 ### Fixed
+- **Opening a location showed the whole house.** In the pantry, "Ultimi usati" and "Più usati"
+  were built from every transaction of every place, and the search looked at all locations —
+  so "Dispensa cucina" answered with products that are not in it. `recent_popular_products`
+  now takes `location` (history **and** stock of that place) and the rail follows the filter;
+  the search runs on the rows of the place on screen (`currentInventory`), and switching place
+  **clears** a leftover search query and tag filter — a query typed somewhere else is what
+  made five products in "Dispensa cucina" look like one.
 - **Adding a product lit up TWO locations ("Dispensa" and "Dispensa cucina").** The add form
   picked the button by asking whether its *text* contained the location key: "dispensa" is a
   substring of "dispensa cucina", so both pills turned green — and a custom place matched

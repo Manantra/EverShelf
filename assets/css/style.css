@@ -1709,10 +1709,14 @@ body.server-offline .bottom-nav {
     color: var(--primary);
 }
 
-/* ===== LOCATION TABS ===== */
+/* ===== LOCATION FILTER ===== */
+/* One dropdown for the places, plus the medicine cabinet as its own always-visible pill:
+   a row of tabs stops working at the fourth place, and a cabinet buried in a menu is a
+   cabinet nobody opens. */
 .location-tabs {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
     overflow-x: auto;
     padding-bottom: 12px;
     margin-bottom: 8px;
@@ -1721,6 +1725,28 @@ body.server-offline .bottom-nav {
 }
 
 .location-tabs::-webkit-scrollbar { display: none; }
+
+.location-tabs .tab { flex: 0 0 auto; }
+
+.location-tabs .tab-medical {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.10);
+}
+
+.location-tabs .location-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 320px;
+    padding: 9px 12px;
+    border: 2px solid var(--border);
+    border-radius: 25px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
 
 .tab {
     background: var(--bg-card);

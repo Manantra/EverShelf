@@ -104,8 +104,10 @@ check('the notice is shown after the app is visible',
 // cache from before 1.16.19) would still carry "altro": every label lookup normalises
 // the legacy key, so the UI never shows a raw "altro" or an empty icon.
 preg_match_all('/LOCATIONS\[([^\]]+)\]/', $app, $m);
+// `locKey` is `normalizeLocationKey(currentLocation)` at the top of _syncLocationFilterUi():
+// the filter UI (dropdown + cabinet pill) normalises once and reads that value.
 $raw = array_filter($m[1] ?? [], fn($k) => !str_starts_with(ltrim($k), 'normalizeLocationKey(')
-    && !in_array(ltrim($k), ['cur', 'hidden.value', '$key', 'key', 'name'], true));
+    && !in_array(ltrim($k), ['cur', 'hidden.value', '$key', 'key', 'name', 'locKey'], true));
 check('every LOCATIONS lookup normalises legacy keys', $raw === [], implode(', ', $raw));
 check('the add/use forms no longer offer the removed location',
     !str_contains((string)file_get_contents($root . '/index.html'), "locations.altro")

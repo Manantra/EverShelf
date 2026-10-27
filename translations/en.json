@@ -340,7 +340,8 @@
     "detail_consume_all": "I used it all",
     "detail_other_actions": "Other actions",
     "detail_more": "Details",
-    "detail_consumed": "{qty} of {name} logged"
+    "detail_consumed": "{qty} of {name} logged",
+    "location_filter": "Filter by location"
   },
   "scan": {
     "title": "Scan",

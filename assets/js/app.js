@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027zc'; // bump when translations change
+const _I18N_VERSION = '20261027ze'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2261,15 +2261,53 @@ function mergeCustomLocations(names) {
     rebuildLocationPickers();
 }
 
+/**
+ * Paint the location filter of the pantry: the medicine cabinet keeps its own pill, every
+ * other place lives in one native dropdown (a row of tabs stops working at the fourth place).
+ * Called whenever the list or the active place changes.
+ */
+function _syncLocationFilterUi() {
+    const tabs = document.getElementById('location-tabs');
+    if (!tabs) return;
+    // A stale client cache can still carry the removed "altro" key (an old payload), so every
+    // lookup in this function goes through one normalised value.
+    const locKey = currentLocation ? normalizeLocationKey(currentLocation) : '';
+    tabs.querySelectorAll('.tab').forEach(btn => {
+        btn.classList.toggle('active', !!locKey && btn.dataset.loc === locKey);
+    });
+    const sel = document.getElementById('location-select');
+    if (!sel) return;
+    sel.querySelectorAll('option[data-med-shortcut]').forEach(o => o.remove());
+    if (locKey && isMedicalLocation(locKey)) {
+        // The cabinet is not in the list: while it is the active place the dropdown shows a
+        // disabled entry with its name, so it never claims "Tutti" over the cabinet's stock.
+        const meta = LOCATIONS[locKey] || { icon: MEDICAL_LOCATION_ICON, label: locKey };
+        const opt = document.createElement('option');
+        opt.value = locKey;
+        opt.disabled = true;
+        opt.selected = true;
+        opt.dataset.medShortcut = '1';
+        opt.textContent = `${meta.icon} ${meta.label}`;
+        sel.insertBefore(opt, sel.firstChild);
+    } else {
+        sel.value = LOCATIONS[locKey] ? locKey : '';
+    }
+}
+
 function rebuildLocationPickers() {
-    const activeLoc = currentLocation || '';
     const tabs = document.getElementById('location-tabs');
     if (tabs) {
-        let html = `<button class="tab${activeLoc === '' ? ' active' : ''}" onclick="filterLocation('')" data-loc="" data-i18n="inventory.filter_all">${t('inventory.filter_all')}</button>`;
-        for (const [key, meta] of Object.entries(LOCATIONS)) {
-            html += `<button class="tab${activeLoc === key ? ' active' : ''}" onclick="filterLocation('${key}')" data-loc="${key}">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
-        }
-        tabs.innerHTML = html;
+        const entries = Object.entries(LOCATIONS);
+        const medical = entries.filter(([key]) => isMedicalLocation(key));
+        const rest = entries.filter(([key]) => !isMedicalLocation(key));
+        const options = [`<option value="">${escapeHtml(t('inventory.filter_all'))}</option>`]
+            .concat(rest.map(([key, meta]) =>
+                `<option value="${escapeAttr(key)}">${escapeHtml(`${meta.icon} ${meta.label}`)}</option>`));
+        tabs.innerHTML = medical.map(([key, meta]) =>
+                `<button type="button" class="tab tab-medical" data-loc="${escapeAttr(key)}" onclick="filterLocation('${escapeAttr(key)}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`).join('')
+            + `<select class="location-select" id="location-select" aria-label="${escapeAttr(t('inventory.location_filter'))}"`
+            + ` onchange="filterLocation(this.value)">${options.join('')}</select>`;
+        _syncLocationFilterUi();
     }
     const renderSelector = (sel, hiddenId, clickFn, currentVal) => {
         const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
@@ -12774,9 +12812,15 @@ async function _refineCategoryBadgesAsync() {
 
 function filterLocation(loc) {
     currentLocation = loc;
-    document.querySelectorAll('.location-tabs .tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.loc === loc);
-    });
+    // Opening a place shows that place: an old query or tag filter left over from another
+    // location made five products look like one. Both are cleared here (and the search box
+    // with them, so what you see matches what is typed).
+    _inventorySearchQuery = '';
+    const searchEl = document.getElementById('inventory-search');
+    if (searchEl) searchEl.value = '';
+    _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
+    _inventoryTagFilter = [];
+    _syncLocationFilterUi();
     loadInventory();
 }
 
@@ -12791,7 +12835,10 @@ function filterInventory() {
     }
     if (qas) qas.style.display = 'none';
 
-    const pool = _inventoryVisibleItems(_allInventoryCache.length ? _allInventoryCache : currentInventory);
+    // Search INSIDE the place on screen: `currentInventory` is already the selected
+    // location's rows (the whole pantry when nothing is selected). Searching the whole house
+    // while "Dispensa cucina" is open brought back products that are not there.
+    const pool = _inventoryVisibleItems(currentInventory);
     const scored = pool.map(item => ({ item, score: _inventorySearchScore(item, q) }));
     let matched = scored.filter(s => s.score >= 15);
 
@@ -12827,7 +12874,9 @@ async function loadQuickAccess() {
     const section = document.getElementById('quick-access-section');
     if (!section) return;
     try {
-        const data = await api('recent_popular_products');
+        // The rail belongs to the place on screen: opening "Dispensa cucina" shows what was
+        // used THERE, not what the whole house used last (`location` on the server).
+        const data = await api('recent_popular_products', currentLocation ? { location: currentLocation } : {});
         const recent = (data.recent || []).filter(p => parseFloat(p.stock_qty ?? 0) > 0.001);
         const popular = (data.popular || []).filter(p => parseFloat(p.stock_qty ?? 0) > 0.001);
         const recentIds = data.recent_ids || [];
@@ -15013,7 +15062,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027zc';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027ze';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15023,7 +15072,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027zc';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027ze';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
