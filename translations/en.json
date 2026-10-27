@@ -2791,7 +2791,8 @@
     "back": "Back to the overview",
     "api_open_food_facts_where": "Used when we scan a barcode or search for a product: name, brand, category, photo and nutrition come from the open, collaborative database. Data is ODbL, photos CC-BY-SA.",
     "api_open_prices_where": "Used to estimate the shopping bill: recent community average prices for the same barcode, when available. ODbL data.",
-    "api_open_meteo_where": "Used for recipe weather (what to cook today with heat, cold, rain) and to turn a city name into coordinates. No key, no tracking."
+    "api_open_meteo_where": "Used for recipe weather (what to cook today with heat, cold, rain) and to turn a city name into coordinates. No key, no tracking.",
+    "medicines_note": "Medicines are not covered by Open Food Facts: the Medicines module queries no catalogue at all (national drug datasets such as AIFA arrive only in Phase 2, filtered to OTC/SOP). That is why the barcode is only stored on the box and you type the name."
   },
   "medical": {
     "title": "💊 Medicines and cabinet",
@@ -2878,6 +2879,12 @@
     "default_location_name": "Medicine cabinet",
     "location_required_toast": "Choose or type the name of the medicines location.",
     "save_error": "Could not save, try again.",
-    "setup_review": "↺ Review the module introduction"
+    "setup_review": "↺ Review the module introduction",
+    "no_catalogue": "No medicine catalogue is queried: the barcode (including the Italian SSN label) stays attached to the box you create, and you type the name. It works in every country, with no API.",
+    "fallback_title": "Code not recognised",
+    "fallback_ask": "Code {code} is not in any food catalogue. Is it a medicine or a supplement?",
+    "fallback_yes": "💊 Yes, it is a medicine",
+    "fallback_no": "No, it is a normal product",
+    "fallback_cancel": "Cancel"
   }
 }

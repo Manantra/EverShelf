@@ -223,7 +223,35 @@ check('editing a product shows its own medical fields',
 
 // ── 7. Scanner ──────────────────────────────────────────────────────────────
 check('a medicine code is not an error: the manual entry opens prefilled',
-    (bool)preg_match('/_medStatus\.enabled && _looksLikeMedicineCode\(code\).*?_medStartManualEntry\(code\)/s', $app));
+    str_contains($app, 'if (_looksLikeMedicineCode(code)) {')
+    && str_contains($app, '_medStartManualEntry(code, true);')
+    && str_contains($app, 'if (_medStatus.enabled) {'));
+
+// The EAN case: Italian boxes carry BOTH the SSN label (a Pharmacode) and an EAN-13, and no
+// free catalogue knows either. The app must ask, in every country, instead of dead-ending.
+check('an unknown EAN is not a dead end: the household is asked',
+    str_contains($app, 'function _medOfferMedicalFallback(code) {')
+    && str_contains($app, '_medOfferMedicalFallback(code);')
+    && str_contains($app, 'medical.fallback_yes')
+    && str_contains($app, 'medical.no_catalogue'));
+check('the answer routes to the right form (medicine arms the toggle, food does not)',
+    (bool)preg_match('/function _medFallbackMedicine\(\)[\s\S]{0,200}?_medStartManualEntry\(code, true\)/s', $app)
+    && (bool)preg_match('/function _medFallbackFood\(\)[\s\S]{0,200}?startManualEntry\(code\)/s', $app)
+    && (bool)preg_match('/function _medArmProductForm\(\)[\s\S]{0,600}?toggle\.checked = true/s', $app));
+check('closing the question resumes the camera (no silent no-op)',
+    (bool)preg_match("/'med-fallback-overlay': \(\) => _medCloseFallback\(true\)/s", $app));
+check('the module says it queries no catalogue (so no country is promised)',
+    str_contains($html, 'data-i18n="medical.no_catalogue"')
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+        $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+        return $c && mb_strlen((string)($d['medical']['no_catalogue'] ?? '')) > 40;
+    }, true));
+check('the credit list states what no free API covers (medicines)',
+    (bool)preg_match('/credits-note[\s\S]{0,200}?credits\.medicines_note/s', $app)
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+        $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+        return $c && mb_strlen((string)($d['credits']['medicines_note'] ?? '')) > 40;
+    }, true));
 check('EAN-13/EAN-8 stay on the food path',
     (bool)preg_match('/function _looksLikeMedicineCode.*?d\{13\}.*?return false/s', $app));
 
@@ -241,7 +269,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 85 medical keys', $aligned && count($base) === 85);
+check('all six locales carry the same 91 medical keys', $aligned && count($base) === 91);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));

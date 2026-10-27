@@ -2791,7 +2791,8 @@
     "back": "返回概览",
     "api_open_food_facts_where": "在扫描条形码或搜索产品时使用：名称、品牌、类别、照片和营养信息来自开放的协作数据库。数据 ODbL，照片 CC-BY-SA。",
     "api_open_prices_where": "用于估算购物开销：同一条形码的社区近期平均价格（如果有）。数据 ODbL。",
-    "api_open_meteo_where": "用于食谱天气（根据冷热雨决定今天做什么）以及把城市名转换为坐标。没有密钥，没有跟踪。"
+    "api_open_meteo_where": "用于食谱天气（根据冷热雨决定今天做什么）以及把城市名转换为坐标。没有密钥，没有跟踪。",
+    "medicines_note": "Open Food Facts 不包含药品：药品模块不查询任何目录（AIFA 等国家数据只会在第二阶段加入，并仅限 OTC/SOP）。因此条码只作为药盒信息保存，名称由你填写。"
   },
   "medical": {
     "title": "💊 药品与药箱",
@@ -2878,6 +2879,12 @@
     "default_location_name": "家庭药箱",
     "location_required_toast": "请选择或输入药品位置的名称。",
     "save_error": "保存失败，请重试。",
-    "setup_review": "↺ 重新查看模块介绍"
+    "setup_review": "↺ 重新查看模块介绍",
+    "no_catalogue": "不会查询任何药品目录：条码（包括意大利 SSN 标签）只保存在你创建的药品记录上，名称由你自己填写。任何国家都能用，不调用 API。",
+    "fallback_title": "未识别编码",
+    "fallback_ask": "编码 {code} 不在任何食品目录中。它是药品还是保健品？",
+    "fallback_yes": "💊 是药品",
+    "fallback_no": "不是，是普通商品",
+    "fallback_cancel": "取消"
   }
 }

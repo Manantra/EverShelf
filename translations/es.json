@@ -2791,7 +2791,8 @@
     "back": "Volver a la vista general",
     "api_open_food_facts_where": "Lo usamos al escanear un código de barras o buscar un producto: nombre, marca, categoría, foto y valores nutricionales vienen de la base abierta y colaborativa. Datos ODbL, fotos CC-BY-SA.",
     "api_open_prices_where": "Lo usamos para estimar la compra: precios medios recientes de la comunidad para el mismo código de barras, cuando existen. Datos ODbL.",
-    "api_open_meteo_where": "Lo usamos para el tiempo de las recetas (qué cocino hoy según calor, frío o lluvia) y para convertir un nombre de ciudad en coordenadas. Sin claves, sin rastreo."
+    "api_open_meteo_where": "Lo usamos para el tiempo de las recetas (qué cocino hoy según calor, frío o lluvia) y para convertir un nombre de ciudad en coordenadas. Sin claves, sin rastreo.",
+    "medicines_note": "Los medicamentos no están cubiertos por Open Food Facts: el módulo Medicamentos no consulta ningún catálogo (los datos nacionales como AIFA llegan solo en la Fase 2, filtrados a OTC/SOP). Por eso el código de barras solo se guarda en la caja y el nombre lo escribes tú."
   },
   "medical": {
     "title": "💊 Medicamentos y botiquín",
@@ -2878,6 +2879,12 @@
     "default_location_name": "Botiquín",
     "location_required_toast": "Elige o escribe el nombre de la ubicación de los medicamentos.",
     "save_error": "No se pudo guardar, inténtalo de nuevo.",
-    "setup_review": "↺ Revisar la introducción del módulo"
+    "setup_review": "↺ Revisar la introducción del módulo",
+    "no_catalogue": "No se consulta ningún catálogo de medicamentos: el código de barras (también la etiqueta italiana SSN) queda asociado a la caja que creas, y el nombre lo escribes tú. Funciona en cualquier país, sin API.",
+    "fallback_title": "Código no reconocido",
+    "fallback_ask": "El código {code} no está en ningún catálogo de alimentación. ¿Es un medicamento o un complemento?",
+    "fallback_yes": "💊 Sí, es un medicamento",
+    "fallback_no": "No, es un producto normal",
+    "fallback_cancel": "Cancelar"
   }
 }

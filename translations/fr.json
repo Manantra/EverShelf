@@ -2791,7 +2791,8 @@
     "back": "Retour à la vue d'ensemble",
     "api_open_food_facts_where": "Utilisé quand nous scannons un code-barres ou cherchons un produit : nom, marque, catégorie, photo et valeurs nutritionnelles viennent de la base ouverte et collaborative. Données ODbL, photos CC-BY-SA.",
     "api_open_prices_where": "Utilisé pour estimer les courses : prix moyens récents de la communauté pour le même code-barres, quand ils existent. Données ODbL.",
-    "api_open_meteo_where": "Utilisé pour la météo des recettes (que cuisiner aujourd'hui selon chaleur, froid, pluie) et pour transformer un nom de ville en coordonnées. Aucune clé, aucun pistage."
+    "api_open_meteo_where": "Utilisé pour la météo des recettes (que cuisiner aujourd'hui selon chaleur, froid, pluie) et pour transformer un nom de ville en coordonnées. Aucune clé, aucun pistage.",
+    "medicines_note": "Les médicaments ne sont pas couverts par Open Food Facts : le module Médicaments n’interroge aucun catalogue (les données nationales comme l’AIFA n’arrivent qu’en phase 2, filtrées sur OTC/SOP). C’est pourquoi le code-barres est seulement enregistré sur la boîte et le nom saisi par vous."
   },
   "medical": {
     "title": "💊 Médicaments et armoire",
@@ -2878,6 +2879,12 @@
     "default_location_name": "Armoire à pharmacie",
     "location_required_toast": "Choisissez ou saisissez le nom de l’emplacement des médicaments.",
     "save_error": "Enregistrement impossible, réessayez.",
-    "setup_review": "↺ Revoir l’introduction du module"
+    "setup_review": "↺ Revoir l’introduction du module",
+    "no_catalogue": "Aucun catalogue de médicaments n’est interrogé : le code-barres (y compris l’étiquette italienne SSN) reste attaché à la boîte que vous créez, et le nom, c’est vous qui l’écrivez. Fonctionne dans tous les pays, sans API.",
+    "fallback_title": "Code non reconnu",
+    "fallback_ask": "Le code {code} n’est dans aucun catalogue alimentaire. Est-ce un médicament ou un complément ?",
+    "fallback_yes": "💊 Oui, un médicament",
+    "fallback_no": "Non, un produit normal",
+    "fallback_cancel": "Annuler"
   }
 }

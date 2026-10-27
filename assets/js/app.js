@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027o'; // bump when translations change
+const _I18N_VERSION = '20261027p'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5293,7 +5293,12 @@ async function _loadFreeApis() {
         if (el) el.innerHTML = chips;
     });
     const pageEl = document.getElementById('settings-free-apis-page');
-    if (pageEl) pageEl.innerHTML = page;
+    if (pageEl) {
+        // The missing service is the honest part of a credit list: no free catalogue of
+        // medicines exists (AIFA et al. are national, not free/open in the same way), so the
+        // medical module deliberately calls nobody and the box is typed by the household.
+        pageEl.innerHTML = page + `<p class="credits-note">${escapeHtml(t('credits.medicines_note'))}</p>`;
+    }
 }
 
 /** From the Info card (or anywhere) to the dedicated thanks page. */
@@ -13566,6 +13571,7 @@ const _OVERLAY_CLOSERS = {
     // EverShelf Med dialogs: Esc must clean up, not just hide the box.
     'med-search-overlay': () => _medCloseSearch(),
     'med-setup-overlay': () => _medCloseSetup(),
+    'med-fallback-overlay': () => _medCloseFallback(true),
 };
 
 /** Focusable children of a dialog, in tab order. */
@@ -14499,7 +14505,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027o';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027p';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14509,7 +14515,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027o';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027p';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15523,12 +15529,18 @@ async function onBarcodeDetected(barcode) {
             return;
         }
 
-        // EverShelf Med: a Pharmacode / short code the food catalogues do not know is a
-        // medicine, not a failure — open the manual entry prefilled instead of a dead end.
-        if (_medStatus.enabled && _looksLikeMedicineCode(code)) {
+        // EverShelf Med: no drug catalogue is queried (see MED in the wiki), so a box the food
+        // catalogues do not know is NOT a failure. A Pharmacode/Laetus (4-7 digits or base-32)
+        // goes straight to the manual entry; an EAN the food world does not know is ambiguous,
+        // so the household decides instead of the app guessing.
+        if (_medStatus.enabled) {
             _setScanHudState('idle');
             _setScanStatus(t('scan.status_scanning'), '', '');
-            _medStartManualEntry(code);
+            if (_looksLikeMedicineCode(code)) {
+                _medStartManualEntry(code, true);
+            } else {
+                _medOfferMedicalFallback(code);
+            }
             return;
         }
         showToast(t('error.not_found_manual'), 'error');
@@ -15545,22 +15557,93 @@ async function onBarcodeDetected(barcode) {
 }
 
 /**
- * A Pharmacode (Laetus, base-32) or a short numeric code is what a medicine box carries, and
- * no free food catalogue knows it. It is NOT an error: with the module on, the app opens the
- * manual entry prefilled instead of saying "not found" and resuming the camera.
+ * A Pharmacode/Laetus (base-32, 4-7 digits) or a short code: no food catalogue can know it,
+ * and no drug catalogue is queried — it is the box's own number.
  */
 function _looksLikeMedicineCode(code) {
     const c = String(code || '').trim().toUpperCase();
     if (!c) return false;
-    // EAN-13 / EAN-8 are the food path; a Pharmacode is 4-7 digits, a Laetus is base-32.
+    // EAN-13 / EAN-8 are the food path: they are ambiguous here, so the UI asks instead.
     if (/^\d{13}$/.test(c) || /^\d{8}$/.test(c)) return false;
     return /^\d{4,7}$/.test(c) || /^[0-9A-Z]{4,8}$/.test(c);
 }
 
-/** "Codice rilevato": the medicine path of the scanner (no error, no dead end). */
-function _medStartManualEntry(barcode) {
+/**
+ * "Codice rilevato": the medicine path of the scanner.
+ *
+ * `medical` arms the product form's toggle (and its chips) before the form is shown, so the
+ * box is born as a medicine instead of being re-classified later.
+ */
+function _medStartManualEntry(barcode, medical = true) {
     showToast(t('medical.code_detected'), 'info', 4000);
     startManualEntry(barcode);
+    if (medical) _medArmProductForm();
+}
+
+/** Turn the product form's medical switch on (and paint the closed categories). */
+function _medArmProductForm() {
+    const group = document.getElementById('pf-medical-group');
+    if (!group || !_medOn()) return;
+    group.hidden = false;
+    const toggle = document.getElementById('pf-is-medical');
+    const box = document.getElementById('pf-medical-box');
+    if (toggle) toggle.checked = true;
+    if (box) box.hidden = false;
+    _pfRenderMedCats([]);
+    const loc = (getSettings().medical_locations || [])[0];
+    const addLoc = document.getElementById('add-location');
+    if (loc && addLoc) addLoc.value = loc;
+}
+
+/**
+ * An EAN-13/EAN-8 the food catalogues do not know: with the module on, the household is asked
+ * once instead of the app guessing. Nothing is created until the answer.
+ * (Italian boxes carry both the SSN label — a Pharmacode — and an EAN: either path lands here.)
+ */
+function _medOfferMedicalFallback(code) {
+    _medCloseFallback();
+    const ov = document.createElement('div');
+    ov.id = 'med-fallback-overlay';
+    ov.className = 'modal-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML = `
+        <div class="modal-content med-fallback-card">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('medical.fallback_title'))}</h3>
+                <button type="button" class="modal-close" onclick="_medCloseFallback(true)"
+                        aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+            </div>
+            <p>${escapeHtml(t('medical.fallback_ask').replace('{code}', String(code || '')))}</p>
+            <p class="settings-hint">${escapeHtml(t('medical.no_catalogue'))}</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_medCloseFallback(true)">${escapeHtml(t('medical.fallback_cancel'))}</button>
+                <button type="button" class="btn btn-outline" onclick="_medFallbackFood()">${escapeHtml(t('medical.fallback_no'))}</button>
+                <button type="button" class="btn btn-primary" onclick="_medFallbackMedicine()">${escapeHtml(t('medical.fallback_yes'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(ov);
+    ov.style.display = 'flex';
+    window._medFallbackCode = String(code || '');
+}
+
+function _medCloseFallback(resume = false) {
+    const ov = document.getElementById('med-fallback-overlay');
+    if (ov) ov.remove();
+    window._medFallbackCode = '';
+    if (resume) resumeScanner();
+}
+
+function _medFallbackMedicine() {
+    const code = window._medFallbackCode || '';
+    _medCloseFallback(false);
+    _medStartManualEntry(code, true);
+}
+
+function _medFallbackFood() {
+    const code = window._medFallbackCode || '';
+    _medCloseFallback(false);
+    startManualEntry(code);
 }
 
 /** Manual barcode typing was removed from the scan page (soft keyboard covers the camera on Android). */

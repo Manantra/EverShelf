@@ -2791,7 +2791,8 @@
     "back": "Zurück zur Übersicht",
     "api_open_food_facts_where": "Wird beim Scannen eines Barcodes oder bei der Produktsuche genutzt: Name, Marke, Kategorie, Foto und Nährwerte kommen aus der offenen, gemeinschaftlichen Datenbank. Daten ODbL, Fotos CC-BY-SA.",
     "api_open_prices_where": "Wird für die Einkaufsschätzung genutzt: aktuelle Durchschnittspreise der Community für denselben Barcode, wenn vorhanden. ODbL-Daten.",
-    "api_open_meteo_where": "Wird für das Rezeptwetter genutzt (was koche ich heute bei Hitze, Kälte, Regen) und um einen Ortsnamen in Koordinaten umzuwandeln. Kein Schlüssel, kein Tracking."
+    "api_open_meteo_where": "Wird für das Rezeptwetter genutzt (was koche ich heute bei Hitze, Kälte, Regen) und um einen Ortsnamen in Koordinaten umzuwandeln. Kein Schlüssel, kein Tracking.",
+    "medicines_note": "Medikamente sind von Open Food Facts nicht abgedeckt: das Modul Medikamente fragt keinen Katalog ab (nationale Daten wie AIFA kommen erst in Phase 2, gefiltert auf OTC/SOP). Deshalb wird der Strichcode nur an der Packung gespeichert und der Name von dir eingetippt."
   },
   "medical": {
     "title": "💊 Medikamente und Schrank",
@@ -2878,6 +2879,12 @@
     "default_location_name": "Hausapotheke",
     "location_required_toast": "Wähle oder tippe den Namen des Medikamentenorts.",
     "save_error": "Speichern fehlgeschlagen, bitte erneut versuchen.",
-    "setup_review": "↺ Einführung des Moduls erneut ansehen"
+    "setup_review": "↺ Einführung des Moduls erneut ansehen",
+    "no_catalogue": "Es wird kein Medikamentenkatalog abgefragt: der Strichcode (auch das italienische SSN-Etikett) bleibt an der Packung, die du anlegst, und den Namen tippst du. Funktioniert in jedem Land, ohne API.",
+    "fallback_title": "Code nicht erkannt",
+    "fallback_ask": "Der Code {code} ist in keinem Lebensmittelkatalog. Ist es ein Medikament oder eine Nahrungsergänzung?",
+    "fallback_yes": "💊 Ja, ein Medikament",
+    "fallback_no": "Nein, ein normales Produkt",
+    "fallback_cancel": "Abbrechen"
   }
 }

@@ -23,7 +23,38 @@ different risk profile, so the module is **opt-in, off by default and self-conta
 | Show what is already in the house, with the leaflet/doctor disclaimer on top | State a dose, a diagnosis or "take this one" |
 | Turn a **Pharmacode/short code** into the prefilled manual entry | Dead-end on "not found" or invent a catalogue entry |
 
-## The symptom search is deterministic
+## Where the barcode stands (Phase 1)
+
+**No medicine catalogue is queried.** The scan of a medicine box therefore does not "recognise"
+anything, and that is by design:
+
+- the food catalogues the app already uses (Open Food Facts) **do not cover medicines**, and no
+  free/open equivalent exists that is safe to use for a household cabinet. Inventing drug data
+  would be worse than having none;
+- drug data is **national** (AIFA in Italy, other registries elsewhere), and Italian boxes carry
+  **two** codes: the EAN-13 (often `80…`, GS1 Italy) and the **SSN label**, which is a
+  **Pharmacode/Laetus** (base-32 or 4–7 digits), not an EAN;
+- so the app **stores whichever code it saw on the box you create** and you type the name. It
+  works in every country, with no API, no key and no country gate — there is nothing to gate
+  while nothing is looked up.
+
+What the scanner does with the module on:
+
+| Scanned | Behaviour |
+|---|---|
+| Pharmacode / Laetus / short code | straight to the manual entry, **medical switch already on** + the 8 chips |
+| EAN-13 / EAN-8 the food catalogues miss | one question: *"È un farmaco o un integratore?"* → **[💊 Sì]** (medical form) / **[No]** (normal product) / [Annulla] (camera resumes) |
+| EAN-13 the food catalogues know | normal product path (a pharmacy item that happens to be in OFF is fine) |
+
+The UI says it in *Settings → Farmaci* (`medical.no_catalogue`) and the credits page says it
+where the free APIs are thanked (`credits.medicines_note`): the missing service is part of an
+honest credit list.
+
+**Phase 2 will need the country**: when the AIFA catalogue lands (filtered to OTC/SOP/C, a
+2–3 MB local file), the module has to be enabled only for the matching country — a national
+dataset cannot answer for another country's boxes. That gate does not exist today because
+there is no catalogue to misuse.
+
 
 `medicalMatchSymptom()` reads `data/medical_categories.json` (8 household categories → i18n
 label + the words a household actually says, in the six shipped locales), tries the **longest

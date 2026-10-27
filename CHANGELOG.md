@@ -13,6 +13,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.24.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **Scanning a medicine box did nothing.** Italian boxes carry an **EAN-13** (often `80…`, GS1
+  Italy) — and the medical path explicitly excluded 13-digit codes, so the lookup ended on Open
+  Food Facts (which has no medicines), fell to the generic "not found" toast and the camera
+  resumed. With the module on, an unknown code is now a **decision, not a dead end**:
+  - Pharmacode/Laetus/short code → straight to the manual entry, **medicine switch already on**
+    and the 8 category chips ready;
+  - EAN-13/EAN-8 the food catalogues miss → one question: *"È un farmaco o un integratore?"*
+    → **💊 Sì** (medical form) / **No** (normal product) / [Annulla] (camera resumes, via Esc too).
+- The scanned code is kept on the box, so the same pack scanned again is still identifiable
+  even though no catalogue answered.
+
+### Changed — honest about what is *not* there
+- **No medicine catalogue is queried, in any country.** The module states it in
+  *Settings → Farmaci* (`medical.no_catalogue`: the barcode — SSN label included — stays
+  attached to the box, the name is typed) and the **credits page** now closes the list with
+  what no free API covers (`credits.medicines_note`): Open Food Facts has no medicines, national
+  datasets (AIFA) arrive only in Phase 2, filtered to OTC/SOP. The missing service belongs in a
+  credit list.
+- **No country gate, on purpose:** with nothing looked up there is nothing to gate — the module
+  works everywhere. Phase 2 (a national catalogue) is when the gate becomes mandatory, and the
+  wiki says so: `docs/wiki/Medicines.md` documents the EAN vs SSN/Pharmacode reality and the
+  scanner's behaviour in a table.
+
 ## [1.23.2] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Changed

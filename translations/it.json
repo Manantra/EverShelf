@@ -2791,7 +2791,8 @@
     "back": "Torna alla panoramica",
     "api_open_food_facts_where": "Lo usiamo quando scansioniamo un codice a barre o cerchiamo un prodotto: nome, marca, categoria, foto e valori nutrizionali arrivano dal database aperto e collaborativo. I dati sono ODbL, le foto CC-BY-SA.",
     "api_open_prices_where": "Lo usiamo per stimare la spesa: prezzi medi recenti della community per lo stesso codice a barre, quando ci sono. Dati ODbL.",
-    "api_open_meteo_where": "Lo usiamo per il meteo delle ricette (cosa cucino oggi, in base a caldo, freddo, pioggia) e per tradurre un nome di città in coordinate. Nessuna chiave, nessun tracciamento."
+    "api_open_meteo_where": "Lo usiamo per il meteo delle ricette (cosa cucino oggi, in base a caldo, freddo, pioggia) e per tradurre un nome di città in coordinate. Nessuna chiave, nessun tracciamento.",
+    "medicines_note": "I farmaci non sono coperti da Open Food Facts: il modulo Farmaci non interroga nessun catalogo (i dati AIFA sono nazionali e arriveranno solo nella Fase 2, filtrati su OTC/SOP). Per questo il codice a barre viene solo salvato sulla scatola e il nome lo scrivi tu."
   },
   "medical": {
     "title": "💊 Farmaci e armadietto",
@@ -2878,6 +2879,12 @@
     "default_location_name": "Armadietto farmaci",
     "location_required_toast": "Scegli o scrivi il nome della locazione dei farmaci.",
     "save_error": "Non sono riuscito a salvare: riprova.",
-    "setup_review": "↺ Rivedi l’introduzione del modulo"
+    "setup_review": "↺ Rivedi l’introduzione del modulo",
+    "no_catalogue": "Nessun catalogo di farmaci viene interrogato: il codice a barre (anche l’etichetta SSN) resta agganciato alla scatola che crei tu, e il nome lo scrivi tu. Funziona in ogni paese, senza API.",
+    "fallback_title": "Codice non riconosciuto",
+    "fallback_ask": "Il codice {code} non è in nessun catalogo alimentare. È un farmaco o un integratore?",
+    "fallback_yes": "💊 Sì, è un farmaco",
+    "fallback_no": "No, è un prodotto normale",
+    "fallback_cancel": "Annulla"
   }
 }

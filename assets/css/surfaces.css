@@ -2228,3 +2228,17 @@ a.free-api:hover { border-color: var(--brand-primary); }
 .med-disclaimer-long p:last-child {
     margin-bottom: 0;
 }
+.med-fallback-card {
+    max-width: 460px;
+}
+.credits-note {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-bg);
+    /* Solid, like every other surface: a dashed frame reads like a placeholder (palette guard). */
+    border: 1px solid var(--surface-border);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
