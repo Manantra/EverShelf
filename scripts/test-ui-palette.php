@@ -150,12 +150,11 @@ check('a gateway replay cannot paint a live pill',
 check('a scale that was never configured stays hidden',
     str_contains($app, 'if (!s.scale_enabled || !s.scale_gateway_url)')
     && str_contains($app, "indicator.style.display = 'none';"));
-// The scanner is the physical action the app exists for: it owns a nav slot, the recipes
-// keep their dashboard CTA instead of a duplicate tab, and a barcode of something you
-// already have opens the product modal (an action), not the old full-page sheet.
-check('the scanner has its own nav tab and the recipes tab is gone',
-    str_contains($html, 'data-page="scan"') && !str_contains($html, 'data-page="recipe"')
-    && str_contains($html, 'data-i18n="nav.scanner"'));
+// The recipes own the nav slot (a household uses them daily); the scanner is still one tap
+// away from the dashboard and the product flows, without taking a slot of its own.
+check('the recipes have their nav tab back and the scanner is not a slot',
+    str_contains($html, 'data-page="recipe"') && !str_contains($html, 'data-page="scan"')
+    && str_contains($html, 'data-i18n="nav.recipes"'));
 check('scanning a product you already have opens the product modal',
     str_contains($app, 'function _inventoryRowForProduct(')
     && str_contains($app, '_inventoryRowForProduct(currentProduct.id)'));

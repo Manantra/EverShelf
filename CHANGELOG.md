@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.24.1] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Changed
+- **The recipes have their nav slot back.** Round 14 traded the "🍳 Ricette" tab for "📷 Scanner"
+  on the argument that the dashboard already carries the orange recipe CTA — in use that made
+  the recipes feel *gone*. The bottom bar is Home / Dispensa / **Ricette** / SHELFY / Spesa /
+  Storico / Config again, and the **scanner keeps no slot**: it is still one tap away from the
+  dashboard, the product modal and the spesa flow (all of them call `showPage('scan')`), which
+  is how it was actually reached.
+
 ## [1.24.0] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Fixed
