@@ -22,6 +22,7 @@
 $root = dirname(__DIR__);
 $app = (string)file_get_contents($root . '/assets/js/app.js');
 $api = (string)file_get_contents($root . '/api/index.php');
+$html = (string)file_get_contents($root . '/index.html');
 $fail = 0;
 $checks = 0;
 
@@ -160,6 +161,89 @@ check('without a marked cabinet no place jumps the queue',
     json_encode($none));
 
 @unlink($tmp);
+
+// ── Exactly ONE selected place in the add form ──────────────────────────────
+// "Adding honey lit up Dispensa AND Dispensa cucina": the picker matched the button TEXT
+// against the location key, and "dispensa" is a substring of "dispensa cucina". A custom
+// place matched nothing at all (its label is not its slug). The selection is now by
+// `data-loc`, through one resolver that accepts a slug or the typed label.
+check('every location button carries its key',
+    str_contains($app, 'data-loc="${escapeAttr(key)}"')
+    && substr_count($html, 'class="loc-btn active" data-loc="dispensa"') >= 1);
+check('the add form selects by key, not by the label text',
+    str_contains($app, "markLocationButton('#page-add .loc-btn', autoLoc)")
+    && !preg_match('/#page-add \\.loc-btn[\\s\\S]{0,300}?textContent\\.toLowerCase\\(\\)\\.includes/s', $app));
+check('a manual pick is final (no hint may move it)',
+    str_contains($app, "hidden.dataset.userPicked = '1';")
+    && (bool)preg_match('/if \\(locChanged && locEl && !locEl\\.dataset\\.userPicked\\)/s', $app)
+    && (bool)preg_match('/if \\(data\\.preferred_location && locEl && !locEl\\.dataset\\.userPicked\\)/s', $app));
+
+// The shipped resolver + marker, run for real against a fake picker.
+$pickFns = '';
+$legacy = '';
+if (preg_match('/^const LEGACY_LOCATION_ALIASES = .*;$/m', $app, $m)) {
+    $legacy = $m[0];
+}
+$pickFns .= $legacy . "\n"
+    . extract_fn($app, 'normalizeLocationKey') . "\n"
+    . extract_fn($app, 'slugifyCustomLocation') . "\n"
+    . extract_fn($app, 'resolveLocationKey') . "\n"
+    . extract_fn($app, 'markLocationButton') . "\n";
+check('the picker helpers are extractable', substr_count($pickFns, 'function ') === 4, (string)substr_count($pickFns, 'function '));
+
+$pickHarness = <<<'JS'
+const LOCATIONS = {
+    dispensa:                 { icon: '🗄️', label: 'Dispensa' },
+    custom_armadietto_farmaci:{ icon: '💊', label: 'Armadietto Farmaci' },
+    frigo:                    { icon: '🧊', label: 'Frigo' },
+    freezer:                  { icon: '❄️', label: 'Freezer' },
+    custom_mobile_soggiorno:  { icon: '📦', label: 'Mobile Soggiorno' },
+    custom_dispensa_cucina:   { icon: '📦', label: 'Dispensa cucina' },
+};
+const buttons = Object.keys(LOCATIONS).map(key => {
+    const on = new Set();
+    return {
+        dataset: { loc: key },
+        textContent: `${LOCATIONS[key].icon} ${LOCATIONS[key].label}`,
+        classList: {
+            toggle: (c, state) => { state ? on.add(c) : on.delete(c); },
+            contains: (c) => on.has(c),
+        },
+        isActive: () => on.has('active'),
+    };
+});
+const document = { querySelectorAll: () => buttons };
+JS;
+$pickHarness .= "\n" . $pickFns . <<<'JS'
+
+const out = {};
+for (const value of ['dispensa', 'Dispensa cucina', 'Armadietto Farmaci', 'custom_mobile_soggiorno', 'altro', '']) {
+    markLocationButton('#page-add .loc-btn', value);
+    out[value === '' ? '(empty)' : value] = buttons.filter(b => b.isActive()).map(b => b.dataset.loc);
+}
+console.log(JSON.stringify(out));
+JS;
+
+$pickTmp = sys_get_temp_dir() . '/loc_pick_' . getmypid() . '.js';
+file_put_contents($pickTmp, $pickHarness);
+$pickRaw = shell_exec('node ' . escapeshellarg($pickTmp) . ' 2>&1');
+@unlink($pickTmp);
+$picked = json_decode(trim((string)$pickRaw), true);
+check('the picker harness runs in node', is_array($picked), (string)$pickRaw);
+if (is_array($picked)) {
+    check('a built-in selects only itself ("Dispensa" is not "Dispensa cucina")',
+        ($picked['dispensa'] ?? null) === ['dispensa'], json_encode($picked['dispensa'] ?? null));
+    check('a typed label selects its own place, once',
+        ($picked['Dispensa cucina'] ?? null) === ['custom_dispensa_cucina']
+        && ($picked['Armadietto Farmaci'] ?? null) === ['custom_armadietto_farmaci'],
+        json_encode($picked));
+    check('a slug still selects its own place',
+        ($picked['custom_mobile_soggiorno'] ?? null) === ['custom_mobile_soggiorno']);
+    check('the legacy "altro" reads as the pantry',
+        ($picked['altro'] ?? null) === ['dispensa']);
+    check('an empty value selects nothing (no invented default)',
+        ($picked['(empty)'] ?? null) === []);
+}
 
 echo "\n{$checks} checks, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

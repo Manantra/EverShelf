@@ -53,6 +53,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in debug and production.
 
 ### Fixed
+- **Adding a product lit up TWO locations ("Dispensa" and "Dispensa cucina").** The add form
+  picked the button by asking whether its *text* contained the location key: "dispensa" is a
+  substring of "dispensa cucina", so both pills turned green — and a custom place matched
+  nothing at all, because its label is not its slug. Every location button now carries its
+  own key (`data-loc`) and the selection goes through one resolver that accepts a slug **or**
+  the typed label (`resolveLocationKey()` → `markLocationButton()`): exactly one place, the
+  right one. The same rule covers the history hint and the AI hint, and **the place the
+  household picked wins**: `selectLocation()` records the choice (`dataset.userPicked`) and no
+  hint may move it afterwards. A medicine still defaults to its cabinet — now as a real key
+  instead of the stored label.
 - **"Invalid location" when adding a product to a place you had just created.** The Settings
   card kept a new custom location **in the browser only** — the page-wide "Salva" was what
   wrote it — while the pantry validates the location **server-side** against

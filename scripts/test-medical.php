@@ -253,7 +253,10 @@ check('the toggle shows the closed category chips and the PAO, never a free text
 check('saving the form stores the medical fields through med_classify',
     (bool)preg_match("/const medPayload = _pfMedicalPayload\(\);[\s\S]{0,400}?api\('med_classify', \{ product_id: result\.id/s", $app));
 check('the add step defaults to the medical location for a medicine',
-    (bool)preg_match('/const autoLoc = \(_isMedicalRow\(currentProduct\) && medLoc\) \? medLoc : guessLocation/s', $app));
+    // The value is resolved to a pantry KEY (the stored marking may be the typed label) and
+    // recorded as decided, so no history/AI hint can move a medicine out of its cabinet.
+    (bool)preg_match('/const autoLoc = resolveLocationKey\(\(_isMedicalRow\(currentProduct\) && medLoc\) \? medLoc : guessLocation\(currentProduct\)\) \|\| \'dispensa\';/s', $app)
+    && (bool)preg_match('/function _medArmProductForm\(\)[\s\S]{0,900}?addLoc\.value = resolveLocationKey\(loc\);[\s\S]{0,200}?addLoc\.dataset\.userPicked = \'1\';/s', $app));
 check('editing a product shows its own medical fields',
     (bool)preg_match("/t\('product\.title_edit'\);\n    _syncProductMedicalUi\(currentProduct\)/", $app));
 

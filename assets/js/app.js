@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027z'; // bump when translations change
+const _I18N_VERSION = '20261027za'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2179,6 +2179,40 @@ function slugifyCustomLocation(name) {
 }
 
 /**
+ * The canonical key of a location, from the slug or from the label the household sees.
+ *
+ * `inventory.location` stores slugs (`custom_dispensa_cucina`), while `medical_locations`
+ * and the first-run wizard may hold the typed label ("Armadietto Farmaci"): one resolver, so
+ * a picker can never highlight a place the pantry will refuse.
+ */
+function resolveLocationKey(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const key = normalizeLocationKey(raw);
+    if (LOCATIONS[key]) return key;
+    const lower = raw.toLowerCase();
+    const byLabel = Object.entries(LOCATIONS)
+        .find(([, meta]) => String(meta.label || '').trim().toLowerCase() === lower);
+    if (byLabel) return byLabel[0];
+    // A custom place this client has not received yet: its slug is derived from the name.
+    return slugifyCustomLocation(raw);
+}
+
+/**
+ * Mark exactly ONE button as the selected location in a picker.
+ *
+ * By `data-loc`, never by the button text: "Dispensa" is a substring of "Dispensa cucina",
+ * so the old `textContent.includes()` lit up two buttons at once — and matched nothing for a
+ * custom place, whose label is not its slug.
+ */
+function markLocationButton(selector, value) {
+    const wanted = resolveLocationKey(value);
+    document.querySelectorAll(selector).forEach(b => {
+        b.classList.toggle('active', wanted !== '' && b.dataset.loc === wanted);
+    });
+}
+
+/**
  * The slugs the household marked as the medicine cabinet (Settings → Farmaci).
  *
  * `medical_locations` may hold the typed label ("Armadietto Farmaci") or the slug
@@ -2240,13 +2274,17 @@ function rebuildLocationPickers() {
     const renderSelector = (sel, hiddenId, clickFn, currentVal) => {
         const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
         if (!el) return;
-        const cur = currentVal || document.getElementById(hiddenId)?.value || 'dispensa';
+        // One selection, by KEY: a label ("Dispensa cucina") and its slug are the same place,
+        // and one place's name can contain another's (see markLocationButton()).
+        const cur = resolveLocationKey(currentVal || document.getElementById(hiddenId)?.value || 'dispensa');
         el.innerHTML = Object.entries(LOCATIONS).map(([key, meta], idx) => {
             const active = key === cur || (!LOCATIONS[cur] && idx === 0);
-            return `<button type="button" class="loc-btn${active ? ' active' : ''}" onclick="${clickFn}(this, '${key}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
+            return `<button type="button" class="loc-btn${active ? ' active' : ''}" data-loc="${escapeAttr(key)}" onclick="${clickFn}(this, '${key}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
         }).join('');
         const hidden = document.getElementById(hiddenId);
-        if (hidden && !LOCATIONS[hidden.value]) hidden.value = Object.keys(LOCATIONS)[0] || 'dispensa';
+        if (hidden && !LOCATIONS[hidden.value]) {
+            hidden.value = LOCATIONS[cur] ? cur : (Object.keys(LOCATIONS)[0] || 'dispensa');
+        }
     };
     renderSelector('#page-add .location-selector', 'add-location', 'selectLocation', document.getElementById('add-location')?.value);
     renderSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value);
@@ -13620,7 +13658,13 @@ function onProductMedicalToggle() {
         // The add step must default to the medical location, not to the pantry.
         const loc = (getSettings().medical_locations || [])[0];
         const el = document.getElementById('add-location');
-        if (loc && el) el.value = loc;
+        if (loc && el) {
+            // Resolve the label to the pantry key and mark it decided: a hint must not move a
+            // medicine out of its cabinet.
+            el.value = resolveLocationKey(loc);
+            el.dataset.userPicked = '1';
+            markLocationButton('#page-add .loc-btn', el.value);
+        }
     }
 }
 
@@ -14969,7 +15013,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027z';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027za';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14979,7 +15023,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027z';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027za';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16090,7 +16134,13 @@ function _medArmProductForm() {
     _pfRenderMedCats([]);
     const loc = (getSettings().medical_locations || [])[0];
     const addLoc = document.getElementById('add-location');
-    if (loc && addLoc) addLoc.value = loc;
+    if (loc && addLoc) {
+        // A medicine goes to its cabinet: resolved to the pantry's own key (the stored value
+        // may be the typed label) and marked as decided, so no hint moves it away.
+        addLoc.value = resolveLocationKey(loc);
+        addLoc.dataset.userPicked = '1';
+        markLocationButton('#page-add .loc-btn', addLoc.value);
+    }
 }
 
 /**
@@ -17729,6 +17779,10 @@ function finishEditScanAiBrand(cancel = false) {
 function showAddForm() {
     _snapshotCatalogTitle();
     _renderAddProductPreview();
+    // A fresh form is a fresh decision: the place the household picked last time (or the hint
+    // that filled it) must not be treated as "already chosen" for this product.
+    const locInput = document.getElementById('add-location');
+    if (locInput) locInput.dataset.userPicked = '';
     _scaleUserDismissed = false;
     _scaleStabilityVal = null;
     // Weight is kept by _scaleNavigatePreserveWeight when auto-navigating from the action page
@@ -17794,15 +17848,12 @@ function showAddForm() {
     
     // Auto-detect location — a medicine goes to its own cabinet, never to the pantry.
     const medLoc = (getSettings().medical_locations || [])[0];
-    const autoLoc = (_isMedicalRow(currentProduct) && medLoc) ? medLoc : guessLocation(currentProduct);
+    const autoLoc = resolveLocationKey((_isMedicalRow(currentProduct) && medLoc) ? medLoc : guessLocation(currentProduct)) || 'dispensa';
     document.getElementById('add-location').value = autoLoc;
     
-    // Highlight correct location button
-    document.querySelectorAll('#page-add .loc-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('#page-add .loc-btn').forEach(b => {
-        const btnText = b.textContent.toLowerCase();
-        if (btnText.includes(autoLoc)) b.classList.add('active');
-    });
+    // Exactly one button, chosen by key: the old text match lit up both "Dispensa" and
+    // "Dispensa cucina", because one label contains the other.
+    markLocationButton('#page-add .loc-btn', autoLoc);
     
     // Show the purchase-type selector  
     const expirySection = document.getElementById('add-expiry-section');
@@ -17936,11 +17987,10 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
             if (!_isExpiryManuallySet('add-expiry')) {
                 const locEl = document.getElementById('add-location');
                 if (data.preferred_location && locEl && !locEl.dataset.userPicked) {
-                    locEl.value = data.preferred_location;
-                    document.querySelectorAll('#page-add .loc-btn, #add-form .loc-btn').forEach(b => {
-                        b.classList.toggle('active', (b.dataset.loc || b.dataset.location) === data.preferred_location
-                            || b.textContent.toLowerCase().includes(data.preferred_location));
-                    });
+                    // By key, one button: the label of one place can contain the name of
+                    // another ("Dispensa" ⊂ "Dispensa cucina").
+                    locEl.value = resolveLocationKey(data.preferred_location);
+                    markLocationButton('#page-add .loc-btn', locEl.value);
                 }
                 const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
                 let days = isVacuum ? getVacuumExpiryDays(data.avg_days) : data.avg_days;
@@ -18013,18 +18063,16 @@ async function _applyAIProductHint() {
         // Mark so we don't re-fetch on the same product
         currentProduct._aiHintFetched = true;
 
-        const curLoc  = document.getElementById('add-location')?.value;
-        const locChanged = data.location !== curLoc;
+        const curLoc  = resolveLocationKey(document.getElementById('add-location')?.value);
+        const suggested = resolveLocationKey(data.location);
+        const locChanged = suggested !== curLoc;
 
-        // Update location if AI suggests a different one (and user hasn't manually picked)
-        if (locChanged) {
-            document.getElementById('add-location').value = data.location;
-            // Update active loc-btn
-            document.querySelectorAll('#page-add .loc-btn').forEach(b => {
-                const onclick = b.getAttribute('onclick') || '';
-                const locMatch = onclick.match(/'([^']+)'\s*\)/);
-                if (locMatch) b.classList.toggle('active', locMatch[1] === data.location);
-            });
+        // Update location only while nobody has chosen one: a manual pick wins over any hint.
+        const locEl = document.getElementById('add-location');
+        if (locChanged && locEl && !locEl.dataset.userPicked) {
+            locEl.value = suggested;
+            // One selected button, by key — never by the label text.
+            markLocationButton('#page-add .loc-btn', suggested);
         }
 
         // Update expiry only if we have no historical data (history takes priority)
@@ -18306,9 +18354,15 @@ function _rebuildMultiBatchUI() {
 }
 
 function selectLocation(btn, loc) {
+    const key = resolveLocationKey(loc);
     btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('add-location').value = loc;
+    const hidden = document.getElementById('add-location');
+    if (hidden) {
+        hidden.value = key;
+        // The household chose this place: no history/AI hint may move it afterwards.
+        hidden.dataset.userPicked = '1';
+    }
     recalculateAddExpiry();
 }
 
