@@ -76,9 +76,10 @@ check('the splash paints the credits', str_contains($html, 'id="preloader-apis"'
     && str_contains($app, '_renderPreloaderApis();'));
 check('the splash uses the official logo helper',
     str_contains($app, "_freeApiLogoHtml(api, 'preloader-api-logo')"));
-check('the overview carries the credits at the bottom', str_contains($html, 'id="app-footer-dashboard"')
-    && str_contains($html, 'id="app-footer-dashboard-apis"')
-    && str_contains($app, "document.getElementById('app-footer-dashboard-apis')"));
+// The overview does NOT carry the credits any more: on a phone that footer took a third of
+// the screen right above the nav bar, stealing space from the food lists (audit, round 14).
+// The splash shows the marks at boot, Settings keeps the card and the dedicated page.
+check('the overview stays free of the credits footer', !str_contains($html, 'app-footer-dashboard'));
 check('the Settings card carries them too', str_contains($html, 'id="settings-free-apis"')
     && str_contains($app, "document.getElementById('settings-free-apis')"));
 check('the dedicated thanks page exists (tab + panel)',

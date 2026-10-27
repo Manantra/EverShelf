@@ -12,21 +12,21 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261027e">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027e">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027e">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261027l">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027l">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027l">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027e">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027e">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027l">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027l">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261027e"></script>
-    <script src="assets/js/core/auth.js?v=20261027e"></script>
+    <script src="assets/js/core/dom.js?v=20261027l"></script>
+    <script src="assets/js/core/auth.js?v=20261027l"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261027e"></script>
+    <script src="assets/js/core/support.js?v=20261027l"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +34,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027l';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +43,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027e';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027l';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261027e"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261027l"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -114,7 +114,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.19.0</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.22.2</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -180,7 +180,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.19.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.22.2</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -188,13 +188,20 @@
 
         <!-- Actions — fixed set of icon buttons, all same size -->
         <div class="header-actions">
-            <button id="scale-status-indicator" class="header-btn scale-status-indicator scale-status-disconnected"
+            <!-- Scale: HIDDEN unless a gateway is configured (nobody who only tracks
+                 expiry dates should see a dead icon). When enabled it is a real hardware
+                 indicator: a neutral pill with a crossed bluetooth while it searches, and a
+                 mint pill with the LIVE weight once connected. A tap opens a small popover
+                 (device, battery, big weight, tare, connect/disconnect) instead of a toast
+                 that covered the buttons at the bottom. -->
+            <button id="scale-status-indicator" class="scale-pill scale-status-disconnected"
                     style="display:none" data-i18n-title="scale.status_disconnected" title="⚖️ Bilancia"
-                    onclick="_scaleShowInfo()">
-                <span class="scale-icon-wrapper">
-                    <span class="scale-icon-emoji">⚖️</span>
-                    <span class="scale-status-dot"></span>
-                </span>
+                    aria-haspopup="dialog" aria-expanded="false" aria-controls="scale-popover"
+                    onclick="_scaleTogglePopover(event)">
+                <span class="scale-pill-icon" aria-hidden="true">⚖️</span>
+                <span class="scale-pill-weight" id="scale-pill-weight" hidden></span>
+                <span class="scale-pill-battery" id="scale-pill-battery" hidden></span>
+                <span class="scale-status-dot" aria-hidden="true"></span>
             </button>
             <button class="header-btn header-spesa-btn" id="btn-header-spesa"
                     onclick="toggleSpesaMode()"
@@ -207,6 +214,18 @@
         </div>
     </div>
 </header>
+
+<!-- Scale popover: the hardware status in one place, anchored under the pill. -->
+<div class="scale-popover" id="scale-popover" hidden role="dialog" aria-labelledby="scale-popover-title">
+    <p class="scale-popover-title" id="scale-popover-title">⚖️ <span data-i18n="scale.popover_title">Bilancia</span></p>
+    <p class="scale-popover-meta" id="scale-popover-meta">—</p>
+    <div class="scale-popover-weight" id="scale-popover-weight">—</div>
+    <p class="scale-popover-tare" id="scale-popover-tare" hidden></p>
+    <div class="scale-popover-actions">
+        <button type="button" class="btn btn-secondary" id="scale-popover-tare-btn" onclick="_scaleTare()" data-i18n="scale.tare">Tara</button>
+        <button type="button" class="btn btn-secondary" id="scale-popover-conn-btn" onclick="_scaleToggleConnection()" data-i18n="scale.disconnect">Disconnetti</button>
+    </div>
+</div>
 
 <!-- Offline / server-unreachable banner -->
 <div id="offline-banner" class="offline-banner" style="display:none" role="alert" aria-live="assertive">
@@ -335,14 +354,9 @@
         <div class="ad-slot" id="ad-slot-app" data-ad-slot="app" style="display:none"></div>
         -->
 
-        <!-- Credits at the bottom of the overview: the open services this app stands on,
-             with their official logos (data/free_apis.json → #app-footer-dashboard-apis).
-             Quiet on purpose: it is a thank-you, not a call to action. -->
-        <footer class="app-footer app-footer-dashboard" id="app-footer-dashboard">
-            <p class="app-footer-title" data-i18n="credits.title">Grazie a queste API gratuite</p>
-            <div class="app-footer-apis" id="app-footer-dashboard-apis"></div>
-            <p class="app-footer-hint" data-i18n="credits.thanks">Grazie agli autori e ai volontari che mantengono questi progetti.</p>
-        </footer>
+        <!-- Credits live in Settings (card + dedicated page): on the overview they took a
+             third of a phone screen right above the nav bar, stealing space from the food
+             lists. The splash still shows the marks at boot. -->
 
     </section>
 
@@ -387,10 +401,9 @@
 
     <!-- ===== SCAN PAGE ===== -->
     <section class="page" id="page-scan">
-        <div class="inv-quick-actions">
-            <button type="button" class="btn btn-secondary" id="scan-receipt-btn"
-                    onclick="_receiptStart()"><span aria-hidden="true">🧾</span> <span data-i18n="receipt.photo">Scontrino</span></button>
-        </div>
+        <!-- The receipt file-upload lived here: on a wall tablet or while emptying the
+             bags nobody opens a file manager, so the entry point is gone (audit, round 14).
+             The total is asked with a numeric keypad at the END of the shopping session. -->
         <div class="page-header">
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="scan.title">Scansiona</h2>
@@ -1295,7 +1308,12 @@
                         </label>
                         <p class="settings-hint" data-i18n="settings.product_rules.family_hint">Un prodotto generico (Spaghetti) con le sue varianti (Barilla, Rummo): la dispensa mostra la variante, il totale della famiglia in una riga.</p>
                     </div>
-                    <div class="form-group" style="margin-top:8px">
+                    <!-- Receipt OCR is PARKED: the file-upload entry point on the scan page
+                         is gone (nobody opens a file manager on a wall tablet, and a crumpled
+                         thermal receipt is what text extraction gets wrong). The shopping
+                         total is typed on a keypad at the end of the session. The row stays
+                         in the markup, hidden, for the day the camera path lands. -->
+                    <div class="form-group" style="margin-top:8px" hidden>
                         <label class="toggle-row">
                             <span data-i18n="settings.product_rules.receipt_label">Lettura scontrini</span>
                             <span class="toggle-switch">
@@ -1304,6 +1322,7 @@
                             </span>
                         </label>
                         <p class="settings-hint" data-i18n="settings.product_rules.receipt_hint">Una foto dello scontrino propone le righe; nulla entra in dispensa finché non confermi la tabella.</p>
+                        </div>
                     </div>
                     <div class="form-group" style="margin-top:8px">
                         <label class="toggle-row">
@@ -2769,9 +2788,12 @@
         <span class="nav-icon" aria-hidden="true">📋</span>
         <span class="nav-label" data-i18n="nav.inventory">Dispensa</span>
     </button>
-    <button class="nav-btn" onclick="showPage('recipe')" data-page="recipe" aria-label="Ricette" data-i18n-aria="nav.recipes">
-        <span class="nav-icon" aria-hidden="true">🍳</span>
-        <span class="nav-label" data-i18n="nav.recipes">Ricette</span>
+    <!-- Scanner: the physical action the app exists for (load a bag, consume, throw).
+         It takes the slot the recipes used to hold — the orange "Ricetta" CTA on the
+         dashboard already owns cooking, so a nav tab for it was a duplicate. -->
+    <button class="nav-btn" onclick="showPage('scan')" data-page="scan" aria-label="Scanner" data-i18n-aria="nav.scanner">
+        <span class="nav-icon" aria-hidden="true">📷</span>
+        <span class="nav-label" data-i18n="nav.scanner">Scanner</span>
     </button>
     <!-- Capture button: the centre of the nav is an action, not a brand. No text
          label (the microphone is the label), always breathing so it reads as the

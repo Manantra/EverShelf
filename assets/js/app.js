@@ -414,6 +414,11 @@ function scaleInit() {
         return;
     }
     if (indicator) indicator.style.display = '';
+    // The live window expires by itself: a replay that stopped must not keep a weight on
+    // screen (one cheap timer, only while a gateway is configured).
+    if (!scaleInit._tick) {
+        scaleInit._tick = setInterval(() => { if (_scaleConnected) _scaleRenderPill(); }, 5000);
+    }
     _scaleConnect(s.scale_gateway_url);
 }
 
@@ -425,10 +430,12 @@ function _scaleAuthQuery() {
 function _scaleConnect(url) {
     if (_scaleEs) { try { _scaleEs.close(); } catch(e) {} _scaleEs = null; }
     if (_scaleReconnectTimer) { clearTimeout(_scaleReconnectTimer); _scaleReconnectTimer = null; }
+    // A new relay session starts with an empty live window: the bridge replays its cache.
+    _scaleResetLiveWindow();
     try {
         // EventSource cannot send custom headers — pass api_token in query string
         _scaleEs = new EventSource('api/scale_relay.php?url=' + encodeURIComponent(url) + _scaleAuthQuery());
-        _scaleEs.onopen  = () => _scaleUpdateStatus('searching');
+        _scaleEs.onopen  = () => { _scaleResetLiveWindow(); _scaleUpdateStatus('searching'); };
         _scaleEs.onmessage = (evt) => {
             try { _scaleOnMessage(JSON.parse(evt.data)); } catch(e) {}
         };
@@ -462,6 +469,16 @@ function _scaleOnMessage(msg) {
         const rawValue = parseFloat(msg.value);
         if (rawValue < 0) return;
 
+        // The FIRST reading of a relay session is the gateway's cached replay: the Android
+        // bridge answers every new client with its last known weight, even with the scale
+        // off. Trusting it painted "448.5 g" as if somebody had just weighed something.
+        _scaleWeightMsgCount++;
+        _scaleLastWeightAt = Date.now();
+        if (_scaleWeightMsgCount === 1) {
+            _scaleRenderPill();
+            return;
+        }
+
         // Ignore sub-2g jitter for stability decisions: changes below 2g are considered noise.
         const SCALE_NOISE_G = 2;
         let effectiveStable = !!msg.stable;
@@ -481,6 +498,9 @@ function _scaleOnMessage(msg) {
 
         const liveMsg = effectiveStable === msg.stable ? msg : { ...msg, stable: effectiveStable };
         _scaleLatestWeight = liveMsg;
+        // The header pill IS the hardware indicator: grams that change while you place the
+        // food, not a toast that covers the buttons at the bottom of the screen.
+        _scaleRenderPill();
         // Update live reading modal overlay if visible (scale-read modal)
         const live = document.getElementById('scale-reading-live');
         if (live) live.textContent = `${msg.value} ${msg.unit || 'kg'}${liveMsg.stable ? ' ✓' : ' …'}`;
@@ -1193,7 +1213,7 @@ function _startScaleAutoConfirm(onConfirm, btnId) {
 function _scaleUpdateStatus(state) {
     const el = document.getElementById('scale-status-indicator');
     if (!el) return;
-    el.className = `header-btn scale-status-indicator scale-status-${state}`;
+    el.className = `scale-pill scale-status-${state}`;
     const labels = {
         connected:    `⚖️ ${t('scale.status_connected')}${_scaleDevice ? ': ' + _scaleDevice : ''}`,
         searching:    `⚖️ ${t('scale.status_searching')}`,
@@ -1201,6 +1221,8 @@ function _scaleUpdateStatus(state) {
         error:        `⚖️ ${t('scale.status_error')}`,
     };
     el.title = labels[state] || '';
+    _scaleRenderPill();
+    if (!document.getElementById('scale-popover')?.hidden) _scaleRenderPopover();
     // Update settings live-diagnostic panel
     const diag = document.getElementById('scale-live-diag');
     if (!diag) return;
@@ -1215,6 +1237,164 @@ function _scaleUpdateStatus(state) {
             weightEl.textContent = `${parseFloat(_scaleLatestWeight.value).toFixed(1)} ${_scaleLatestWeight.unit || 'g'}`;
         }
     }
+}
+
+/**
+ * The reading as the user sees it: `{ grams, label }`, with the LOCAL tare applied.
+ *
+ * The bridge is read-only (its websocket carries `weight_g`), so "Tara" cannot command the
+ * physical scale: it remembers a baseline here and shows the delta — put the bowl on, tare,
+ * add the food, and the pill counts the food.
+ */
+let _scaleTareOffsetG = 0;
+
+function _scaleDisplayReading() {
+    if (!_scaleLatestWeight) return null;
+    const raw = parseFloat(_scaleLatestWeight.value);
+    if (!Number.isFinite(raw)) return null;
+    const src = String(_scaleLatestWeight.unit || 'kg').toLowerCase();
+    const grams = src === 'g' ? raw : (src === 'kg' ? raw * 1000 : Math.round(raw * 453.592));
+    const net = Math.max(0, grams - _scaleTareOffsetG);
+    const rounded = net >= 100 ? Math.round(net) : Math.round(net * 10) / 10;
+    return { grams: net, label: `${rounded} g` };
+}
+
+/**
+ * A reading is LIVE only while the scale keeps talking.
+ *
+ * The Android bridge answers a new relay connection by REPLAYING its cached status
+ * ("connected", device, battery) and the last weight, then goes quiet when the physical
+ * scale is off. Trusting that single message made the app show a green "connected" pill
+ * with a 448.5 g reading that nobody had just weighed. Rules:
+ *   - the FIRST weight message of a relay session is the cached replay: ignore it;
+ *   - a reading is live only when a second one arrived and the last is younger than
+ *     SCALE_LIVE_MS (a real scale streams continuously while something sits on it);
+ *   - "gateway reached" alone is not "scale on": the pill stays neutral and says
+ *     "waiting for the scale" until a fresh reading exists.
+ */
+const SCALE_LIVE_MS = 10000;
+let _scaleWeightMsgCount = 0;   // weight messages since this relay session opened
+let _scaleLastWeightAt = 0;     // ms of the last accepted reading
+
+function _scaleResetLiveWindow() {
+    _scaleWeightMsgCount = 0;
+    _scaleLastWeightAt = 0;
+    _scaleLatestWeight = null;
+}
+
+function _scaleIsLive() {
+    return !!_scaleConnected
+        && _scaleWeightMsgCount >= 2
+        && (Date.now() - _scaleLastWeightAt) < SCALE_LIVE_MS;
+}
+
+/** Paint the header pill: live weight + battery when connected, nothing while searching. */
+function _scaleRenderPill() {
+    const pill = document.getElementById('scale-status-indicator');
+    if (!pill) return;
+    const live = _scaleIsLive();
+    // Connected but with no fresh reading is "waiting", not "connected": the gateway
+    // replay must never paint a mint pill.
+    pill.classList.toggle('scale-status-waiting', !!_scaleConnected && !live);
+    if (_scaleConnected && !live) pill.title = `⚖️ ${t('scale.status_waiting')}`;
+    const wEl = document.getElementById('scale-pill-weight');
+    const bEl = document.getElementById('scale-pill-battery');
+    const reading = live ? _scaleDisplayReading() : null;
+    if (wEl) {
+        wEl.hidden = !reading;
+        if (reading) wEl.textContent = reading.label;
+    }
+    if (bEl) {
+        const showBat = !!_scaleConnected && _scaleBattery != null && live;
+        bEl.hidden = !showBat;
+        bEl.textContent = showBat ? '🔋' : '';
+        if (showBat) bEl.title = t('scale.battery', { n: _scaleBattery });
+    }
+    pill.classList.toggle('is-live', !!reading);
+}
+
+/** The popover under the pill: device, battery, the big reading, tare and connection. */
+function _scaleRenderPopover() {
+    const meta = document.getElementById('scale-popover-meta');
+    const weight = document.getElementById('scale-popover-weight');
+    const tareEl = document.getElementById('scale-popover-tare');
+    const connBtn = document.getElementById('scale-popover-conn-btn');
+    const connected = !!_scaleConnected;
+    if (meta) {
+        const bits = [];
+        if (_scaleDevice) bits.push(_scaleDevice);
+        bits.push(connected ? t('scale.status_connected') : t('scale.status_disconnected'));
+        if (connected && _scaleBattery != null) bits.push(t('scale.battery', { n: _scaleBattery }));
+        meta.textContent = bits.join(' · ');
+    }
+    if (weight) {
+        const reading = _scaleDisplayReading();
+        const live = _scaleIsLive();
+        weight.textContent = (live && reading) ? reading.label : '—';
+        weight.classList.toggle('is-live', !!(live && reading && _scaleLatestWeight?.stable));
+    }
+    if (tareEl) {
+        tareEl.hidden = !(_scaleTareOffsetG > 0);
+        tareEl.textContent = _scaleTareOffsetG > 0 ? t('scale.tare_active', { g: Math.round(_scaleTareOffsetG) }) : '';
+    }
+    if (connBtn) {
+        const key = connected ? 'scale.disconnect' : 'scale.connect';
+        connBtn.textContent = t(key);
+        connBtn.dataset.i18n = key;
+    }
+}
+
+function _scaleTogglePopover(ev) {
+    if (ev) ev.stopPropagation();
+    const pop = document.getElementById('scale-popover');
+    const pill = document.getElementById('scale-status-indicator');
+    if (!pop) return;
+    const open = pop.hidden;
+    pop.hidden = !open;
+    if (pill) pill.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        _scaleRenderPopover();
+        // A tap anywhere else closes it: it is a popover, not a dialog.
+        setTimeout(() => document.addEventListener('pointerdown', _scaleClosePopover, { once: true }), 0);
+    }
+}
+
+function _scaleClosePopover() {
+    const pop = document.getElementById('scale-popover');
+    if (pop) pop.hidden = true;
+    const pill = document.getElementById('scale-status-indicator');
+    if (pill) pill.setAttribute('aria-expanded', 'false');
+}
+
+/** Local tare (display only): the bridge has no command channel to zero the device. */
+function _scaleTare() {
+    if (_scaleTareOffsetG > 0) {
+        _scaleTareOffsetG = 0;
+        showToast(t('scale.tare_cleared'), 'info');
+    } else {
+        const reading = _scaleDisplayReading();
+        _scaleTareOffsetG = reading ? Math.max(0, reading.grams) : 0;
+    }
+    _scaleRenderPill();
+    _scaleRenderPopover();
+}
+
+/** Connect / disconnect the relay without leaving the screen. */
+function _scaleToggleConnection() {
+    const s = getSettings();
+    if (_scaleConnected) {
+        if (_scaleEs) { try { _scaleEs.close(); } catch (e) { /* already closed */ } _scaleEs = null; }
+        _scaleConnected = false;
+        _scaleUpdateStatus('disconnected');
+        showToast(t('scale.status_disconnected'), 'info');
+        return;
+    }
+    if (!s.scale_enabled || !s.scale_gateway_url) {
+        showToast(t('scale.not_connected'), 'error');
+        return;
+    }
+    _scaleConnect(s.scale_gateway_url);
+    _scaleRenderPopover();
 }
 
 /**
@@ -1442,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027e'; // bump when translations change
+const _I18N_VERSION = '20261027l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5087,7 +5267,6 @@ function _freeApiPageHtml(api) {
 async function _loadFreeApis() {
     const targets = [
         document.getElementById('app-footer-apis'),
-        document.getElementById('app-footer-dashboard-apis'),
         document.getElementById('settings-free-apis'),
         document.getElementById('settings-free-apis-page'),
     ];
@@ -5109,7 +5288,7 @@ async function _loadFreeApis() {
     }
     const chips = _freeApisCache.map(_freeApiCardHtml).join('');
     const page = _freeApisCache.map(_freeApiPageHtml).join('');
-    ['app-footer-apis', 'app-footer-dashboard-apis', 'settings-free-apis'].forEach(id => {
+    ['app-footer-apis', 'settings-free-apis'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = chips;
     });
@@ -9488,7 +9667,7 @@ async function loadDashboard() {
             const d = daysUntilExpiry(it.expiry_date);
             return Number.isFinite(d) ? d : -9999;
         };
-        const visibleExpired = (statsData.expired || [])
+        const visibleExpiredAll = (statsData.expired || [])
             .filter(item => !isInventoryDepleted(item))
             // Most recent expiry first: those are the rows you can still save, and the cap
             // can never hide the one that just expired behind a box from six months ago.
@@ -11099,6 +11278,7 @@ function dismissBannerItemAfterAction() {
     }
     if (_bannerIndex >= _bannerQueue.length) _bannerIndex = 0;
     renderBannerItem();
+}
 
 /** How many other opened rows are waiting (the notice shows the one that matters most). */
 function _openedQueueSiblings(item) {
@@ -11156,8 +11336,6 @@ function _bannerMenuClose() {
     if (menu) menu.hidden = true;
     const btn = document.getElementById('alert-banner-more-btn');
     if (btn) btn.setAttribute('aria-expanded', 'false');
-}
-
 }
 
 /** Current stock is already correct — align ledger, do not restore and do not add to shopping. */
@@ -12524,9 +12702,21 @@ function itemDetailThrow(inventoryId) {
 }
 
 async function itemDetailUseAll(productId, location) {
+    // "Ho consumato tutto" from the modal stays IN the modal: the slide-to-confirm dialog
+    // opens over the sheet (same guard as before), and the user never lands on the legacy
+    // full-page USE form, which was the same decision drawn twice.
     closeModal();
-    await _openUsePage(productId, location);
-    submitUseAll();
+    showLoading(true);
+    try {
+        await _loadUseProduct(productId, location);
+    } catch (err) {
+        console.error('[itemDetailUseAll]', err);
+        showToast(t('error.connection'), 'error');
+        return;
+    } finally {
+        showLoading(false);
+    }
+    await submitUseAll();
 }
 
 /**
@@ -12705,30 +12895,7 @@ function closeModal() {
 async function _openUsePage(productId, location) {
     showLoading(true);
     try {
-        currentProduct = { id: productId };
-        const data = await api('product_get', { id: productId });
-        if (data.product) {
-            currentProduct = data.product;
-            if (!currentProduct.weight_info && currentProduct.notes) {
-                const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
-                if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
-            }
-        }
-        document.getElementById('use-location').value = location;
-        document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('#page-use .loc-btn').forEach(b => {
-            if (b.textContent.toLowerCase().includes(location)) b.classList.add('active');
-        });
-
-        renderUsePreview();
-        _cancelScaleAutoConfirm(false);
-        if (_scaleLatestWeight) {
-            const _baselineG = _scaleToGrams(parseFloat(_scaleLatestWeight.value), _scaleLatestWeight.unit);
-            if (_baselineG !== null && _baselineG >= 10) _scaleLastConfirmedGrams = _baselineG;
-            _scaleLatestWeight = null;
-        }
-
-        await loadUseInventoryInfo();
+        await _loadUseProduct(productId, location);
         showPage('use', null, { skipHistory: false });
     } catch (err) {
         console.error('_openUsePage error:', err);
@@ -12738,7 +12905,68 @@ async function _openUsePage(productId, location) {
     }
 }
 
+/**
+ * Product + rows a USE action subtracts from, WITHOUT navigating.
+ *
+ * `showUseForm()` (the guided page) needs `currentProduct` and `_useCurrentItems`; so does
+ * `submitUseAll()` when it is called from the product modal. One loader for both paths, so
+ * "consume everything" can stay in the sheet the user is already looking at.
+ */
+async function _loadUseProduct(productId, location) {
+    currentProduct = { id: productId };
+    const data = await api('product_get', { id: productId });
+    if (data.product) {
+        currentProduct = data.product;
+        if (!currentProduct.weight_info && currentProduct.notes) {
+            const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+            if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+        }
+    }
+    document.getElementById('use-location').value = location;
+    document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#page-use .loc-btn').forEach(b => {
+        if (b.textContent.toLowerCase().includes(location)) b.classList.add('active');
+    });
+
+    renderUsePreview();
+    _cancelScaleAutoConfirm(false);
+    if (_scaleLatestWeight) {
+        const _baselineG = _scaleToGrams(parseFloat(_scaleLatestWeight.value), _scaleLatestWeight.unit);
+        if (_baselineG !== null && _baselineG >= 10) _scaleLastConfirmedGrams = _baselineG;
+        _scaleLatestWeight = null;
+    }
+
+    await loadUseInventoryInfo();
+}
+
+/** The inventory row of one product in one place (0 when the row is not loaded). */
+function _inventoryIdFor(productId, location) {
+    const pid = Number(productId) || 0;
+    const loc = String(location || '');
+    for (const pool of [currentInventory, _allInventoryCache]) {
+        if (!Array.isArray(pool)) continue;
+        const hit = pool.find(i => Number(i.product_id) === pid
+            && String(i.location || '') === loc
+            && Number(i.id) > 0);
+        if (hit) return Number(hit.id);
+    }
+    return 0;
+}
+
+/**
+ * The row's "✓ Usa": THE SAME MODAL as a tap on the row.
+ *
+ * It used to close the sheet and navigate to the legacy full-page USE form, so the same
+ * decision had two different shapes a thumb apart (and the page still carried the old red
+ * "Usa TUTTO" and the purple recipe button). One surface, one grammar: the modal with the
+ * quantity stepper. The guided page stays for SHELFY and the scale, which drive its fields.
+ */
 async function quickUse(productId, location) {
+    const invId = _inventoryIdFor(productId, location);
+    if (invId) {
+        showItemDetail(invId, productId);
+        return;
+    }
     closeModal();
     await _openUsePage(productId, location);
 }
@@ -13531,7 +13759,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -13541,7 +13769,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -14374,6 +14602,20 @@ async function _confirmShoppingScanMatch(product) {
     return window.confirm(msg);
 }
 
+/** First usable inventory row of a product (any location) — 0 when there is none. */
+function _inventoryRowForProduct(productId) {
+    const pid = Number(productId) || 0;
+    if (!pid) return null;
+    for (const pool of [currentInventory, _allInventoryCache]) {
+        if (!Array.isArray(pool)) continue;
+        const hit = pool.find(i => Number(i.product_id) === pid
+            && Number(i.id) > 0
+            && !isInventoryDepleted(i));
+        if (hit) return hit;
+    }
+    return null;
+}
+
 async function _finishBarcodeResolved(barcode) {
     showLoading(false);
     if (_shoppingBoughtFlow && _spesaScanTarget && currentProduct) {
@@ -14401,6 +14643,16 @@ async function _finishBarcodeResolved(barcode) {
     const fastPath = _spesaMode || _shoppingBoughtFlow;
     if (!fastPath) _showScanConfirm(currentProduct.name);
     stopScanner();
+    if (!fastPath) {
+        // Already in the pantry: a barcode scanned at the fridge is an ACTION, not a
+        // description to read — open the product modal (consume / consume all / throw)
+        // instead of the old full-page product sheet (audit, round 14).
+        const row = _inventoryRowForProduct(currentProduct.id);
+        if (row) {
+            showItemDetail(Number(row.id), Number(row.product_id));
+            return;
+        }
+    }
     const next = fastPath ? showAddForm : showProductAction;
     if (fastPath) next();
     else setTimeout(() => next(), 300);
@@ -29388,49 +29640,78 @@ function _spesaCurrencySymbol() {
     return c === 'USD' ? '$' : c === 'GBP' ? '£' : '€';
 }
 
-function _spesaPromptOptionalSpend() {
-    if (_spesaSpendPromptShown) {
-        // Gate stuck (e.g. modal dismissed without skip handler) — unblock scan
-        if (_spesaSpendModalOpen && _spesaMode) {
-            _spesaBeginScanning();
-        }
-        return;
-    }
-    _spesaSpendPromptShown = true;
-    _spesaSpendModalOpen = true;
-    _clearSpesaAiFallbackTimers();
-    // If the camera page is already open, pause decode while the dialog is up.
-    // Otherwise we have not opened scan yet — do not start the camera under the popup.
-    if (_currentPageId === 'scan') pauseScanner();
+/**
+ * End of the shopping session: scanning stops, and ONLY NOW the app asks for the total.
+ *
+ * Asking "how much did you spend?" before the scan put a form in front of the camera (the
+ * popup and the live video together) and covered the first product. The bags go in the
+ * pantry first; a numeric keypad at the end costs two seconds, cannot misread a crumpled
+ * thermal receipt, and does not need anybody to browse a file manager on a wall tablet.
+ */
+let _spesaTotalStr = '';
 
+function _spesaFinishPrompt(count) {
+    _spesaTotalStr = '';
+    _spesaSpendModalOpen = false;
     const sym = _spesaCurrencySymbol();
-    const modalHtml = `
+    document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3 class="edit-modal-heading">${escapeHtml(t('shopping.spend_modal_title'))}</h3>
-            <button class="modal-close" onclick="_spesaSpendSkip()">✕</button>
+            <h3 class="edit-modal-heading">${escapeHtml(t('shopping.spesa_done_title'))}</h3>
+            <button class="modal-close" onclick="_spesaFinishSkip()">✕</button>
         </div>
-        <div style="padding:16px" onclick="event.stopPropagation()">
-            <p style="margin:0 0 10px; color: var(--text-light)">
-                ${escapeHtml(t('shopping.spend_modal_hint'))}
-            </p>
-            <label style="display:block; font-weight:800; margin-bottom:6px">${escapeHtml(t('shopping.spend_amount_label', { sym }))}</label>
-            <input type="number" id="spend-amount-input" min="0" step="0.01" inputmode="decimal"
-                   class="form-input" placeholder="${escapeHtml(t('shopping.spend_amount_placeholder'))}" />
-            <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end">
-                <button class="btn btn-secondary" onclick="_spesaSpendSkip()">${escapeHtml(t('shopping.spend_skip_btn'))}</button>
-                <button class="btn btn-accent" onclick="_spesaSpendSave()">${escapeHtml(t('shopping.spend_save_btn'))}</button>
+        <div class="spesa-finish">
+            <p class="spesa-finish-count">${escapeHtml(t('shopping.spesa_done_count', { n: count }))}</p>
+            <p class="spesa-finish-ask">${escapeHtml(t('shopping.spesa_done_ask'))}</p>
+            <div class="spesa-finish-display" aria-live="polite">
+                <span class="spesa-finish-sym">${escapeHtml(sym)}</span>
+                <span class="spesa-finish-value" id="spesa-total-display">0,00</span>
             </div>
-        </div>
-    `;
-
-    document.getElementById('modal-content').innerHTML = modalHtml;
+            <div class="spesa-keypad">
+                ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫']
+                    .map(k => `<button type="button" class="spesa-key" onclick="_spesaKeypad('${k}')">${k}</button>`).join('')}
+            </div>
+            <div class="spesa-finish-actions">
+                <button type="button" class="btn btn-secondary" onclick="_spesaFinishSkip()">${escapeHtml(t('shopping.spesa_done_skip'))}</button>
+                <button type="button" class="btn btn-accent" onclick="_spesaFinishSave()">${escapeHtml(t('shopping.spesa_done_save'))}</button>
+            </div>
+        </div>`;
     document.getElementById('modal-overlay').style.display = 'flex';
-
-    const inp = document.getElementById('spend-amount-input');
-    if (inp) setTimeout(() => inp.focus(), 50);
 }
 
-/** After the spend popup closes: open (or resume) the camera for spesa scanning. */
+/** One tap of the keypad: digits and a decimal comma, ⌫ deletes. */
+function _spesaKeypad(key) {
+    if (key === '⌫') {
+        _spesaTotalStr = _spesaTotalStr.slice(0, -1);
+    } else if (key === ',') {
+        if (!_spesaTotalStr.includes(',')) _spesaTotalStr = (_spesaTotalStr || '0') + ',';
+    } else if (_spesaTotalStr.replace(',', '').length < 7) {
+        _spesaTotalStr += key;
+    }
+    const el = document.getElementById('spesa-total-display');
+    if (el) el.textContent = _spesaTotalStr || '0,00';
+}
+
+async function _spesaFinishSave() {
+    const amount = parseFloat(String(_spesaTotalStr).replace(',', '.'));
+    closeModal();
+    if (amount && amount > 0) {
+        try {
+            const sym = _spesaCurrencySymbol();
+            await api('spend_add', {}, 'POST', { amount: amount, currency: sym });
+            showToast(t('shopping.spend_tracked_toast', { sym, amount: amount.toFixed(2) }), 'info');
+        } catch (_) {
+            showToast(t('shopping.spend_track_error'), 'error');
+        }
+    }
+    showPage('dashboard');
+}
+
+function _spesaFinishSkip() {
+    closeModal();
+    showPage('dashboard');
+}
+
+/** After the popup closes: open (or resume) the camera for spesa scanning. */
 function _spesaBeginScanning() {
     if (!_spesaMode) {
         _spesaSpendModalOpen = false;
@@ -29443,30 +29724,6 @@ function _spesaBeginScanning() {
         resumeScanner();
     }
     updateSpesaBanner();
-}
-
-async function _spesaSpendSave() {
-    const inp = document.getElementById('spend-amount-input');
-    const raw = inp ? inp.value : '';
-    const amount = parseFloat(String(raw).replace(',', '.'));
-    // closeModal → _spesaBeginScanning (camera only after the popup is gone)
-    closeModal();
-
-    if (!_spesaMode) return;
-
-    if (amount && amount > 0) {
-        try {
-            const sym = _spesaCurrencySymbol();
-            await api('spend_add', {}, 'POST', { amount: amount, currency: sym });
-            showToast(t('shopping.spend_tracked_toast', { sym, amount: amount.toFixed(2) }), 'info');
-        } catch (_) {
-            showToast(t('shopping.spend_track_error'), 'error');
-        }
-    }
-}
-
-function _spesaSpendSkip() {
-    closeModal();
 }
 
 function initSpesaMode() {
@@ -29520,16 +29777,21 @@ async function startSpesaMode() {
     } catch (_) {}
 
     showToast(t('scan.mode_shopping_activated'), 'success');
-    // Ask "how much did you spend?" FIRST. Opening the scan page under that dialog
-    // races initScanner with the modal and starts decoding too early.
-    if (_currentPageId === 'scan') {
-        pauseScanner();
-        updateSpesaBanner();
-    }
-    _spesaPromptOptionalSpend();
+    // The camera comes FIRST: the bags are in your hands, the total can wait for the end.
+    // (The old order asked "how much did you spend?" on top of the live video, which also
+    // covered the first product of the session.)
+    _spesaBeginScanning();
 }
 
+/**
+ * End of the shopping session.
+ *
+ * The amount is asked AFTER the bags are in the pantry, and only when something was
+ * actually loaded: a keypad at the end costs two seconds, while a file upload of a
+ * crumpled receipt costs a user (audit, round 14).
+ */
 function endSpesaMode() {
+    const count = _spesaSession.length;
     _spesaMode = false;
     _spesaSpendModalOpen = false;
     _spesaSpendPromptShown = false;
@@ -29542,6 +29804,7 @@ function endSpesaMode() {
     _spesaAiFallbackCanceled = false;
     _spesaAiFallbackUsedThisCycle = false;
     showPage('dashboard');
+    if (count > 0) _spesaFinishPrompt(count);
 }
 
 function updateSpesaBanner() {
@@ -31134,6 +31397,22 @@ function _preloaderStage(stage, state) {
  * Shows a real-time progress bar + current check label.
  * Returns true if the app can proceed, false if a critical check failed.
  */
+/**
+ * Boot diagnostics: THE HOUSEHOLD DOES NOT NEED THE CHECK LIST.
+ *
+ * The splash is loved for its "diagnostics" look, but the per-check lines ("Controllo PHP",
+ * "PHP upload (16M)", "Config sessione"…) are developer noise on a kitchen kiosk and they
+ * cost 40 ms each of artificial wait. In normal mode the rail still settles (so a real
+ * failure stays visible) and the only line is "Sistema pronto"; the full list appears with
+ * `?debug=1` in the URL or `localStorage.evershelf_debug = '1'`.
+ */
+const _bootDebug = (() => {
+    try {
+        if (/[?&]debug=1(?:&|$)/.test(String(location.search || ''))) return true;
+    } catch (e) { /* no location: fall through */ }
+    return typeof _everDebug !== 'undefined' ? !!_everDebug : false;
+})();
+
 async function _runStartupCheck() {
     let _curPct = 0;
     function setProgress(pct, label, state) {
@@ -31175,9 +31454,10 @@ async function _runStartupCheck() {
     };
 
     // The boot rail is painted from the first HTML paint: light up the stage it
-    // starts on, then hand the bar + ticker their first value.
+    // starts on, then hand the bar + ticker their first value. The bar and the ticker are
+    // the debug view; the household gets the rail and one final "Sistema pronto" line.
     _preloaderStage('connect', 'active');
-    wrapEl.style.display = '';
+    wrapEl.style.display = _bootDebug ? '' : 'none';
 
     // Auto-provision API token for same-origin browser sessions
     if (typeof ensureApiToken === 'function') {
@@ -31324,14 +31604,16 @@ async function _runStartupCheck() {
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
         if (!isOk && c.missing?.length) lbl += ` — ${t('startup.hint_missing_tables_inline', { list: c.missing.join(', ') })}`;
 
-        setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
+        // The household sees the rail settle, not thirty lines of sysadmin: the per-check
+        // label and its 40 ms belong to `?debug=1`.
+        if (_bootDebug) setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
         if (!isOk && !isFresh) {
             (isOpt ? warnings : errors).push({ def, c });
             if (isOpt) railHasWarn = true; else railHasError = true;
         }
 
-        await new Promise(r => setTimeout(r, 40));
+        if (_bootDebug) await new Promise(r => setTimeout(r, 40));
     }
     settleStage(); // last stage of the rail (network) once the loop is over
 
@@ -31365,15 +31647,17 @@ async function _runStartupCheck() {
         // Hide warning popup
         warningsEl.style.display = 'none';
     } else {
+        // One clean beat and the app: the checkmark the audit asks for, not a 600 ms wait.
+        wrapEl.style.display = '';
         setProgress(100, tl('all_ok', 'System OK'), 'ok');
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, _bootDebug ? 600 : 220));
     }
 
     // ── Final step: sync local offline cache (inventory + settings) ──────────
     // This ensures the offline copy is always fresh at startup while connected.
     // The bar already shows 100%; we just update the label for a moment.
     try {
-        setProgress(100, tl('syncing_local', 'Syncing local data...'), 'ok');
+        if (_bootDebug) setProgress(100, tl('syncing_local', 'Syncing local data...'), 'ok');
         const authH = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
         const [invData, settingsData, productsData] = await Promise.all([
             fetch('api/index.php?action=inventory_list', { headers: authH }).then(r => r.json()).catch(() => null),
@@ -31383,8 +31667,10 @@ async function _runStartupCheck() {
         if (invData && Array.isArray(invData.inventory)) _offlineCacheSet(invData.inventory);
         if (settingsData && settingsData.success !== false) _offlineCacheSetSettings(settingsData);
         if (productsData && Array.isArray(productsData.products)) _offlineProductsSet(productsData.products);
-        setProgress(100, tl('sync_done', 'Local data synced'), 'ok');
-        await new Promise(r => setTimeout(r, 400));
+        if (_bootDebug) {
+            setProgress(100, tl('sync_done', 'Local data synced'), 'ok');
+            await new Promise(r => setTimeout(r, 400));
+        }
     } catch(e) {
         // Non-critical — app continues normally; cache may be stale or empty
     }
@@ -31575,12 +31861,18 @@ async function _initApp() {
             warmBoot = sessionStorage.getItem('evershelf_booted') === '1';
             sessionStorage.setItem('evershelf_booted', '1');
         } catch (e) { /* private mode: always show the full splash */ }
-        const minDelay = Math.max(0, (warmBoot ? 500 : 3000) - elapsed);
+        const minDelay = Math.max(0, (warmBoot ? (_bootDebug ? 500 : 250) : (_bootDebug ? 3000 : 600)) - elapsed);
         setTimeout(() => {
             // Last icon of the rail: settings, wizard and dashboard are done
             _preloaderStage('ui', 'done');
-            preloader.classList.add('fade-out');
-            setTimeout(() => preloader.remove(), 380);
+            // The splash is nearly black and the app is white: one frame from one to the
+            // other is a flashbang in a dark kitchen. The content leaves first, then the
+            // canvas lifts to the app colour, then the element itself fades out (300 ms).
+            preloader.classList.add('is-lifting');
+            setTimeout(() => {
+                preloader.classList.add('fade-out');
+                setTimeout(() => preloader.remove(), 320);
+            }, 200);
         }, minDelay);
     }
 

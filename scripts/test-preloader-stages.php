@@ -217,6 +217,24 @@ assert_true(preg_match('/function _renderPreloaderApis\(\)[\s\S]{0,700}EVERSHELF
 assert_true(stripos((string)file_get_contents($root . '/sw.js'), 'free_apis.generated.js') !== false,
     'the generated list is in the service-worker shell (offline boot)');
 
+// ── [5c] debug vs production: the check list is not for the household ──────
+// The per-check lines ("Controllo PHP", "PHP upload (16M)"…) are developer noise on a
+// kitchen kiosk and cost 40 ms each of artificial wait (audit, round 14).
+assert_true(str_contains($app, 'const _bootDebug = ')
+        && str_contains($app, '/[?&]debug=1(?:&|$)/'),
+    'boot diagnostics open only with ?debug=1 (or the local debug flag)');
+assert_true(preg_match('/if \(_bootDebug\) setProgress\(pct, lbl,/', $app) === 1,
+    'the per-check line is painted only in debug');
+assert_true(str_contains($app, 'if (_bootDebug) await new Promise(r => setTimeout(r, 40));'),
+    'the 40 ms per check is debug-only (no artificial wait for the household)');
+assert_true(str_contains($app, '(_bootDebug ? 3000 : 600)'),
+    'the 3 s cold-boot splash is kept only in debug');
+assert_true(str_contains($app, "preloader.classList.add('is-lifting')")
+        && str_contains($css, '#app-preloader.is-lifting'),
+    'the splash lifts to the app colour before fading (no dark→white flashbang)');
+assert_true(preg_match('/transition: opacity 0\.3s ease/', $css) === 1,
+    'the splash fade is 300 ms, as the audit asks');
+
 // ── [6] the version is loud, and bump-version.sh still finds it ────────────
 assert_true(preg_match('/id="preloader-version">v\d+\.\d+\.\d+</', $html) === 1,
     'the splash chip holds a semver, in the shape bump-version.sh rewrites');

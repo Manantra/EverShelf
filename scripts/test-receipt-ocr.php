@@ -106,8 +106,14 @@ check('the option is in the settings payload', strpos($api, "'receipt_ocr_enable
 check('the cap is a setting too', strpos($api, "'receipt_ocr_max_items'") !== false);
 check('both are written to .env',
     strpos($api, "'RECEIPT_OCR_ENABLED'") !== false && strpos($api, "'RECEIPT_OCR_MAX_ITEMS'") !== false);
-check('the settings page has the toggle', strpos($html, 'id="setting-receipt-ocr-enabled"') !== false);
-check('the scan page has the button', strpos($html, '_receiptStart()') !== false);
+check('the settings page has the (parked) toggle', strpos($html, 'id="setting-receipt-ocr-enabled"') !== false);
+// Round 14 (audit): the file-upload entry point is gone — nobody opens a file manager on a
+// wall tablet while emptying the bags, and a crumpled thermal receipt is what text
+// extraction gets wrong. The total is typed on a keypad at the end of the shopping
+// session. The OCR code stays (parked) for the day the camera path lands.
+check('the scan page has NO receipt file-upload entry point', strpos($html, '_receiptStart()') === false);
+check('the receipt toggle is parked (hidden), not offered as dead config',
+    preg_match('/<div class="form-group" style="margin-top:8px" hidden>\s*<label class="toggle-row">\s*<span data-i18n="settings\.product_rules\.receipt_label"/', $html) === 1);
 check('the module is loaded', strpos($html, 'assets/js/receipt.js') !== false);
 check('the service worker precaches it',
     strpos((string)file_get_contents($root . '/sw.js'), 'assets/js/receipt.js') !== false);

@@ -71,6 +71,7 @@
     "loading": "Loading..."
   },
   "nav": {
+    "scanner": "Scanner",
     "title": "EverShelf",
     "home": "Home",
     "inventory": "List",
@@ -745,6 +746,11 @@
     "weather_bucket_stormy": "stormy"
   },
   "shopping": {
+    "spesa_done_title": "Shopping done!",
+    "spesa_done_count": "You loaded {n} products into the pantry.",
+    "spesa_done_ask": "Do you want to save the total for the monthly charts?",
+    "spesa_done_save": "Save total",
+    "spesa_done_skip": "Skip / products only",
     "title": "🛒 Shopping List",
     "bring_loading": "Connecting to Bring!...",
     "list_loading": "Loading shopping list...",
@@ -2122,6 +2128,14 @@
     "cena": "Dinner"
   },
   "scale": {
+    "status_waiting": "Gateway reached, waiting for the scale",
+    "popover_title": "Scale",
+    "tare": "Tare",
+    "tare_active": "Tare active: {g} g (display only)",
+    "tare_cleared": "Tare cleared",
+    "disconnect": "Disconnect",
+    "connect": "Connect",
+    "battery": "Battery {n}%",
     "status_connected": "Scale connected",
     "status_searching": "Gateway connected, waiting for scale…",
     "status_disconnected": "Scale gateway unreachable",

@@ -71,6 +71,7 @@
     "loading": "Laden..."
   },
   "nav": {
+    "scanner": "Scanner",
     "title": "EverShelf",
     "home": "Home",
     "inventory": "Liste",
@@ -745,6 +746,11 @@
     "weather_bucket_stormy": "gewittrig"
   },
   "shopping": {
+    "spesa_done_title": "Einkauf abgeschlossen!",
+    "spesa_done_count": "{n} Produkte im Vorrat gespeichert.",
+    "spesa_done_ask": "Möchtest du die Gesamtsumme für die Monatsgrafik speichern?",
+    "spesa_done_save": "Summe speichern",
+    "spesa_done_skip": "Überspringen / nur Produkte",
     "title": "🛒 Einkaufsliste",
     "bring_loading": "Verbindung zu Bring!...",
     "list_loading": "Einkaufsliste wird geladen...",
@@ -2122,6 +2128,14 @@
     "cena": "Abendessen"
   },
   "scale": {
+    "status_waiting": "Gateway erreicht, warte auf die Waage",
+    "popover_title": "Waage",
+    "tare": "Tara",
+    "tare_active": "Tara aktiv: {g} g (nur Anzeige)",
+    "tare_cleared": "Tara zurückgesetzt",
+    "disconnect": "Trennen",
+    "connect": "Verbinden",
+    "battery": "Batterie {n} %",
     "status_connected": "Waage verbunden",
     "status_searching": "Gateway verbunden, warte auf Waage…",
     "status_disconnected": "Waagen-Gateway nicht erreichbar",

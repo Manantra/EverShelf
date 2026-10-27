@@ -1327,6 +1327,143 @@ body {
     padding-bottom: 4px;
 }
 
+/* ── End of the shopping session: the total, typed on a keypad ───────────────
+   Asked AFTER the bags are in the pantry (asking before put a form on top of the live
+   camera), and typed rather than photographed: a crumpled thermal receipt is exactly what
+   OCR gets wrong, and nobody opens a file manager on a wall tablet. */
+.spesa-finish { padding: 16px; }
+.spesa-finish-count {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.spesa-finish-ask { margin: 0 0 12px; font-size: 13px; color: var(--text-muted); }
+.spesa-finish-display {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    font-variant-numeric: tabular-nums;
+}
+.spesa-finish-sym { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); }
+.spesa-finish-value { font-size: 2rem; font-weight: 800; color: var(--text-main); }
+.spesa-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+}
+.spesa-key {
+    min-height: 52px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.spesa-key:active { background: var(--bg-app); }
+.spesa-finish-actions { display: flex; gap: 10px; }
+.spesa-finish-actions .btn { flex: 1 1 auto; min-height: var(--touch-min); }
+
+/* ── Scale: a hardware indicator, not a ghost icon ───────────────────────────
+   The old icon was a white glyph on a white header with a 6 px dot: invisible. It is now a
+   pill that only exists when a gateway is configured, turns mint with the LIVE weight when
+   the scale is connected, and opens a popover instead of a toast that covered the buttons
+   at the bottom. */
+.scale-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.scale-pill[hidden] { display: none; }
+.scale-pill-icon { font-size: 15px; line-height: 1; }
+.scale-pill-weight { font-variant-numeric: tabular-nums; color: var(--text-main); }
+.scale-pill-weight[hidden] { display: none; }
+.scale-pill-battery { font-size: 11px; opacity: 0.85; }
+.scale-pill-battery[hidden] { display: none; }
+.scale-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+}
+.scale-pill.scale-status-connected {
+    background: var(--brand-surface);
+    border-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+    color: var(--brand-primary-hover);
+}
+.scale-pill.scale-status-connected .scale-pill-weight { color: #065F46; }
+.scale-pill.scale-status-connected .scale-status-dot { background: var(--brand-primary); opacity: 1; }
+.scale-pill.is-live { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 12%, transparent); }
+.scale-pill.scale-status-searching .scale-status-dot { background: var(--tone-soon); animation: scaleStatusPulse 1.4s infinite; }
+.scale-pill.scale-status-disconnected { color: var(--text-muted); }
+.scale-pill.scale-status-disconnected .scale-pill-icon { filter: grayscale(1); opacity: 0.7; }
+.scale-pill.scale-status-error { border-color: var(--tone-danger); color: var(--tone-danger-text); }
+/* Gateway reached, no fresh reading: the bridge replays its cache to every new client, so
+   "connected" alone must never paint a mint pill (it would show a 448 g weight nobody put
+   there). Neutral pill, amber pulse, "waiting for the scale". */
+.scale-pill.scale-status-waiting {
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
+    color: var(--text-muted);
+}
+.scale-pill.scale-status-waiting .scale-status-dot {
+    background: var(--tone-soon);
+    animation: scaleStatusPulse 1.4s infinite;
+}
+
+/* Anchored under the header, never at the bottom over the buttons. */
+.scale-popover {
+    position: fixed;
+    top: calc(var(--header-height) - 2px);
+    right: 10px;
+    z-index: 150000;
+    width: min(280px, calc(100vw - 20px));
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+}
+.scale-popover[hidden] { display: none; }
+.scale-popover-title {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.scale-popover-meta { margin: 0; font-size: 12px; color: var(--text-muted); }
+.scale-popover-weight {
+    margin: 8px 0 4px;
+    font-size: 1.6rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+}
+.scale-popover-weight.is-live { color: var(--brand-primary); }
+.scale-popover-tare { margin: 0; font-size: 11px; color: var(--text-muted); }
+.scale-popover-tare[hidden] { display: none; }
+.scale-popover-actions { display: flex; gap: 8px; margin-top: 10px; }
+.scale-popover-actions .btn { flex: 1 1 auto; min-height: var(--touch-min); }
+
 /* ── Credits: the free services behind the app ────────────────────────────────
    The names in a row (a footer, not a wall of text), each with what it gives us and the
    licence it asks to be credited with. The monogram is neutral on purpose: the official

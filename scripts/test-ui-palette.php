@@ -120,6 +120,45 @@ check('the product modal has one primary, one secondary, neutral support',
 check('barcode and timestamps are collapsed, not in the middle of the card',
     str_contains($app, 'class="item-detail-more"')
     && str_contains($css, '.item-detail-more > summary {'));
+// Round 14 (audit): the row's ✓ and the modal are the same decision, so they cannot
+// land in two different shapes — the old full-page USE form stays for SHELFY only.
+check('the row use action opens the product modal',
+    preg_match('/async function quickUse\(productId, location\) \{[\s\S]{0,400}showItemDetail\(invId, productId\)/', $app) === 1);
+check('consume everything stays in the modal',
+    str_contains($app, '_loadUseProduct(') && str_contains($app, 'submitUseAll();')
+    && preg_match('/async function itemDetailUseAll\([^)]*\) \{[^}]*showPage/', $app) === 0);
+// The scale was a white glyph on a white header with a 6 px dot, and its feedback was a
+// toast over the buttons: it is a hardware indicator now.
+check('the scale is a pill, not a ghost icon',
+    str_contains($html, 'id="scale-status-indicator" class="scale-pill')
+    && str_contains($css, '.scale-pill.scale-status-connected {'));
+check('the scale shows the live weight and the battery',
+    str_contains($app, 'function _scaleRenderPill(')
+    && str_contains($html, 'id="scale-pill-weight"')
+    && str_contains($html, 'id="scale-pill-battery"'));
+check('tapping the scale opens a popover, not a toast',
+    str_contains($html, 'id="scale-popover"')
+    && str_contains($app, 'function _scaleTogglePopover(')
+    && str_contains($app, 'function _scaleTare(')
+    && !str_contains($html, 'onclick="_scaleShowInfo()"'));
+check('a gateway replay cannot paint a live pill',
+    str_contains($app, 'const SCALE_LIVE_MS = 10000;')
+    && str_contains($app, 'if (_scaleWeightMsgCount === 1) {')
+    && str_contains($app, 'function _scaleResetLiveWindow(')
+    && str_contains($app, "pill.classList.toggle('scale-status-waiting'")
+    && str_contains($app, '_scaleResetLiveWindow();'));
+check('a scale that was never configured stays hidden',
+    str_contains($app, 'if (!s.scale_enabled || !s.scale_gateway_url)')
+    && str_contains($app, "indicator.style.display = 'none';"));
+// The scanner is the physical action the app exists for: it owns a nav slot, the recipes
+// keep their dashboard CTA instead of a duplicate tab, and a barcode of something you
+// already have opens the product modal (an action), not the old full-page sheet.
+check('the scanner has its own nav tab and the recipes tab is gone',
+    str_contains($html, 'data-page="scan"') && !str_contains($html, 'data-page="recipe"')
+    && str_contains($html, 'data-i18n="nav.scanner"'));
+check('scanning a product you already have opens the product modal',
+    str_contains($app, 'function _inventoryRowForProduct(')
+    && str_contains($app, '_inventoryRowForProduct(currentProduct.id)'));
 check('the anomaly banner offers a named action instead of "Giusta"',
     str_contains($app, 'function alignBannerAnomaly(')
     && str_contains($app, "t('dashboard.banner_anomaly_align'")

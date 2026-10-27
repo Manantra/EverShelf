@@ -114,6 +114,7 @@ function _receiptRemove(index) {
 function _receiptCancel() {
     _receipt = null;
     _receiptOverlay('');
+}
 
 /** Draw the review table. */
 function _receiptRender() {
@@ -201,6 +202,4 @@ async function _receiptConfirm() {
     _receiptCancel();
     showToast(t('receipt.done').replace('{ok}', ok).replace('{ko}', failed), failed ? 'info' : 'success');
     if (ok) loadInventory();
-}
-
 }

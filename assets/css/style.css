@@ -109,11 +109,21 @@ body {
     align-items: center;
     justify-content: center;
     overflow-y: auto;
-    transition: opacity 0.45s ease;
+    /* 300 ms, as the audit asks: long enough to read as a transition, short enough not to
+       feel like a loading screen of its own. */
+    transition: opacity 0.3s ease, background-color 0.28s ease;
 }
 #app-preloader.fade-out {
     opacity: 0;
     pointer-events: none;
+}
+/* The splash is #0c1222 and the app is white: cutting from one to the other in a frame is
+   a flashbang on a kitchen kiosk at night. Order: the content fades, the canvas becomes
+   the app colour, then the whole element fades out. */
+#app-preloader.is-lifting { background-color: var(--bg-app); }
+#app-preloader.is-lifting .app-preloader-inner { opacity: 0; }
+.app-preloader-inner {
+    transition: opacity 0.2s ease;
 }
 .app-preloader-inner {
     display: flex;

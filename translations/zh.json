@@ -71,6 +71,7 @@
     "loading": "正在加载…"
   },
   "nav": {
+    "scanner": "扫描",
     "title": "EverShelf",
     "home": "首页",
     "inventory": "库存",
@@ -745,6 +746,11 @@
     "weather_bucket_stormy": "有暴风雨"
   },
   "shopping": {
+    "spesa_done_title": "购物完成！",
+    "spesa_done_count": "已存入 {n} 个产品。",
+    "spesa_done_ask": "要保存总额用于月度图表吗？",
+    "spesa_done_save": "保存总额",
+    "spesa_done_skip": "跳过 / 仅产品",
     "title": "🛒 购物清单",
     "bring_loading": "正在连接 Bring!…",
     "list_loading": "正在加载购物清单…",
@@ -2122,6 +2128,14 @@
     "cena": "晚餐"
   },
   "scale": {
+    "status_waiting": "网关已连接，等待电子秤",
+    "popover_title": "电子秤",
+    "tare": "去皮",
+    "tare_active": "已去皮：{g} 克（仅显示）",
+    "tare_cleared": "已取消去皮",
+    "disconnect": "断开",
+    "connect": "连接",
+    "battery": "电量 {n}%",
     "status_connected": "智能秤已连接",
     "status_searching": "网关已连接，正在等待智能秤…",
     "status_disconnected": "无法连接智能秤网关",

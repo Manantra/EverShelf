@@ -71,6 +71,7 @@
     "loading": "Cargando..."
   },
   "nav": {
+    "scanner": "Escáner",
     "title": "EverShelf",
     "home": "Inicio",
     "inventory": "Lista",
@@ -745,6 +746,11 @@
     "weather_bucket_stormy": "tormentoso"
   },
   "shopping": {
+    "spesa_done_title": "¡Compra completada!",
+    "spesa_done_count": "Has cargado {n} productos en la despensa.",
+    "spesa_done_ask": "¿Quieres guardar el total para los gráficos mensuales?",
+    "spesa_done_save": "Guardar total",
+    "spesa_done_skip": "Saltar / solo productos",
     "title": "🛒 Lista de la compra",
     "bring_loading": "Conectando a Bring!...",
     "list_loading": "Cargando lista de la compra...",
@@ -2122,6 +2128,14 @@
     "cena": "Cena"
   },
   "scale": {
+    "status_waiting": "Pasarela alcanzada, esperando la báscula",
+    "popover_title": "Báscula",
+    "tare": "Tara",
+    "tare_active": "Tara activa: {g} g (solo pantalla)",
+    "tare_cleared": "Tara restablecida",
+    "disconnect": "Desconectar",
+    "connect": "Conectar",
+    "battery": "Batería {n} %",
     "status_connected": "Báscula conectada",
     "status_searching": "Pasarela conectada, esperando báscula…",
     "status_disconnected": "Pasarela de báscula inaccesible",

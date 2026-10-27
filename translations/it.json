@@ -71,6 +71,7 @@
     "loading": "Caricamento..."
   },
   "nav": {
+    "scanner": "Scanner",
     "title": "EverShelf",
     "home": "Home",
     "inventory": "Lista",
@@ -745,6 +746,11 @@
     "weather_bucket_stormy": "temporalesco"
   },
   "shopping": {
+    "spesa_done_title": "Spesa completata!",
+    "spesa_done_count": "Hai caricato {n} prodotti in dispensa.",
+    "spesa_done_ask": "Vuoi salvare l’importo totale per i grafici mensili?",
+    "spesa_done_save": "Salva totale",
+    "spesa_done_skip": "Salta / Solo prodotti",
     "title": "🛒 Lista della Spesa",
     "bring_loading": "Connessione a Bring!...",
     "list_loading": "Caricamento lista...",
@@ -2122,6 +2128,14 @@
     "cena": "Cena"
   },
   "scale": {
+    "status_waiting": "Gateway raggiunto, in attesa della bilancia",
+    "popover_title": "Bilancia",
+    "tare": "Tara",
+    "tare_active": "Tara attiva: {g} g (solo display)",
+    "tare_cleared": "Tara azzerata",
+    "disconnect": "Disconnetti",
+    "connect": "Connetti",
+    "battery": "Batteria {n}%",
     "status_connected": "Bilancia connessa",
     "status_searching": "Connesso al gateway, attesa bilancia…",
     "status_disconnected": "Gateway bilancia non raggiungibile",
