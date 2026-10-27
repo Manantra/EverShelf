@@ -223,6 +223,27 @@ $freeGenerated = (string)file_get_contents($root . '/assets/js/free_apis.generat
 assert_true(str_contains($freeGenerated, json_encode($freeExpected, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
     'assets/js/free_apis.generated.js is in sync with data/free_apis.json (run php scripts/gen-free-apis-js.php)');
 
+// The DOCUMENTS behind the data files (GS1, Pharmacode, PZN, the EU FMD regulation) are
+// credited like the services: the generated file must carry them too, or the credits page
+// silently loses the attribution of the medical schemas.
+$sourcesExpected = [];
+foreach ((array)($freeApis['sources'] ?? []) as $src) {
+    $url = (string)($src['url'] ?? '');
+    $sourcesExpected[] = [
+        'id'      => (string)($src['id'] ?? ''),
+        'name'    => (string)($src['name'] ?? ($src['id'] ?? '')),
+        'mark'    => (string)($src['mark'] ?? ''),
+        'url'     => preg_match('#^https?://#i', $url) ? $url : '',
+        'licence' => (string)($src['licence'] ?? ''),
+        'use_key' => (string)($src['use_key'] ?? ''),
+        'planned' => !empty($src['planned']),
+    ];
+}
+assert_true($sourcesExpected !== [] && str_contains($freeGenerated, 'EVERSHELF_DATA_SOURCES'),
+    'the generated file also carries the data sources (EVERSHELF_DATA_SOURCES)');
+assert_true(str_contains($freeGenerated, json_encode($sourcesExpected, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+    'the data sources are in sync with data/free_apis.json');
+
 // ── No language name and no sentence of prose inside app.js ────────────────
 $appCode = strip_comments((string)file_get_contents($root . '/assets/js/app.js'));
 foreach ($vocab as $code => $data) {

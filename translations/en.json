@@ -2792,7 +2792,17 @@
     "api_open_food_facts_where": "Used when we scan a barcode or search for a product: name, brand, category, photo and nutrition come from the open, collaborative database. Data is ODbL, photos CC-BY-SA.",
     "api_open_prices_where": "Used to estimate the shopping bill: recent community average prices for the same barcode, when available. ODbL data.",
     "api_open_meteo_where": "Used for recipe weather (what to cook today with heat, cold, rain) and to turn a city name into coordinates. No key, no tracking.",
-    "medicines_note": "Medicines are not covered by Open Food Facts: the Medicines module queries no catalogue at all (national drug datasets such as AIFA arrive only in Phase 2, filtered to OTC/SOP). That is why the barcode is only stored on the box and you type the name."
+    "medicines_note": "Medicines are not covered by Open Food Facts: the Medicines module queries no catalogue at all (national drug datasets such as AIFA arrive only in Phase 2, filtered to OTC/SOP). That is why the barcode is only stored on the box and you type the name.",
+    "sources_title": "Where the data comes from",
+    "sources_hint": "Where the barcode rules come from (and what we do not use): none of these sources is called at runtime.",
+    "med_title": "EverShelf Med — medicines module",
+    "med_no_api": "No external API: the code schemas are a local file (data/medical_code_schemas.json), you type the medicine name, and the data never leaves your server.",
+    "source_gs1_what": "GS1 prefix ranges per country (e.g. 800–839 Italy), used to tell whether an EAN belongs here.",
+    "source_pharmacode_what": "How the Pharmacode/Laetus works: the Italian SSN label (an integer 3–131070 read from the bars).",
+    "source_pzn_what": "The German PZN: 8 digits (7 + check) printed in Code 39, and the Austrian PZN inside the EAN.",
+    "source_fmd_what": "The EU safety DataMatrix (GTIN + serial + expiry + batch) mandatory on packs since 2019.",
+    "source_aifa_what": "The Italian national catalogue (AIC → name, active ingredient, ATC): planned for Phase 2, filtered to OTC/SOP. Not used yet.",
+    "planned": "Phase 2"
   },
   "medical": {
     "title": "💊 Medicines and cabinet",

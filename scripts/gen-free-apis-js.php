@@ -39,17 +39,39 @@ foreach ($data['apis'] as $api) {
         'licence' => (string)($api['licence'] ?? ''),
     ];
 }
+// Reference sources: the documents the app's own DATA files are built from (the medical
+// code schemas cite GS1, Wikipedia, the EU regulation). They are not called at runtime; they
+// are credited like the APIs, because a credit list that hides its sources is not honest.
+$sources = [];
+foreach (($data['sources'] ?? []) as $src) {
+    if (!is_array($src) || trim((string)($src['id'] ?? '')) === '') {
+        continue;
+    }
+    $url = (string)($src['url'] ?? '');
+    $sources[] = [
+        'id'      => (string)$src['id'],
+        'name'    => (string)($src['name'] ?? $src['id']),
+        'mark'    => (string)($src['mark'] ?? ''),
+        'url'     => preg_match('#^https?://#i', $url) ? $url : '',
+        'licence' => (string)($src['licence'] ?? ''),
+        'use_key' => (string)($src['use_key'] ?? ''),
+        'planned' => !empty($src['planned']),
+    ];
+}
+
 if (!$apis) {
     fwrite(STDERR, "no apis in {$src}\n");
     exit(1);
 }
 
 $json = json_encode($apis, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$jsonSources = json_encode($sources, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $js = "/**\n"
     . " * GENERATED FILE — do not edit. Source: data/free_apis.json\n"
     . " * Regenerate: php scripts/gen-free-apis-js.php   (locked by scripts/test-vocabulary.php)\n"
     . " * Data only: no logic here.\n"
     . " */\n"
-    . "const EVERSHELF_FREE_APIS = {$json};\n";
+    . "const EVERSHELF_FREE_APIS = {$json};\n"
+    . "const EVERSHELF_DATA_SOURCES = {$jsonSources};\n";
 file_put_contents($out, $js);
-echo 'written: assets/js/free_apis.generated.js (' . count($apis) . " service(s), " . strlen($js) . " bytes)\n";
+echo 'written: assets/js/free_apis.generated.js (' . count($apis) . ' service(s), ' . count($sources) . " source(s), " . strlen($js) . " bytes)\n";

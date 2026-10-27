@@ -127,6 +127,35 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
     }
 }
 
+// The sources behind the data files are credited where the APIs are (and never called at
+// runtime): GS1, Pharmacode/Laetus, PZN, the EU FMD regulation, AIFA as Phase 2.
+$sources = is_array($data['sources'] ?? null) ? $data['sources'] : [];
+check('data/free_apis.json lists the reference sources', count($sources) >= 4, (string)count($sources));
+$srcMissing = [];
+foreach ($sources as $src) {
+    $key = (string)($src['use_key'] ?? '');
+    if ($key === '') { $srcMissing[] = (string)($src['id'] ?? '?') . ': no use_key'; continue; }
+    [$group, $name] = array_pad(explode('.', $key, 2), 2, '');
+    foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $lang) {
+        $dict = json_decode((string)file_get_contents($root . "/translations/{$lang}.json"), true);
+        if (!isset($dict[$group][$name]) || $dict[$group][$name] === '') {
+            $srcMissing[] = "{$lang}: {$key}";
+        }
+    }
+    $logo = (string)($src['logo'] ?? '');
+    if ($logo !== '' && !str_starts_with($logo, 'assets/img/')) {
+        $srcMissing[] = (string)($src['id'] ?? '?') . ': remote logo';
+    }
+}
+check('every source has a translated sentence in six locales and no remote logo', $srcMissing === [], implode(', ', array_slice($srcMissing, 0, 5)));
+check('the credits page renders the sources and the medicines row',
+    str_contains($app, 'function _dataSourcesHtml')
+    && str_contains($app, '_dataSourcesHtml(sources)')
+    && str_contains($app, "credits.med_no_api")
+    && str_contains($app, 'EVERSHELF_DATA_SOURCES'));
+check('the generated file carries the sources (splash-safe, offline)',
+    str_contains((string)file_get_contents($root . '/assets/js/free_apis.generated.js'), 'EVERSHELF_DATA_SOURCES'));
+
 echo "\n{$checks} checks, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);
 

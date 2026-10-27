@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027r'; // bump when translations change
+const _I18N_VERSION = '20261027s'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5244,6 +5244,38 @@ function _freeApiCardHtml(api) {
 }
 
 /** One block of the dedicated thanks page: bigger logo, what, where, licence, link. */
+/**
+ * The DOCUMENTS behind the app's own data files (GS1 prefixes, Pharmacode, PZN, the EU FMD
+ * regulation), credited where the free APIs are credited. None of them is called at runtime:
+ * they are sources, and a credit list that hides its sources is not honest. The medicine
+ * module itself has no API at all, and says so in the first row.
+ */
+function _dataSourcesHtml(list) {
+    const rows = (Array.isArray(list) ? list : []).map(src => {
+        const name = escapeHtml(String((src && src.name) || (src && src.id) || ''));
+        const what = src && src.use_key ? t(src.use_key) : '';
+        const licence = escapeHtml(String((src && src.licence) || ''));
+        const url = (src && src.url) ? String(src.url) : '';
+        return `<article class="credit-block credit-block-source">`
+            + _freeApiLogoHtml(src, 'credit-block-logo')
+            + `<div class="credit-block-body">`
+            + `<h4 class="credit-block-name">${name}${src && src.planned ? ` · <span class="credit-planned">${escapeHtml(t('credits.planned'))}</span>` : ''}</h4>`
+            + (what ? `<p class="credit-block-usage">${escapeHtml(what)}</p>` : '')
+            + `<p class="credit-block-meta">`
+            + (licence ? `<span class="credit-licence">${licence}</span>` : '')
+            + (url ? `<a class="credit-link" href="${escapeAttr(url)}" target="_blank" rel="noopener">${escapeHtml(url.replace(/^https?:\/\//, ''))}</a>` : '')
+            + `</p></div></article>`;
+    }).join('');
+    const medRow = `<article class="credit-block credit-block-source credit-block-med">`
+        + `<span class="credit-block-logo is-fallback" aria-hidden="true">💊</span>`
+        + `<div class="credit-block-body"><h4 class="credit-block-name">${escapeHtml(t('credits.med_title'))}</h4>`
+        + `<p class="credit-block-usage">${escapeHtml(t('credits.med_no_api'))}</p></div></article>`;
+    return `<section class="credits-sources">`
+        + `<h3 class="credits-sources-title">${escapeHtml(t('credits.sources_title'))}</h3>`
+        + `<p class="credits-sources-hint">${escapeHtml(t('credits.sources_hint'))}</p>`
+        + medRow + rows + `</section>`;
+}
+
 function _freeApiPageHtml(api) {
     const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
     const usage = String(_freeApiUsage(api) || '');
@@ -5297,7 +5329,11 @@ async function _loadFreeApis() {
         // The missing service is the honest part of a credit list: no free catalogue of
         // medicines exists (AIFA et al. are national, not free/open in the same way), so the
         // medical module deliberately calls nobody and the box is typed by the household.
-        pageEl.innerHTML = page + `<p class="credits-note">${escapeHtml(t('credits.medicines_note'))}</p>`;
+        const sources = (typeof EVERSHELF_DATA_SOURCES !== 'undefined' && Array.isArray(EVERSHELF_DATA_SOURCES))
+            ? EVERSHELF_DATA_SOURCES : [];
+        pageEl.innerHTML = page
+            + (sources.length ? _dataSourcesHtml(sources) : '')
+            + `<p class="credits-note">${escapeHtml(t('credits.medicines_note'))}</p>`;
     }
 }
 
@@ -14610,7 +14646,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027r';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027s';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -14620,7 +14656,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027r';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261027s';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

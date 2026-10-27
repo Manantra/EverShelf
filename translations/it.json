@@ -2792,7 +2792,17 @@
     "api_open_food_facts_where": "Lo usiamo quando scansioniamo un codice a barre o cerchiamo un prodotto: nome, marca, categoria, foto e valori nutrizionali arrivano dal database aperto e collaborativo. I dati sono ODbL, le foto CC-BY-SA.",
     "api_open_prices_where": "Lo usiamo per stimare la spesa: prezzi medi recenti della community per lo stesso codice a barre, quando ci sono. Dati ODbL.",
     "api_open_meteo_where": "Lo usiamo per il meteo delle ricette (cosa cucino oggi, in base a caldo, freddo, pioggia) e per tradurre un nome di città in coordinate. Nessuna chiave, nessun tracciamento.",
-    "medicines_note": "I farmaci non sono coperti da Open Food Facts: il modulo Farmaci non interroga nessun catalogo (i dati AIFA sono nazionali e arriveranno solo nella Fase 2, filtrati su OTC/SOP). Per questo il codice a barre viene solo salvato sulla scatola e il nome lo scrivi tu."
+    "medicines_note": "I farmaci non sono coperti da Open Food Facts: il modulo Farmaci non interroga nessun catalogo (i dati AIFA sono nazionali e arriveranno solo nella Fase 2, filtrati su OTC/SOP). Per questo il codice a barre viene solo salvato sulla scatola e il nome lo scrivi tu.",
+    "sources_title": "Fonti dei dati",
+    "sources_hint": "Da dove vengono le regole dei codici a barre (e cosa non usiamo): nessuna di queste fonti viene interrogata a runtime.",
+    "med_title": "EverShelf Med — modulo farmaci",
+    "med_no_api": "Nessuna API esterna: gli schemi dei codici sono un file locale (data/medical_code_schemas.json), il nome del farmaco lo scrivi tu e i dati non escono dal tuo server.",
+    "source_gs1_what": "Intervalli dei prefissi GS1 per paese (es. 800–839 Italia), usati per capire se un EAN è di casa.",
+    "source_pharmacode_what": "Come funziona il Pharmacode/Laetus: l’etichetta SSN italiana (intero 3–131070 letto dalle barre).",
+    "source_pzn_what": "Il PZN tedesco: 8 cifre (7 + controllo) stampate in Code 39, e il PZN austriaco dentro l’EAN.",
+    "source_fmd_what": "Il DataMatrix di sicurezza UE (GTIN + seriale + scadenza + lotto) obbligatorio sulle confezioni dal 2019.",
+    "source_aifa_what": "Il catalogo nazionale italiano (AIC → nome, principio attivo, ATC): previsto per la Fase 2, filtrato su OTC/SOP. Non è ancora usato.",
+    "planned": "in Fase 2"
   },
   "medical": {
     "title": "💊 Farmaci e armadietto",

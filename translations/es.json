@@ -2792,7 +2792,17 @@
     "api_open_food_facts_where": "Lo usamos al escanear un código de barras o buscar un producto: nombre, marca, categoría, foto y valores nutricionales vienen de la base abierta y colaborativa. Datos ODbL, fotos CC-BY-SA.",
     "api_open_prices_where": "Lo usamos para estimar la compra: precios medios recientes de la comunidad para el mismo código de barras, cuando existen. Datos ODbL.",
     "api_open_meteo_where": "Lo usamos para el tiempo de las recetas (qué cocino hoy según calor, frío o lluvia) y para convertir un nombre de ciudad en coordenadas. Sin claves, sin rastreo.",
-    "medicines_note": "Los medicamentos no están cubiertos por Open Food Facts: el módulo Medicamentos no consulta ningún catálogo (los datos nacionales como AIFA llegan solo en la Fase 2, filtrados a OTC/SOP). Por eso el código de barras solo se guarda en la caja y el nombre lo escribes tú."
+    "medicines_note": "Los medicamentos no están cubiertos por Open Food Facts: el módulo Medicamentos no consulta ningún catálogo (los datos nacionales como AIFA llegan solo en la Fase 2, filtrados a OTC/SOP). Por eso el código de barras solo se guarda en la caja y el nombre lo escribes tú.",
+    "sources_title": "De dónde vienen los datos",
+    "sources_hint": "De dónde vienen las reglas de los códigos de barras (y qué no usamos): ninguna de estas fuentes se consulta en tiempo de ejecución.",
+    "med_title": "EverShelf Med — módulo de medicamentos",
+    "med_no_api": "Ninguna API externa: los esquemas de códigos son un archivo local (data/medical_code_schemas.json), el nombre del medicamento lo escribes tú y los datos no salen de tu servidor.",
+    "source_gs1_what": "Rangos de prefijos GS1 por país (p. ej. 800–839 Italia), para saber si un EAN es de aquí.",
+    "source_pharmacode_what": "Cómo funciona el Pharmacode/Laetus: la etiqueta SSN italiana (entero 3–131070 leído de las barras).",
+    "source_pzn_what": "El PZN alemán: 8 dígitos (7 + control) impresos en Code 39, y el PZN austriaco dentro del EAN.",
+    "source_fmd_what": "El DataMatrix de seguridad de la UE (GTIN + serie + caducidad + lote), obligatorio en los envases desde 2019.",
+    "source_aifa_what": "El catálogo nacional italiano (AIC → nombre, principio activo, ATC): previsto para la Fase 2, filtrado a OTC/SOP. Aún no se usa.",
+    "planned": "en la Fase 2"
   },
   "medical": {
     "title": "💊 Medicamentos y botiquín",

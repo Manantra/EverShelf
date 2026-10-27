@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.25.1] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **The credit list now names its sources, where the free APIs are.** The medical code schemas
+  are built from documents that are not called at runtime: the **GS1** prefix list, the
+  **Pharmacode/Laetus** article, the German **PZN** article and the **EU FMD** delegated
+  regulation (CC BY-SA where it applies) — plus **AIFA** marked *Phase 2, not used yet*. They
+  are rows in `data/free_apis.json` (`sources`), generated into `EVERSHELF_DATA_SOURCES` and
+  painted on the **Crediti** page right after the API cards, each with its licence and link.
+- The first row of that block is the module itself: **“EverShelf Med — nessuna API esterna”**,
+  so nobody has to wonder why medicines never appear among the services.
+
+### Notes
+- No medicine API is used, in any country: `api/lib/medical.php` makes no network call and the
+  module only talks to our own endpoints (`med_status`, `med_symptom_search`, `med_classify`,
+  `med_open`). A logo would have to belong to a service that exists.
+
 ## [1.25.0] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Added

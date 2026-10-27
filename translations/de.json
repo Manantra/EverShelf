@@ -2792,7 +2792,17 @@
     "api_open_food_facts_where": "Wird beim Scannen eines Barcodes oder bei der Produktsuche genutzt: Name, Marke, Kategorie, Foto und Nährwerte kommen aus der offenen, gemeinschaftlichen Datenbank. Daten ODbL, Fotos CC-BY-SA.",
     "api_open_prices_where": "Wird für die Einkaufsschätzung genutzt: aktuelle Durchschnittspreise der Community für denselben Barcode, wenn vorhanden. ODbL-Daten.",
     "api_open_meteo_where": "Wird für das Rezeptwetter genutzt (was koche ich heute bei Hitze, Kälte, Regen) und um einen Ortsnamen in Koordinaten umzuwandeln. Kein Schlüssel, kein Tracking.",
-    "medicines_note": "Medikamente sind von Open Food Facts nicht abgedeckt: das Modul Medikamente fragt keinen Katalog ab (nationale Daten wie AIFA kommen erst in Phase 2, gefiltert auf OTC/SOP). Deshalb wird der Strichcode nur an der Packung gespeichert und der Name von dir eingetippt."
+    "medicines_note": "Medikamente sind von Open Food Facts nicht abgedeckt: das Modul Medikamente fragt keinen Katalog ab (nationale Daten wie AIFA kommen erst in Phase 2, gefiltert auf OTC/SOP). Deshalb wird der Strichcode nur an der Packung gespeichert und der Name von dir eingetippt.",
+    "sources_title": "Woher die Daten kommen",
+    "sources_hint": "Woher die Regeln der Strichcodes kommen (und was wir nicht nutzen): keine dieser Quellen wird zur Laufzeit abgefragt.",
+    "med_title": "EverShelf Med — Medikamenten-Modul",
+    "med_no_api": "Keine externe API: die Codeschemata sind eine lokale Datei (data/medical_code_schemas.json), den Namen tippst du ein, und die Daten verlassen deinen Server nicht.",
+    "source_gs1_what": "GS1-Präfixbereiche pro Land (z. B. 800–839 Italien), um zu erkennen, ob eine EAN von hier ist.",
+    "source_pharmacode_what": "Wie der Pharmacode/Laetus funktioniert: das italienische SSN-Etikett (Ganzzahl 3–131070 aus den Balken).",
+    "source_pzn_what": "Die deutsche PZN: 8 Ziffern (7 + Prüfziffer) in Code 39, und die österreichische PZN in der EAN.",
+    "source_fmd_what": "Der EU-Sicherheits-DataMatrix (GTIN + Seriennummer + Ablaufdatum + Charge), Pflicht auf Packungen seit 2019.",
+    "source_aifa_what": "Der italienische Nationalkatalog (AIC → Name, Wirkstoff, ATC): für Phase 2 geplant, gefiltert auf OTC/SOP. Noch nicht verwendet.",
+    "planned": "in Phase 2"
   },
   "medical": {
     "title": "💊 Medikamente und Schrank",

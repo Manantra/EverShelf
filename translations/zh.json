@@ -2792,7 +2792,17 @@
     "api_open_food_facts_where": "在扫描条形码或搜索产品时使用：名称、品牌、类别、照片和营养信息来自开放的协作数据库。数据 ODbL，照片 CC-BY-SA。",
     "api_open_prices_where": "用于估算购物开销：同一条形码的社区近期平均价格（如果有）。数据 ODbL。",
     "api_open_meteo_where": "用于食谱天气（根据冷热雨决定今天做什么）以及把城市名转换为坐标。没有密钥，没有跟踪。",
-    "medicines_note": "Open Food Facts 不包含药品：药品模块不查询任何目录（AIFA 等国家数据只会在第二阶段加入，并仅限 OTC/SOP）。因此条码只作为药盒信息保存，名称由你填写。"
+    "medicines_note": "Open Food Facts 不包含药品：药品模块不查询任何目录（AIFA 等国家数据只会在第二阶段加入，并仅限 OTC/SOP）。因此条码只作为药盒信息保存，名称由你填写。",
+    "sources_title": "数据来源",
+    "sources_hint": "条码规则的来源（以及我们不使用什么）：这些来源都不会在运行时被调用。",
+    "med_title": "EverShelf Med — 药品模块",
+    "med_no_api": "不调用任何外部 API：编码规则是本地文件（data/medical_code_schemas.json），药品名称由你填写，数据不会离开你的服务器。",
+    "source_gs1_what": "各国 GS1 前缀区间（例如意大利 800–839），用于判断 EAN 是否属于本国。",
+    "source_pharmacode_what": "Pharmacode/Laetus 的原理：意大利 SSN 标签（由条码读出的 3–131070 整数）。",
+    "source_pzn_what": "德国 PZN：8 位数字（7 位 + 校验位），以 Code 39 印刷；奥地利 PZN 嵌入 EAN。",
+    "source_fmd_what": "欧盟安全 DataMatrix（GTIN + 序列号 + 有效期 + 批号），自 2019 年起在包装上强制。",
+    "source_aifa_what": "意大利国家目录（AIC → 名称、有效成分、ATC）：计划在第二阶段加入，仅限 OTC/SOP。尚未使用。",
+    "planned": "第二阶段"
   },
   "medical": {
     "title": "💊 药品与药箱",

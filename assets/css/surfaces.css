@@ -2242,3 +2242,31 @@ a.free-api:hover { border-color: var(--brand-primary); }
     font-size: 0.78rem;
     line-height: 1.45;
 }
+
+/* ── Credits: the sources behind the data (not called at runtime) ─────────── */
+.credits-sources {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--surface-border);
+}
+.credits-sources-title {
+    margin: 0 0 4px;
+    font-size: 1rem;
+}
+.credits-sources-hint {
+    margin: 0 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.credit-block-source .credit-block-logo.is-fallback {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    font-size: 0.7rem;
+}
+.credit-block-med {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.10), transparent 65%);
+}
+.credit-planned {
+    font-weight: 600;
+    color: var(--text-muted);
+}
