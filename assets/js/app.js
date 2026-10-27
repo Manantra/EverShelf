@@ -6747,7 +6747,7 @@ function switchSettingsTab(btn, tabId) {
 // declares its section in the `data-group` attribute in index.html and only the
 // active section's tabs are shown. scripts/test-settings-nav.php keeps the two
 // ends in sync — add a group here AND a data-group there.
-const SETTINGS_GROUPS = ['app', 'cooking', 'alerts', 'system'];
+const SETTINGS_GROUPS = ['app', 'cooking', 'medical', 'alerts', 'system'];
 
 /**
  * Show the tab strip of one section.
@@ -8568,6 +8568,22 @@ function _captureNotUnderstood(messageKey, params) {
     if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureShowChoices(null);
     _captureStatus(messageKey || 'capture.not_understood', params);
+    // EverShelf Med: "ho un forte mal di testa" is not a product, but it is a question the
+    // household asked. With the module on, the sentence is handed to the LOCAL symptom map
+    // (no AI, no dosage) and the answer opens in its own sheet with the disclaimer on top.
+    // The capture sheet is hidden first, exactly like every other close path.
+    if (_medOn() && !messageKey) {
+        const el = document.getElementById('capture-transcript');
+        const text = String(el && el.textContent || '').trim();
+        if (text.length >= 3) {
+            api('med_symptom_search', { q: text }).then(r => {
+                if (r && r.success && Array.isArray(r.matches) && r.matches.length) {
+                    _closeCaptureSheet();
+                    _medOpenSearch(text);
+                }
+            }).catch(() => {});
+        }
+    }
 }
 
 /** The mic is offered only where the browser can actually listen (audit: no fake CTA). */
@@ -9635,12 +9651,13 @@ async function loadDashboard() {
                 const badgeClass = days === 0 ? 'today'
                     : (days <= 7 ? 'expiring' : (days <= 30 ? 'expiring-soon' : 'expiring-later'));
                 return `
-                <div class="alert-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
+                <div class="alert-item alert-item-clickable${_isMedicalRow(item) ? ' is-medical' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         ${_productThumbHtml(item)}
                         <div class="alert-item-main">
                             ${_alertItemHead(item)}
                             ${_alertItemMeta(item)}
+                            ${_isMedicalRow(item) ? `<span class="alert-medical-tag">💊 ${escapeHtml(t('medical.row_tag'))}</span>` : ''}
                         </div>
                     </div>
                     <div class="alert-item-badges">
@@ -9672,6 +9689,12 @@ async function loadDashboard() {
             // Most recent expiry first: those are the rows you can still save, and the cap
             // can never hide the one that just expired behind a box from six months ago.
             .sort((a, b) => _daysPast(b) - _daysPast(a));
+        // EverShelf Med: a medicine is not food to be saved by cooking it. When the module is
+        // on, the medical rows leave this block (and its recipe action) for their own one.
+        const medicalExpired = _medOn() ? visibleExpiredAll.filter(_isMedicalRow) : [];
+        const visibleExpired = medicalExpired.length
+            ? visibleExpiredAll.filter(item => !_isMedicalRow(item))
+            : visibleExpiredAll;
         if (visibleExpired.length > 0) {
             const { shown: expiredShown, extra: expiredExtra } = _dashboardAlertCap(visibleExpired);
             expiredSection.style.display = 'block';
@@ -9681,7 +9704,7 @@ async function loadDashboard() {
                 const safety = getExpiredSafety(item, days);
                 // Short badge only (Controlla / Va bene / Buttalo / Non mangiare) — tip on hover.
                 return `
-                <div class="alert-item expired-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
+                <div class="alert-item expired-item alert-item-clickable${_isMedicalRow(item) ? ' is-medical' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         ${_productThumbHtml(item)}
                         <div class="alert-item-main">
@@ -9702,6 +9725,8 @@ async function loadDashboard() {
         } else {
             expiredSection.style.display = 'none';
         }
+        // EverShelf Med: the expired boxes, with "Smaltito" and a real-world instruction.
+        _renderMedicalBlock(medicalExpired);
         // The hub decides its own visibility from what is on screen now.
         _syncUrgencyHub();
         
@@ -12820,12 +12845,569 @@ function _topOverlay() {
 }
 
 /** How each overlay wants to be closed (state has to be cleaned, not just hidden). */
+// ─── EverShelf Med (opt-in) ──────────────────────────────────────────────────
+// The module is OFF by default and only appears when the owner turned it on AND the
+// household accepted the disclaimer. Medicines never enter the food domains: a row is a
+// medicine when `products.is_medical` says so or when it sits in a location the household
+// marked (`medical_locations`) — those rows are kept out of the recipe flow, and an expired
+// box goes to its own block as special waste, never to "save it by cooking it".
+// The symptom search is deterministic and offline: the ATC map is `data/medical_atc.json`,
+// the server matches it against this household's inventory and returns NO dosage. The app
+// lists boxes; the doctor and the leaflet treat people.
+let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [] };
+
+/** Read the module state from the server (single source: env + the shared settings). */
+async function _medRefreshStatus() {
+    try {
+        const r = await api('med_status');
+        if (r && r.success) {
+            _medStatus = {
+                enabled: !!r.enabled,
+                accepted: !!r.disclaimer_accepted,
+                categories: Array.isArray(r.categories) ? r.categories : [],
+                setupDone: !!r.setup_done,
+            };
+        }
+    } catch (e) {
+        _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [] };
+    }
+    _applyMedUi();
+    return _medStatus;
+}
+
+/** Is the module usable right now (enabled + disclaimer accepted)? */
+function _medOn() {
+    return !!(_medStatus.enabled && _medStatus.accepted);
+}
+
+/** A pantry row is a medicine: the product flag wins, then the marked location. */
+function _isMedicalRow(item) {
+    if (!item) return false;
+    if (item.is_medical === true || item.is_medical === 1 || item.is_medical === '1') return true;
+    const loc = String(item.location || '').trim().toLowerCase();
+    if (!loc) return false;
+    const meds = (getSettings().medical_locations || []).map(v => String(v).trim().toLowerCase());
+    return meds.includes(loc);
+}
+
+/** The locations the household can mark as medical: the built-ins plus the custom ones. */
+function _medLocationChoices() {
+    const out = [];
+    const seen = new Set();
+    const meta = (typeof LOCATION_META !== 'undefined' && LOCATION_META) ? LOCATION_META : {};
+    ['dispensa', 'frigo', 'freezer'].forEach(slug => {
+        const label = (meta[slug] && meta[slug].labelKey) ? t(meta[slug].labelKey) : slug;
+        out.push({ slug, label: `${(meta[slug] && meta[slug].icon) || '📦'} ${label}` });
+        seen.add(slug.toLowerCase());
+    });
+    (getSettings().custom_locations || []).forEach(name => {
+        const slug = String(name).trim();
+        if (slug && !seen.has(slug.toLowerCase())) {
+            out.push({ slug, label: `📦 ${slug}` });
+            seen.add(slug.toLowerCase());
+        }
+    });
+    return out;
+}
+
+/** Paint the Settings card + the dashboard block from the current state. */
+function _applyMedUi() {
+    const toggle = document.getElementById('setting-med-enabled');
+    if (toggle) toggle.checked = !!_medStatus.enabled;
+    const block = document.getElementById('med-locations-block');
+    if (block) block.hidden = !_medOn();
+    const btn = document.getElementById('med-search-btn');
+    if (btn) btn.hidden = !_medOn();
+    if (_medOn()) { _renderMedLocations(); _medRenderLocationPicker(); _renderMedClassify(); }
+    else _renderMedicalBlock([]);
+}
+
+/**
+ * The locations the household can mark as medical: the built-ins plus the custom ones,
+ * including the one the wizard may just have created.
+ */
+function _medRenderLocationPicker() {
+    const sel = document.getElementById('med-location-select');
+    if (!sel) return;
+    const choices = _medLocationChoices();
+    const marked = (getSettings().medical_locations || []).map(v => String(v).toLowerCase());
+    sel.innerHTML = `<option value="">${escapeHtml(t('medical.location_pick'))}</option>` +
+        choices.map(c => `<option value="${escapeAttr(c.slug)}" ${marked.includes(c.slug.toLowerCase()) ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('');
+}
+
+/** The marked medical locations, as pills (one dedicated location is the normal case). */
+function _renderMedLocations() {
+    const host = document.getElementById('med-locations-list');
+    if (!host) return;
+    const marked = getSettings().medical_locations || [];
+    host.innerHTML = marked.length
+        ? marked.map(slug => `
+            <span class="med-location-pill-tag">
+                💊 ${escapeHtml(_medLocationLabel(slug))}
+                <button type="button" class="med-location-unmark" onclick="onMedLocationUnmark('${escapeAttr(slug)}')"
+                        aria-label="${escapeAttr(t('btn.delete'))}">✕</button>
+            </span>`).join('')
+        : `<span class="med-search-empty">${escapeHtml(t('medical.location_none'))}</span>`;
+    _medRenderLocationPicker();
+}
+
+function _medLocationLabel(slug) {
+    const hit = _medLocationChoices().find(c => String(c.slug).toLowerCase() === String(slug).toLowerCase());
+    return hit ? hit.label : String(slug);
+}
+
+/** Pick an existing location as THE medical one (a dedicated place, not a filter). */
+async function onMedLocationPick(sel) {
+    const slug = String((sel && sel.value) || '').trim();
+    await _medSetLocations(slug ? [slug] : []);
+}
+
+async function onMedLocationUnmark(slug) {
+    const list = (getSettings().medical_locations || []).filter(v => String(v).toLowerCase() !== String(slug).toLowerCase());
+    await _medSetLocations(list);
+}
+
+/** Create a location and make it the medical one (the wizard's "create" answer). */
+async function onMedLocationCreate() {
+    const input = document.getElementById('med-new-location-input');
+    const name = String((input && input.value) || '').trim();
+    if (!name) return;
+    const s = getSettings();
+    s.custom_locations = s.custom_locations || [];
+    const builtins = ['dispensa', 'frigo', 'freezer', t('locations.dispensa'), t('locations.frigo'), t('locations.freezer')];
+    if (builtins.some(b => String(b).toLowerCase() === name.toLowerCase())) {
+        showToast(t('settings.custom_locations.reserved'), 'error');
+        return;
+    }
+    if (!s.custom_locations.some(v => String(v).toLowerCase() === name.toLowerCase())) {
+        s.custom_locations.push(name);
+        // The .env write is the existing settings path (CUSTOM_LOCATIONS); a read-only file
+        // still leaves the location usable in this browser, which is what matters now.
+        api('save_settings', {}, 'POST', { custom_locations: s.custom_locations }).catch(() => {});
+    }
+    saveSettingsToStorage(s);
+    mergeCustomLocations(s.custom_locations);
+    if (input) input.value = '';
+    await _medSetLocations([name]);
+    showToast(t('settings.custom_locations.added'), 'success');
+}
+
+/** Store the medical location(s) + close the first-run question. */
+async function _medSetLocations(list) {
+    const clean = (Array.isArray(list) ? list : []).map(v => String(v).trim()).filter(Boolean);
+    const s = getSettings();
+    s.medical_locations = clean;
+    saveSettingsToStorage(s);
+    await _saveSettingToServer({ medical_locations: clean, med_setup_done: clean.length > 0 });
+    _medStatus.setupDone = clean.length > 0;
+    _renderMedLocations();
+    _renderMedClassify();
+    loadDashboard();
+}
+
+/** Mark/unmark a location from the legacy checkbox list (kept for older cached markup). */
+async function onMedLocationChange(input) {
+    if (!input) return;
+    const slug = String(input.value || '');
+    let list = (getSettings().medical_locations || []).map(v => String(v));
+    if (input.checked) {
+        if (!list.some(v => v.toLowerCase() === slug.toLowerCase())) list.push(slug);
+    } else {
+        list = list.filter(v => v.toLowerCase() !== slug.toLowerCase());
+    }
+    await _medSetLocations(list);
+}
+
+/**
+ * The boxes in the medical locations. Each product gets the CLOSED category chips, the active
+ * ingredient and the "expires N days after opening" number; each physical box gets its own
+ * "Segna aperto", because the PAO clock belongs to the box, not to the product.
+ * Without this, "what do I have for a headache?" has nothing to look up.
+ */
+async function _renderMedClassify() {
+    const host = document.getElementById('med-classify-list');
+    if (!host) return;
+    let rows = [];
+    try {
+        const r = await api('inventory_list');
+        rows = (r && r.inventory) || [];
+    } catch (e) { rows = []; }
+    const meds = rows.filter(item => _isMedicalRow(item) && Number(item.product_id) > 0);
+    if (!meds.length) {
+        host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.classify_empty'))}</p>`;
+        return;
+    }
+    const byProduct = new Map();
+    meds.forEach(item => {
+        const pid = Number(item.product_id);
+        if (!byProduct.has(pid)) byProduct.set(pid, { product: item, boxes: [] });
+        byProduct.get(pid).boxes.push(item);
+    });
+    const cats = _medStatus.categories || [];
+    host.innerHTML = Array.from(byProduct.values()).map(({ product, boxes }) => {
+        const pid = Number(product.product_id);
+        const tags = String(product.med_tags || '').split(',').map(v => v.trim()).filter(Boolean);
+        const chips = cats.map(c => `
+            <label class="med-cat-chip ${tags.includes(c.slug) ? 'is-on' : ''}">
+                <input type="checkbox" value="${escapeAttr(c.slug)}" ${tags.includes(c.slug) ? 'checked' : ''}
+                       onchange="this.closest('.med-cat-chip').classList.toggle('is-on', this.checked)">
+                <span>${escapeHtml(t(c.label_key))}</span>
+            </label>`).join('');
+        const boxRows = boxes.map(b => {
+            const exp = b.expiry_date ? formatDate(b.expiry_date) : t('medical.no_expiry');
+            const open = b.opened_at ? formatDate(b.opened_at) : '';
+            return `
+            <div class="med-box-row">
+                <span class="med-box-meta">${escapeHtml(`${b.location || ''} · ${exp}${open ? ' · ' + t('medical.opened_on') + ' ' + open : ''}`)}</span>
+                <button type="button" class="btn btn-small btn-outline" onclick="_medMarkOpened(${Number(b.id)})">
+                    🔓 ${escapeHtml(t('medical.mark_opened'))}
+                </button>
+            </div>`;
+        }).join('');
+        return `
+        <div class="med-classify-row" data-product-id="${pid}">
+            <span class="med-classify-name">💊 ${escapeHtml(product.name || '')}</span>
+            <div class="med-cat-chips">${chips}</div>
+            <div class="med-classify-fields">
+                <input type="text" class="med-classify-ingredient" maxlength="80"
+                       placeholder="${escapeAttr(t('medical.ingredient_placeholder'))}"
+                       value="${escapeAttr(product.med_ingredient || '')}">
+                <label class="med-pao-field">
+                    <span>${escapeHtml(t('medical.pao_label'))}</span>
+                    <input type="number" min="0" max="365" step="1" class="med-classify-pao"
+                           value="${Number(product.med_pao_days) || 0}">
+                </label>
+                <button type="button" class="btn btn-small btn-primary" onclick="_medClassify(${pid})">
+                    ${escapeHtml(t('btn.save'))}
+                </button>
+            </div>
+            <div class="med-box-list">${boxRows}</div>
+        </div>`;
+    }).join('');
+}
+
+/** Save one product's categories, ingredient and PAO days (tags come from the closed list). */
+async function _medClassify(productId) {
+    if (!productId) return;
+    const row = document.querySelector(`.med-classify-row[data-product-id="${productId}"]`);
+    if (!row) return;
+    const tags = Array.from(row.querySelectorAll('.med-cat-chips input:checked')).map(i => i.value);
+    const ingredient = row.querySelector('.med-classify-ingredient')?.value || '';
+    const pao = Number(row.querySelector('.med-classify-pao')?.value || 0) || 0;
+    try {
+        const r = await api('med_classify', { product_id: productId, tags, ingredient, pao_days: pao }, 'POST');
+        if (!r || !r.success) {
+            showToast(t('medical.classify_error'), 'error');
+            return;
+        }
+        showToast(t('medical.classify_saved'), 'success');
+        _renderMedClassify();
+    } catch (e) {
+        showToast(t('medical.classify_error'), 'error');
+    }
+}
+
+/** "Segna come aperto": the operational expiry becomes today + the N days of the box. */
+async function _medMarkOpened(invId) {
+    if (!invId) return;
+    try {
+        const r = await api('med_open', { inventory_id: invId }, 'POST');
+        if (!r || !r.success) {
+            showToast(t('medical.classify_error'), 'error');
+            return;
+        }
+        showToast(r.pao_days > 0
+            ? t('medical.opened_expiry').replace('{date}', formatDate(r.expiry_date))
+            : t('medical.opened_no_pao'), r.pao_days > 0 ? 'success' : 'info');
+        _renderMedClassify();
+        loadDashboard();
+    } catch (e) {
+        showToast(t('medical.classify_error'), 'error');
+    }
+}
+
+// ─── Med: settings actions ──────────────────────────────────────────────────
+
+/**
+ * First run: the module has never been configured, so the household is asked ONCE — at boot,
+ * above everything — whether medicines live in their own place. "Non ora" is a real answer:
+ * it stores the choice (module off) and the question never comes back. Enabling goes through
+ * the same mandated disclaimer as the Settings switch; then the dedicated location is created
+ * or picked, because the module needs a place of its own.
+ */
+function _medMaybeAskSetup() {
+    if (!_medStatus || _medStatus.setupDone) return false;
+    if (localStorage.getItem('evershelf_med_asked') === '1') return false;
+    if (document.getElementById('med-setup-overlay')) return false;
+    const ov = document.createElement('div');
+    ov.id = 'med-setup-overlay';
+    ov.className = 'modal-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML = `
+        <div class="modal-content med-setup-card">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('medical.setup_title'))}</h3>
+                <button type="button" class="modal-close" onclick="_medCloseSetup()"
+                        aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+            </div>
+            <p>${escapeHtml(t('medical.setup_ask'))}</p>
+            <p class="settings-hint">${escapeHtml(t('medical.setup_why'))}</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_medSetupLater()">${escapeHtml(t('medical.setup_later'))}</button>
+                <button type="button" class="btn btn-primary" onclick="_medSetupEnable()">${escapeHtml(t('medical.setup_enable'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(ov);
+    ov.style.display = 'flex';
+    return true;
+}
+
+function _medCloseSetup() {
+    const ov = document.getElementById('med-setup-overlay');
+    if (ov) ov.remove();
+}
+
+/** "Non ora": remembered as a decision, not as a pending question. */
+async function _medSetupLater() {
+    localStorage.setItem('evershelf_med_asked', '1');
+    _medStatus.setupDone = true;
+    _medCloseSetup();
+    await _saveSettingToServer({ med_setup_done: true, med_enabled: false });
+}
+
+/** "Attiva": the notice first (it is the same gate as the Settings switch). */
+function _medSetupEnable() {
+    _medCloseSetup();
+    localStorage.setItem('evershelf_med_asked', '1');
+    _medOpenDisclaimer();
+}
+
+/** The toggle: enabling without an accepted disclaimer opens the notice instead. */
+async function onMedEnabledChange() {
+    const el = document.getElementById('setting-med-enabled');
+    const want = !!(el && el.checked);
+    if (want && !_medStatus.accepted) {
+        if (el) el.checked = false;
+        _medOpenDisclaimer();
+        return;
+    }
+    _medStatus.enabled = want;
+    const s = getSettings();
+    s.med_enabled = want;
+    saveSettingsToStorage(s);
+    await _saveSettingToServer({ med_enabled: want });
+    _applyMedUi();
+    showToast(t(want ? 'medical.enabled_on' : 'medical.enabled_off'), 'success');
+    loadDashboard();
+}
+
+
+/** The mandatory notice: nothing of the module is stored as enabled before this. */
+function _medOpenDisclaimer() {
+    let ov = document.getElementById('med-disclaimer-overlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'med-disclaimer-overlay';
+        ov.className = 'modal-overlay';
+        ov.setAttribute('role', 'dialog');
+        ov.setAttribute('aria-modal', 'true');
+        ov.setAttribute('aria-labelledby', 'med-disclaimer-title');
+        ov.innerHTML = `
+            <div class="modal-content med-disclaimer-card">
+                <div class="modal-header">
+                    <h3 id="med-disclaimer-title">${escapeHtml(t('medical.disclaimer_title'))}</h3>
+                    <button type="button" class="modal-close" onclick="_medCloseDisclaimer()"
+                            aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+                </div>
+                <p class="med-disclaimer">${escapeHtml(t('medical.disclaimer'))}</p>
+                <label class="toggle-row med-disclaimer-accept">
+                    <input type="checkbox" id="med-disclaimer-check">
+                    <span>${escapeHtml(t('medical.disclaimer_accept'))}</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="_medCloseDisclaimer()">${escapeHtml(t('btn.cancel'))}</button>
+                    <button type="button" class="btn btn-primary" id="med-disclaimer-ok" disabled onclick="_medAcceptDisclaimer()">${escapeHtml(t('medical.disclaimer_ok'))}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(ov);
+        const check = ov.querySelector('#med-disclaimer-check');
+        if (check) check.addEventListener('change', () => {
+            const ok = ov.querySelector('#med-disclaimer-ok');
+            if (ok) ok.disabled = !check.checked;
+        });
+    }
+    ov.style.display = 'flex';
+}
+
+function _medCloseDisclaimer() {
+    const ov = document.getElementById('med-disclaimer-overlay');
+    if (ov) ov.style.display = 'none';
+    const el = document.getElementById('setting-med-enabled');
+    if (el && !_medStatus.enabled) el.checked = false;
+}
+
+/** Accepting the notice is what actually enables the module. */
+async function _medAcceptDisclaimer() {
+    const check = document.getElementById('med-disclaimer-check');
+    if (!check || !check.checked) return;
+    _medStatus.accepted = true;
+    _medStatus.enabled = true;
+    const s = getSettings();
+    s.med_disclaimer_accepted = true;
+    s.med_enabled = true;
+    saveSettingsToStorage(s);
+    await _saveSettingToServer({ med_disclaimer_accepted: true, med_enabled: true });
+    _medCloseDisclaimer();
+    _applyMedUi();
+    showToast(t('medical.enabled_on'), 'success');
+    loadDashboard();
+    // The module needs a dedicated location: without one, nothing can be classified.
+    if (!(getSettings().medical_locations || []).length) {
+        try {
+            showPage('settings');
+            _openSettingsCardFor('med-module-card');
+        } catch (e) {}
+    }
+}
+
+/** Open the symptom search (also called by SHELFY when the sentence is a symptom). */
+function _medOpenSearch(prefill) {
+    if (!_medOn()) {
+        showToast(t('medical.enable_first'), 'error');
+        return;
+    }
+    const ov = document.getElementById('med-search-overlay');
+    if (!ov) return;
+    ov.style.display = 'flex';
+    const input = document.getElementById('med-search-input');
+    if (input) {
+        input.value = typeof prefill === 'string' ? prefill : '';
+        try { input.focus(); } catch (e) {}
+    }
+    _medSearchInput();
+}
+
+function _medCloseSearch() {
+    const ov = document.getElementById('med-search-overlay');
+    if (ov) ov.style.display = 'none';
+}
+
+let _medSearchTimer = null;
+function _medSearchInput() {
+    const input = document.getElementById('med-search-input');
+    const host = document.getElementById('med-search-results');
+    if (!input || !host) return;
+    const q = input.value.trim();
+    if (_medSearchTimer) clearTimeout(_medSearchTimer);
+    if (q.length < 3) {
+        host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.search_prompt'))}</p>`;
+        return;
+    }
+    host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.searching'))}</p>`;
+    _medSearchTimer = setTimeout(async () => {
+        let r = null;
+        try { r = await api('med_symptom_search', { q }); } catch (e) { r = null; }
+        if (!r || !r.success) {
+            host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.search_error'))}</p>`;
+            return;
+        }
+        _medRenderResults(q, r);
+    }, 250);
+}
+
+function _medRenderResults(q, r) {
+    const host = document.getElementById('med-search-results');
+    if (!host) return;
+    const items = Array.isArray(r.items) ? r.items : [];
+    const matches = Array.isArray(r.matches) ? r.matches : [];
+    const head = `<p class="med-disclaimer">${escapeHtml(t(r.disclaimer_key || 'medical.disclaimer'))}</p>`;
+    if (!matches.length) {
+        host.innerHTML = head + `<p class="med-search-empty">${escapeHtml(t('medical.search_unknown').replace('{q}', q))}</p>`;
+        return;
+    }
+    const labels = matches.map(m => t(m.label_key)).filter(Boolean).join(' · ');
+    if (!items.length) {
+        host.innerHTML = head +
+            `<p class="med-search-groups">${escapeHtml(labels)}</p>` +
+            `<p class="med-search-empty">${escapeHtml(t('medical.search_none'))}</p>`;
+        return;
+    }
+    host.innerHTML = head +
+        `<p class="med-search-groups">${escapeHtml(labels)}</p>` +
+        items.map(item => {
+            const exp = item.expiry_date ? formatDate(item.expiry_date) : '';
+            const qty = (typeof _formatQtyPlain === 'function')
+                ? _formatQtyPlain(item.quantity, item.unit)
+                : `${item.quantity} ${item.unit}`;
+            return `
+            <button type="button" class="med-search-item" onclick="_medOpenItem(${Number(item.inventory_id) || 0})">
+                <span class="med-search-icon" aria-hidden="true">💊</span>
+                <span class="med-search-main">
+                    <span class="med-search-name">${escapeHtml(item.name || '')}</span>
+                    <span class="med-search-meta">${escapeHtml([item.ingredient, qty, exp].filter(Boolean).join(' · '))}</span>
+                </span>
+            </button>`;
+        }).join('') +
+        `<p class="med-search-empty">${escapeHtml(t('medical.no_dosage'))}</p>`;
+}
+
+function _medOpenItem(invId) {
+    _medCloseSearch();
+    if (invId > 0 && typeof showItemDetail === 'function') {
+        try { showItemDetail(invId); } catch (e) {}
+    }
+}
+
+/** Dashboard: expired medicines live in their own block, with "Smaltito" — not "Usa". */
+function _renderMedicalBlock(rows) {
+    const section = document.getElementById('alert-medical');
+    const list = document.getElementById('medical-list');
+    if (!section || !list) return;
+    if (!_medOn() || !Array.isArray(rows) || rows.length === 0) {
+        section.style.display = 'none';
+        list.innerHTML = '';
+        return;
+    }
+    section.style.display = 'block';
+    list.innerHTML = rows.map(item => `
+        <div class="alert-item expired-item alert-item-clickable${_isMedicalRow(item) ? ' is-medical' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
+            <div class="alert-item-info">
+                ${_productThumbHtml(item)}
+                <div class="alert-item-main">
+                    ${_alertItemHead(item)}
+                    <div class="alert-item-meta-row">
+                        ${_alertItemMeta(item)}
+                        <span class="alert-item-verdict safety-pill safety-pill-danger">💊 ${escapeHtml(t('medical.expired_verdict'))}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="alert-item-badges">
+                <button type="button" class="btn-banner btn-banner-throw"
+                        onclick="event.stopPropagation();_medDiscard(${Number(item.id) || 0})">
+                    🗑️ ${escapeHtml(t('medical.discard'))}
+                </button>
+            </div>
+        </div>`).join('');
+    _bindAlertItemsHoldOpen(list);
+}
+
+/** "Smaltito": the existing waste flow, so the ledger learns the reason too. */
+function _medDiscard(invId) {
+    if (!invId) return;
+    try { deleteInventoryItem(invId); } catch (e) {}
+}
+
 const _OVERLAY_CLOSERS = {
     'modal-overlay': () => closeModal(),
     'capture-sheet': () => _closeCaptureSheet(),
     'shelfy-intro':  () => _shelfyCloseIntro(),
     'support-modal': () => closeSupportModal(),
     'recipe-overlay': () => closeRecipeDialog(),
+    // EverShelf Med dialogs: Esc must clean up, not just hide the box.
+    'med-search-overlay': () => _medCloseSearch(),
+    'med-disclaimer-overlay': () => _medCloseDisclaimer(),
+    'med-setup-overlay': () => _medCloseSetup(),
 };
 
 /** Focusable children of a dialog, in tab order. */
@@ -14783,6 +15365,14 @@ async function onBarcodeDetected(barcode) {
             return;
         }
 
+        // EverShelf Med: a Pharmacode / short code the food catalogues do not know is a
+        // medicine, not a failure — open the manual entry prefilled instead of a dead end.
+        if (_medStatus.enabled && _looksLikeMedicineCode(code)) {
+            _setScanHudState('idle');
+            _setScanStatus(t('scan.status_scanning'), '', '');
+            _medStartManualEntry(code);
+            return;
+        }
         showToast(t('error.not_found_manual'), 'error');
         _setScanHudState('idle');
         _setScanStatus(t('scan.status_scanning'), '', '');
@@ -14794,6 +15384,25 @@ async function onBarcodeDetected(barcode) {
         _setScanHudState('idle');
         resumeScanner();
     }
+}
+
+/**
+ * A Pharmacode (Laetus, base-32) or a short numeric code is what a medicine box carries, and
+ * no free food catalogue knows it. It is NOT an error: with the module on, the app opens the
+ * manual entry prefilled instead of saying "not found" and resuming the camera.
+ */
+function _looksLikeMedicineCode(code) {
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return false;
+    // EAN-13 / EAN-8 are the food path; a Pharmacode is 4-7 digits, a Laetus is base-32.
+    if (/^\d{13}$/.test(c) || /^\d{8}$/.test(c)) return false;
+    return /^\d{4,7}$/.test(c) || /^[0-9A-Z]{4,8}$/.test(c);
+}
+
+/** "Codice rilevato": the medicine path of the scanner (no error, no dead end). */
+function _medStartManualEntry(barcode) {
+    showToast(t('medical.code_detected'), 'info', 4000);
+    startManualEntry(barcode);
 }
 
 /** Manual barcode typing was removed from the scan page (soft keyboard covers the camera on Android). */
@@ -23788,6 +24397,8 @@ function _loadWeatherSettingsIntoForm(s) {
     if (city) city.value = s.weather_city || '';
     _updateWeatherLocationLabel();
     applyWeatherUiState();
+    // EverShelf Med: the Settings card must show the real state of the instance too.
+    _medRefreshStatus().catch(() => {});
     if (s.weather_enabled && s.weather_lat && s.weather_lon) {
         refreshWeatherPreview();
     }
@@ -31814,6 +32425,12 @@ async function _initApp() {
         initInactivityWatcher();
     });
     showPage('dashboard');
+    // EverShelf Med (opt-in): the switch is instance-level, so the boot asks the server
+    // once and, only when the module is on, repaints the dashboard with its own block.
+    _medRefreshStatus().then(() => {
+        if (_medOn()) loadDashboard();
+        else _medMaybeAskSetup();
+    }).catch(() => {});
     // A removed location is a one-time piece of news: say it after the app is visible.
     _maybeShowLocationAltroNotice(_serverSettings);
     initSpesaMode();

@@ -105,7 +105,10 @@ php scripts/test-vocabulary.php
 php scripts/test-product-thumb.php
 php scripts/test-opened-shelf-life.php
 php scripts/test-credits.php
+php scripts/test-spesa-flow.php
 php scripts/test-seasonal-match.php
+php scripts/test-medical.php          # opt-in medicines: disclaimer, domain separation, offline ATC matcher, no dosage
+php scripts/test-js-structure.php      # no top-level function swallowed by a missing brace; inline handlers exist
 # full list: ls scripts/test-*.php
 
 # after big edits, regenerate the navigation indexes

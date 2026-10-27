@@ -13,6 +13,191 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.22.2] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **The opened banner threw `_openedQueueSiblings is not defined` on every dashboard paint.**
+  `dismissBannerItemAfterAction()` was missing its closing `}`, so the five functions below it
+  (`_openedQueueSiblings`, `_showOpenedTab`, `bannerUseInRecipe`, `bannerSnoozeOpened`,
+  `_bannerMenuToggle`) were parsed **inside** it: `node -c` passed, the file loaded, and the
+  notice crashed at runtime — "🗑️ Butta / 🍳 Usa per ricetta / ⋮" on an opened product did
+  nothing. The stray brace that used to close the outer function was removed with it.
+- **Same class of bug in `receipt.js`** (`_receiptCancel()` swallowed `_receiptRender` and
+  `_receiptConfirm`): fixed too, even though the receipt flow is parked.
+
+### Added
+- **`scripts/test-js-structure.php`** — the guard that was missing: no top-level `function`
+  may be swallowed by a missing brace (brace matching over every shipped script), and every
+  inline handler in the markup must resolve to a real top-level function, binding or browser
+  API. This is the trap `AGENTS.md` warned about for `core/vocab.js`; now it cannot happen
+  silently in `app.js` either.
+
+## [1.22.1] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **The medicine cabinet dialogs had no surface.** The first-run question (and the mandatory
+  notice and the symptom search) were built with `class="modal-card"` — a class that does not
+  exist in the stylesheets (the app uses `.modal-content`, which is what paints
+  `background: var(--bg-card)`, radius and padding). The overlay dimmed the page while the
+  dialog itself was transparent, so the text floated over the dashboard. The three dialogs now
+  use the real class; one shared primitive, no new CSS.
+- **And above the splash.** The first-run question is drawn while `#app-preloader`
+  (z-index 200000) may still be on screen and `#network-error-overlay` sits at 300000,
+  so the overlay's default 200 could hide it behind the app. The three medical dialogs
+  now sit at 300500 — above both, below the auth overlays (400000) that own pairing.
+
+## [1.22.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **💊 Farmaci is a section of its own** (`Settings → 💊 Farmaci`, next to *Cucina*), and the
+  module is **asked once at boot** when it has never been configured: *"Vuoi gestire anche i
+  farmaci?"* → **Attiva** (with the mandated notice) or **Non ora**, which is stored as a
+  decision and never asks again. Off by default either way.
+- **A dedicated location, with its own colour.** The module cannot be enabled into the pantry:
+  pick the location that already holds the medicines or **create one** ("Armadietto farmaci"),
+  and that location gets its own pill/tint because it holds only that. Medical rows carry a
+  💊 tag and a tint (`.alert-item.is-medical`), never a new palette.
+- **A closed taxonomy of 8 household categories** (`data/medical_categories.json`): *Febbre e
+  dolore, Stomaco e digestione, Raffreddore/tosse/gola, Allergie, Ferite e primo soccorso,
+  Occhi e vista, Crampi e muscoli, Integratori e vitamine* — multi-select on the box, never
+  free text (a free tag would rot the offline search). Each category carries the words the
+  household actually says in the six shipped locales and the ATC prefixes it will map to when
+  the AIFA import lands.
+- **Simplified PAO per medicine.** "Scade dopo l'apertura: [30] giorni" + **🔓 Segna aperto**
+  on each box: the operational expiry becomes *today + N* (`expiry_user_set = 1`, so a rescan
+  cannot undo it) and the notice fires from that date. Only the boxes with a number set are
+  rewritten; the printed date still rules until the seal is broken.
+- **The scanner knows the difference.** A Pharmacode/Laetus or a short code the food
+  catalogues cannot know is **not an error**: with the module on, the app opens the manual
+  entry prefilled and says *"Codice rilevato. Inserisci il nome del farmaco e scegli a cosa
+  serve."*; EAN-13/EAN-8 stay on the food path, and a known medicine opens the product modal.
+- **Medicines keep their place in the expiry lists** (expiring rows with the 💊 tint) while an
+  **expired** box still leaves the "Scaduti" block for its own one with **🗑️ Smaltito** —
+  special waste, never "save it by cooking it".
+
+### Notes
+- **Free APIs**: already surfaced in the **preloader** strip and in *Settings → 💚 Crediti*
+  (with what each service gives us, where we use it and its licence), fed by
+  `data/free_apis.json`; nothing new was needed here.
+- **Phase 2 (parked, documented)**: AIFA open data filtered to OTC/SOP classes only (a 2–3 MB
+  local catalogue instead of the whole hospital dataset), Pharmacode → AIC decode on the
+  scanner, duplicate-active-ingredient warning and the leaflet link. Nothing of this phase
+  invents drug data.
+
+## [1.21.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **💊 EverShelf Med — the medicine cabinet, opt-in.** Off by default (`MED_ENABLED` or the
+  *Settings → Salute* switch): a household that only counts tomatoes never sees a single
+  medicine string. Turning it on **without accepting the notice** opens the notice instead of
+  enabling anything — the acceptance is stored once per instance (`med_disclaimer_accepted`),
+  so a new phone is not re-asked, and the medical UI does not open without it.
+- **Two domains, never mixed.** A location can be marked as medical (*Settings → Salute*), and
+  `products.is_medical` marks a single box. Those rows are **excluded from the recipe flow**
+  (`inventory_list?for_recipe=1` filters them server-side) and an **expired medicine leaves the
+  “Scaduti” block** — it is not food to save by cooking: it gets its own block with
+  **🗑️ Smaltito** (special waste, “portali in farmacia”).
+- **“What do I have for…?” — deterministic and offline.** `data/medical_atc.json` maps ATC groups
+  to labels and to the words a household actually says, in **all six locales**; `medicalMatchSymptom()`
+  tries the **longest phrase first** (“mal di testa” before “testa”), `med_symptom_search` returns
+  only the medical rows that match, and **no AI, no network, no dosage** is involved. The
+  disclaimer is the first block of the answer, and the copy never states a dose (guard-tested).
+- **Classification without a fake catalogue.** The AIFA/AIC import is a later step (and inventing
+  drug data is not an option), so the household teaches the module: each box in a medical
+  location gets an **ATC group chosen from the local map** (never free text) and its **active
+  ingredient** (`med_classify`, logged as `med_classify`). That is what the symptom search reads.
+- **SHELFY asks the map, not the model.** When the capture cannot act on a sentence and the module
+  is on, “ho un forte mal di testa” is handed to the local symptom map; if it matches, the capture
+  sheet closes and the answer opens in its own sheet — the sentence is never turned into a product.
+
+### Docs
+- `data/medical_atc.json` is **data**, like the vocabulary: a new symptom group is a JSON row plus
+  six label keys. Guard test: `scripts/test-medical.php` (42 checks: opt-in, disclaimer, domain
+  separation, matcher, safety copy, schema, wiring).
+
+## [1.20.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **The scale no longer lies about being connected.** The Android bridge answers every new
+  relay client by **replaying its cached status** (`connected`, device `QN-KS`, battery) **and
+  the last weight** — with the physical scale switched off. The app trusted that one message
+  and painted a green pill with “448.5 g” that nobody had just weighed (verified by dumping
+  the relay: status + one weight, then silence for 12 s). Rules now: the **first** reading of
+  a relay session is the cached replay and is ignored (never shown, never used to autofill a
+  form); a reading is **live** only when a second one arrives and the last is younger than
+  `SCALE_LIVE_MS` (10 s); **“gateway reached” alone is not “scale on”** — the pill stays neutral
+  with an amber pulse and says *waiting for the scale* (`scale.status_waiting`, six locales).
+  The live window also expires by itself (5 s tick), so a replay that stopped cannot leave a
+  weight on screen.
+
+### Added
+- **The scale is a hardware indicator, not a ghost icon** (audit, round 14). It was a white
+  glyph on a white header with a 6 px dot, and its feedback was a toast that covered the
+  buttons. Now: **hidden** when no gateway is configured; a neutral pill with a crossed-Bluetooth
+  look while it searches; a **mint pill with the live weight** (`⚖️ 245 g · 🔋`) when a real
+  reading streams. Tapping opens a **popover** under the icon — device, battery, the weight in
+  large, **Tara** (local baseline, since the bridge is read-only) and **Disconnetti/Connetti**
+  — instead of a bottom toast.
+- **The scanner owns a nav slot.** The bottom bar had a “Ricette” tab while the dashboard
+  already carries the orange recipe CTA; the slot now reads **📷 Scanner**, so the camera is
+  under the thumb on a phone or a kiosk. Recipes keep their CTA and SHELFY.
+- **Scanning something you already have opens the product modal** (consume / consume all /
+  throw) instead of the old full-page product sheet: a barcode at the fridge is an action, not
+  a description to read.
+
+### Changed
+- **The shopping session scans first and asks for the total at the end.** Tapping the cart used
+  to open the camera **and** the “how much did you spend?” dialog at once — a form on top of the
+  live video, covering the first product. Now: cart → continuous scanning → *Fine spesa* →
+  optional **numeric keypad** with the total (only when something was actually loaded),
+  `[Salva totale]` / `[Salta]`.
+- **The receipt file-upload is gone** (the `Scontrino` button on the scan page, and its settings
+  toggle is parked/hidden): nobody browses a file manager on a wall tablet while emptying the
+  bags, and a crumpled thermal receipt is exactly what local text extraction gets wrong. The
+  OCR code stays in the repo, unreachable, for the day a camera path lands.
+
+### Tests
+- New `scripts/test-spesa-flow.php` (24 checks): camera first, amount only at the end, keypad
+  present, `spend_add` still the ledger entry, no file input on the scan page, six locales.
+- `scripts/test-ui-palette.php` grew to **75 checks**: the scale pill/popover, “a gateway replay
+  cannot paint a live pill”, the scanner tab replacing the recipes tab, the ✓-opens-the-modal
+  rule, and the barcode→modal rule. `scripts/test-receipt-ocr.php` now asserts the entry point
+  is **absent** and the toggle parked.
+
+## [1.19.1] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Fixed
+- **No more flashbang at boot.** The splash is `#0c1222` and the app is white: swapping one
+  for the other in a frame blinded a dark kitchen. The launch is now three soft steps — the
+  content fades (200 ms), the canvas lifts to the app colour (`is-lifting`), then the element
+  fades out in **300 ms** and is removed after the transition (it used to be removed 60 ms
+  early, cutting the fade).
+- **The boot check list is for developers, not for the household.** Thirty lines of
+  "Controllo PHP", "PHP upload (16M)", "Config sessione"… and 40 ms of artificial wait each
+  (plus a forced 3 s minimum splash) are gone from normal boots: the rail still settles — so
+  a real failure stays visible with its popup — and the only line is **"Sistema pronto"** for
+  a beat. The full list is back with `?debug=1` (or `localStorage.evershelf_debug = '1'`),
+  where the 3 s pacing and the per-check labels still apply.
+- **One surface for "consume", not two.** The row's **✓ Usa** closed the sheet and navigated
+  to the legacy full-page USE form (the old red "Usa TUTTO", the green bar, the purple
+  recipe button) while the same row's **⋮** opened the clean product modal — the same
+  decision drawn twice. The ✓ now opens **the same modal** (stepper + primary), and
+  **"Ho consumato tutto"** keeps the slide-to-confirm dialog **over the modal** instead of
+  navigating (`_loadUseProduct()` separates the data load from the page). The guided page is
+  left to SHELFY and the scale, which drive its fields.
+
+### Changed
+- **The credits left the overview.** That footer took a third of a phone screen right above
+  the nav bar, stealing space from the food lists: the thanks now live in **Settings → 💚
+  Crediti** (and in the 🔌 card), while the **splash** keeps showing the marks at boot.
+
+### Tests
+- `scripts/test-preloader-stages.php` locks the debug gate (`?debug=1`, debug-only 40 ms and
+  3 s pacing), the `is-lifting` sequence and the 300 ms fade;
+  `scripts/test-ui-palette.php` locks "✓ Usa opens the modal" and "consume everything stays in
+  the modal"; `scripts/test-credits.php` now asserts the overview is **free** of the credits
+  footer.
+
 ## [1.19.0] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Added

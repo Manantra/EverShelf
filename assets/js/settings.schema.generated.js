@@ -9,6 +9,7 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
         "tab-bring": "cooking",
         "tab-recipe": "cooking",
         "tab-health": "cooking",
+        "tab-medical": "medical",
         "tab-mealplan": "cooking",
         "tab-appliances": "cooking",
         "tab-camera": "app",
@@ -526,6 +527,18 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "card_hint": "settings.weather.hint",
             "keywords": "",
             "type": "text"
+        },
+        {
+            "id": "setting-med-enabled",
+            "env": "MED_ENABLED",
+            "tab": "tab-medical",
+            "group": "medical",
+            "label": "medical.enable",
+            "hint": "medical.location_required",
+            "card": "medical.title",
+            "card_hint": "medical.hint",
+            "keywords": "",
+            "type": "bool"
         },
         {
             "id": "setting-health-enabled",

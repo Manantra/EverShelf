@@ -198,8 +198,14 @@ assert_true(!preg_match('/visibleExpired = [\s\S]{0,500}getExpiredSafety/', $js)
     'the expired list is never filtered by the verdict (a "Va bene" row is still past its date)');
 assert_true(str_contains($js, '.sort((a, b) => _daysPast(b) - _daysPast(a));'),
     'the newest expiry comes first, so the cap cannot hide the row that just expired');
-assert_true(str_contains($js, "const visibleExpired = (statsData.expired || [])"),
+assert_true(str_contains($js, "const visibleExpiredAll = (statsData.expired || [])"),
     'the expired list starts from the server payload');
+// EverShelf Med: the medical rows leave the food block for their own one, but only when
+// the module is on — with the module off nothing is filtered out.
+assert_true(str_contains($js, 'const medicalExpired = _medOn() ? visibleExpiredAll.filter(_isMedicalRow) : [];'),
+    'the medical rows are split out only while the module is on');
+assert_true(str_contains($js, "const visibleExpired = medicalExpired.length"),
+    'the food block keeps every non-medical row when the module is on');
 
 // ── The new labels exist in all six locales ────────────────────────────────
 $required = ['status.dont_drink', 'status.tip_expires_today', 'status.tip_drink_check', 'status.tip_drink_danger'];

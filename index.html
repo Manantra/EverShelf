@@ -291,6 +291,14 @@
                 <h3 data-i18n="dashboard.expired_title">🚫 Scaduti</h3>
                 <div id="expired-list"></div>
             </div>
+
+            <!-- EverShelf Med: an expired medicine is NOT food to save by cooking it —
+                 it is special waste. Own block, own action, only when the module is on. -->
+            <div class="alert-section alert-danger" id="alert-medical" style="display:none">
+                <h3 data-i18n="medical.expired_title">💊 Farmaci scaduti o aperti da troppo</h3>
+                <p class="alert-section-hint" data-i18n="medical.expired_hint">Non si cucinano e non si usano: vanno smaltiti. Portali in farmacia o al punto di raccolta dei rifiuti speciali.</p>
+                <div id="medical-list"></div>
+            </div>
         </section>
 
         <!-- Analytics live in Storico now (UI audit, block 4): the dashboard is for
@@ -1128,6 +1136,7 @@
         <div class="settings-groups" role="tablist" aria-label="Sezioni" data-i18n-aria="settings.groups_aria">
             <button class="settings-group-btn active" data-group="app" role="tab" aria-selected="true" onclick="switchSettingsGroup('app')" data-i18n="settings.group_app">🤖 App &amp; AI</button>
             <button class="settings-group-btn" data-group="cooking" role="tab" aria-selected="false" onclick="switchSettingsGroup('cooking')" data-i18n="settings.group_cooking">🍳 Cucina</button>
+            <button class="settings-group-btn" data-group="medical" role="tab" aria-selected="false" onclick="switchSettingsGroup('medical')" data-i18n="settings.group_medical">💊 Farmaci</button>
             <button class="settings-group-btn" data-group="alerts" role="tab" aria-selected="false" onclick="switchSettingsGroup('alerts')" data-i18n="settings.group_alerts">🔔 Avvisi</button>
             <button class="settings-group-btn" data-group="system" role="tab" aria-selected="false" onclick="switchSettingsGroup('system')" data-i18n="settings.group_system">⚙️ Sistema</button>
         </div>
@@ -1138,6 +1147,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-group="cooking" data-tab="tab-bring" title="Lista spesa" data-i18n-title="settings.shopping.tab"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-group="cooking" data-tab="tab-recipe" title="Ricette" data-i18n-title="settings.tab_recipe"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-group="cooking" data-tab="tab-health" title="Salute" data-i18n-title="settings.tab_health"><span class="settings-tab-icon">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-medical')" data-group="medical" data-tab="tab-medical" title="Farmaci" data-i18n-title="settings.tab_medical"><span class="settings-tab-icon">💊</span><span class="settings-tab-text" data-i18n="settings.tab_medical">Farmaci</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-group="cooking" data-tab="tab-mealplan" title="Piano Settimanale" data-i18n-title="settings.tab_mealplan"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-group="cooking" data-tab="tab-appliances" title="Elettrodomestici" data-i18n-title="settings.tab_appliances"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-group="app" data-tab="tab-camera" title="Fotocamera" data-i18n-title="settings.tab_camera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
@@ -1718,6 +1728,43 @@
                         <div id="weather-preview" class="settings-hint" style="margin-top:8px"></div>
                         <p class="settings-hint" style="margin-top:10px;font-size:0.78rem" data-i18n="settings.weather.attribution">Dati meteo: Open-Meteo.com (CC BY 4.0)</p>
                     </div>
+                </div>
+            </div>
+            <!-- EverShelf Med — its own SECTION, like "Cucina": a household that does not
+                 want medicines never meets them. OPT-IN: the switch stores the module, the
+                 acceptance of the notice is what actually enables it, and the module needs a
+                 DEDICATED location (create it here or pick one), painted differently. -->
+            <div class="settings-panel" id="tab-medical">
+                <div class="settings-card" id="med-module-card">
+                    <h4 data-i18n="medical.title">💊 Farmaci e armadietto</h4>
+                    <p class="settings-hint" data-i18n="medical.hint">Modulo opzionale: separa i farmaci dal cibo e risponde a «cosa ho in casa per…» con i tuoi prodotti, non con consigli. Disattivo finché non lo accendi.</p>
+                    <div class="form-group" style="margin-top:8px">
+                        <label class="toggle-row">
+                            <span data-i18n="medical.enable">Abilita gestione farmaci e armadietto</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-med-enabled" onchange="onMedEnabledChange()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="med-locations-block" hidden>
+                        <p class="settings-hint" data-i18n="medical.location_required">Il modulo vive in una locazione dedicata: creala qui o scegli quella che contiene già i farmaci. Quella locazione avrà un colore suo, perché dentro c'è solo questo.</p>
+                        <div class="med-location-picker">
+                            <select id="med-location-select" class="input" onchange="onMedLocationPick(this)"></select>
+                            <button type="button" class="btn btn-outline" onclick="onMedLocationCreate()" data-i18n="medical.location_create">＋ Nuova locazione</button>
+                        </div>
+                        <div class="med-new-location">
+                            <input type="text" class="input" id="med-new-location-input" maxlength="40"
+                                   placeholder="Armadietto farmaci" data-i18n-placeholder="medical.new_location_placeholder">
+                        </div>
+                        <div class="med-locations-list" id="med-locations-list"></div>
+                        <!-- Classification: the categories are a CLOSED list (data file), never
+                             free text, or the offline symptom search would rot. -->
+                        <p class="settings-hint" data-i18n="medical.classify_hint">Classifica i farmaci che hai in casa: le categorie servono a rispondere a «cosa ho in casa per…».</p>
+                        <div class="med-classify-list" id="med-classify-list"></div>
+                    </div>
+                    <button type="button" class="btn btn-outline full-width" id="med-search-btn" hidden onclick="_medOpenSearch()" data-i18n="medical.search_open">🔎 Cerca in casa per sintomo</button>
+                    <p class="settings-hint" data-i18n="medical.disclaimer_short">EverShelf è un inventario domestico: non fornisce diagnosi, non sostituisce il medico e non indica dosi.</p>
                 </div>
             </div>
             <!-- Health / personal biology Tab -->
@@ -3125,15 +3172,32 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261027e"></script>
-<script src="assets/js/food_facts.generated.js?v=20261027e"></script>
-<script src="assets/js/free_apis.generated.js?v=20261027e"></script>
-<script src="assets/js/core/vocab.js?v=20261027e"></script>
-<script src="assets/js/app.js?v=20261027e"></script>
-<script src="assets/js/audit.js?v=20261027e"></script>
-<script src="assets/js/receipt.js?v=20261027e"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261027e"></script>
-<script src="assets/js/settings_search.js?v=20261027e"></script>
+<!-- EverShelf Med: the symptom search. The disclaimer is the FIRST thing in the dialog and
+     cannot be scrolled away from the list: the app lists what is in the house, the doctor
+     decides what to take. No dosage, no diagnosis, no AI. -->
+<div class="modal-overlay" id="med-search-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="med-search-title">
+    <div class="modal-content med-search-card">
+        <div class="modal-header">
+            <h3 id="med-search-title" data-i18n="medical.search_title">🔎 Cosa ho in casa per…</h3>
+            <button type="button" class="modal-close" onclick="_medCloseSearch()" aria-label="Chiudi" data-i18n-aria="btn.close">✕</button>
+        </div>
+        <p class="med-disclaimer" data-i18n="medical.disclaimer">EverShelf è un inventario domestico. Non fornisce diagnosi, non sostituisce il medico e non indica dosi: le indicazioni restano quelle del foglio illustrativo e del professionista sanitario.</p>
+        <input type="text" class="input" id="med-search-input" autocomplete="off"
+               placeholder="mal di testa, febbre, allergia…" data-i18n-placeholder="medical.search_placeholder"
+               oninput="_medSearchInput()">
+        <div id="med-search-results" class="med-search-results"></div>
+    </div>
+</div>
+
+<script src="assets/js/vocab.generated.js?v=20261027l"></script>
+<script src="assets/js/food_facts.generated.js?v=20261027l"></script>
+<script src="assets/js/free_apis.generated.js?v=20261027l"></script>
+<script src="assets/js/core/vocab.js?v=20261027l"></script>
+<script src="assets/js/app.js?v=20261027l"></script>
+<script src="assets/js/audit.js?v=20261027l"></script>
+<script src="assets/js/receipt.js?v=20261027l"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261027l"></script>
+<script src="assets/js/settings_search.js?v=20261027l"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>
