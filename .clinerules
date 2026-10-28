@@ -48,7 +48,10 @@ runtime/binary files — if a task truly needs one, ask first.
   that writes the outcome, neutral secondaries for the rest, no pastel per-button
   colours; every banner action stays inline (never behind a ⋮). A product row opens
   with `_productThumbHtml()` (44×44, neutral frame, category emoji fallback — never
-  a broken image or an empty square).
+  a broken image or an empty square) — and a **medicine** opens with its own drawn
+  mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:
+  same for the plain emoji slots (`_productCatIconHtml()`), the `badge-medical`
+  badge and the place icons (`_locIconMarkup()`), where the cabinet is the pill.
 - **Product titles** (`products.name`/`kind`) go exclusively through
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.

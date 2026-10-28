@@ -3026,6 +3026,16 @@
     "resume_scan": "Scan again",
     "form_qty_label": "How much do you have",
     "form_expiry_label": "📅 Expiry date printed on the box *",
+    "form_save": "✅ Save to the medicine cabinet",
+
+    "expiry_month_hint": "The box prints a month and a year: it is good until the last day of that month.",
+    "expiry_month_placeholder": "Month",
+    "expiry_year_placeholder": "Year",
+    "add_title": "Add to the medicine cabinet",
+    "action_add_sub": "in the medicine cabinet",
+    "action_use_sub": "from the medicine cabinet",
+    "stock_added": "{name} is in the medicine cabinet.",
+
     "ask_title": "I cannot read the code",
     "ask_body": "Type it below exactly as printed on the box (e.g. A040313076), or try scanning again.",
     "almost_title": "The code is not exact: which pack do you have?",

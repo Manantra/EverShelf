@@ -5,6 +5,48 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-10-28
+
+### Changed
+- **Scanning a medicine no longer asks where to put it — nor the quantity twice.** A recognised
+  box is stocked from the medicine form itself (`_medStockAddDirect()`): the answers on that one
+  screen — how many, the printed expiry, sealed/opened — write the pantry row **straight into the
+  cabinet the module owns**, and the flow ends on the dashboard with a confirmation. The pantry
+  step, with its "📍 Dove lo metti?", is gone from the medicine flow; it survives only as the
+  fallback of a refused write (no cabinet configured, a server answer), with every answer already
+  filled in.
+- **A box's expiry is a month and a year.** `#pf-med-expiry` is no longer a `type=date`: two
+  pickers ask exactly what the pack prints ("scadenza 10/2026", `_medExpiryFillPickers()` /
+  `_medExpiryPick()`), and the stored value is the **last day of that month**
+  (`_medExpiryIso()`) — which is what the print means. The same pair replaces the date field of a
+  medicine on the pantry step (`_medAddExpiryHtml()`), where the "nuovo acquisto / già in
+  dispensa" question — a pantry concept — is gone as well.
+- **No food or pantry wording left in the medicine flow**: the submit button says what the tap
+  does (`medical.form_save`, "Salva nell'armadietto"), the pantry step of a medicine is titled
+  "Aggiungi all'armadietto" and **hides the place picker** (`#add-location-group`: a medicine has
+  one legal place), the action page of a medical row says "nell'armadietto dei farmaci" instead
+  of "in dispensa/frigo" and offers **no recipe button at all** (`medical.action_add_sub`,
+  `medical.action_use_sub`), and no rule, hint or toggle can estimate a date on a medicine
+  (`recalculateAddExpiry()` returns early for a medical row).
+
+### Fixed
+- **A medicine no longer wears the food icon.** Every row fell back to its food **category**
+  emoji when the URL had no picture — and a medicine is stored as `altro`, so a box of tablets was
+  drawn as 📦, the same mark a custom place and an unidentified product use (a mis-saved category
+  could even put a 🥛 on it). EverShelf Med now has its own drawn mark,
+  `assets/img/icons/medicine.svg` (a capsule with a cross, in the module's medical tint
+  `#6366f1`, shipped in the service-worker shell) and one rule for drawing it:
+  * `_productThumbHtml()` uses it as the fallback of a medical row (pantry, dashboard, banner),
+    with the medical tint on the frame;
+  * `_productCatIconHtml()` covers the plain emoji slots (detail sheet, action hero, add preview,
+    products list);
+  * the pantry badge says **Farmaco** (`medical.row_tag`) instead of the food category, and the
+    "altro → let the AI guess a category" repair never touches a box;
+  * grouped lists put medicines under their own **Farmaco** group with the pill as the header;
+  * `_locIconMarkup()` draws the **place**: the cabinet is the pill in the dashboard pill, the
+    pantry tab and every place picker (native `<option>`s keep the 💊 character, an image cannot
+    go in an option label).
+
 ## [1.28.7] - 2026-10-28
 
 ### Fixed

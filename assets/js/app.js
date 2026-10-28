@@ -152,10 +152,67 @@ function _validProductImageUrl(url) {
     return u.includes('.') && u.length > 5;
 }
 
+/** The medicine mark (EverShelf Med): a drawn capsule, never a category emoji. */
+const _MED_ICON_SRC = 'assets/img/icons/medicine.svg';
+
+/**
+ * The medicine cabinet's mark, as markup.
+ *
+ * A medicine is not a category of food, so it must not wear one. Its thumbnail fallback used to
+ * be the category emoji — `altro` is 📦, the same box a custom place and an unidentified product
+ * use — so a box of tablets looked exactly like an unidentified food, and a mis-saved category
+ * could even put a 🥛 on it. One drawn asset instead (`assets/img/icons/medicine.svg`), in the
+ * medical tint the module already owns, used by the row thumbnails, the location pills, the
+ * pantry tab and the place pickers. Text-only places (a native `<option>`) keep the 💊
+ * character: an image cannot go inside an option label.
+ *
+ * @param {string} [extraClass] e.g. 'med-icon-lg' inside a 44 px frame
+ * @returns {string} an <img>; alt is empty because the row already says "Farmaco"
+ */
+function _medIconMarkup(extraClass = '') {
+    return `<img class="med-icon${extraClass ? ' ' + extraClass : ''}" src="${_MED_ICON_SRC}"`
+        + ` alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+}
+
+/**
+ * The icon of a PLACE, as markup: the cabinet wears the drawn medicine mark, every other place
+ * its emoji (🗄️ / 🧊 / ❄️ / 📦).
+ *
+ * One rule for the row badges, the detail sheet and the pickers, so the same cabinet is never
+ * drawn two different ways on one screen. `meta` is the `LOCATIONS` entry (or a fallback), and
+ * its label is what identifies a cabinet stored as a typed label instead of a slug.
+ *
+ * @param {string} locKey a location slug
+ * @param {{icon?:string,label?:string}} [meta] the place's label/emoji
+ * @returns {string} markup
+ */
+function _locIconMarkup(locKey, meta) {
+    const m = meta || {};
+    if (isMedicalLocation(locKey, m.label)) return _medIconMarkup();
+    return m.icon || CUSTOM_LOCATION_ICON;
+}
+
 function _invImageHtml(imageUrl, catIcon) {
     if (!_validProductImageUrl(imageUrl)) return catIcon || '';
     const fallback = String(catIcon || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     return `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${fallback}'">`;
+}
+
+/**
+ * The emoji slot of a product row, with the medicine exception.
+ *
+ * Rows that lead with `_productThumbHtml()` get the medicine mark for free; this is for the few
+ * plain slots that draw an emoji directly (the detail sheet, the action page hero, the add
+ * preview, the products list). A medicine never shows a food category there: it shows the same
+ * drawn pill the cabinet uses.
+ *
+ * @param {object} item a product or an inventory row
+ * @param {string} [extraClass] size class inside the frame (`med-icon-lg` by default)
+ * @returns {string} markup: an <img> for a medicine, the escaped category emoji otherwise
+ */
+function _productCatIconHtml(item, extraClass = 'med-icon-lg') {
+    if (_isMedicalRow(item)) return _medIconMarkup(extraClass);
+    return escapeHtml(CATEGORY_ICONS[mapToLocalCategory(item && item.category, item && item.name)] || '📦');
 }
 
 /**
@@ -167,7 +224,9 @@ function _invImageHtml(imageUrl, catIcon) {
  * the component: light surface, hairline border, `object-fit: contain`.
  *
  * The fallback is never a broken image and never an empty square: the category emoji sits
- * UNDER the picture and is revealed when the URL is missing or fails to load (`is-icon`).
+ * UNDER the picture and is revealed when the URL is missing or fails to load (`is-icon`) —
+ * and for a medicine that emoji is the medicine mark, never the food category
+ * (`_medIconMarkup()`), so a row of tablets is not drawn as "📦 altro".
  * `opts.icon === false` returns nothing at all (a list already grouped by category shows
  * the emoji once, in its header).
  */
@@ -175,10 +234,13 @@ function _productThumbHtml(item, opts = {}) {
     const it = item || {};
     const url = _validProductImageUrl(it.image_url) ? String(it.image_url).trim() : '';
     if (!url && opts.icon === false) return '';
-    const icon = CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦';
+    const medical = _isMedicalRow(it);
+    const icon = medical
+        ? _medIconMarkup('med-icon-lg')
+        : escapeHtml(CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦');
     const extra = opts.className ? ' ' + String(opts.className) : '';
-    return `<span class="product-thumb${url ? '' : ' is-icon'}${extra}" aria-hidden="true">`
-        + `<span class="product-thumb-emoji">${escapeHtml(icon)}</span>`
+    return `<span class="product-thumb${url ? '' : ' is-icon'}${medical ? ' is-medical' : ''}${extra}" aria-hidden="true">`
+        + `<span class="product-thumb-emoji">${icon}</span>`
         + (url
             // escapeAttr, not escapeHtml: this lands inside a quoted attribute, and a URL
             // the user can type must not be able to close it.
@@ -1622,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zq'; // bump when translations change
+const _I18N_VERSION = '20261028zv'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2409,7 +2471,9 @@ function _renderLocationSelector(sel, hiddenId, clickFn, currentVal, kind = 'any
     const cur = resolveLocationKey(currentVal || document.getElementById(hiddenId)?.value || 'dispensa');
     el.innerHTML = entries.map(([key, meta], idx) => {
         const active = key === cur || (!LOCATIONS[cur] && idx === 0);
-        return `<button type="button" class="loc-btn${active ? ' active' : ''}" data-loc="${escapeAttr(key)}" onclick="${clickFn}(this, '${key}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
+        // The cabinet wears its own drawn mark, the pantry/fridge keep their emoji.
+        const icon = isMedicalLocation(key) ? _medIconMarkup() : meta.icon;
+        return `<button type="button" class="loc-btn${active ? ' active' : ''}" data-loc="${escapeAttr(key)}" onclick="${clickFn}(this, '${key}')">${icon} <span>${escapeHtml(meta.label)}</span></button>`;
     }).join('');
     const hidden = document.getElementById(hiddenId);
     if (hidden && !entries.some(([key]) => key === hidden.value)) {
@@ -2429,7 +2493,7 @@ function rebuildLocationPickers() {
             .concat(rest.map(([key, meta]) =>
                 `<option value="${escapeAttr(key)}">${escapeHtml(`${meta.icon} ${meta.label}`)}</option>`));
         tabs.innerHTML = medical.map(([key, meta]) =>
-                `<button type="button" class="tab tab-medical" data-loc="${escapeAttr(key)}" onclick="filterLocation('${escapeAttr(key)}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`).join('')
+                `<button type="button" class="tab tab-medical" data-loc="${escapeAttr(key)}" onclick="filterLocation('${escapeAttr(key)}')">${_medIconMarkup()} <span>${escapeHtml(meta.label)}</span></button>`).join('')
             + `<select class="location-select" id="location-select" aria-label="${escapeAttr(t('inventory.location_filter'))}"`
             + ` onchange="filterLocation(this.value)">${options.join('')}</select>`;
         _syncLocationFilterUi();
@@ -2471,7 +2535,7 @@ function renderCustomLocations(list) {
     }
     container.innerHTML = items.map((name, i) => {
         // The medicine cabinet wears the pill here too, not a cardboard box.
-        const icon = isMedicalLocation(slugifyCustomLocation(name), name) ? MEDICAL_LOCATION_ICON : CUSTOM_LOCATION_ICON;
+        const icon = isMedicalLocation(slugifyCustomLocation(name), name) ? _medIconMarkup() : CUSTOM_LOCATION_ICON;
         return `
         <div class="appliance-item">
             <span>${icon} ${escapeHtml(name)}</span>
@@ -9033,7 +9097,7 @@ function renderLocationRail(summary, stats) {
             : '';
         return `<button type="button" class="location-pill location-pill-medical${count === 0 ? ' is-empty' : ''}"`
             + ` data-loc="${escapeAttr(key)}" onclick="showPage('inventory', '${escapeAttr(key)}')">`
-            + `<span class="loc-icon" aria-hidden="true">${MEDICAL_LOCATION_ICON}</span>`
+            + `<span class="loc-icon" aria-hidden="true">${_medIconMarkup()}</span>`
             + `<span class="loc-label">${escapeHtml(meta.label)}</span>`
             + `<span class="loc-count">${count}</span>${dot}</button>`;
     }).join('');
@@ -10275,7 +10339,7 @@ async function loadDashboard() {
                         <div class="alert-item-main">
                             ${_alertItemHead(item)}
                             ${_alertItemMeta(item)}
-                            ${_isMedicalRow(item) ? `<span class="alert-medical-tag">💊 ${escapeHtml(t('medical.row_tag'))}</span>` : ''}
+                            ${_isMedicalRow(item) ? `<span class="alert-medical-tag">${_medIconMarkup()} ${escapeHtml(t('medical.row_tag'))}</span>` : ''}
                         </div>
                     </div>
                     <div class="alert-item-badges">
@@ -12089,15 +12153,18 @@ function bannerPrev() {
 
 // Group items by local category and render with category headers
 function renderGroupedByCategory(items, compact = false) {
+    // A medicine gets a group of its own: "📦 Altro" is the food umbrella, and a box of tablets
+    // is not an unidentified food (the pill header says what it is).
+    const MED_GROUP = 'medical';
     const catGroups = {};
     items.forEach(item => {
-        const localCat = mapToLocalCategory(item.category, item.name);
+        const localCat = _isMedicalRow(item) ? MED_GROUP : mapToLocalCategory(item.category, item.name);
         if (!catGroups[localCat]) catGroups[localCat] = [];
         catGroups[localCat].push(item);
     });
     
-    // Sort categories: use CATEGORY_ICONS key order
-    const catOrder = Object.keys(CATEGORY_ICONS);
+    // Sort categories: use CATEGORY_ICONS key order (the medicine group closes the list)
+    const catOrder = [...Object.keys(CATEGORY_ICONS), MED_GROUP];
     const sortedCats = Object.keys(catGroups).sort((a, b) => {
         const ia = catOrder.indexOf(a);
         const ib = catOrder.indexOf(b);
@@ -12107,8 +12174,10 @@ function renderGroupedByCategory(items, compact = false) {
     let html = '';
     for (const cat of sortedCats) {
         const catItems = _sortOpenedFirst(catGroups[cat]);
-        const label = categoryText(cat) || cat;
-        html += `<div class="cat-group-header"><span class="cat-group-icon">${CATEGORY_ICONS[cat] || '📦'}</span> ${escapeHtml(label)} <span class="cat-group-count">${catItems.length}</span></div>`;
+        const isMedGroup = cat === MED_GROUP;
+        const label = isMedGroup ? t('medical.row_tag') : (categoryText(cat) || cat);
+        const icon = isMedGroup ? _medIconMarkup() : (CATEGORY_ICONS[cat] || '📦');
+        html += `<div class="cat-group-header${isMedGroup ? ' is-medical' : ''}"><span class="cat-group-icon">${icon}</span> ${escapeHtml(label)} <span class="cat-group-count">${catItems.length}</span></div>`;
         // Rows under a category header: show photo or blank tile (no repeat food emoji)
         html += catItems.map(item => compact ? renderDashItem(item, { hideCatIcon: true }) : renderInventoryItem(item, { hideCatIcon: true })).join('');
     }
@@ -12117,11 +12186,15 @@ function renderGroupedByCategory(items, compact = false) {
 
 function renderDashItem(item, opts = {}) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
-    const thumb = opts.hideCatIcon
-        ? (_validProductImageUrl(item.image_url)
-            ? _invImageHtml(item.image_url, '')
-            : '')
-        : _invImageHtml(item.image_url, catIcon);
+    // A medicine always wears its own mark: it is not a food category, so hiding the category
+    // emoji (a grouped list) must not leave a box of tablets blank or with a 📦 on it.
+    const thumb = _isMedicalRow(item)
+        ? _productThumbHtml(item)
+        : (opts.hideCatIcon
+            ? (_validProductImageUrl(item.image_url)
+                ? _invImageHtml(item.image_url, '')
+                : '')
+            : _invImageHtml(item.image_url, catIcon));
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
@@ -12549,8 +12622,13 @@ async function loadInventory() {
 function renderInventoryItem(item, opts = {}) {
     const catKey = mapToLocalCategory(item.category, item.name);
     const catIcon = CATEGORY_ICONS[catKey] || '📦';
-    // Text only — image/icon on the left (or category header) already shows the food emoji once
-    const catBadge = `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${escapeHtml(categoryText(catKey))}</span>`;
+    // A medicine is not a food category: it carries its own badge ("Farmaco"), and the food
+    // badge — with the "altro → let the AI guess a category" repair behind it — never applies.
+    const medRow = _isMedicalRow(item);
+    // Text only — image/icon on the left (or category header) already shows the emoji once
+    const catBadge = medRow
+        ? `<span class="inv-badge badge-medical">${_medIconMarkup()} ${escapeHtml(t('medical.row_tag'))}</span>`
+        : `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${escapeHtml(categoryText(catKey))}</span>`;
     // Family (#284): the child is what you have, the umbrella is how much of it.
     const familyBadge = (item.parent_name && Number(item.family_count) > 1)
         ? `<span class="inv-badge badge-family">${escapeHtml(t('product_family.card')
@@ -12584,9 +12662,11 @@ function renderInventoryItem(item, opts = {}) {
     const openedBadge = item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '';
     const isFav = !!Number(item.is_favorite);
     const favTitle = isFav ? t('inventory.unfavorite') : t('inventory.favorite');
-    const thumb = opts.hideCatIcon
-        ? (_validProductImageUrl(item.image_url) ? _invImageHtml(item.image_url, '') : '')
-        : _invImageHtml(item.image_url, catIcon);
+    const thumb = medRow
+        ? _productThumbHtml(item)
+        : (opts.hideCatIcon
+            ? (_validProductImageUrl(item.image_url) ? _invImageHtml(item.image_url, '') : '')
+            : _invImageHtml(item.image_url, catIcon));
     
     return `
     <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
@@ -12599,7 +12679,7 @@ function renderInventoryItem(item, opts = {}) {
                 <div class="inv-name">${escapeHtml(item.display_name || item.name)}</div>
                 ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
                 <div class="inv-meta">
-                    <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
+                    <span class="inv-badge badge-location">${_locIconMarkup(normalizeLocationKey(item.location), locInfo)} ${locInfo.label}</span>
                     ${catBadge}${tagPills}${familyBadge}
                     ${expiryBadge}
                     ${openedBadge}
@@ -13279,10 +13359,9 @@ function showItemDetail(inventoryId, productId, presetQty) {
 
     _itemDetailQtyInit(item, presetQty);
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
     const chips = [
-        `<span class="item-detail-chip item-detail-chip--loc">${locInfo.icon} ${escapeHtml(locInfo.label)}</span>`,
+        `<span class="item-detail-chip item-detail-chip--loc">${_locIconMarkup(normalizeLocationKey(item.location), locInfo)} ${escapeHtml(locInfo.label)}</span>`,
         _itemDetailExpiryChip(item),
         item.opened_at ? `<span class="item-detail-chip item-detail-chip--opened">${t('inventory.opened_badge')}</span>` : '',
         item.vacuum_sealed ? `<span class="item-detail-chip item-detail-chip--vacuum">${t('inventory.vacuum_badge')}</span>` : '',
@@ -13308,7 +13387,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                 <div class="item-detail-image">
                     ${_validProductImageUrl(item.image_url)
                         ? `<img src="${escapeHtml(item.image_url)}" alt="">`
-                        : `<span class="item-detail-emoji">${catIcon}</span>`
+                        : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`
                     }
                 </div>
                 <div class="item-detail-hero-body">
@@ -14104,7 +14183,7 @@ function _renderMedLocations() {
     host.innerHTML = marked.length
         ? marked.map(slug => `
             <span class="med-location-pill-tag">
-                💊 ${escapeHtml(_medLocationLabel(slug))}
+                ${_medIconMarkup()} ${escapeHtml(_medLocationLabel(slug))}
                 <button type="button" class="med-location-unmark" onclick="onMedLocationUnmark('${escapeAttr(slug)}')"
                         aria-label="${escapeAttr(t('btn.delete'))}">✕</button>
             </span>`).join('')
@@ -15700,7 +15779,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zq';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zv';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15710,7 +15789,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zq';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zv';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18304,8 +18383,25 @@ function _medFormSetMode(on) {
         notesInput.setAttribute('data-i18n-placeholder', on ? 'medical.form_notes_placeholder' : 'product.notes_placeholder');
         notesInput.placeholder = on ? t('medical.form_notes_placeholder') : t('product.notes_placeholder');
     }
+    // The field holds the AIC of the box, not a shop barcode: say it with the printed shape.
+    const codeInput = document.getElementById('pf-barcode');
+    if (codeInput) {
+        codeInput.setAttribute('data-i18n-placeholder', on ? 'medical.code_placeholder' : 'product.barcode_placeholder');
+        codeInput.placeholder = on ? t('medical.code_placeholder') : t('product.barcode_placeholder');
+    }
+    // …and the "scan it at the next shop" note is a food-shopping line: it goes away with the
+    // food fields (_updateBarcodeHint() decides, because it also runs on every keystroke).
+    _updateBarcodeHint();
     const title = document.getElementById('product-form-title');
     if (title) title.textContent = on ? t('medical.form_title') : t('product.title_new');
+    // The submit button does TWO things on a medicine box — it saves the catalogue row AND puts
+    // the box in the cabinet — so "Salva prodotto" would hide half of what the tap does.
+    const submitBtn = document.getElementById('pf-submit-btn');
+    if (submitBtn) {
+        const submitKey = on ? 'medical.form_save' : 'btn.save_product';
+        submitBtn.setAttribute('data-i18n', submitKey);
+        submitBtn.textContent = t(submitKey);
+    }
 }
 
 /** Is the product form in medicine mode (a scanned code filled it, not a food product)? */
@@ -18318,12 +18414,13 @@ function _medFormIsMedicine() {
  * The stock questions a medicine box answers ON THE PRODUCT FORM (EverShelf Med).
  *
  * Food is a catalogue entry that is then stocked; a box IS a stock: what is inside, until when,
- * and whether it is still sealed. Asking them here means the pantry step is one tap — and the
- * quantity unit follows the box (`_medPackCount()` reads "10 compresse" → 10 pz, "200 ml" → ml),
- * so a syrup is not counted as "1 pz".
+ * and whether it is still sealed. Asking them here is what lets `_medStockAddDirect()` write the
+ * pantry row straight into the cabinet — there is no second form, so no question is asked twice.
+ * The quantity unit follows the box (`_medPackCount()` reads "10 compresse" → 10 pz, "200 ml" →
+ * ml), so a syrup is not counted as "1 pz".
  */
 let _medFormStockStateValue = 'new';
-/** Carried from the form to the add step: {qty, unit, expiry, state} or null. */
+/** Carried to `_medStockAddDirect()`, and kept for the pantry step of a refused write. */
 let _medFormStock = null;
 
 /** Sealed or already opened: read by `submitProduct()` and applied to the pantry row. */
@@ -18346,11 +18443,86 @@ function _medFormStockReset() {
     if (unit) unit.value = 'pz';
     const expiry = document.getElementById('pf-med-expiry');
     if (expiry) expiry.value = '';
+    // The printed expiry is a month + a year (see `_medExpiryFillPickers`): a new box starts with
+    // both pickers blank, so nobody inherits the date of the previous box.
+    _medExpiryFillPickers('pf');
     const hint = document.getElementById('pf-med-qty-hint');
     if (hint) hint.textContent = '';
     document.querySelectorAll('#pf-med-state .med-state-chip').forEach(b => {
         b.classList.toggle('is-on', b.dataset.state === 'new');
     });
+}
+
+/**
+ * The printed expiry of a medicine is a MONTH and a YEAR ("scadenza 10/2026").
+ *
+ * A box never prints a day, so asking for one made the household invent it. The pair of pickers
+ * asks exactly what is on the pack, and the hidden `#<prefix>-expiry` keeps the ISO value the
+ * rest of the form already reads: the LAST day of the chosen month, which is what "10/2026"
+ * means ("good until the end of October") and what the pantry row must carry to expire right.
+ *
+ * `prefix` is the form that owns the pair: 'pf' on the product form, 'add' on the pantry step.
+ */
+const _MED_EXPIRY_YEARS_AHEAD = 12;
+
+/** The option label of a month, in the UI language ("gennaio" → "Gennaio"). */
+function _medExpiryMonthName(index) {
+    let name = '';
+    try {
+        name = new Intl.DateTimeFormat(_collationLocale(), { month: 'long' }).format(new Date(2020, index, 1));
+    } catch (_) {
+        name = '';
+    }
+    if (!name) return String(index + 1);
+    return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * Paint (or repaint) a month + year pair, preselecting `iso` when it carries one.
+ *
+ * @param {string} prefix 'pf' | 'add'
+ * @param {string} [iso] a YYYY-MM-DD value already chosen
+ */
+function _medExpiryFillPickers(prefix, iso = '') {
+    const monthSel = document.getElementById(`${prefix}-expiry-month`);
+    const yearSel = document.getElementById(`${prefix}-expiry-year`);
+    if (!monthSel || !yearSel) return;
+    const match = /^(\d{4})-(\d{2})/.exec(String(iso || ''));
+    const pickYear = match ? Number(match[1]) : 0;
+    const pickMonth = match ? Number(match[2]) : 0;
+    const thisYear = new Date().getFullYear();
+    const years = [];
+    for (let y = thisYear; y <= thisYear + _MED_EXPIRY_YEARS_AHEAD; y++) years.push(y);
+    // A date that arrives from elsewhere (a prefill, an edit) must stay selectable.
+    if (pickYear && !years.includes(pickYear)) years.push(pickYear);
+    years.sort((a, b) => a - b);
+    monthSel.innerHTML = `<option value="">${escapeHtml(t('medical.expiry_month_placeholder'))}</option>`
+        + Array.from({ length: 12 }, (_, i) =>
+            `<option value="${String(i + 1).padStart(2, '0')}">${escapeHtml(_medExpiryMonthName(i))}</option>`).join('');
+    yearSel.innerHTML = `<option value="">${escapeHtml(t('medical.expiry_year_placeholder'))}</option>`
+        + years.map(y => `<option value="${y}">${y}</option>`).join('');
+    monthSel.value = pickMonth ? String(pickMonth).padStart(2, '0') : '';
+    yearSel.value = pickYear ? String(pickYear) : '';
+}
+
+/** The ISO date a month + year pair means (its last day), or '' while it is incomplete. */
+function _medExpiryIso(prefix) {
+    const month = String(document.getElementById(`${prefix}-expiry-month`)?.value || '');
+    const year = String(document.getElementById(`${prefix}-expiry-year`)?.value || '');
+    if (!/^\d{2}$/.test(month) || !/^\d{4}$/.test(year)) return '';
+    // Day 0 of the NEXT month is the last day of this one (and it knows the leap years).
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    return `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+}
+
+/** A pick just moved: hand the ISO value to the hidden field the form submits. */
+function _medExpiryPick(prefix) {
+    const hidden = document.getElementById(`${prefix}-expiry`);
+    if (!hidden) return;
+    hidden.value = _medExpiryIso(prefix);
+    // `change` is what `_initExpiryManualTracking()` listens to: a date the household picked is
+    // theirs, and no estimate may replace it afterwards.
+    hidden.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 /**
@@ -18798,7 +18970,10 @@ function onPfUnitChange() {
 function _updateBarcodeHint() {
     const hint = document.getElementById('pf-barcode-hint');
     const val = (document.getElementById('pf-barcode')?.value || '').trim();
-    if (hint) hint.style.display = val ? 'none' : 'block';
+    // The hint sells the next FOOD purchase ("scan it at the shop"): a medicine box does not need
+    // it, and in medicine mode that field already holds the AIC read from the box.
+    const medical = _medFormIsMedicine() || !!document.getElementById('pf-is-medical')?.checked;
+    if (hint) hint.style.display = (val || medical) ? 'none' : 'block';
 }
 
 /**
@@ -18920,6 +19095,71 @@ function _expiryDaysLeft(iso) {
     return Math.round((when.getTime() - midnight.getTime()) / 86400000);
 }
 
+/**
+ * Stock a medicine box straight from the product form.
+ *
+ * Food is a catalogue entry that is then stocked again on the pantry step, where the household
+ * has to say WHERE and HOW MUCH a second time. A box has exactly one legal place (the cabinet
+ * the module owns) and its quantity and printed expiry were already answered on this form, so a
+ * second form is the same two questions twice — the household's own complaint. The row is
+ * written here; only a refused write (no cabinet configured, a server answer) hands them back
+ * to the pantry step, with every answer still in place.
+ *
+ * @param {number} productId the catalogue row just saved
+ * @param {{qty:number, unit:string, expiry:string, state:string}} stock
+ * @returns {Promise<boolean>} true when the box is in the cabinet
+ */
+async function _medStockAddDirect(productId, stock) {
+    const cabinet = resolveLocationKey((getSettings().medical_locations || [])[0] || '');
+    if (!cabinet || !isMedicalLocation(cabinet)) {
+        // Nothing is written: the server refuses a medicine outside the cabinet, so the missing
+        // place is said where it can still be fixed.
+        showToast(t('medical.no_cabinet'), 'warning', 9000);
+        return false;
+    }
+    const result = await api('inventory_add', {}, 'POST', {
+        product_id: productId,
+        quantity: stock.qty,
+        location: cabinet,
+        expiry_date: stock.expiry || null,
+        // The date is the one printed on the box: the household's, not an estimate.
+        expiry_user_set: stock.expiry ? 1 : 0,
+        vacuum_sealed: 0,
+    }).catch(() => null);
+    if (!result || result.success === false) {
+        showToast(_apiErrorText(result), 'error', 7000);
+        return false;
+    }
+    if (result.canonical_product_id && result.canonical_product_id !== currentProduct?.id) {
+        currentProduct.id = result.canonical_product_id;
+    }
+    // An already-opened pack starts its own clock (PAO): the server moves the expiry to
+    // today + the storage life after opening, and the new date is said out loud.
+    if (stock.state === 'opened' && result.inventory_id) {
+        const opened = await api('med_open', { inventory_id: result.inventory_id }, 'POST').catch(() => null);
+        if (opened && opened.success) {
+            showToast(t('medical.opened_saved').replace('{date}', opened.expiry_date ? formatDate(opened.expiry_date) : '—'), 'info', 6000);
+        }
+    } else {
+        showToast(t('medical.stock_added').replace('{name}', currentProduct?.name || ''), 'success', 4000);
+    }
+    // A box has been stocked: the answers of the form are spent.
+    _medFormStock = null;
+    _recordRecentInventoryAdd({
+        productId: currentProduct.id,
+        location: cabinet,
+        qty: stock.qty,
+        unit: result.unit || stock.unit,
+        defaultQty: result.default_quantity,
+        packageUnit: result.package_unit,
+        totalQty: result.total_qty,
+        ts: Date.now(),
+    });
+    if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+    showPage('dashboard');
+    return true;
+}
+
 async function submitProduct(e) {
     e.preventDefault();
 
@@ -18948,17 +19188,20 @@ async function submitProduct(e) {
     if (medOn && !pfId) {
         const qtyEl = document.getElementById('pf-med-qty');
         const unitEl = document.getElementById('pf-med-unit');
-        const expiryEl = document.getElementById('pf-med-expiry');
-        const expiry = String(expiryEl?.value || '');
+        const monthEl = document.getElementById('pf-med-expiry-month');
+        // The two pickers are the answer ("scadenza MM/AAAA"); the hidden field keeps the ISO
+        // value the pantry row stores (last day of the month). Reading the pickers first means a
+        // stale hidden value can never outvote what is on screen.
+        const expiry = _medExpiryIso('pf') || String(document.getElementById('pf-med-expiry')?.value || '');
         if (!expiry) {
             showToast(t('add.expiry_required'), 'error', 6000);
-            expiryEl?.focus();
+            monthEl?.focus();
             return;
         }
         const daysLeft = _expiryDaysLeft(expiry);
         if (Number.isFinite(daysLeft) && daysLeft < 0) {
             showToast(t('add.expiry_past'), 'error', 6000);
-            expiryEl.focus();
+            monthEl?.focus();
             return;
         }
         if (Number.isFinite(daysLeft) && daysLeft <= 3) {
@@ -19012,16 +19255,27 @@ async function submitProduct(e) {
                 productData.med_pao_days = medPayload.pao_days;
             }
             currentProduct = { ...productData, id: result.id };
-            // The add step gets these already answered (see showAddForm): one tap, not three.
+            // The answers of this form ARE the box (quantity, printed date, sealed/opened): they
+            // stay here as the fallback of a refused write.
             _medFormStock = medStock;
-            showLoading(false);
-            showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
-            if (isMedicine) {
-                // The box is stocked from THIS form (quantity, printed date, sealed/opened): going
-                // through the food action page only put "Dispensa / Frigo" in front of a medicine.
-                // The add step opens on the cabinet with everything answered — one tap to save.
+            if (isMedicine && medStock) {
+                // A box IS a stock, and the cabinet is its only legal place: no pantry step, no
+                // place question, no second quantity. The row is written from here.
+                const stocked = await _medStockAddDirect(result.id, medStock);
+                showLoading(false);
+                if (!stocked) {
+                    // Nothing lost: the pantry step opens with every answer already filled.
+                    showToast(t('toast.product_saved'), 'success');
+                    showAddForm();
+                }
+            } else if (isMedicine) {
+                // An edited catalogue entry (no stock answers on this form): the pantry step.
+                showLoading(false);
+                showToast(t('toast.product_saved'), 'success');
                 showAddForm();
             } else {
+                showLoading(false);
+                showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
                 showProductAction();
             }
         } else if (result.error === 'barcode_already_used' && result.existing_id) {
@@ -19048,8 +19302,10 @@ async function submitProduct(e) {
 // ===== PRODUCT ACTION (IN/OUT) =====
 function showProductAction() {
     if (!currentProduct) return;
+
+    // A medicine is not food: its action page may not speak of the pantry/fridge or of cooking.
+    const actionIsMedical = _isMedicalRow(currentProduct);
     
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦';
     const nutriscoreColors = { a: '#1e8f4e', b: '#60ac0e', c: '#eeae0e', d: '#ff6f1e', e: '#e63e11' };
     
     let detailsHtml = '';
@@ -19116,7 +19372,7 @@ function showProductAction() {
     document.getElementById('action-product-preview').innerHTML = `
         ${currentProduct.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
-            `<span class="use-hero-icon">${catIcon}</span>`
+            `<span class="use-hero-icon">${_productCatIconHtml(currentProduct)}</span>`
         }
         <div class="use-hero-body">
             <div class="use-hero-name">${escapeHtml(currentProduct.name)}</div>
@@ -19231,7 +19487,7 @@ function showProductAction() {
                     else expiryStr = ` · 📅 ${formatDate(inv.expiry_date)}`;
                 }
                 const vacuumIcon = inv.vacuum_sealed ? ' 🫙' : '';
-                return `<div class="inv-status-item inv-status-item-clickable" onclick="editActionInventoryItem(${inv.id})"><span>${locInfo.icon} ${locInfo.label}${vacuumIcon}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''} ✏️</span></div>`;
+                return `<div class="inv-status-item inv-status-item-clickable" onclick="editActionInventoryItem(${inv.id})"><span>${_locIconMarkup(normalizeLocationKey(inv.location), locInfo)} ${locInfo.label}${vacuumIcon}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''} ✏️</span></div>`;
             }).join('');
             
             const totalStr = formatQuantity(totalQty, unit, defQty, pkgUnit);
@@ -19252,11 +19508,11 @@ function showProductAction() {
             btnsContainer.innerHTML = `
                 <button type="button" class="btn btn-huge btn-success" id="btn-action-add" onclick="showAddForm()">
                     <span class="btn-icon">📥</span>
-                    <span class="btn-text">${t('action.add_btn')}<br><small>${t('action.add_more_sub')}</small></span>
+                    <span class="btn-text">${t('action.add_btn')}<br><small>${actionIsMedical ? t('medical.action_add_sub') : t('action.add_more_sub')}</small></span>
                 </button>
                 <button type="button" class="btn btn-huge btn-danger" id="btn-action-use" onclick="showUseForm()">
                     <span class="btn-icon">📤</span>
-                    <span class="btn-text">${t('action.use_btn')}<br><small>${t('action.use_qty_sub')}</small></span>
+                    <span class="btn-text">${t('action.use_btn')}<br><small>${actionIsMedical ? t('medical.action_use_sub') : t('action.use_qty_sub')}</small></span>
                 </button>
                 <button type="button" class="btn btn-huge btn-throw" id="btn-action-throw" onclick="showThrowForm()">
                     <span class="btn-icon">🗑️</span>
@@ -19266,9 +19522,9 @@ function showProductAction() {
                     <span class="btn-icon">✏️</span>
                     <span class="btn-text">${t('product.modify_details')}<br><small>${t('action.edit_sub')}</small></span>
                 </button>
-                <button class="btn btn-recipe-from-ingredient" data-name="${escapeHtml(currentProduct.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
+                ${actionIsMedical ? '' : `<button class="btn btn-recipe-from-ingredient" data-name="${escapeHtml(currentProduct.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     👨‍🍳 ${t('action.create_recipe_btn')}
-                </button>
+                </button>`}
             `;
             // Secondary: catalog edit link below the buttons (one instance only)
             let catalogLink = document.getElementById('catalog-edit-link');
@@ -19286,7 +19542,7 @@ function showProductAction() {
             btnsContainer.innerHTML = `
                 <button type="button" class="btn btn-huge btn-success" id="btn-action-add" onclick="showAddForm()" style="flex:1">
                     <span class="btn-icon">📥</span>
-                    <span class="btn-text">${t('action.add_btn')}<br><small>${t('action.add_sub')}</small></span>
+                    <span class="btn-text">${t('action.add_btn')}<br><small>${actionIsMedical ? t('medical.action_add_sub') : t('action.add_sub')}</small></span>
                 </button>
             `;
             // Remove catalog-edit link if left over from a previous product
@@ -19957,13 +20213,12 @@ function _paintBrandLine(displayId, brand) {
 function _renderAddProductPreview() {
     const host = document.getElementById('add-product-preview');
     if (!host || !currentProduct) return;
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦';
     const name = currentProduct.name || '';
     const brand = currentProduct.brand || '';
     host.innerHTML = `
         ${currentProduct.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
-            `<span style="font-size:2rem">${catIcon}</span>`
+            `<span style="font-size:2rem">${_productCatIconHtml(currentProduct)}</span>`
         }
         <div class="product-preview-info">
             <h3>
@@ -20178,26 +20433,21 @@ function _medAddStockPieces(n) {
 /**
  * The expiry block of a MEDICINE box: the date PRINTED on the pack, and nothing else.
  *
- * Food gets an estimate (a shelf life nobody prints); a medicine prints "scadenza MM/AAAA" on the
- * box, so the app asks for that date, refuses a past one and warns when it is nearly over. The
- * camera button stays food-only: the medicines module never calls a model.
+ * A box prints "scadenza MM/AAAA", so the block asks a **month and a year** (two pickers + the
+ * hidden ISO the rest of the form reads, see `_medExpiryFillPickers`) — never a day the pack does
+ * not carry, and never the food purchase-type question ("nuovo acquisto / già in dispensa"), which
+ * is a pantry concept. The camera button stays food-only: the medicines module never calls a model.
  */
 function _medAddExpiryHtml() {
     return `
-        <label>${t('add.purchase_type_label')}</label>
-        <div class="purchase-type-selector">
-            <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new')">
-                ${t('add.new_btn')}
-            </button>
-            <button type="button" class="purchase-type-btn" onclick="selectPurchaseType(this, 'existing')">
-                ${t('add.existing_btn')}
-            </button>
-        </div>
         <div id="expiry-detail" class="expiry-detail">
-            <div class="expiry-input-row">
-                <input type="date" id="add-expiry" class="form-input" value="">
+            <label>${t('medical.form_expiry_label')}</label>
+            <div class="med-expiry-pickers">
+                <select id="add-expiry-month" class="form-input" onchange="_medExpiryPick('add')"></select>
+                <select id="add-expiry-year" class="form-input" onchange="_medExpiryPick('add')"></select>
             </div>
-            <p class="form-hint">${t('add.expiry_from_pack')}</p>
+            <input type="hidden" id="add-expiry" value="">
+            <p class="form-hint">${t('medical.expiry_month_hint')}</p>
         </div>
         <div id="multi-batch-section" style="display:none"><div id="multi-batch-container"></div></div>`;
 }
@@ -20278,6 +20528,17 @@ function showAddForm() {
     // The picker follows THIS product's domain: a medicine only to the cabinet, food never
     // into it (_renderLocationSelector). The server enforces the same rule.
     const addIsMedical = _isMedicalRow(currentProduct);
+    // A medicine has exactly ONE legal place, so "dove lo metti?" has a single possible answer and
+    // is not asked at all — the row goes to the cabinet the module owns. The page also stops
+    // speaking about the pantry: it is not where a box goes.
+    const locGroup = document.getElementById('add-location-group');
+    if (locGroup) locGroup.style.display = addIsMedical ? 'none' : '';
+    const addTitle = document.getElementById('add-page-title');
+    if (addTitle) {
+        const titleKey = addIsMedical ? 'medical.add_title' : 'add.title';
+        addTitle.setAttribute('data-i18n', titleKey);
+        addTitle.textContent = t(titleKey);
+    }
     _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, addIsMedical ? 'medical' : 'food');
     document.getElementById('add-location').value = autoLoc;
     // A medicine with no cabinet configured must not silently fall back to the pantry: the server
@@ -20352,15 +20613,19 @@ function showAddForm() {
         </div>
     `;
     
+    // The month + year pickers exist only once the block is painted: a box asks the date it
+    // PRINTS (MM/AAAA). The answers of the product form, when there are any, are kept.
+    if (medicalRow) _medExpiryFillPickers('add', _medFormStock?.expiry || '');
+    
     showPage('add');
     updateScaleReadButtons();
     _initExpiryManualTracking('add-expiry');
     // The medicine form already asked the date of the box and whether it is sealed: do not ask
     // twice. The quantity travelled as `unit`/`default_quantity` on the product itself.
-    if (medicalRow && _medFormStock) {
+    if (medicalRow) {
         const addExpiry = document.getElementById('add-expiry');
-        if (addExpiry && _medFormStock.expiry) addExpiry.value = _medFormStock.expiry;
-        if (_medFormStock.state === 'opened') _medAddStockState('opened');
+        if (addExpiry) addExpiry.value = _medFormStock?.expiry || '';
+        if (_medFormStock?.state === 'opened') _medAddStockState('opened');
     }
     startAddFormIdleCountdown();
     // History first (≥3 samples → average of last 3); AI only if history is insufficient
@@ -20410,6 +20675,9 @@ const _editExpiryKind = new Map();
 function recalculateAddExpiry(force = false) {
     if (_isExpiryManuallySet('add-expiry')) return;
     if (!currentProduct) return;
+    // A medicine box carries a date PRINTED on it (month + year): there is no shelf life to
+    // estimate, so no rule, hint or toggle may write a date here.
+    if (_isMedicalRow(currentProduct)) return;
     const loc = document.getElementById('add-location')?.value || '';
     const kind = storageKindOfLocation(loc);
     if (!force && _addExpiryKind && kind === _addExpiryKind) return;
@@ -20725,8 +20993,11 @@ function selectPurchaseType(btn, type) {
             const typed = document.getElementById('add-expiry')?.value || '';
             const section = document.getElementById('add-expiry-section');
             if (section) section.innerHTML = _medAddExpiryHtml();
+            // The block was repainted, so the month + year pair must be rebuilt (and it keeps the
+            // month the household had already picked).
+            _medExpiryFillPickers('add', typed);
             const field = document.getElementById('add-expiry');
-            if (field && typed) field.value = typed;
+            if (field) field.value = typed;
             _initExpiryManualTracking('add-expiry');
             document.getElementById('add-quantity').value = currentQty;
             return;
@@ -21261,10 +21532,9 @@ function showUseForm() {
 }
 
 function renderUsePreview() {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct?.category, currentProduct?.name)] || '📦';
     const imgHtml = currentProduct?.image_url
         ? `<img src="${escapeHtml(currentProduct.image_url)}" alt="">`
-        : `<span class="use-hero-icon">${catIcon}</span>`;
+        : `<span class="use-hero-icon">${_productCatIconHtml(currentProduct)}</span>`;
     document.getElementById('use-product-preview').innerHTML = `
         ${imgHtml}
         <div class="use-hero-body">
@@ -21488,7 +21758,7 @@ async function loadUseInventoryInfo() {
             const openedBadge = _locationHasOpenedPackage(items, loc)
                 ? ` <span class="loc-opened-badge">🔓 ${t('use.opened_badge')}</span>`
                 : '';
-            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label}${openedBadge}<br><small>${qtyLabel}</small></button>`;
+            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectUseLocation(this, '${loc}')">${_locIconMarkup(normalizeLocationKey(loc), locInfo)} ${locInfo.label}${openedBadge}<br><small>${qtyLabel}</small></button>`;
         }).join('');
 
         if (prefLoc && productLocations.includes(prefLoc) && productLocations.length > 1) {
@@ -23542,11 +23812,15 @@ function renderProductsList(products) {
     container.innerHTML = products.map(p => {
         const catKey = mapToLocalCategory(p.category, p.name);
         const catIcon = CATEGORY_ICONS[catKey] || '📦';
-        const catName = categoryText(catKey);
+        // A medicine wears its own mark (and its own badge), like it does in the pantry.
+        const medRow = _isMedicalRow(p);
+        const catName = medRow ? t('medical.row_tag') : categoryText(catKey);
         return `
         <div class="product-item" data-product-id="${p.id}">
             <div class="inv-image">
-                ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
+                ${medRow
+                    ? _productThumbHtml(p)
+                    : (p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon)}
             </div>
             <div class="inv-info">
                 <div class="inv-name">${escapeHtml(p.name)}</div>

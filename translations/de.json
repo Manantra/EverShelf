@@ -3026,6 +3026,16 @@
     "resume_scan": "Erneut scannen",
     "form_qty_label": "Wie viel hast du",
     "form_expiry_label": "📅 Aufgedrucktes Haltbarkeitsdatum *",
+    "form_save": "✅ Im Medikamentenschrank speichern",
+
+    "expiry_month_hint": "Auf der Packung stehen Monat und Jahr: haltbar bis zum letzten Tag des Monats.",
+    "expiry_month_placeholder": "Monat",
+    "expiry_year_placeholder": "Jahr",
+    "add_title": "Zum Medikamentenschrank hinzufügen",
+    "action_add_sub": "in den Medikamentenschrank",
+    "action_use_sub": "aus dem Medikamentenschrank",
+    "stock_added": "{name} ist im Medikamentenschrank.",
+
     "ask_title": "Ich kann den Code nicht lesen",
     "ask_body": "Tippe ihn unten ein, wie er auf der Packung steht (z. B. A040313076), oder starte den Scan erneut.",
     "almost_title": "Der Code stimmt nicht genau: welche Packung hast du?",

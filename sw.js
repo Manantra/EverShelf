@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.28.7q';
+const CACHE = 'evershelf-v1.29.0v';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -24,6 +24,9 @@ const SHELL = [
     BASE + 'assets/img/apis/open-products-facts.svg',
     BASE + 'assets/img/apis/open-beauty-facts.svg',
     BASE + 'assets/img/apis/open-pet-food-facts.svg',
+    // The medicine mark (EverShelf Med): the row thumbnails, the cabinet pill and the pantry
+    // tab draw it, so a medicine never reads as a broken image when the server is unreachable.
+    BASE + 'assets/img/icons/medicine.svg',
     BASE + 'assets/css/style.css',
     BASE + 'assets/css/corporate.css',
     BASE + 'assets/css/elegant.css',

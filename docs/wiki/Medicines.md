@@ -211,6 +211,44 @@ SHELFY hands a sentence it cannot act on to the same map, so “ho un forte mal 
 the list instead of creating a product, and the scanner turns the printed AIC into the
 prefilled medical entry with *"Codice rilevato…"*.
 
+### Adding a box: one form, no question twice
+
+A scanned box is stocked from the **medicine form itself** (`submitProduct()` →
+`_medStockAddDirect()`): the three answers on that one screen — how many, the expiry **printed on
+the pack**, sealed or already opened — write the pantry row **straight into the cabinet** the
+module owns, and the flow ends on the dashboard with a confirmation. There is no pantry step, so
+the household is never asked **where** to put it (a medicine has exactly one legal place, and the
+server refuses any other) nor **how much** a second time, and the screen speaks about the cabinet:
+the button says *Salva nell'armadietto* (`medical.form_save`), the pantry step of a medicine is
+titled *Aggiungi all'armadietto* and hides the place picker, and a medical row's action page says
+*nell'armadietto dei farmaci* and offers no recipe. The pantry step survives only as the
+**fallback of a refused write** (no cabinet configured, a server answer), opening with every
+answer already filled in.
+
+The expiry of a box is a **month and a year**, because that is what the pack prints
+(“scadenza 10/2026”): two pickers ask it (`_medExpiryFillPickers()`, `_medExpiryPick()`) and the
+stored date is the **last day of that month** (`_medExpiryIso()`) — “good until the end of
+October”. No rule, hint or AI estimate can write a date on a medicine.
+
+### A medicine is not a category of food (its icon)
+
+A medicine never carries the food category emoji. The pantry's row fallback used to be the
+category (`altro` → 📦, the same box a custom place and an unidentified product use), so a box of
+tablets looked exactly like unidentified food — and a mis-saved category could even put a 🥛 on
+it. EverShelf Med now owns **one drawn mark**, `assets/img/icons/medicine.svg` (a capsule with a
+cross, in the module's medical tint `#6366f1`, shipped in the service-worker shell):
+
+| Where | What it draws |
+|---|---|
+| row thumbnails (`_productThumbHtml()`) | the mark, on the medical tint, when there is no photo |
+| plain emoji slots (`_productCatIconHtml()`) | the mark on the detail sheet, the action hero, the add preview, the products list |
+| the pantry badge | `badge-medical` = “Farmaco” (`medical.row_tag`), never “Altro” — and the “altro → let the AI guess” repair never touches it |
+| grouped lists | medicines under their own **Farmaco** group, with the mark as its header |
+| the place (`_locIconMarkup()`) | the cabinet pill, the pantry tab, the place pickers |
+
+Text-only places (a native `<option>` in a select) keep the 💊 character: an image cannot go
+inside an option label.
+
 ## What is next
 
 1. **Duplicate active-ingredient warning** (“you already have 2 boxes of ibuprofen”), now that

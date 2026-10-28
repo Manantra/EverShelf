@@ -3026,6 +3026,16 @@
     "resume_scan": "Riprova la scansione",
     "form_qty_label": "Quanto ne hai",
     "form_expiry_label": "📅 Scadenza stampata sulla scatola *",
+    "form_save": "✅ Salva nell’armadietto",
+
+    "expiry_month_hint": "La scatola stampa mese e anno: vale fino all’ultimo giorno del mese.",
+    "expiry_month_placeholder": "Mese",
+    "expiry_year_placeholder": "Anno",
+    "add_title": "Aggiungi all’armadietto",
+    "action_add_sub": "nell’armadietto dei farmaci",
+    "action_use_sub": "dall’armadietto dei farmaci",
+    "stock_added": "{name} è nell’armadietto dei farmaci.",
+
     "ask_title": "Non riesco a leggere il codice",
     "ask_body": "Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione.",
     "almost_title": "Il codice non è esatto: quale confezione hai in mano?",

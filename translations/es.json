@@ -3026,6 +3026,16 @@
     "resume_scan": "Escanear de nuevo",
     "form_qty_label": "Cuánto tienes",
     "form_expiry_label": "📅 Caducidad impresa en la caja *",
+    "form_save": "✅ Guardar en el botiquín",
+
+    "expiry_month_hint": "La caja indica mes y año: vale hasta el último día del mes.",
+    "expiry_month_placeholder": "Mes",
+    "expiry_year_placeholder": "Año",
+    "add_title": "Añadir al botiquín",
+    "action_add_sub": "al botiquín",
+    "action_use_sub": "del botiquín",
+    "stock_added": "{name} está en el botiquín.",
+
     "ask_title": "No consigo leer el código",
     "ask_body": "Escríbelo abajo tal como está impreso en la caja (p. ej. A040313076), o vuelve a escanear.",
     "almost_title": "El código no es exacto: ¿qué caja tienes?",

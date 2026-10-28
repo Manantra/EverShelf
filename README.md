@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.7-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.0-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,8 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.29.0** — **un farmaco scansionato entra da solo nell'armadietto: niente «dove lo metti?», niente quantità chiesta due volte.** Le risposte del form del farmaco (quanti, scadenza stampata, sigillata/aperta) scrivono ora la riga **direttamente nell'armadietto** (`_medStockAddDirect()`): il passo dispensa non c'è più nel flusso, e si finisce sulla dashboard con la conferma; resta solo come ripiego di una scrittura rifiutata, con le risposte già compilate. La scadenza di una scatola è **mese e anno** — due select, perché il giorno sulla confezione non c'è, e la data salvata è l'ultimo giorno di quel mese — e per i farmaci spariscono i riferimenti al cibo e alla dispensa: il bottone dice «Salva nell'armadietto», la pagina «Aggiungi all'armadietto», la pagina azione «nell'armadietto dei farmaci» e non offre ricette. **E il farmaco ha finalmente la sua icona**: una capsula disegnata (`assets/img/icons/medicine.svg`, tinta medica), al posto dell'emoji della categoria che sulla riga diventava 📦 — la stessa di un alimento non identificato — con il badge «Farmaco» al posto di «Altro», un gruppo suo nelle liste raggruppate e l'armadietto segnato con la stessa capsula nei pill e nei tab.
 
 **v1.28.7** — **un farmaco scansionato non chiede più dove metterlo: va nel suo armadietto.** La scatola veniva salvata con `is_medical = 0` (nel tuo DB c'era l'AIC `A012745093` con le note del catalogo ma nessun flag), così il passo dispensa offriva Dispensa/Frigo. Ora: `submitProduct()` legge la risposta "è un farmaco" dal **modo della pagina**, dallo switch o dai chip, e in modo farmaco chiama **sempre** `med_classify` (il flag nel DB si scrive anche senza chip) dicendo a voce se fallisce; `_isMedicalRow()` considera farmaco anche una riga con `med_tags`/`med_ingredient`; e salvare un farmaco **non passa più dalla pagina d'azione**: si atterra **direttamente sul passo dispensa**, col posto **bloccato sull'armadietto** e quantità, data stampata e sigillata/aperta già compilate — un tocco. Se l'armadietto non è configurato lo dice (`medical.no_cabinet`) invece di ripiegare sulla dispensa.
 

@@ -181,6 +181,53 @@ body {
 .product-thumb.is-icon .product-thumb-emoji { display: block; }
 .product-thumb.is-icon .product-thumb-img { display: none; }
 
+/* ── The medicine mark ───────────────────────────────────────────────────────
+   EverShelf Med owns a drawn icon (`assets/img/icons/medicine.svg`): a medicine is not a
+   category of food, so it never wears the category emoji (📦 on "altro", a 🥛 on a mis-saved
+   one). One asset, three sizes, the medical tint the cabinet pill and the tab already use. */
+.med-icon {
+    width: 18px;
+    height: 18px;
+    display: inline-block;
+    vertical-align: -0.2em;
+    flex: 0 0 auto;
+}
+/* Inside a 44 px row thumbnail (photo missing or broken). */
+.med-icon.med-icon-lg { width: 26px; height: 26px; vertical-align: middle; }
+/* The big slots: the detail sheet, the action page hero, the use page, the add preview. */
+.item-detail-emoji .med-icon,
+.use-hero-icon .med-icon { width: 34px; height: 34px; }
+.cat-group-icon .med-icon { width: 16px; height: 16px; vertical-align: -0.15em; }
+/* The place pill's icon slot is a flex child: a block mark cannot add line height to it. */
+.location-pill .loc-icon .med-icon { display: block; }
+/* The row frame of a medicine: the medical tint, so a box of tablets is not drawn as an
+   unidentified food even when it has no picture. */
+.product-thumb.is-medical {
+    border-color: rgba(99, 102, 241, 0.45);
+    background: rgba(99, 102, 241, 0.08);
+}
+/* The pantry re-uses that frame inside its own .inv-image: one border, not two. */
+.inv-image .product-thumb {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+}
+.cat-group-header .cat-group-icon { display: inline-flex; align-items: center; }
+.cat-group-header.is-medical { color: #6366f1; }
+/* The pantry badge of a medicine, in place of the food category ("Altro"): the medical tint,
+   the mark at badge size, and the word the module already translates (`medical.row_tag`). */
+.inv-badge.badge-medical {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(99, 102, 241, 0.14);
+    color: var(--text-main);
+}
+.inv-badge .med-icon,
+.alert-medical-tag .med-icon { width: 14px; height: 14px; vertical-align: -0.15em; }
+
 /* The row keeps its text column as the flexible child; the thumb is fixed. */
 .alert-item-info {
     display: flex;
@@ -2138,7 +2185,9 @@ a.free-api:hover { border-color: var(--brand-primary); }
     border-left: 3px solid #6366f1;
 }
 .alert-medical-tag {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     margin-top: 2px;
     padding: 1px 6px;
     border-radius: 6px;
@@ -2263,6 +2312,11 @@ a.free-api:hover { border-color: var(--brand-primary); }
 .med-qty-inputs { display: flex; gap: 8px; align-items: center; }
 .med-qty-inputs input { flex: 1 1 auto; min-width: 0; max-width: 140px; }
 .med-qty-inputs select { flex: 0 0 auto; width: 86px; }
+/* "Scadenza MM/AAAA": a box prints a month and a year, never a day, so the two pickers ask
+   exactly that. The month takes the room, the year what four digits need. */
+.med-expiry-pickers { display: flex; gap: 8px; align-items: center; }
+.med-expiry-pickers select { flex: 1 1 auto; min-width: 0; }
+.med-expiry-pickers select[id$="-expiry-year"] { flex: 0 0 112px; }
 .med-stock-fields .form-hint { margin: 4px 0 0; }
 /* A confirmed read: the correction is a footnote, not a choice to make. */
 .med-alt-link {
