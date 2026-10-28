@@ -2965,7 +2965,7 @@
     "match_company": "Titulaire de l’autorisation : {value}",
     "match_advice": "Identification, pas un conseil : la dose et les indications restent sur la notice.",
     "scan_title": "Scanner les médicaments",
-    "scan_hint": "Vise uniquement le grand code qui commence par A (ex. A040313076) : c’est le numéro du médicament. Les petits codes en dessous et le code-barres ne servent pas.",
+    "scan_hint": "Ici, les codes-barres ne sont pas lus : vise uniquement le grand code qui commence par A (ex. A040313076). Le petit code en dessous et le Code 39 ne servent pas.",
     "scan_manual": "Ajouter à la main",
     "scan_not_medicine": "Ce n’est pas un code médicament : l’AIC est imprimé sur la boîte. Pour les produits alimentaires, utilise le scan alimentaire.",
     "scan_food_hint": "C’est un code médicament : ouvre-le depuis le placard à médicaments, où le scan est le bon.",

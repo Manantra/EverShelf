@@ -70,6 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panel says it in the status line (`medical.scan_code_ignored`) and goes back to the label, the
   digit-under-the-bars OCR does not run in that panel at all, and the label reader reads **only**
   the guide rectangle (no full-frame second chance, which could catch another printed number).
+  Italy now declares **`scan.barcodes: false`**, so the medicine panel runs **no barcode engine
+  whatsoever** (native detector, ZBar, Quagga and the digits OCR are skipped); Germany and the
+  US keep their barcode path, because there the Code 39/EAN *is* the drug number.
 
 ### Changed
 - **Two scan panels, never mixed.** The household said it plainly: a food panel that answers with

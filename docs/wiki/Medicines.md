@@ -66,7 +66,9 @@ rejected** — `014058142` is the pack's progressive number (the second Code 39 
 and accepting it stored a serial as if it were a medicine. When a barcode like that is read the
 panel says so in the status line (`medical.scan_code_ignored`) and goes back to the label.
 
-**A barcode is never the drug number in that panel.** The SSN label carries several Code 39s —
+**Italy decodes no barcode there at all** (`scan.barcodes: false`): the native detector, ZBar,
+Quagga and the digit OCR are skipped, so the only input is the printed block inside the
+rectangle. **A barcode is never the drug number in that panel.** The SSN label carries several Code 39s —
 the AIC on top and the pack's progressive number at the bottom — and they are indistinguishable
 by shape (`A014058142` is a serial, not a medicine). Only the EU FMD DataMatrix is accepted,
 because AI 710 is the national number by standard; any other read sends the scanner to the

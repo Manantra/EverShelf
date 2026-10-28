@@ -2965,7 +2965,7 @@
     "match_company": "Marketing authorisation holder: {value}",
     "match_advice": "Identification, not advice: the dose and the indications stay on the leaflet.",
     "scan_title": "Scan medicines",
-    "scan_hint": "Frame only the big code that starts with A (e.g. A040313076): that is the drug’s number. The small codes below and the barcode are not needed.",
+    "scan_hint": "Barcodes are not read here: frame only the big code that starts with A (e.g. A040313076). The small code below and the Code 39 are not needed.",
     "scan_manual": "Add by hand",
     "scan_not_medicine": "This is not a medicine code: the AIC is printed on the box. For food products use the food scan.",
     "scan_food_hint": "This is a medicine code: open it from the medicines pantry, where the scan is the right one.",

@@ -2965,7 +2965,7 @@
     "match_company": "Zulassungsinhaber: {value}",
     "match_advice": "Identifikation, kein Rat: Dosis und Hinweise stehen in der Packungsbeilage.",
     "scan_title": "Arzneimittel scannen",
-    "scan_hint": "Richte die Kamera nur auf den großen Code, der mit A beginnt (z. B. A040313076): das ist die Arzneimittelnummer. Die kleinen Codes darunter und der Barcode werden nicht gebraucht.",
+    "scan_hint": "Barcodes werden hier nicht gelesen: Richte die Kamera nur auf den großen Code, der mit A beginnt (z. B. A040313076). Der kleine Code darunter und der Code 39 werden nicht gebraucht.",
     "scan_manual": "Von Hand",
     "scan_not_medicine": "Das ist kein Arzneimittelcode: der AIC steht auf der Packung. Für Lebensmittel nutze den Lebensmittel-Scan.",
     "scan_food_hint": "Das ist ein Arzneimittelcode: öffne es aus dem Arzneimittelschrank, dort ist der richtige Scan.",

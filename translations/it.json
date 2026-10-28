@@ -2965,7 +2965,7 @@
     "match_company": "Casa farmaceutica: {value}",
     "match_advice": "Identificazione, non consiglio: la dose e le indicazioni restano sul foglio illustrativo.",
     "scan_title": "Scansiona farmaci",
-    "scan_hint": "Inquadra solo il codice grande che inizia con la A (es. A040313076): il numero del farmaco è quello. I codici piccoli sotto e il codice a barre non servono.",
+    "scan_hint": "Qui i codici a barre non vengono letti: inquadra solo il codice grande che inizia con la A (es. A040313076). Il codice piccolo sotto e il Code 39 non servono.",
     "scan_manual": "Aggiungi a mano",
     "scan_not_medicine": "Questo non è un codice farmaco: l’AIC è stampato sulla scatola. Per i prodotti alimentari usa la scansione cibo.",
     "scan_food_hint": "Questo è un codice farmaco: aprilo dalla dispensa dei farmaci, dove la scansione è quella giusta.",

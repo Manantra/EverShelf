@@ -376,6 +376,25 @@ check('a code above the Pharmacode maximum is not claimed either',
     medicalDetectCode('999999', 'IT')['detected'] === false);
 check('a letter-carrying code never reaches a food catalogue',
     str_contains($app, 'if (/[A-Z]/.test(raw)) return false;'));
+check('in Italy the medicine panel runs NO barcode engine at all',
+    // The household's words: "it must not read the barcode". The flag is data
+    // (`scan.barcodes: false` for IT) and it gates the native detector, ZBar, the crop pass,
+    // the digit OCR, Quagga and the confirm path.
+    (bool)preg_match('/function _medScanBarcodes\(\)[\s\S]{0,400}?scan\.barcodes/s', $app)
+    && (bool)preg_match('/const decodeBarcodes = !_scanModeIsMedical\(\) \|\| _medScanBarcodes\(\);/s', $app)
+    && (bool)preg_match('/if \(decodeBarcodes && _detectorNative\)/s', $app)
+    && (bool)preg_match('/const useZbar = decodeBarcodes &&/s', $app)
+    && (bool)preg_match('/if \(_scanModeIsMedical\(\) && !_medScanBarcodes\(\)\) \{\s*startUnifiedScanner\(videoEl\);\s*return;/s', $app)
+    && (bool)preg_match('/if \(_scanModeIsMedical\(\) && !_medScanBarcodes\(\)\) return;/s', $app)
+    && (bool)preg_match('/function _tryConfirmBarcode\(code, format, method, geo = null\) \{[\s\S]{0,200}?if \(_scanModeIsMedical\(\) && !_medScanBarcodes\(\)\) return false;/s', $app));
+check('the hint says it out loud (no barcode read in the medicine panel)',
+    (function () use ($root) {
+        $it = json_decode((string)file_get_contents($root . '/translations/it.json'), true);
+        $hint = (string)($it['medical']['scan_hint'] ?? '');
+        return str_contains(mb_strtolower($hint), 'codici a barre')
+            && str_contains($hint, 'A040313076')
+            && mb_strlen($hint) > 60;
+    })());
 check('the medicine panel never takes the drug number from a barcode',
     // Only the FMD DataMatrix is unambiguous (AI 710); every other Code 39 on the SSN label
     // — the AIC on top AND the pack serial at the bottom — has the same shape as an AIC, so
@@ -952,6 +971,10 @@ check('Italy is the PRINTED case, France the BARCODE case',
     && ($ccs['IT']['scan']['ocr'] ?? false) === true
     && ($ccs['FR']['scan']['national_code'] ?? '') === 'barcode'
     && ($ccs['FR']['scan']['ocr'] ?? true) === false);
+check('Italy decodes NO barcode in the medicine panel; DE and US keep theirs',
+    ($ccs['IT']['scan']['barcodes'] ?? true) === false
+    && ($ccs['DE']['scan']['barcodes'] ?? false) === true
+    && ($ccs['US']['scan']['barcodes'] ?? false) === true);
 check('Germany and the US print their number too, with their own sample',
     ($ccs['DE']['ocr']['sample'] ?? '') === 'PZN 00000000'
     && str_contains((string)($ccs['DE']['ocr']['patterns'][0] ?? ''), 'PZN')

@@ -2965,7 +2965,7 @@
     "match_company": "Titular de la autorización: {value}",
     "match_advice": "Identificación, no consejo: la dosis y las indicaciones están en el prospecto.",
     "scan_title": "Escanear medicamentos",
-    "scan_hint": "Apunta solo al código grande que empieza por A (ej. A040313076): ese es el número del medicamento. Los códigos pequeños de abajo y el código de barras no hacen falta.",
+    "scan_hint": "Aquí no se leen códigos de barras: apunta solo al código grande que empieza por A (ej. A040313076). El código pequeño de abajo y el Code 39 no hacen falta.",
     "scan_manual": "Añadir a mano",
     "scan_not_medicine": "Esto no es un código de medicamento: el AIC está impreso en la caja. Para alimentos usa el escaneo de comida.",
     "scan_food_hint": "Este es un código de medicamento: ábrelo desde la despensa de medicamentos, donde el escaneo es el correcto.",

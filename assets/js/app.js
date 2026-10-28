@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028d'; // bump when translations change
+const _I18N_VERSION = '20261028e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13511,6 +13511,20 @@ function _medScanSupported() {
     return (Array.isArray(schema.codes) && schema.codes.length > 0) || schema.fmd === true;
 }
 
+/**
+ * Does the medicine panel decode barcodes in this country?
+ *
+ * Italy: NO. The SSN label carries several Code 39s (the AIC on top, the pack's progressive
+ * number at the bottom) that are indistinguishable by shape, and decoding them is exactly how a
+ * serial got stored as a medicine. There the panel reads the PRINTED block only. Other countries
+ * (DE, US, AT, FR, ES, GB…) keep their barcode path, because their number IS the barcode.
+ */
+function _medScanBarcodes() {
+    const scan = _medStatus.schema && _medStatus.schema.scan;
+    if (!scan || typeof scan.barcodes !== 'boolean') return true;   // default: decode
+    return scan.barcodes;
+}
+
 /** The line above the camera: what to frame, in the words of the active country. */
 function _medScanHintText() {
     const key = String((_medStatus.schema && _medStatus.schema.ocr && _medStatus.schema.ocr.hint_key) || '');
@@ -15416,7 +15430,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15426,7 +15440,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15443,6 +15457,12 @@ function _loadZbarVendor() {
 }
 
 function _startBestScanner(videoEl) {
+    // A label panel with no barcode decoding still needs the loop (it runs the OCR): start the
+    // unified scanner, whose decoder steps are gated, instead of falling back to Quagga.
+    if (_scanModeIsMedical() && !_medScanBarcodes()) {
+        startUnifiedScanner(videoEl);
+        return;
+    }
     if (_detectorNative || _detectorZbar) {
         startUnifiedScanner(videoEl);
     } else if (typeof Quagga !== 'undefined') {
@@ -15539,6 +15559,8 @@ function _finalizeBarcode(code, method) {
  * @param {{boundingBox?: DOMRectReadOnly|object, videoEl?: HTMLVideoElement}|null} [geo]
  */
 function _tryConfirmBarcode(code, format, method, geo = null) {
+    // The medicine panel in a PRINTED-number country does not accept barcode reads at all.
+    if (_scanModeIsMedical() && !_medScanBarcodes()) return false;
     const raw = String(code || '').trim().toUpperCase();
     let digits = raw.replace(/\D/g, '');
     if (!digits) return false;
@@ -16204,9 +16226,13 @@ function startUnifiedScanner(videoEl) {
         }
 
         let foundThisFrame = false;
+        // In a country whose drug number is PRINTED, the medicine panel does not decode
+        // anything: no native detector, no ZBar, no Quagga, no digits under the bars. Only the
+        // label OCR below runs (step 5) — the barcode path is what confused the boxes.
+        const decodeBarcodes = !_scanModeIsMedical() || _medScanBarcodes();
 
         // 1) Native BarcodeDetector — every frame (fastest when available)
-        if (_detectorNative) {
+        if (decodeBarcodes && _detectorNative) {
             try {
                 const codes = await _detectorNative.detect(videoEl);
                 if (codes && codes.length > 0) {
@@ -16228,7 +16254,7 @@ function startUnifiedScanner(videoEl) {
         }
 
         // 2) ZBar WASM — deferred when native engine is active (saves CPU)
-        const useZbar = !_detectorNative || elapsed >= _ZBAR_FALLBACK_DELAY_MS;
+        const useZbar = decodeBarcodes && (!_detectorNative || elapsed >= _ZBAR_FALLBACK_DELAY_MS);
         const zbarEvery = (_offlineMode || !navigator.onLine) ? 1 : 2;
         if (useZbar && _detectorZbar && frameCount % zbarEvery === 0) {
             try {
@@ -16250,7 +16276,7 @@ function startUnifiedScanner(videoEl) {
         }
 
         // 3) ZBar on enhanced crop variants — every 3 frames when ZBar pass is active
-        if (useZbar && _detectorZbar && frameCount % 3 === 0) {
+        if (useZbar && decodeBarcodes && _detectorZbar && frameCount % 3 === 0) {
             const crop = _buildScanCropFrame(videoEl, frameCount);
             if (crop) {
                 try {
@@ -16303,8 +16329,8 @@ function startUnifiedScanner(videoEl) {
         if (!foundThisFrame) {
             missFrames++;
             // No decoder hit: hunt the most barcode-like patch in the frame so the
-            // cloud follows the pack even when it's off-center.
-            if (missFrames >= 2) {
+            // cloud follows the pack even when it's off-center (barcode panels only).
+            if (decodeBarcodes && missFrames >= 2) {
                 _updateScanCloudScout(videoEl);
                 const hud = document.getElementById('scanner-viewport')?.dataset?.hud;
                 if (hud === 'partial' && missFrames > 18) _setScanHudState('scanning');
@@ -16324,6 +16350,7 @@ function startUnifiedScanner(videoEl) {
 // ===== QUAGGA LEGACY SCANNER (only when native + ZBar unavailable) =====
 function startQuaggaScanner(videoEl, isPrimary = true) {
     if (quaggaRunning) return;
+    if (_scanModeIsMedical() && !_medScanBarcodes()) return;   // read the label, not the bars
     
     const canvas = document.getElementById('scanner-canvas');
     const ctx = canvas.getContext('2d');
