@@ -17184,9 +17184,9 @@ async function _medShowCatalogueMatch(code) {
         return;
     }
     // An exact AIC names the box: fill the fields the household would otherwise retype (empty
-    // ones only), say so in ONE line and STOP. The alternatives belong to a doubtful read, not to
-    // a certain one: offering the neighbours of a code the catalogue confirms only makes the
-    // household wonder whether the app knows what it read.
+    // ones only) and STOP there. The alternatives belong to a doubtful read, not to a certain
+    // one: offering the neighbours of a code the catalogue confirms only makes the household
+    // wonder whether the app knows what it read.
     const exactRow = rows.find(r => String(r.aic || '') === aic);
     if (exactRow) {
         _medFillFromCatalogue(exactRow);
