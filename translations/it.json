@@ -2965,7 +2965,7 @@
     "match_company": "Casa farmaceutica: {value}",
     "match_advice": "Identificazione, non consiglio: la dose e le indicazioni restano sul foglio illustrativo.",
     "scan_title": "Scansiona farmaci",
-    "scan_hint": "Qui i codici a barre non vengono letti: inquadra solo il codice grande che inizia con la A (es. A040313076). Il codice piccolo sotto e il Code 39 non servono.",
+    "scan_hint": "Inquadra la riga con la A (es. A040313076), dentro il tratteggio.",
     "scan_manual": "Aggiungi a mano",
     "scan_not_medicine": "Questo non è un codice farmaco: l’AIC è stampato sulla scatola. Per i prodotti alimentari usa la scansione cibo.",
     "scan_food_hint": "Questo è un codice farmaco: aprilo dalla dispensa dei farmaci, dove la scansione è quella giusta.",
@@ -2998,6 +2998,9 @@
     "import_failed": "Import non riuscito: il file non è stato letto.",
     "choice_title_inline": "Non è questo? Scegli il codice che leggi sulla scatola:",
     "choice_switched": "Codice impostato: {code}",
-    "ocr_engine_error": "Il lettore OCR non è disponibile su questo dispositivo: scrivi il codice a mano."
+    "ocr_engine_error": "Il lettore OCR non è disponibile su questo dispositivo: scrivi il codice a mano.",
+    "match_filled": "Nome, ditta e note compilati da AIFA per {code}. Controlla che sia la tua scatola.",
+    "match_needs_catalog": "Codice {code} salvato, ma il catalogo non è caricato: nome e ditta non si possono compilare. Importalo da Impostazioni → Farmaci.",
+    "match_name_from_label": "Nome letto dall’etichetta: “{name}”. Controllalo: il catalogo non lo conosce."
   }
 }

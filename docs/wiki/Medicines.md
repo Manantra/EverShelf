@@ -82,6 +82,10 @@ it would change already is — the catalogue card carries a **“Non è questo?�
 distance), each with the name, the dosage and the pack printed on its box. One tap rewrites the
 code and asks the catalogue again (`_medUseCode()`).
 
+**The form fills itself from the catalogue.** An exact AIC writes the **name, the company (titolare), the notes** (active ingredient, form, pack, ATC, class) and ticks the closed category the ATC belongs to (`_medFillFromCatalogue()`, `_medCategoryFromAtc()`). Empty fields only: what the household typed always wins, and what we wrote is remembered so switching to another neighbour code rewrites ours and nothing else.
+
+**With no catalogue, the name is read off the box.** The catalogue is optional, but an empty form looked broken, so `_medReadLabelName()` makes one extra pass on the commercial-name block **before** the form closes the camera, and `_medPickNameLine()` keeps a single plausible line (mostly letters, 4–45 characters, None of `A.I.C.`/`TITOLARE`/`Lotto`/`Scadenza`). It lands in an editable field with a notice saying where it came from — a guess never reaches the database silently. When the catalogue is empty the card says so (`medical.match_needs_catalog`) and points at the import, instead of staying silent.
+
 Why not a card on the scanner: a white panel glued over the viewfinder hides the label the
 household is aiming at, and asking two questions at once is how a scan becomes a chore. The
 scanner keeps a single line of text (below), the form does the choosing.

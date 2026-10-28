@@ -387,13 +387,16 @@ check('in Italy the medicine panel runs NO barcode engine at all',
     && (bool)preg_match('/if \(_scanModeIsMedical\(\) && !_medScanBarcodes\(\)\) \{\s*startUnifiedScanner\(videoEl\);\s*return;/s', $app)
     && (bool)preg_match('/if \(_scanModeIsMedical\(\) && !_medScanBarcodes\(\)\) return;/s', $app)
     && (bool)preg_match('/function _tryConfirmBarcode\(code, format, method, geo = null\) \{[\s\S]{0,200}?if \(_scanModeIsMedical\(\) && !_medScanBarcodes\(\)\) return false;/s', $app));
-check('the hint says it out loud (no barcode read in the medicine panel)',
-    (function () use ($root) {
+check('the hint is ONE short line over the viewfinder (it was a white card)',
+    // The prose explaining that barcodes are not read lives in the docs and in the country schema:
+    // on the scan page it ate three lines of white box above the camera.
+    (function () use ($root, $css) {
         $it = json_decode((string)file_get_contents($root . '/translations/it.json'), true);
         $hint = (string)($it['medical']['scan_hint'] ?? '');
-        return str_contains(mb_strtolower($hint), 'codici a barre')
-            && str_contains($hint, 'A040313076')
-            && mb_strlen($hint) > 60;
+        return str_contains($hint, 'A040313076')
+            && mb_strlen($hint) <= 90
+            && (bool)preg_match('/\.scan-med-hint \{[^}]*background: none;/s', $css)
+            && (bool)preg_match('/\.scan-med-hint \{[^}]*border: 0;/s', $css);
     })());
 check('the medicine panel never takes the drug number from a barcode',
     // Only the FMD DataMatrix is unambiguous (AI 710); every other Code 39 on the SSN label
@@ -430,7 +433,7 @@ check('the hint tells the household WHICH code to frame, in six locales',
     array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
         $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
         $hint = (string)($d['medical']['scan_hint'] ?? '');
-        return $c && str_contains($hint, 'A040313076') && mb_strlen($hint) > 40;
+        return $c && str_contains($hint, 'A040313076') && mb_strlen($hint) > 30 && mb_strlen($hint) <= 110;
     }, true));
 check('the AIC read by the OCR is stored as the box prints it (A + 9 digits)',
     str_contains($app, 'const aic = String(det.aic || (local && local.aic)')
@@ -812,7 +815,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 167 medical keys', $aligned && count($base) === 167);
+check('all six locales carry the same 170 medical keys', $aligned && count($base) === 170);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -883,15 +886,29 @@ check('a file without an AIC column is refused, not imported as garbage',
     $refused['ok'] === false && ($refused['error'] ?? '') === 'missing_columns');
 
 // The client: the card, the button, and the OCR of the label.
-check('the medicine form shows the catalogue answer with a button, never auto-filled',
+check('the catalogue FILLS the form: name, company, notes and the closed category',
     str_contains($html, 'id="pf-med-match"')
     && (bool)preg_match('/function _medShowCatalogueMatch\(code\)[\s\S]{0,4200}?_medUseMatch\(\$\{i\}\)/s', $app)
-    && (bool)preg_match('/function _medUseMatch\(index\)[\s\S]{0,900}?name\.value = String\(row\.name\)/s', $app)
-    && (function () use ($app) {
-        // The card merely draws; filling the field is the household's click.
-        if (!preg_match('/async function _medShowCatalogueMatch\(code\) \{.*?\n\}/s', $app, $m)) { return false; }
-        return !str_contains($m[0], '.value =');
-    })());
+    && (bool)preg_match("/function _medFillFromCatalogue\(row, options = \{\}\)[\s\S]{0,1400}?set\('pf-name'/s", $app)
+    && (bool)preg_match("/set\('pf-brand', String\\(row\\.company\\)/s", $app)
+    && (bool)preg_match("/set\('pf-notes', details\\.join\\(/s", $app)
+    && str_contains($app, 'function _medCategoryFromAtc(atc)')
+    && (bool)preg_match('/function _medUseMatch\(index\)[\s\S]{0,500}?_medFillFromCatalogue\(row, \{ force: true \}\)/s', $app)
+    // A typed value is never overwritten: only empty fields (or fields WE filled) are written.
+    && (bool)preg_match('/if \(!options\.force && current && current !== mine\) return;/s', $app)
+    && (bool)preg_match('/_medFillFromCatalogue\(exactRow\);\s*host\.innerHTML = `/s', $app));
+check('the NAME is read off the box when the catalogue cannot name it',
+    // An empty catalogue used to mean an empty form. The label prints its own name above the
+    // AIC, and the camera is still live at that moment: one extra pass, one plausible line.
+    str_contains($app, 'async function _medReadLabelName()')
+    && (bool)preg_match('/function _medPickNameLine\(page\)[\s\S]{0,1200}?bestScore/s', $app)
+    && (bool)preg_match('/_medPendingLabelName = await _medReadLabelName\(\)/s', $app)
+    && (bool)preg_match("/function _medLabelNameFill\(\)[\s\S]{0,700}?medical\.match_name_from_label/s", $app)
+    // Only when nothing name-like was typed/filled by the catalogue.
+    && (bool)preg_match('/if \\(field && !String\\(field\\.value \\|\\| .{2}\\)\\.trim\\(\\)\\)/s', $app)
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+        return $c && str_contains((string)($med[$l]['match_name_from_label'] ?? ''), '{name}');
+    }, true));
 check('a new medicine asks the catalogue as soon as the form opens',
     (bool)preg_match('/function _medStartManualEntry\(barcode, medical = true, labelKey = \'\'\)[\s\S]{0,400}?_medShowCatalogueMatch\(barcode\);/s', $app));
 check('Settings shows how many medicines are loaded (or that none are)',
@@ -1128,7 +1145,7 @@ check('a doubtful read is correctable where the name is (not over the camera)',
     (bool)preg_match("/function _medNeighboursHtml\(rows\)[\s\S]{0,900}?medical\\.choice_title_inline/s", $app)
     && (bool)preg_match('/function _medRenderNeighbours\(\)[\s\S]{0,700}?med-neighbour-row/s', $app)
     && (bool)preg_match("/function _medUseCode\\(code\\)[\\s\\S]{0,500}?medical\\.choice_switched/s", $app)
-    && (bool)preg_match('/if \\(!rows\\.length\\) \\{[\\s\\S]{0,300}?_medNeighboursHtml\(rows\)/s', $app)
+    && (bool)preg_match('/if \\(!rows\\.length\\) \\{[\\s\\S]{0,600}?_medLabelNameFill\(\) \+\s*_medNeighboursHtml\(rows\)/s', $app)
     && (bool)preg_match('/_medMatchResults = \\[\\];\\s*_medShowCatalogueMatch\\(value\\);/s', $app)
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
         return $c && isset($med[$l]['choice_title_inline'], $med[$l]['choice_switched']);

@@ -73,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Italy now declares **`scan.barcodes: false`**, so the medicine panel runs **no barcode engine
   whatsoever** (native detector, ZBar, Quagga and the digits OCR are skipped); Germany and the
   US keep their barcode path, because there the Code 39/EAN *is* the drug number.
+- **Fixed: the white box over the scanner is gone.** The medicine hint was a bordered white card of three lines above the camera and the read line was another one: both are now one line of dark glass, and the hint is a single sentence.
+- **Fixed: the form now fills itself.** A recognised AIC writes the **name, the company, the notes and the closed category** from the catalogue (empty fields only: a typed value always wins). With no catalogue loaded the card says so instead of staying silent — and the **name printed on the box is read** by one extra OCR pass, with a notice saying it came from the label.
 - **Fixed: no card over the camera.** The four-code confirmation that popped up over the viewfinder is gone: a read opens the medicine form as before, and the codes one digit away are **“Non è questo?” chips on the catalogue card**, next to the name they would change. The camera keeps one line of text, nothing else.
 - **The guide frame fills in with the digits being recognised** (`A0403130···`, emerald when complete) — the placeholder is no longer decorative.
 - **Fixed: why the reader struggles.** One pass now reads the **whole frame** as sparse text every few seconds (a box outside the rectangle was silently unreadable), the tight band is widened to 1.5×, and the read line says when there is **no OCR engine** or, with `?debug=1`, the frame size and the exact crop rectangle.

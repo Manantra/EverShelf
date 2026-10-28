@@ -2965,7 +2965,7 @@
     "match_company": "Marketing authorisation holder: {value}",
     "match_advice": "Identification, not advice: the dose and the indications stay on the leaflet.",
     "scan_title": "Scan medicines",
-    "scan_hint": "Barcodes are not read here: frame only the big code that starts with A (e.g. A040313076). The small code below and the Code 39 are not needed.",
+    "scan_hint": "Frame the line with the A (e.g. A040313076), inside the dashes.",
     "scan_manual": "Add by hand",
     "scan_not_medicine": "This is not a medicine code: the AIC is printed on the box. For food products use the food scan.",
     "scan_food_hint": "This is a medicine code: open it from the medicines pantry, where the scan is the right one.",
@@ -2998,6 +2998,9 @@
     "import_failed": "Import failed: the file could not be read.",
     "choice_title_inline": "Not this one? Pick the code you read on the box:",
     "choice_switched": "Code set: {code}",
-    "ocr_engine_error": "The OCR reader is not available on this device: type the code by hand."
+    "ocr_engine_error": "The OCR reader is not available on this device: type the code by hand.",
+    "match_filled": "Name, company and notes filled from AIFA for {code}. Check it is your box.",
+    "match_needs_catalog": "Code {code} saved, but no catalogue is loaded: name and company cannot be filled. Import it from Settings → Medicines.",
+    "match_name_from_label": "Name read from the label: “{name}”. Check it: the catalogue does not know it."
   }
 }

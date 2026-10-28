@@ -2965,7 +2965,7 @@
     "match_company": "Zulassungsinhaber: {value}",
     "match_advice": "Identifikation, kein Rat: Dosis und Hinweise stehen in der Packungsbeilage.",
     "scan_title": "Arzneimittel scannen",
-    "scan_hint": "Barcodes werden hier nicht gelesen: Richte die Kamera nur auf den großen Code, der mit A beginnt (z. B. A040313076). Der kleine Code darunter und der Code 39 werden nicht gebraucht.",
+    "scan_hint": "Richte die Kamera auf die Zeile mit dem A (z. B. A040313076), innerhalb des Rahmens.",
     "scan_manual": "Von Hand",
     "scan_not_medicine": "Das ist kein Arzneimittelcode: der AIC steht auf der Packung. Für Lebensmittel nutze den Lebensmittel-Scan.",
     "scan_food_hint": "Das ist ein Arzneimittelcode: öffne es aus dem Arzneimittelschrank, dort ist der richtige Scan.",
@@ -2998,6 +2998,9 @@
     "import_failed": "Import fehlgeschlagen: die Datei konnte nicht gelesen werden.",
     "choice_title_inline": "Nicht dieser? Wähle den Code, der auf der Schachtel steht:",
     "choice_switched": "Code gesetzt: {code}",
-    "ocr_engine_error": "Der OCR-Leser ist auf diesem Gerät nicht verfügbar: Code von Hand eingeben."
+    "ocr_engine_error": "Der OCR-Leser ist auf diesem Gerät nicht verfügbar: Code von Hand eingeben.",
+    "match_filled": "Name, Firma und Notizen aus AIFA für {code} gefüllt. Prüfe, ob es deine Schachtel ist.",
+    "match_needs_catalog": "Code {code} gespeichert, aber kein Katalog geladen: Name und Firma können nicht gefüllt werden. Importiere ihn unter Einstellungen → Medikamente.",
+    "match_name_from_label": "Name vom Etikett gelesen: „{name}“. Bitte prüfen: der Katalog kennt ihn nicht."
   }
 }

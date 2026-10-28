@@ -2965,7 +2965,7 @@
     "match_company": "Titular de la autorización: {value}",
     "match_advice": "Identificación, no consejo: la dosis y las indicaciones están en el prospecto.",
     "scan_title": "Escanear medicamentos",
-    "scan_hint": "Aquí no se leen códigos de barras: apunta solo al código grande que empieza por A (ej. A040313076). El código pequeño de abajo y el Code 39 no hacen falta.",
+    "scan_hint": "Encuadra la línea con la A (ej. A040313076), dentro del recuadro.",
     "scan_manual": "Añadir a mano",
     "scan_not_medicine": "Esto no es un código de medicamento: el AIC está impreso en la caja. Para alimentos usa el escaneo de comida.",
     "scan_food_hint": "Este es un código de medicamento: ábrelo desde la despensa de medicamentos, donde el escaneo es el correcto.",
@@ -2998,6 +2998,9 @@
     "import_failed": "Importación fallida: no se pudo leer el archivo.",
     "choice_title_inline": "¿No es este? Elige el código que lees en la caja:",
     "choice_switched": "Código establecido: {code}",
-    "ocr_engine_error": "El lector OCR no está disponible en este dispositivo: escribe el código a mano."
+    "ocr_engine_error": "El lector OCR no está disponible en este dispositivo: escribe el código a mano.",
+    "match_filled": "Nombre, laboratorio y notas rellenados desde AIFA para {code}. Comprueba que sea tu caja.",
+    "match_needs_catalog": "Código {code} guardado, pero el catálogo no está cargado: el nombre y el laboratorio no se pueden rellenar. Impórtalo en Ajustes → Medicamentos.",
+    "match_name_from_label": "Nombre leído de la etiqueta: «{name}». Compruébalo: el catálogo no lo conoce."
   }
 }

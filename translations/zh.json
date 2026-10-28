@@ -2965,7 +2965,7 @@
     "match_company": "上市许可持有人：{value}",
     "match_advice": "这是识别，不是建议：剂量和适应症请看说明书。",
     "scan_title": "扫描药品",
-    "scan_hint": "这里不读取条码：只对准以 A 开头的大号代码（例如 A040313076）。下方的小代码和 Code 39 都不需要。",
+    "scan_hint": "对准带 A 的那一行（例如 A040313076），放在虚线框内。",
     "scan_manual": "手动添加",
     "scan_not_medicine": "这不是药品代码：AIC 印在盒子上。食品请使用食品扫描。",
     "scan_food_hint": "这是药品代码：请从药品柜打开它，那里的扫描才是正确的。",
@@ -2998,6 +2998,9 @@
     "import_failed": "导入失败：无法读取文件。",
     "choice_title_inline": "不是这个？请选择包装上印的代码：",
     "choice_switched": "已设为代码：{code}",
-    "ocr_engine_error": "此设备不支持 OCR 识别：请手动输入代码。"
+    "ocr_engine_error": "此设备不支持 OCR 识别：请手动输入代码。",
+    "match_filled": "已根据 AIFA 填写 {code} 的名称、公司和备注。请确认是你的包装。",
+    "match_needs_catalog": "代码 {code} 已保存，但未加载目录：无法填写名称和公司。请到设置 → 药品中导入。",
+    "match_name_from_label": "从包装上读到的名称：{name}。请核对：目录中没有这个名称。"
   }
 }

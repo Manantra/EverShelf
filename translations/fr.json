@@ -2965,7 +2965,7 @@
     "match_company": "Titulaire de l’autorisation : {value}",
     "match_advice": "Identification, pas un conseil : la dose et les indications restent sur la notice.",
     "scan_title": "Scanner les médicaments",
-    "scan_hint": "Ici, les codes-barres ne sont pas lus : vise uniquement le grand code qui commence par A (ex. A040313076). Le petit code en dessous et le Code 39 ne servent pas.",
+    "scan_hint": "Vise la ligne avec le A (ex. A040313076), dans le cadre.",
     "scan_manual": "Ajouter à la main",
     "scan_not_medicine": "Ce n’est pas un code médicament : l’AIC est imprimé sur la boîte. Pour les produits alimentaires, utilise le scan alimentaire.",
     "scan_food_hint": "C’est un code médicament : ouvre-le depuis le placard à médicaments, où le scan est le bon.",
@@ -2998,6 +2998,9 @@
     "import_failed": "Import échoué : le fichier n’a pas pu être lu.",
     "choice_title_inline": "Pas celui-ci ? Choisis le code lu sur la boîte :",
     "choice_switched": "Code défini : {code}",
-    "ocr_engine_error": "Le lecteur OCR n’est pas disponible sur cet appareil : saisis le code à la main."
+    "ocr_engine_error": "Le lecteur OCR n’est pas disponible sur cet appareil : saisis le code à la main.",
+    "match_filled": "Nom, laboratoire et notes remplis depuis l’AIFA pour {code}. Vérifie que c’est bien ta boîte.",
+    "match_needs_catalog": "Code {code} enregistré, mais aucun catalogue chargé : le nom et le laboratoire ne peuvent pas être remplis. Importe-le depuis Réglages → Médicaments.",
+    "match_name_from_label": "Nom lu sur l’étiquette : « {name} ». Vérifie-le : le catalogue ne le connaît pas."
   }
 }

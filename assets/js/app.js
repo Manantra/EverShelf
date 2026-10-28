@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028j'; // bump when translations change
+const _I18N_VERSION = '20261028k'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15486,7 +15486,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028k';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15496,7 +15496,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028k';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16217,6 +16217,9 @@ async function _medConfirmRead(read) {
     const local = _medLocalCode(raw);
     const code = local ? String(local.aic || local.code || raw) : raw;
     if (!code) return;
+    // The form closes the camera, so a name printed on the box is read now or never. One pass,
+    // and only a plausible line is kept (see `_medPickNameLine`).
+    _medPendingLabelName = await _medReadLabelName().catch(() => '');
     showToast(t('medical.ocr_found').replace('{code}', 'A' + code), 'success');
     _finalizeBarcode('A' + code, 'OCR');
     // Painted by the form, so a slow answer must not hold the camera.
@@ -16304,6 +16307,151 @@ async function _medOcrFromScan() {
 /** The catalogue rows on screen, kept so `_medUseMatch(n)` knows what to fill. */
 let _medMatchResults = [];
 
+/** Fields WE filled from the catalogue, with the value we wrote: a neighbour switch may replace
+ * them, but a value the household typed is never overwritten. */
+let _medAutoFilled = {};
+
+/** The commercial name read off the box, waiting for the form that will use it. */
+let _medPendingLabelName = '';
+
+/**
+ * Read the COMMERCIAL NAME off the box, from the same camera, in one pass.
+ *
+ * The name is printed on the label, above the AIC: when the local catalogue does not know the
+ * code (or is not loaded at all), waiting for the household to retype it is pointless. The block
+ * is OCR'd once while the stream is still live (the form closes the camera), and a single
+ * plausible line is kept — the AIC and the company are read by the label but not by us, so a
+ * wrong guess lands in an editable field, never in the database.
+ *
+ * @returns {Promise<string>} the best line, or ''
+ */
+async function _medReadLabelName() {
+    if (!_medOn()) return '';
+    const videoEl = document.getElementById('scanner-video');
+    if (!videoEl || !videoEl.videoWidth) return '';
+    const worker = await _ensureTesseractWorker('med');
+    if (!worker) return '';
+    // The name sits ABOVE the AIC: a taller band, without binarizing (an anti-aliased label reads
+    // worse as black and white).
+    const region = _medGuideRect(videoEl, 2) || null;
+    const canvas = _captureMedLabelFrame(videoEl, region, false);
+    if (!canvas) return '';
+    try {
+        await worker.setParameters({ tessedit_pageseg_mode: '6' });
+        const { data } = await worker.recognize(canvas);
+        const name = _medPickNameLine(String((data && data.text) || ''));
+        scanLog(`Medicine label name: ${name ? `"${name}"` : 'none'}`);
+        return name;
+    } catch (e) {
+        scanLog(`Medicine label name failed: ${e.message}`);
+        return '';
+    }
+}
+
+/**
+ * The one line of an OCR page that looks like a commercial name.
+ *
+ * Deliberately strict: a wrong name is worse than an empty field, so a line must be mostly
+ * letters, 4..45 characters, and must not carry the words a medicine box prints around it
+ * (`A.I.C.`, `TITOLARE`, `Lotto`, `Scadenza`, the dose unit).
+ *
+ * @param {string} page
+ * @returns {string} the best line, or ''
+ */
+function _medPickNameLine(page) {
+    const junk = /(a\.?\s?i\.?\s?c|titolar|codice|lotto|scad|ministero|farmaco|compresse?\s*e|posologia|indicazion|principio attivo)/i;
+    let best = '';
+    let bestScore = 0;
+    for (const rawLine of String(page || '').split(/\n+/)) {
+        const line = rawLine.replace(/\s+/g, ' ').trim();
+        if (line.length < 4 || line.length > 45) continue;
+        if (junk.test(line)) continue;
+        const letters = (line.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+        if (letters < line.replace(/\s/g, '').length * 0.6) continue;
+        if (/^[0-9\W]+$/.test(line)) continue;
+        // Longer, letter-dense lines win: the commercial name is the biggest text on the front.
+        const score = letters;
+        if (score > bestScore) { bestScore = score; best = line; }
+    }
+    return best;
+}
+
+/**
+ * Fill the medicine form from the catalogue row.
+ *
+ * A recognised AIC is already an identification: making the household type the name, the company
+ * and the details of a box the app just named is busywork — and the catalogue IS the official
+ * AIFA name, not a guess. Empty fields only (a typed value always wins), remembered in
+ * `_medAutoFilled` so choosing another neighbour code rewrites what we wrote and nothing else.
+ *
+ * @param {object} row a catalogue row (`medicinePublicRow`)
+ * @param {{force?: boolean}} [options]
+ */
+function _medFillFromCatalogue(row, options = {}) {
+    if (!row || !row.name) return false;
+    const set = (id, value, key) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const current = String(el.value || '');
+        const mine = _medAutoFilled[key];
+        if (!options.force && current && current !== mine) return;
+        el.value = value;
+        _medAutoFilled[key] = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    set('pf-name', String(row.name), 'name');
+    if (row.company) set('pf-brand', String(row.company), 'brand');
+    const details = [
+        row.ingredient ? t('medical.match_ingredient').replace('{value}', row.ingredient) : '',
+        [row.form, row.dosage].filter(Boolean).join(' '),
+        row.pack ? t('medical.match_pack').replace('{value}', row.pack) : '',
+        row.atc ? t('medical.match_atc').replace('{value}', row.atc) : '',
+        row.fascia ? t('medical.match_fascia').replace('{value}', row.fascia) : '',
+        `AIC ${row.aic}`,
+    ].filter(Boolean);
+    if (details.length) set('pf-notes', details.join(' · '), 'notes');
+    // The closed category list accepts an ATC prefix: the box is classified, not guessed.
+    const cat = _medCategoryFromAtc(row.atc);
+    const chips = document.getElementById('pf-med-cats');
+    if (cat && chips) {
+        const box = chips.querySelector(`input[value="${cat}"]`);
+        if (box && !document.querySelector('#pf-med-cats input:checked')) {
+            box.checked = true;
+            box.closest('.med-cat-chip')?.classList.add('is-on');
+        }
+    }
+    return true;
+}
+
+/**
+ * Fill the name that was read off the box itself (catalogue unknown or empty), and say so.
+ *
+ * @returns {string} the notice to append to the card, or ''
+ */
+function _medLabelNameFill() {
+    const name = String(_medPendingLabelName || '').trim();
+    if (!name) return '';
+    const field = document.getElementById('pf-name');
+    if (field && !String(field.value || '').trim()) {
+        field.value = name;
+        _medAutoFilled.name = name;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return `<p class="settings-hint med-match-filled">${escapeHtml(t('medical.match_name_from_label').replace('{name}', name))}</p>`;
+}
+
+/** The closed category whose ATC prefixes cover this code (e.g. N02B → `pain`), or ''. */
+function _medCategoryFromAtc(atc) {
+    const code = String(atc || '').toUpperCase();
+    if (!code) return '';
+    for (const cat of (_medStatus.categories || [])) {
+        for (const prefix of (cat.atc || [])) {
+            if (prefix && code.startsWith(String(prefix).toUpperCase())) return String(cat.slug || '');
+        }
+    }
+    return '';
+}
+
 /**
  * The codes one digit away, in the form, where the name they would change is.
  *
@@ -16381,19 +16529,29 @@ async function _medShowCatalogueMatch(code) {
     host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_searching'))}</p>`;
     let res = null;
     try {
-        res = await api('med_lookup', { aic: aic, lang: _currentLang || '' });
+        res = await api('med_lookup', { aic: aic, near: 1, lang: _currentLang || '' });
     } catch (e) { res = null; }
     const rows = (res && Array.isArray(res.results)) ? res.results : [];
     const loaded = !!(res && res.dataset && res.dataset.loaded);
     _medMatchResults = rows;
-    // No catalogue imported? Say NOTHING: the form is already the answer (the code is stored,
-    // the household types the name). A notice about a database to download in the middle of a
-    // scan reads like a requirement, and it is not — the catalogue is optional.
-    if (!loaded) { host.hidden = true; host.innerHTML = ''; return; }
+    // `near=1` already carries the codes around the read: keep them for the "non è questo?" chips
+    // even when this answer arrives after the form was painted.
+    if (loaded) {
+        _medNeighbourRead = aic;
+        _medNeighbourCodes = _medChoiceCandidates(aic, rows, 4);
+    }
+    // No catalogue imported? Then the name CANNOT be filled, and staying silent is what made
+    // the empty form look broken. One line, where the import is, and the code is still stored.
+    if (!loaded) {
+        host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_needs_catalog').replace('{code}', 'A' + aic))}</p>` +
+            _medLabelNameFill();
+        return;
+    }
     if (!rows.length) {
         // Not in the catalogue: the read is exactly the case where the neighbours matter, so the
         // card says "unknown" and still offers the codes around it.
         host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_none'))}</p>` +
+            _medLabelNameFill() +
             _medNeighboursHtml(rows);
         return;
     }
@@ -16405,7 +16563,16 @@ async function _medShowCatalogueMatch(code) {
             .replace('{source}', t(String((res && res.dataset_key) || 'medical.dataset_aifa')))
             .replace('{count}', String(Number(dataset.count || 0)))
         : '';
-    host.innerHTML = `<h5 class="med-match-title">${escapeHtml(t('medical.match_title'))}</h5>` +
+    // An exact AIC names the box: fill the fields the household would otherwise retype (empty
+    // ones only) and keep the card as the confirmation + the correction.
+    const exactRow = rows.find(r => String(r.aic || '') === aic);
+    if (exactRow) {
+        _medFillFromCatalogue(exactRow);
+        host.innerHTML = `<p class="settings-hint med-match-filled">${escapeHtml(t('medical.match_filled').replace('{code}', 'A' + aic))}</p>`;
+    } else {
+        host.innerHTML = '';
+    }
+    host.innerHTML += `<h5 class="med-match-title">${escapeHtml(t('medical.match_title'))}</h5>` +
         rows.map((row, i) => {
             const meta = [
                 row.ingredient ? t('medical.match_ingredient').replace('{value}', row.ingredient) : '',
@@ -16433,15 +16600,11 @@ async function _medShowCatalogueMatch(code) {
 function _medUseMatch(index) {
     const row = _medMatchResults[Number(index)];
     if (!row) return;
-    const name = document.getElementById('pf-name');
-    if (name && row.name) {
-        name.value = String(row.name);
-        name.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const brand = document.getElementById('pf-brand');
-    if (brand && row.company) brand.value = String(row.company);
+    // The button is the deliberate "use this one": same filler as the automatic path, forced, so
+    // name, company, notes and the closed category all land together.
+    _medFillFromCatalogue(row, { force: true });
     const code = document.getElementById('pf-barcode');
-    if (code && !String(code.value || '').trim() && row.aic) code.value = 'A' + String(row.aic);
+    if (code && row.aic) code.value = 'A' + String(row.aic);
     const banner = document.getElementById('pf-med-banner-code');
     if (banner && row.aic) banner.textContent = `${t('medical.code_aic')} · A${row.aic}`;
     showToast(t('medical.match_used'), 'success');
@@ -17397,6 +17560,8 @@ function _medFormIsMedicine() {
 
 /** Turn the product form's medical switch on (and paint the closed categories). */
 function _medArmProductForm(code = '', labelKey = '') {
+    // A new box, a new auto-fill: what we wrote for the previous one must not be "ours" here.
+    _medAutoFilled = {};
     const group = document.getElementById('pf-medical-group');
     if (!group || !_medOn()) return;
     _medFormSetMode(true, { code: String(code || ''), label_key: String(labelKey || '') });
