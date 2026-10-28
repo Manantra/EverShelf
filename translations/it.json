@@ -3041,6 +3041,9 @@
     "scan_needs_catalog": "Il catalogo farmaci non è caricato: senza catalogo nessuna scatola può essere aggiunta. Importalo da Impostazioni → Farmaci.",
     "cabinet_created": "Ho creato «{place}» per i farmaci.",
     "stock_failed": "Il farmaco è salvato ma non sono riuscito a metterlo nell’armadietto: riprova con Salva.",
+    "pack_detected": "Confezione rilevata: {pack}",
+    "pack_qty_label": "Confezione intera",
+    "pack_qty_hint": "Quanto contiene la confezione piena: è quello che l’app usa per «quanto ne resta» e per la lista della spesa.",
     "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto."
   },
   "months": {

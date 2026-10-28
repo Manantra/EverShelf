@@ -3041,6 +3041,9 @@
     "scan_needs_catalog": "No medicine catalogue is loaded: without it no box can be added. Import it from Settings → Medicines.",
     "cabinet_created": "I created “{place}” for medicines.",
     "stock_failed": "The medicine is saved but I could not put it in the cabinet: try Save again.",
+    "pack_detected": "Pack detected: {pack}",
+    "pack_qty_label": "Full pack",
+    "pack_qty_hint": "What the full pack holds: the app uses it for “how much is left” and for the shopping list.",
     "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored."
   },
   "months": {

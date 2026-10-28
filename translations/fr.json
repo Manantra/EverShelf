@@ -3041,6 +3041,9 @@
     "scan_needs_catalog": "Aucun catalogue de médicaments chargé : sans lui, aucune boîte ne peut être ajoutée. Importe-le depuis Réglages → Médicaments.",
     "cabinet_created": "J’ai créé « {place} » pour les médicaments.",
     "stock_failed": "Le médicament est enregistré mais je n’ai pas pu le ranger dans l’armoire : réessaie avec Enregistrer.",
+    "pack_detected": "Boîte détectée : {pack}",
+    "pack_qty_label": "Boîte pleine",
+    "pack_qty_hint": "Ce que contient la boîte pleine : l’app s’en sert pour « ce qu’il reste » et pour la liste de courses.",
     "no_cabinet": "Aucune armoire configurée : ouvrez-la dans Réglages → Médicaments, sinon un médicament ne peut pas être rangé."
   },
   "months": {

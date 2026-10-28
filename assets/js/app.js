@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zzf'; // bump when translations change
+const _I18N_VERSION = '20261028zzg'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15788,7 +15788,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzf';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzg';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15798,7 +15798,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzf';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzg';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18533,6 +18533,45 @@ function _medFormStockState(state) {
     document.querySelectorAll('#pf-med-state .med-state-chip').forEach(b => {
         b.classList.toggle('is-on', b.dataset.state === _medFormStockStateValue);
     });
+    _medFormStockSyncPackRow();
+}
+
+/**
+ * The second number exists only when it means something.
+ *
+ * SEALED: the quantity IS the pack (detected from the catalogue, editable), so one field is enough.
+ * OPENED: the household says what is LEFT and what the FULL pack held, and the app needs both —
+ * the stock for the pantry and the shopping list, the pack for "how much of it is left".
+ */
+function _medFormStockSyncPackRow() {
+    const opened = _medFormStockStateValue === 'opened';
+    const row = document.getElementById('pf-med-pack-row');
+    if (row) row.hidden = !opened;
+    const packEl = document.getElementById('pf-med-pack');
+    const qtyEl = document.getElementById('pf-med-qty');
+    if (opened && packEl && !String(packEl.value || '').trim() && qtyEl) {
+        // Opening a box does not change what the full container holds: seed it from what we know.
+        packEl.value = String(qtyEl.value || '');
+    }
+    _medFormStockSyncPackUnit();
+}
+
+/** The pack is measured in the unit of the quantity (a tube of gel is 50 g, not 50 pz). */
+function _medFormStockSyncPackUnit() {
+    const echo = document.getElementById('pf-med-pack-unit');
+    const unit = document.getElementById('pf-med-unit');
+    if (echo) echo.textContent = unit ? String(unit.value || '') : '';
+}
+
+/** A unit change is not a typed quantity: it only re-labels the pack field. */
+function _medFormStockUnitChanged() {
+    _medFormStockSyncPackUnit();
+}
+
+/** Keep a typed pack size: a catalogue that arrives late must not overwrite it. */
+function _medFormPackTyped() {
+    const packEl = document.getElementById('pf-med-pack');
+    if (packEl) packEl.dataset.userSet = '1';
 }
 
 /** A new box, a new answer: the form starts sealed, one piece, no date. */
@@ -18545,6 +18584,11 @@ function _medFormStockReset() {
     }
     const unit = document.getElementById('pf-med-unit');
     if (unit) unit.value = 'pz';
+    const packEl = document.getElementById('pf-med-pack');
+    if (packEl) {
+        packEl.value = '';
+        packEl.dataset.userSet = '';
+    }
     const expiry = document.getElementById('pf-med-expiry');
     if (expiry) expiry.value = '';
     // The printed expiry is a month + a year (see `_medExpiryFillPickers`): a new box starts with
@@ -18555,6 +18599,7 @@ function _medFormStockReset() {
     document.querySelectorAll('#pf-med-state .med-state-chip').forEach(b => {
         b.classList.toggle('is-on', b.dataset.state === 'new');
     });
+    _medFormStockSyncPackRow();
 }
 
 /**
@@ -18739,32 +18784,32 @@ function _medFormStockPrefill(text) {
     const qty = document.getElementById('pf-med-qty');
     const unit = document.getElementById('pf-med-unit');
     if (!qty || !unit) return;
-    if (qty.dataset.userSet === '1') return;
     const hint = document.getElementById('pf-med-qty-hint');
-    const pack = _medPackCount(text);
-    if (pack.pieces >= 2) {
-        qty.value = String(pack.pieces);
-        unit.value = 'pz';
-        if (hint) hint.textContent = t('medical.pieces_hint').replace('{n}', String(pack.pieces)).replace('{unit}', pack.unit);
-        return;
-    }
-    const measure = /(\d{1,4})\s*(ml|cl|g|mg)\b/i.exec(String(text || ''));
-    if (measure) {
-        const amount = Number(measure[1]);
-        const symbol = String(measure[2]).toLowerCase();
-        const isLiquid = symbol === 'ml' || symbol === 'cl';
-        const value = symbol === 'cl' ? amount * 10 : (symbol === 'mg' ? amount / 1000 : amount);
-        if (value > 0) {
-            qty.value = String(value);
-            unit.value = isLiquid ? 'ml' : 'g';
-            if (hint) hint.textContent = `${measure[1]} ${symbol}`;
-            return;
+    const packEl = document.getElementById('pf-med-pack');
+    // What the FULL container holds. It used to take the first number it found, so "Fastum gel
+    // 25 mg/g tubo 50 g" put 25 mg on a 50 g tube: `_medPackSize()` skips the concentration and
+    // picks the container (see core/med.js).
+    const pack = _medPackSize(text);
+    const qtyTyped = qty.dataset.userSet === '1';
+    const packTyped = !!packEl && packEl.dataset.userSet === '1';
+    if (pack.qty > 0) {
+        if (!qtyTyped) {
+            qty.value = String(pack.qty);
+            unit.value = pack.unit;
         }
+        if (packEl && !packTyped) packEl.value = String(pack.qty);
+        if (hint) {
+            hint.textContent = t('medical.pack_detected')
+                .replace('{pack}', _formatQtyPlain(pack.qty, pack.unit, pack.qty, ''));
+        }
+    } else if (!qtyTyped) {
+        // Nothing readable in the pack: one box, counted in pieces.
+        qty.value = '1';
+        unit.value = 'pz';
+        if (packEl && !packTyped) packEl.value = '';
+        if (hint) hint.textContent = '';
     }
-    // Nothing readable in the pack: one box, counted in pieces.
-    qty.value = '1';
-    unit.value = 'pz';
-    if (hint) hint.textContent = '';
+    _medFormStockSyncPackUnit();
 }
 
 /** Keep a typed quantity: a catalogue that arrives late must not overwrite the household. */
@@ -19464,11 +19509,19 @@ async function submitProduct(e) {
             showToast(t('add.expiry_soon').replace('{days}', String(daysLeft)), 'warning', 5000);
         }
         const qty = parseFloat(qtyEl?.value || '');
+        const packQty = parseFloat(document.getElementById('pf-med-pack')?.value || '');
+        const state = _medFormStockStateValue === 'opened' ? 'opened' : 'new';
+        const available = Number.isFinite(qty) && qty > 0 ? qty : 1;
         medStock = {
-            qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+            qty: available,
+            // What the FULL pack holds: on a sealed box it IS the quantity, on an opened one the
+            // household says it (detected from the catalogue, editable). It is stored as the
+            // product's `default_quantity`, which is the pack size the rest of the app reads
+            // (fractions, "sta per finire", shopping list) — the stock stays `qty`.
+            pack: (state === 'opened' && Number.isFinite(packQty) && packQty > 0) ? packQty : available,
             unit: unitEl?.value || 'pz',
             expiry: expiry,
-            state: _medFormStockStateValue === 'opened' ? 'opened' : 'new',
+            state: state,
         };
     }
     showLoading(true);
@@ -19480,7 +19533,7 @@ async function submitProduct(e) {
         brand: document.getElementById('pf-brand').value,
         category: isMedicine ? 'altro' : document.getElementById('pf-category').value,
         unit: medStock ? medStock.unit : (isMedicine ? 'pz' : pfUnit),
-        default_quantity: medStock ? medStock.qty : (isMedicine ? 1 : (pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1))),
+        default_quantity: medStock ? medStock.pack : (isMedicine ? 1 : (pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1))),
         package_unit: isMedicine ? '' : (pfUnit === 'conf' ? (document.getElementById('pf-conf-unit')?.value || '') : ''),
         notes: document.getElementById('pf-notes').value,
         barcode: document.getElementById('pf-barcode').value || null,

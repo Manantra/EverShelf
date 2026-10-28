@@ -363,6 +363,48 @@ function _medOcrDigitCandidates(text, limit = 4) {
  * @param {string} pack the catalogue's pack description (or any text that carries it)
  * @returns {{pieces:number, unit:string}}
  */
+/**
+ * The PACK SIZE of a box: what the full, sealed container holds.
+ *
+ * The catalogue text mixes the container with the concentration — "Fastum gel 2,5% 25 mg/g gel
+ * tubo 50 g" — and taking the FIRST number (which is what the form used to do) put "25 mg" on a
+ * 50 g tube: a dose per gram is not what the tube holds. So:
+ *   1. countable pieces first (`_medPackCount()`: "10 compresse", "20 buste");
+ *   2. otherwise the container measure, ignoring anything written as a RATIO (`25 mg/g`,
+ *      `10 mg/ml`, `mg/100 g`) and picking the LARGEST remaining g/ml value — a dose is a rounding
+ *      error next to the tube it comes in.
+ *
+ * @param {string} pack the pack/dosage text from the catalogue (or the row's notes)
+ * @returns {{qty:number, unit:'pz'|'g'|'ml', label:string}} qty 0 when nothing is readable
+ */
+function _medPackSize(pack) {
+    const text = String(pack || '');
+    const pieces = _medPackCount(text);
+    if (pieces.pieces >= 2) {
+        return { qty: pieces.pieces, unit: 'pz', label: pieces.pieces + ' ' + pieces.unit };
+    }
+    const re = /(\d{1,4}(?:[.,]\d{1,2})?)\s*(kg|g|gr|ml|cl|dl|l|cc)\b(\s*\/\s*(?:\d+\s*)?(?:g|gr|kg|ml|cl|dl|l))?/gi;
+    let best = null;
+    let m = null;
+    while ((m = re.exec(text)) !== null) {
+        if (m[3]) continue;                       // "mg/g", "mg/ml": a dose, not the pack
+        const raw = Number(String(m[1]).replace(',', '.'));
+        if (!(raw > 0)) continue;
+        const u = String(m[2]).toLowerCase();
+        const liquid = (u === 'ml' || u === 'cl' || u === 'dl' || u === 'l' || u === 'cc');
+        let qty = raw;
+        if (u === 'cl') qty = raw * 10;
+        else if (u === 'dl') qty = raw * 100;
+        else if (u === 'l') qty = raw * 1000;
+        else if (u === 'kg') qty = raw * 1000;
+        if (!(qty > 0)) continue;
+        if (!best || qty > best.qty) {
+            best = { qty: qty, unit: liquid ? 'ml' : 'g', label: m[1] + ' ' + m[2] };
+        }
+    }
+    return best || { qty: 0, unit: 'pz', label: '' };
+}
+
 function _medPackCount(pack) {
     const measures = ['ml', 'l', 'cl', 'dl', 'cc', 'g', 'gr', 'mg', 'kg', 'mcg', 'ui', 'iu', 'dose', 'gocce'];
     const re = /(\d{1,3})\s*([A-Za-zÀ-ÿ]{2,})/g;

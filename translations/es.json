@@ -3041,6 +3041,9 @@
     "scan_needs_catalog": "No hay catálogo de medicamentos cargado: sin él no se puede añadir ninguna caja. Impórtalo en Ajustes → Medicamentos.",
     "cabinet_created": "He creado «{place}» para los medicamentos.",
     "stock_failed": "El medicamento está guardado pero no he podido ponerlo en el botiquín: vuelve a Guardar.",
+    "pack_detected": "Caja detectada: {pack}",
+    "pack_qty_label": "Caja completa",
+    "pack_qty_hint": "Lo que contiene la caja llena: la app lo usa para «cuánto queda» y para la lista de la compra.",
     "no_cabinet": "Ningún botiquín configurado: créalo en Ajustes → Medicamentos, o un fármaco no se puede guardar."
   },
   "months": {

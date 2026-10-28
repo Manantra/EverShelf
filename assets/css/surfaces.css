@@ -2319,6 +2319,22 @@ a.free-api:hover { border-color: var(--brand-primary); }
 .med-qty-inputs { display: flex; gap: 8px; align-items: center; }
 .med-qty-inputs input { flex: 1 1 auto; min-width: 0; max-width: 140px; }
 .med-qty-inputs select { flex: 0 0 auto; width: 86px; }
+/* The pack field borrows the unit of the quantity (a tube of gel is 50 g, not 50 pz), and it
+   only exists when the box is already opened: on a sealed one the quantity IS the pack. */
+.med-qty-unit-echo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 46px;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
 /* "Scadenza MM/AAAA": a box prints a month and a year, never a day, so the two pickers ask
    exactly that. The month takes the room, the year what four digits need. */
 /* "Scadenza MM/AAAA": a box prints a month and a year, never a day. The month is a picker with

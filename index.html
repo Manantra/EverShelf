@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261028zzf">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zzf">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zzf">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261028zzg">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zzg">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zzg">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zzf">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zzf">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zzg">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zzg">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261028zzf"></script>
-    <script src="assets/js/core/auth.js?v=20261028zzf"></script>
-    <script src="assets/js/core/med.js?v=20261028zzf"></script>
+    <script src="assets/js/core/dom.js?v=20261028zzg"></script>
+    <script src="assets/js/core/auth.js?v=20261028zzg"></script>
+    <script src="assets/js/core/med.js?v=20261028zzg"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261028zzf"></script>
+    <script src="assets/js/med/italy.js?v=20261028zzg"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261028zzf"></script>
+    <script src="assets/js/core/support.js?v=20261028zzg"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzf';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzg';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzf';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzg';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zzf"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zzg"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -977,16 +977,26 @@
                         <input type="text" class="med-classify-ingredient" id="pf-med-ingredient" maxlength="80"
                                placeholder="principio attivo (es. ibuprofene)" data-i18n-placeholder="medical.ingredient_placeholder">
                     </div>
-                    <!-- A box is STOCK, not only a catalogue entry: the form asks what the
-                         household HAS and until when, so the pantry step is one tap and not a
-                         second interrogation. The unit follows the box (compresse → pz,
-                         sciroppo → ml, crema → g) and the date is the one PRINTED on it. -->
+                    <!-- A box is STOCK, not only a catalogue entry. The ORDER is the household's:
+                         1. sealed or already opened — it decides what the quantity MEANS;
+                         2. "quanto ne hai" (sealed: the pack itself, detected and editable);
+                         3. only when opened, "confezione intera" — what the FULL pack holds, so the
+                            app knows the stock AND the pack it belongs to (fractions, "sta per
+                            finire", shopping list);
+                         4. the date printed on the box. -->
                     <div class="med-stock-fields" id="pf-med-stock-fields">
+                        <div class="med-state-row">
+                            <label data-i18n="medical.stock_state_label">💊 La confezione è nuova o già aperta?</label>
+                            <div class="med-state-chips" id="pf-med-state">
+                                <button type="button" class="med-state-chip is-on" data-state="new" onclick="_medFormStockState('new')" data-i18n="medical.state_new">Sigillata</button>
+                                <button type="button" class="med-state-chip" data-state="opened" onclick="_medFormStockState('opened')" data-i18n="medical.state_opened">Già aperta</button>
+                            </div>
+                        </div>
                         <div class="med-qty-row">
                             <label for="pf-med-qty" data-i18n="medical.form_qty_label">Quanto ne hai</label>
                             <div class="med-qty-inputs">
                                 <input type="number" id="pf-med-qty" class="form-input" min="0" step="any" value="1" inputmode="decimal" oninput="_medFormStockTyped()">
-                                <select id="pf-med-unit" class="form-input">
+                                <select id="pf-med-unit" class="form-input" onchange="_medFormStockUnitChanged()">
                                     <option value="pz">pz</option>
                                     <option value="ml">ml</option>
                                     <option value="g">g</option>
@@ -994,20 +1004,23 @@
                             </div>
                             <p class="form-hint" id="pf-med-qty-hint"></p>
                         </div>
+                        <div class="med-qty-row" id="pf-med-pack-row" hidden>
+                            <label for="pf-med-pack" data-i18n="medical.pack_qty_label">Confezione intera</label>
+                            <div class="med-qty-inputs">
+                                <input type="number" id="pf-med-pack" class="form-input" min="0" step="any" inputmode="decimal" oninput="_medFormPackTyped()">
+                                <span class="med-qty-unit-echo" id="pf-med-pack-unit" aria-hidden="true">g</span>
+                            </div>
+                            <p class="form-hint" data-i18n="medical.pack_qty_hint">Quanto contiene la confezione piena: è quello che l’app usa per «quanto ne resta» e per la lista della spesa.</p>
+                        </div>
                         <div class="med-expiry-row">
                             <label for="pf-med-expiry-month" data-i18n="medical.form_expiry_label">📅 Scadenza stampata sulla scatola *</label>
                             <!-- A box prints "scadenza MM/AAAA", never a day: the month is a picker
-                                 with its NAME in the UI language (_medExpiryMonthName()), the year is
-                                 a TYPED number (a phone opens the numeric keypad), and
-                                 #pf-med-expiry (hidden) keeps the ISO value the rest of the form
-                                 reads: the LAST day of the chosen month. Both controls are painted
-                                 by _medExpiryFillPickers() wherever the medical block appears. -->
+                                 with its NAME in the UI language (months.*), the year is a TYPED
+                                 number, and #pf-med-expiry (hidden) keeps the ISO value the rest of
+                                 the form reads: the LAST day of the chosen month. Both controls are
+                                 painted by _medExpiryPaintMonthOptions() at boot and by
+                                 _medExpiryFillPickers() when the form opens. -->
                             <div class="med-expiry-pickers">
-                                <!-- NO month name in this markup: the twelve options are painted from
-                                     the language file (`months.*` in translations/*.json) by
-                                     _medExpiryPaintMonthOptions(), which runs as soon as the strings
-                                     are loaded, and again by _medExpiryFillPickers() when a form
-                                     opens. One source of names, six languages. -->
                                 <select id="pf-med-expiry-month" class="form-input med-expiry-month" onchange="_medExpiryPick('pf-med')"></select>
                                 <input type="number" id="pf-med-expiry-year" class="form-input med-expiry-year"
                                        inputmode="numeric" step="1"
@@ -1015,13 +1028,6 @@
                             </div>
                             <input type="hidden" id="pf-med-expiry">
                             <p class="form-hint" data-i18n="medical.expiry_month_hint">La scatola stampa mese e anno: vale fino all'ultimo giorno del mese.</p>
-                        </div>
-                        <div class="med-state-row">
-                            <label data-i18n="medical.stock_state_label">💊 La confezione è nuova o già aperta?</label>
-                            <div class="med-state-chips" id="pf-med-state">
-                                <button type="button" class="med-state-chip is-on" data-state="new" onclick="_medFormStockState('new')" data-i18n="medical.state_new">Sigillata</button>
-                                <button type="button" class="med-state-chip" data-state="opened" onclick="_medFormStockState('opened')" data-i18n="medical.state_opened">Già aperta</button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -3394,15 +3400,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261028zzf"></script>
-<script src="assets/js/food_facts.generated.js?v=20261028zzf"></script>
-<script src="assets/js/free_apis.generated.js?v=20261028zzf"></script>
-<script src="assets/js/core/vocab.js?v=20261028zzf"></script>
-<script src="assets/js/app.js?v=20261028zzf"></script>
-<script src="assets/js/audit.js?v=20261028zzf"></script>
-<script src="assets/js/receipt.js?v=20261028zzf"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261028zzf"></script>
-<script src="assets/js/settings_search.js?v=20261028zzf"></script>
+<script src="assets/js/vocab.generated.js?v=20261028zzg"></script>
+<script src="assets/js/food_facts.generated.js?v=20261028zzg"></script>
+<script src="assets/js/free_apis.generated.js?v=20261028zzg"></script>
+<script src="assets/js/core/vocab.js?v=20261028zzg"></script>
+<script src="assets/js/app.js?v=20261028zzg"></script>
+<script src="assets/js/audit.js?v=20261028zzg"></script>
+<script src="assets/js/receipt.js?v=20261028zzg"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261028zzg"></script>
+<script src="assets/js/settings_search.js?v=20261028zzg"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

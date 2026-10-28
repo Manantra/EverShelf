@@ -3041,6 +3041,9 @@
     "scan_needs_catalog": "Kein Medikamentenkatalog geladen: ohne ihn kann keine Packung hinzugefügt werden. Importiere ihn unter Einstellungen → Medikamente.",
     "cabinet_created": "„{place}“ für Medikamente angelegt.",
     "stock_failed": "Das Medikament ist gespeichert, konnte aber nicht in den Schrank gelegt werden: erneut speichern.",
+    "pack_detected": "Packung erkannt: {pack}",
+    "pack_qty_label": "Ganze Packung",
+    "pack_qty_hint": "Wie viel die volle Packung enthält: damit rechnet die App „wie viel übrig ist“ und die Einkaufsliste.",
     "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern."
   },
   "months": {

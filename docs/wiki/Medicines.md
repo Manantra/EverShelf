@@ -231,6 +231,14 @@ cabinet is created on the spot (`_medEnsureCabinet()`), a refused write keeps th
 answer and says so (`medical.stock_failed`), and the flow ends on the **cabinet list** with the new
 row in it.
 
+The stock questions follow the household’s order: **sealed or already opened first**, because it
+decides what the quantity means; then “quanto ne hai”, which on a sealed box IS the pack
+(`_medPackSize()` reads the container — “Fastum gel 2,5% 25 mg/g tubo 50 g” is **50 g**, never the
+25 mg of the concentration); and only when the box is opened a second field, “Confezione intera”,
+so the app knows the stock (`inventory.quantity`) and the pack it belongs to
+(`products.default_quantity`, which is what the fractions, “sta per finire” and the shopping list
+already read).
+
 The expiry of a box is a **month and a year**, because that is what the pack prints
 (“scadenza 10/2026”): the month is a picker whose **twelve names live in the language file**
 (`months.january` … `months.december`, all six locales — nothing hardcoded in the markup or in the

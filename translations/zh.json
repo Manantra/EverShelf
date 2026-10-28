@@ -3041,6 +3041,9 @@
     "scan_needs_catalog": "未加载药品目录：没有目录无法添加药盒。请到设置 → 药品中导入。",
     "cabinet_created": "已为药品创建「{place}」。",
     "stock_failed": "药品已保存，但没能放进药柜：请再次保存。",
+    "pack_detected": "已识别包装：{pack}",
+    "pack_qty_label": "整包容量",
+    "pack_qty_hint": "整包装的含量：应用用它来计算「还剩多少」和购物清单。",
     "no_cabinet": "尚未设置药箱：请在“设置 → 药品”中创建，否则无法存放药品。"
   },
   "months": {

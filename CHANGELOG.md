@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-10-28
 
 ### Changed
+- **A medicine box asks its state first, and the pack is read from the container — not from the
+  dose.** “Fastum gel 2,5% 25 mg/g … tubo 50 g” was shown as **25 mg**: the form took the first
+  number on the box, which is a dose per gram, not what the tube holds. `_medPackSize()`
+  (`core/med.js`) now reads the container: countable pieces first (“10 compresse”), otherwise the
+  g/ml measure, **skipping anything written as a ratio** (`25 mg/g`, `mg/ml`) and keeping the
+  largest — so the tube is **50 g**. The block is re-ordered as the household asked: **sealed or
+  already opened** first (it decides what the number means), then “Quanto ne hai” — on a sealed box
+  the quantity IS the pack, detected and editable — and, **only when the box is opened**, a second
+  field “Confezione intera”. The pack is stored as `products.default_quantity` (the pack size the
+  rest of the app already reads: fractions, “sta per finire”, shopping list) while
+  `inventory.quantity` stays the stock, so expiry alerts and the shopping list keep working
+  unchanged. Two new keys (`medical.pack_detected`, `medical.pack_qty_label` + hint) in the six
+  locales.
 - **One screen for a medicine, and it ends in the cabinet.** The flow used to be able to fall back
   to the pantry step (asking the same quantity a second time) whenever the stock write was refused.
   Now a missing cabinet is **created on the spot** (`_medEnsureCabinet()` → the default
