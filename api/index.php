@@ -1240,6 +1240,12 @@ try {
         case 'med_open':
             medOpenAction($db);
             break;
+        // POST med_catalog_import — load the national catalogue from a file the household picks.
+        // The free source (AIFA open data for Italy, the openFDA export for the US) is a FILE:
+        // there is no key-less REST service for medicines, so nothing is queried at scan time.
+        case 'med_catalog_import':
+            medCatalogImportAction($db);
+            break;
 
         case 'ai_test':
             aiTestConnection();
@@ -9730,11 +9736,37 @@ function medLookupAction(PDO $db): void {
         $aic = medicineNormalizeAic($raw);
     }
     $results = [];
+    $exact = false;
     if ($aic !== '') {
         $row = medicineFindByAic($db, (string)$aic);
         if ($row) {
-            $results[] = medicinePublicRow($row);
+            $results[] = medicinePublicRow($row) + ['distance' => 0];
+            $exact = true;
         }
+    }
+    // `near=1`: the caller cannot trust the last digit (it is an OCR read), so it wants the REAL
+    // codes around it to choose from. An AIC is dense: the boxes that differ by a digit or two
+    // are genuine rows — the same medicine at another pack size — and each carries its name, so
+    // a wrong digit becomes visible instead of silent. Ranked by distance from the read.
+    $near = in_array(strtolower((string)($_GET['near'] ?? '')), ['1', 'true', 'yes'], true);
+    if ($near && $aic !== '') {
+        $seen = [];
+        foreach ($results as $r) { $seen[(string)$r['aic']] = true; }
+        $code = medicineNormalizeAic($aic);
+        foreach ([7, 6, 5] as $take) {
+            if (count($results) >= 4) { break; }
+            foreach (medicineFindNeighbours($db, substr($code, 0, $take), 24) as $row) {
+                $rowAic = (string)($row['aic'] ?? '');
+                if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
+                $seen[$rowAic] = true;
+                $results[] = medicinePublicRow($row) + ['distance' => medicineLevenshtein($code, $rowAic)];
+            }
+        }
+        usort($results, static function ($a, $b) {
+            $d = ((int)$a['distance']) <=> ((int)$b['distance']);
+            return $d !== 0 ? $d : strcmp((string)$a['aic'], (string)$b['aic']);
+        });
+        $results = array_slice($results, 0, 4);
     }
     if (!$results && $query !== '') {
         foreach (medicineSearch($db, $query) as $row) {
@@ -9754,11 +9786,91 @@ function medLookupAction(PDO $db): void {
         'country' => $country,
         'aic' => (string)$aic,
         'results' => $results,
+        'exact' => $exact,
         'dataset' => medicinesDatasetInfo($db),
         // The source and the licence are shown next to the result: the household must know
         // where the name came from, and that it is an identification, not advice.
         'dataset_key' => 'medical.dataset_aifa',
         'advice_key' => 'medical.no_dosage',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_catalog_import — load the national medicine catalogue from the browser.
+ *
+ * Why an upload and not an API call: the official free dataset of a national formulary is a FILE
+ * (Italy: AIFA open data CSV/XML; US: the openFDA JSON export). No key-less REST service exists
+ * for "which medicine is AIC 040313076", so the honest implementation is to load the free file
+ * once — here, from Settings, without SSH — and answer every scan from the local table. Nothing
+ * of the household's data leaves this server, and no scan ever reaches a third party.
+ *
+ * The columns of the file come from the country module (`dataset_columns`), so the same endpoint
+ * imports a PZN list, an NDC list or the Italian CSV.
+ */
+function medCatalogImportAction(PDO $db): void {
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $country = medicalActiveCountry($db, (string)($_POST['lang'] ?? ''));
+    $module = medicalCountryModule($country);
+    $columnsFn = (string)(($module['dataset_columns'] ?? ''));
+    if ($columnsFn === '' || !is_callable($columnsFn)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_no_country', 'country' => $country], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $file = $_FILES['file'] ?? null;
+    if (!is_array($file) || (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+        || !is_uploaded_file((string)($file['tmp_name'] ?? ''))) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_no_file'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $maxBytes = 96 * 1024 * 1024;
+    if ((int)($file['size'] ?? 0) > $maxBytes) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_too_big'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $ext = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+    if (!in_array($ext, ['csv', 'xml', 'json'], true)) {
+        $ext = 'csv';
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'evershelf_med_');
+    $path = $tmp !== false ? $tmp . '.' . $ext : '';
+    if ($path === '' || !move_uploaded_file((string)$file['tmp_name'], $path)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.import_no_file'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $result = medicinesImportFile($db, $path, ['limit' => 0], (array)$columnsFn());
+    @unlink($path);
+    if ($tmp !== false) {
+        @unlink($tmp);
+    }
+    $saved = (int)($result['saved'] ?? 0);
+    EverLog::info('Medicine catalogue imported from the browser', [
+        'event' => 'med_catalog_import',
+        'country' => $country,
+        'format' => (string)($result['format'] ?? ''),
+        'rows' => (int)($result['rows'] ?? 0),
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'error' => (string)($result['error'] ?? ''),
+    ]);
+    if ($saved <= 0) {
+        echo json_encode([
+            'success' => false,
+            'error_key' => (($result['error'] ?? '') === 'missing_columns') ? 'medical.import_no_columns' : 'medical.import_failed',
+            'format' => (string)($result['format'] ?? ''),
+            'rows' => (int)($result['rows'] ?? 0),
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    echo json_encode([
+        'success' => true,
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'format' => (string)($result['format'] ?? ''),
+        'dataset' => medicinesDatasetInfo($db),
+        'message_key' => 'medical.import_done',
     ], JSON_UNESCAPED_UNICODE);
 }
 

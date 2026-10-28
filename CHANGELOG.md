@@ -73,6 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Italy now declares **`scan.barcodes: false`**, so the medicine panel runs **no barcode engine
   whatsoever** (native detector, ZBar, Quagga and the digits OCR are skipped); Germany and the
   US keep their barcode path, because there the Code 39/EAN *is* the drug number.
+- **Fixed: a medicine is confirmed, not assumed.** An OCR read of `A040313076` that came back as `A040313072` was accepted silently — one digit, the wrong box. The reader now asks the local catalogue for the **real codes next to the read** (`med_lookup?near=1`, ranked by edit distance) and the scan page shows up to **four** of them, each with the name, dosage and pack printed on its box: one tap, and a wrong digit is visible before anything is stored. Without a catalogue the card says so instead of inventing neighbours.
+- **The guide frame fills in with the digits already recognised** (`A0403130···`), and the name card says **where the name comes from** (`Fonte: AIFA open data · N farmaci`) with the active ingredient, form, pack, company, ATC and class.
+- **The AIFA file can be loaded from Settings** (Farmaci → *Importa il file del catalogo*): the same import as the CLI, without SSH. The free national dataset is a **file** — no key-less medicine API exists — so it is read once, locally, and deleted after the import; no scan ever leaves the server.
 - **Fixed: the label reader can be watched, and it reads a real label.** A one-line report under
   the camera says what it actually saw (“Letto «…»”, plus the crop when nothing matched), so
   “it does not read” and “it read something else” can be told apart at a glance. The crop is

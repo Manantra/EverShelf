@@ -118,6 +118,43 @@ function medicineUpsert(PDO $db, array $row): bool
     return true;
 }
 
+/**
+ * How far two national codes are (edit distance). Used to order the neighbours of an OCR read:
+ * `040313072` is distance 1 from `040313076`, distance 3 from `04031309x`. Codes are ASCII
+ * digits/letters by definition (see `medicineNormalizeKey`), so the byte-wise distance is exact.
+ */
+function medicineLevenshtein(string $a, string $b): int
+{
+    return levenshtein($a, $b);
+}
+
+/**
+ * The REAL codes closest to a read: rows whose number starts like it.
+ *
+ * This is what turns "the OCR read A040313072" into a question the household can answer instead
+ * of a silent wrong product: an AIC is dense, so the packs that differ by a digit or two are real
+ * rows of the same family (a different pack size, a different strength), with names on them. The
+ * caller ranks these by how far they are from the read and shows the closest four.
+ *
+ * @param string $prefix leading digits of the read (the caller decides how many)
+ */
+function medicineFindNeighbours(PDO $db, string $prefix, int $limit = 12): array
+{
+    $prefix = (string)preg_replace('/[^0-9A-Z]/', '', strtoupper($prefix));
+    if (strlen($prefix) < 5) {
+        return [];
+    }
+    try {
+        $stmt = $db->prepare('SELECT * FROM medicines WHERE aic LIKE ? ORDER BY aic LIMIT ?');
+        $stmt->bindValue(1, $prefix . '%', PDO::PARAM_STR);
+        $stmt->bindValue(2, max(1, min(50, $limit)), PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 /** One medicine by AIC (with or without the printed `A`), or null. */
 function medicineFindByAic(PDO $db, string $aic): ?array
 {

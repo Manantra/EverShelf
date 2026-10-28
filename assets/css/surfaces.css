@@ -2369,6 +2369,27 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: var(--text-muted);
 }
 .scan-med-hint[hidden] { display: none; }
+/* The browser import of the national catalogue, next to the CLI command it replaces. */
+.med-dataset-import {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    cursor: pointer;
+}
+.med-dataset-import[hidden] { display: none; }
+.med-dataset-import input[type="file"] {
+    /* The native control cannot be styled; the label IS the button. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.med-dataset-import.is-busy {
+    opacity: 0.65;
+    pointer-events: none;
+}
 /* What the label reader saw. The household must be able to tell "it did not find the block"
    from "it read something else" without opening a console. */
 .scan-med-read {
@@ -2392,6 +2413,88 @@ a.free-api:hover { border-color: var(--brand-primary); }
     text-align: center;
 }
 .scan-med-read[hidden] { display: none; }
+/* The digits recognised so far, in the guide frame: the shape becomes the reading. */
+.scan-med-frame-sample.is-read {
+    color: #6ee7b7;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+/* Four codes, one tap. A doubtful read is a QUESTION, never a silent acceptance: the codes are
+   the real rows closest to what the camera saw, and each carries the name printed on the box. */
+.scan-med-choices {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: calc(100% - 20px);
+    max-width: 460px;
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 6px 20px rgba(2, 6, 23, 0.35);
+    z-index: 14;
+}
+.scan-med-choices[hidden] { display: none; }
+.scan-med-choices-title {
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+}
+.scan-med-choices-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.scan-med-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+.scan-med-choice.is-lead {
+    border-color: var(--brand-primary);
+    box-shadow: inset 0 0 0 1px var(--brand-primary);
+}
+.scan-med-choice-code {
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.scan-med-choice-name {
+    font-size: 0.74rem;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+.scan-med-choice-meta {
+    font-size: 0.66rem;
+    color: var(--text-muted);
+}
+.scan-med-choice.is-unknown .scan-med-choice-name {
+    color: var(--text-muted);
+    font-style: italic;
+}
+.scan-med-choice-none {
+    align-self: flex-start;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    text-decoration: underline;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
 .scan-med-read-ok {
     color: var(--brand-primary);
     font-weight: 700;

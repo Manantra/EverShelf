@@ -2982,6 +2982,23 @@
     "scan_code_ignored": "Código de barras leído ({code}): no es el número del medicamento, leo la etiqueta. Apunta al código grande que empieza por A.",
     "ocr_read_ok": "Leído: AIC {code}",
     "ocr_read_none": "Leído «{text}» — no hay código A. Encuadra solo la línea con la A.",
-    "ocr_read_empty": "No hay texto legible en el recuadro: acércate y enfoca la línea con la A."
+    "ocr_read_empty": "No hay texto legible en el recuadro: acércate y enfoca la línea con la A.",
+    "choice_status": "No estoy seguro de todos los dígitos: elige el código que lees en la caja.",
+    "choice_title": "He leído {code}. ¿Qué código está impreso en la caja?",
+    "choice_nocatalog": "He leído {code}: catálogo no cargado, revisa los dígitos en la ficha.",
+    "choice_unknown": "no está en el catálogo",
+    "choice_none": "Ninguno de estos — añadir a mano",
+    "match_atc": "ATC {value}",
+    "match_fascia": "Grupo {value}",
+    "match_source": "Fuente: {source} · {count} medicamentos",
+    "import_btn": "Importar el archivo del catálogo",
+    "import_hint": "El archivo se queda en este servidor: nada sale de casa.",
+    "import_working": "Importando…",
+    "import_done": "Catálogo actualizado: {count} medicamentos.",
+    "import_no_file": "No se recibió ningún archivo: elige el CSV o XML de AIFA.",
+    "import_too_big": "Archivo demasiado grande (máx. 96 MB).",
+    "import_no_country": "No hay módulo para este país: el catálogo no se puede leer.",
+    "import_no_columns": "El archivo no tiene las columnas del catálogo: ¿es el export oficial?",
+    "import_failed": "Importación fallida: no se pudo leer el archivo."
   }
 }

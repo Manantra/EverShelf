@@ -2982,6 +2982,23 @@
     "scan_code_ignored": "Barcode read ({code}): it is not the drug number, I am reading the label. Frame the big code that starts with A.",
     "ocr_read_ok": "Read: AIC {code}",
     "ocr_read_none": "Read “{text}” — no A code there. Frame only the line with the A.",
-    "ocr_read_empty": "No readable text in the box: move closer and focus the line with the A."
+    "ocr_read_empty": "No readable text in the box: move closer and focus the line with the A.",
+    "choice_status": "I am not sure about every digit: pick the code you read on the box.",
+    "choice_title": "I read {code}. Which code is printed on the box?",
+    "choice_nocatalog": "I read {code}: no catalogue loaded, check the digits in the form.",
+    "choice_unknown": "not in the catalogue",
+    "choice_none": "None of these — add it by hand",
+    "match_atc": "ATC {value}",
+    "match_fascia": "Class {value}",
+    "match_source": "Source: {source} · {count} medicines",
+    "import_btn": "Import the catalogue file",
+    "import_hint": "The file stays on this server: nothing leaves the house.",
+    "import_working": "Importing…",
+    "import_done": "Catalogue updated: {count} medicines.",
+    "import_no_file": "No file received: pick the AIFA CSV or XML.",
+    "import_too_big": "File too large (max 96 MB).",
+    "import_no_country": "No module for this country: the catalogue cannot be read.",
+    "import_no_columns": "The file has none of the catalogue columns: check it is the official export.",
+    "import_failed": "Import failed: the file could not be read."
   }
 }

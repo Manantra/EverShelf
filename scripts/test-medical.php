@@ -435,7 +435,7 @@ check('the hint tells the household WHICH code to frame, in six locales',
 check('the AIC read by the OCR is stored as the box prints it (A + 9 digits)',
     str_contains($app, 'const aic = String(det.aic || (local && local.aic)')
     && str_contains($app, "(aic ? ('A' + aic) :")
-    && (bool)preg_match("/_finalizeBarcode\('A' \+ reading\.aic, 'OCR'\);/s", $app)
+    && (bool)preg_match("/_finalizeBarcode\('A' \+ choice\.aic, 'OCR'\);/s", $app)
     && (bool)preg_match('/_finalizeBarcode\(local\.code, method\);\s*return true;/s', $app));
 check('a medicine code is not pre-fetched from the food catalogues',
     // The handover happens before the food pipeline, so the prefetch only ever sees products.
@@ -812,7 +812,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 151 medical keys', $aligned && count($base) === 151);
+check('all six locales carry the same 168 medical keys', $aligned && count($base) === 168);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -836,8 +836,8 @@ check('the search answer always carries the disclaimer key',
 check('the catalogue lookup is one authenticated action (never a public one)',
     str_contains($api, "case 'med_lookup':")
     && !str_contains($sec, "'med_lookup'")
-    && (bool)preg_match('/function medLookupAction\(PDO \$db\)[\s\S]{0,900}?medicineFindByAic\(\$db/s', $api)
-    && (bool)preg_match('/function medLookupAction\(PDO \$db\)[\s\S]{0,1400}?medicineSearch\(\$db/s', $api));
+    && (bool)preg_match('/function medLookupAction\(PDO \$db\)[\s\S]{0,1200}?medicineFindByAic\(\$db/s', $api)
+    && (bool)preg_match('/function medLookupAction\(PDO \$db\)[\s\S]{0,3000}?medicineSearch\(\$db/s', $api));
 check('the lookup never leaves the server (no HTTP call, no key)',
     !preg_match('/function medLookupAction\(PDO \$db\)[\s\S]{0,2500}?(curl_|file_get_contents\(\s*[\'"]https?)/s', $api));
 check('the answer says where the name came from and that it is not advice',
@@ -885,7 +885,7 @@ check('a file without an AIC column is refused, not imported as garbage',
 // The client: the card, the button, and the OCR of the label.
 check('the medicine form shows the catalogue answer with a button, never auto-filled',
     str_contains($html, 'id="pf-med-match"')
-    && (bool)preg_match('/function _medShowCatalogueMatch\(code\)[\s\S]{0,2600}?_medUseMatch\(\$\{i\}\)/s', $app)
+    && (bool)preg_match('/function _medShowCatalogueMatch\(code\)[\s\S]{0,4200}?_medUseMatch\(\$\{i\}\)/s', $app)
     && (bool)preg_match('/function _medUseMatch\(index\)[\s\S]{0,900}?name\.value = String\(row\.name\)/s', $app)
     && (function () use ($app) {
         // The card merely draws; filling the field is the household's click.
@@ -910,7 +910,7 @@ check('in the medicine panel the LABEL is the source, not the fallback',
     // The loop reads the label in the medicine panel only (the food panel never OCRs a box),
     // it starts on the first frames, and a hit opens the medicine form with the AIC.
     && (bool)preg_match('/if \(_scanModeIsMedical\(\) && _medOcrPatterns\(\)\.length[\s\S]{0,900}?_medReadLabelOcr\(\{ silent: true \}\)/s', $app)
-    && (bool)preg_match('/_medReadLabelOcr\(\{ silent: true \}\)[\s\S]{0,900}?_finalizeBarcode\(\'A\' \+ reading\.aic, \'OCR\'\);/s', $app)
+    && (bool)preg_match('/_medReadLabelOcr\(\{ silent: true \}\)[\s\S]{0,900}?_medAskAic\(reading\.aic\);/s', $app)
     && str_contains($app, 'async function _medReadLabelOcr('));
 check('the medicine panel says what it is doing (it reads a label, not a barcode)',
     (bool)preg_match("/_setScanStatus\(_scanModeIsMedical\(\) \? t\('medical\.ocr_reading'\)/s", $app));
@@ -1073,6 +1073,76 @@ check('the NDC names the box (brand, generic, labeler) without mixing the column
     && ($usRow['ingredient'] ?? '') === 'demo ingredient alpha'
     && ($usRow['company'] ?? '') === 'Demo Pharma LLC',
     json_encode($usRow));
+// ── 13. A doubtful read is a QUESTION, not a silent acceptance ─────────────
+// AIC 040313076 read as 040313072 is one digit: the reader cannot notice, so the household
+// confirms among the real codes closest to what the camera saw.
+$itDb = new PDO('sqlite::memory:');
+$itDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+medicinesEnsureTable($itDb);
+foreach ([
+    ['aic' => '040313076', 'name' => 'DEMO FARMACO 500 MG'],
+    ['aic' => '040313072', 'name' => 'DEMO FARMACO 250 MG'],
+    ['aic' => '040313080', 'name' => 'DEMO FARMACO 1000 MG'],
+    ['aic' => '040199999', 'name' => 'ALTRO FARMACO'],
+] as $row) {
+    medicineUpsert($itDb, $row);
+}
+$near = medicineFindNeighbours($itDb, '0403130', 10);
+check('the catalogue answers with the REAL codes next to a read',
+    count($near) === 3
+    && array_reduce($near, fn($c, $r) => $c && str_starts_with((string)$r['aic'], '0403130'), true),
+    json_encode(array_column($near, 'aic')));
+check('the distance orders the candidates (a wrong digit is one edit away)',
+    medicineLevenshtein('040313072', '040313076') === 1
+    && medicineLevenshtein('040313072', '040313072') === 0
+    && medicineLevenshtein('040313072', '040199999') === 6
+    && medicineFindNeighbours($itDb, '040', 10) === []);
+$apiSrc = (string)file_get_contents($root . '/api/index.php');
+check('med_lookup can answer with the neighbours (`near=1`) and says whether the read exists',
+    (bool)preg_match('/function medLookupAction\\(PDO \\$db\\)[\\s\\S]{0,3000}?if \\(\\$near && \\$aic !== \\x27\\x27\\)/s', $apiSrc)
+    && str_contains($apiSrc, "'exact' => \$exact,")
+    && str_contains($apiSrc, "medicineLevenshtein(\$code, \$rowAic)"));
+check('the scan page offers FOUR codes, one tap each',
+    str_contains($html, 'id="scan-med-choices"')
+    && str_contains($app, 'function _medAskAic(')
+    && str_contains($app, 'function _medRenderChoices(')
+    && str_contains($app, 'function _medChooseAic(')
+    && str_contains($app, 'function _medChoiceNone()')
+    && (bool)preg_match('/_medChoiceRows = loaded \? _medChoiceCandidates\(code, rows, 4\)/s', $app)
+    && str_contains($css, '.scan-med-choices-row'));
+check('a medicine is NEVER accepted from a single OCR read',
+    // Every path that used to finalise an OCR AIC on its own now asks.
+    substr_count($app, '_medAskAic(reading.aic)') === 3
+    && !str_contains($app, "_finalizeBarcode('A' + reading.aic")
+    && !str_contains($app, "_medStartManualEntry('A' + reading.aic")
+    && (bool)preg_match('/function _medChooseAic\\(index\\)[\\s\\S]{0,400}?_finalizeBarcode\\(\\x27A\\x27 \\+ choice\\.aic, \\x27OCR\\x27\\);/s', $app));
+check('the guide frame fills with the digits already recognised',
+    str_contains($app, 'function _medPreviewSample(raw, aic)')
+    && (bool)preg_match("/el\.textContent = digits\.length >= 3/s", $app)
+    && (bool)preg_match('/_medPreviewSample\(raw, aic\);\s*\/\/ The loop runs every 2 s/s', $app)
+    && str_contains($css, '.scan-med-frame-sample.is-read'));
+check('the catalogue card says where the name came from (and the rest of the row)',
+    str_contains($app, "t('medical.match_source')")
+    && str_contains($app, "row.atc ? t('medical.match_atc')")
+    && str_contains($app, "row.fascia ? t('medical.match_fascia')")
+    && str_contains($app, 'med-match-source'));
+check('the free catalogue can be loaded from Settings (no SSH, no API call)',
+    str_contains($apiSrc, "case 'med_catalog_import':")
+    && (bool)preg_match('/function medCatalogImportAction\(PDO \$db\)[\s\S]{0,3000}?medicinesImportFile\(\$db, \$path/s', $apiSrc)
+    && str_contains($apiSrc, "'event' => 'med_catalog_import'")
+    && str_contains($html, 'id="med-dataset-import-wrap"')
+    && str_contains($html, 'id="med-dataset-file"')
+    && str_contains($app, 'async function _medImportCatalogFile(input)')
+    && (bool)preg_match('/_medImportCatalogFile\(input\)[\s\S]{0,1200}?med_catalog_import/s', $app));
+// The candidate ranking runs in node, on the app's own code.
+$candJs = 'let _medStatus = ' . json_encode(['schema' => $ccs['IT'] ?? []]) . ";\n" . $medCoreJs . "\n" . $medItJs . "\nconsole.log(JSON.stringify(_medChoiceCandidates('040313072', [{aic:'040313076'},{aic:'040313072'},{aic:'040399999'}]).map(c => c.aic + ':' + c.distance)));";
+$candTmp = sys_get_temp_dir() . '/med_cand_' . getmypid() . '.js';
+file_put_contents($candTmp, $candJs);
+$candRaw = trim((string)shell_exec('node ' . escapeshellarg($candTmp) . ' 2>&1'));
+@unlink($candTmp);
+check('the candidates are ranked by distance, the read first',
+    $candRaw === '["040313072:0","040313076:1","040399999:5"]', $candRaw);
+
 check('a catalogue export needs the country module to be mapped',
     medicinesImportFile($usDb, $root . '/scripts/fixtures/openfda_ndc_sample.json', [])['error'] === 'missing_columns');
 

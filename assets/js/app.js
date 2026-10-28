@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028g'; // bump when translations change
+const _I18N_VERSION = '20261028h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13453,6 +13453,50 @@ function _topOverlay() {
 // lists boxes; the doctor and the leaflet treat people.
 let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, dataset: { loaded: false, count: 0, updated_at: '' }, scanSupported: true, contribDoc: '', unsupportedNoteKey: 'medical.country_none_hint' };
 
+/**
+ * Load the national catalogue from a file picked in Settings (the free dataset, once).
+ *
+ * Multipart on purpose: the wrapper posts JSON, and a 10 MB formulary is not JSON. The CSRF
+ * header is the one the API's guard expects, and the file never leaves this server — it is
+ * imported into the local table and deleted.
+ */
+async function _medImportCatalogFile(input) {
+    const file = input && input.files && input.files[0];
+    if (!file) return;
+    const wrap = document.getElementById('med-dataset-import-wrap');
+    if (wrap) wrap.classList.add('is-busy');
+    const label = wrap ? wrap.querySelector('span') : null;
+    const previous = label ? label.textContent : '';
+    if (label) label.textContent = t('medical.import_working');
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('lang', _currentLang || '');
+        const auth = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
+        const res = await fetch(`${API_BASE}?action=med_catalog_import`, {
+            method: 'POST',
+            headers: { 'X-EverShelf-Request': '1', ...auth },
+            body: form,
+        });
+        const data = await res.json().catch(() => null);
+        if (!data || !data.success) {
+            const key = (data && data.error_key) ? String(data.error_key) : 'medical.import_failed';
+            showToast(t(key), 'error', 6000);
+            return;
+        }
+        showToast(t('medical.import_done').replace('{count}', String(Number(data.saved) || 0)), 'success', 6000);
+        // The status carries the count the whole module paints: read it again, do not guess.
+        await _medRefreshStatus();
+        _renderMedDataset();
+    } catch (e) {
+        showToast(t('medical.import_failed'), 'error', 6000);
+    } finally {
+        if (wrap) wrap.classList.remove('is-busy');
+        if (label && previous) label.textContent = previous;
+        if (input) input.value = '';
+    }
+}
+
 /** Read the module state from the server (single source: env + the shared settings). */
 async function _medRefreshStatus() {
     try {
@@ -13647,6 +13691,10 @@ function _setScanMode(mode) {
     // A leftover read line from the previous product would look like a result of this one.
     const readEl = document.getElementById('scan-med-read');
     if (readEl) { readEl.hidden = !medical; readEl.innerHTML = ''; }
+    // The choices of the previous box must never be tapped for this one.
+    _medHideChoices();
+    const sampleEl = document.getElementById('scan-med-frame-sample');
+    if (sampleEl) sampleEl.classList.remove('is-read');
     const medManual = document.getElementById('scan-med-manual-btn');
     if (medManual) medManual.hidden = !medical;
     const ocrBtn = document.getElementById('scan-med-ocr-btn');
@@ -15435,7 +15483,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15445,7 +15493,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16032,6 +16080,28 @@ async function _medReadLabelOcr(options = {}) {
     return { aic: null, text: text, preview: preview };
 }
 
+/**
+ * The guide frame shows the SHAPE to look for (`A000000000`), and — while the reader works — the
+ * digits it has already recognised. Seeing them fill in is the difference between "it is reading"
+ * and "it is stuck": a wrong digit is visible in the box before anything is accepted.
+ */
+function _medPreviewSample(raw, aic) {
+    const el = document.getElementById('scan-med-frame-sample');
+    if (!el) return;
+    const shape = _medOcrSample() || 'A000000000';
+    if (aic) {
+        el.textContent = 'A' + String(aic);
+        el.classList.add('is-read');
+        return;
+    }
+    const digits = String(raw || '').replace(/[^0-9]/g, '').slice(0, shape.length - 1);
+    el.classList.remove('is-read');
+    // Three digits is the point where a partial read is information, not noise.
+    el.textContent = digits.length >= 3
+        ? ('A' + digits).padEnd(shape.length, '·')
+        : shape;
+}
+
 /** Last line painted under the medicine camera, so the 2 s loop does not repaint it. */
 let _medOcrLastFeedback = '';
 
@@ -16044,6 +16114,7 @@ function _medOcrFeedback(page, aic, preview) {
     const el = document.getElementById('scan-med-read');
     if (!el) return;
     const raw = String(page || '').replace(/\s+/g, ' ').trim();
+    _medPreviewSample(raw, aic);
     // The loop runs every 2 s: repaint only when the reading really changed, or the line blinks.
     const stamp = `${aic || ''}|${raw.slice(0, 60)}`;
     if (_medOcrLastFeedback === stamp && el.innerHTML) return;
@@ -16059,6 +16130,92 @@ function _medOcrFeedback(page, aic, preview) {
         : `<span>${escapeHtml(raw
             ? t('medical.ocr_read_none').replace('{text}', raw.slice(0, 40))
             : t('medical.ocr_read_empty'))}</span>${shot}`;
+}
+
+/**
+ * The four codes the read could be, on the scan page, one tap away.
+ *
+ * Why not auto-accept: an OCR read of `A040313076` that came back as `...72` is ONE digit —
+ * perfectly plausible, completely wrong, and the app had no way to notice. So a medicine is never
+ * accepted from a single read: the household sees the codes that are one edit away (real rows of
+ * the local catalogue, each with the name printed on the box) and confirms with one tap. The
+ * read itself stays first, so an easy scan is still one tap.
+ */
+let _medChoicesKey = '';
+let _medChoiceRows = [];
+
+/**
+ * Ask the local catalogue which codes are next to this read, then paint the choices.
+ *
+ * @param {string} read the OCR reading (a canonical AIC, with or without the printed `A`)
+ * @param {{force?: boolean}} [options]
+ */
+async function _medAskAic(read, options = {}) {
+    // The country module canonicalises the read (Italy: `A040313076` → `040313076`); this
+    // function knows no national shape.
+    const raw = String(read || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+    const local = _medLocalCode(raw);
+    const code = local ? String(local.aic || local.code || raw) : raw;
+    if (!code) return;
+    // The loop reads every 2 s: one card per reading, not one card per frame.
+    if (_medChoicesKey === code && !options.force) return;
+    _medChoicesKey = code;
+    let res = null;
+    try {
+        res = await api('med_lookup', { aic: 'A' + code, near: 1, lang: _currentLang || '' });
+    } catch (e) { res = null; }
+    const rows = (res && Array.isArray(res.results)) ? res.results : [];
+    const loaded = !!(res && res.dataset && res.dataset.loaded);
+    // Without a catalogue there are no real "neighbours" to offer: the read is the only code we
+    // know, and the household checks its digits in the form.
+    _medChoiceRows = loaded ? _medChoiceCandidates(code, rows, 4) : [{ aic: code, distance: 0, row: null }];
+    _medRenderChoices(_medChoiceRows, code, loaded);
+    _setScanStatus(t('medical.choice_status'), 'retry', '');
+}
+
+/** Paint the choices under the camera (or the single reading when there is no catalogue). */
+function _medRenderChoices(list, code, loaded) {
+    const host = document.getElementById('scan-med-choices');
+    if (!host || !Array.isArray(list) || !list.length) return;
+    host.hidden = false;
+    const title = (loaded ? t('medical.choice_title') : t('medical.choice_nocatalog')).replace('{code}', 'A' + code);
+    host.innerHTML = `<p class="scan-med-choices-title">${escapeHtml(title)}</p>
+        <div class="scan-med-choices-row">` +
+        list.map((c, i) => {
+            const row = c.row || null;
+            const name = row && row.name ? String(row.name) : (loaded ? t('medical.choice_unknown') : '');
+            const extra = row ? [row.dosage, row.pack].filter(Boolean).join(' · ') : '';
+            return `<button type="button" class="scan-med-choice${i === 0 ? ' is-lead' : ''}${row ? '' : ' is-unknown'}" onclick="_medChooseAic(${i})">
+                    <span class="scan-med-choice-code">A${escapeHtml(c.aic)}</span>
+                    ${name ? `<span class="scan-med-choice-name">${escapeHtml(name)}</span>` : ''}
+                    ${extra ? `<span class="scan-med-choice-meta">${escapeHtml(extra)}</span>` : ''}
+                </button>`;
+        }).join('') +
+        `</div>
+        <button type="button" class="scan-med-choice-none" onclick="_medChoiceNone()">${escapeHtml(t('medical.choice_none'))}</button>`;
+}
+
+/** One of the candidates is the box in hand: open the medicine form on it. */
+function _medChooseAic(index) {
+    const choice = _medChoiceRows[Number(index) || 0];
+    if (!choice) return;
+    _medHideChoices();
+    showToast(t('medical.ocr_found').replace('{code}', 'A' + choice.aic), 'success');
+    _finalizeBarcode('A' + choice.aic, 'OCR');
+}
+
+/** None of the four: the household adds the box by hand (the code stays editable). */
+function _medChoiceNone() {
+    _medHideChoices();
+    _medStartManualEntry('', true, '');
+}
+
+/** The card belongs to ONE reading: a new scan, another place or a match clears it. */
+function _medHideChoices() {
+    const host = document.getElementById('scan-med-choices');
+    if (host) { host.hidden = true; host.innerHTML = ''; }
+    _medChoiceRows = [];
+    _medChoicesKey = '';
 }
 
 /**
@@ -16078,10 +16235,8 @@ async function _medOcrFallback(code, options = {}) {
     const medicalPack = options.medical === true;
     const reading = await _medReadLabelOcr({ silent: !!options.silent });
     if (reading && reading.aic) {
-        showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');
         _setScanHudState('idle');
-        _setScanStatus(t('scan.status_scanning'), '', '');
-        _medStartManualEntry('A' + reading.aic, true, 'medical.code_aic');
+        _medAskAic(reading.aic);
         return true;
     }
     if (medicalPack) {
@@ -16167,6 +16322,14 @@ async function _medShowCatalogueMatch(code) {
         host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_none'))}</p>`;
         return;
     }
+    // The source travels with the name: a household must know whether it is reading the official
+    // AIFA list (imported once, offline) or its own typing. No third-party call is behind it.
+    const dataset = (res && res.dataset) || {};
+    const source = dataset.loaded
+        ? t('medical.match_source')
+            .replace('{source}', t(String((res && res.dataset_key) || 'medical.dataset_aifa')))
+            .replace('{count}', String(Number(dataset.count || 0)))
+        : '';
     host.innerHTML = `<h5 class="med-match-title">${escapeHtml(t('medical.match_title'))}</h5>` +
         rows.map((row, i) => {
             const meta = [
@@ -16174,6 +16337,8 @@ async function _medShowCatalogueMatch(code) {
                 [row.form, row.dosage].filter(Boolean).join(' '),
                 row.pack ? t('medical.match_pack').replace('{value}', row.pack) : '',
                 row.company ? t('medical.match_company').replace('{value}', row.company) : '',
+                row.atc ? t('medical.match_atc').replace('{value}', row.atc) : '',
+                row.fascia ? t('medical.match_fascia').replace('{value}', row.fascia) : '',
             ].filter(Boolean).map(line => `<li>${escapeHtml(line)}</li>`).join('');
             return `<div class="med-match-row">
                 <div class="med-match-body">
@@ -16184,7 +16349,8 @@ async function _medShowCatalogueMatch(code) {
                 <button type="button" class="btn btn-outline btn-small" onclick="_medUseMatch(${i})">${escapeHtml(t('medical.match_use'))}</button>
             </div>`;
         }).join('') +
-        `<p class="settings-hint">${escapeHtml(t('medical.match_advice'))}</p>`;
+        `<p class="settings-hint">${escapeHtml(t('medical.match_advice'))}</p>` +
+        (source ? `<p class="settings-hint med-match-source">${escapeHtml(source)}</p>` : '');
 }
 
 /** Fill the form with the chosen catalogue row (the user's click, never automatic). */
@@ -16245,6 +16411,9 @@ function _renderMedDataset() {
         cmd.hidden = !isOpen;
         if (isOpen) cmd.textContent = String(ds && ds.importer ? ds.importer : 'php scripts/import-medicines.php <file.csv|file.xml|file.json>');
     }
+    // The import control follows the catalogue: it is offered exactly where a free file exists.
+    const importWrap = document.getElementById('med-dataset-import-wrap');
+    if (importWrap) importWrap.hidden = !isOpen;
     const src = document.getElementById('med-dataset-link');
     if (src) {
         if (ds && ds.url) {
@@ -16407,8 +16576,9 @@ function startUnifiedScanner(videoEl) {
                     if (medOcrAttempts >= 8) _setScanStatus(t('medical.ocr_not_found'), 'partial', '');
                     return;
                 }
-                showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');
-                _finalizeBarcode('A' + reading.aic, 'OCR');
+                // Not accepted from a single read: the household confirms among the closest real
+                // codes (a wrong last digit is invisible to the reader, never to the box).
+                _medAskAic(reading.aic);
             }).catch(() => {}).finally(() => { medOcrBusy = false; });
         }
 
@@ -16994,8 +17164,7 @@ async function onBarcodeDetected(barcode) {
             _medReadLabelOcr({ silent: true }).then(reading => {
                 _setScanStatus(t('scan.status_scanning'), '', '');
                 if (reading && reading.aic) {
-                    showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');
-                    _medStartManualEntry('A' + reading.aic, true, 'medical.code_aic');
+                    _medAskAic(reading.aic);
                     return;
                 }
                 _medStartManualEntry('', true, '');

@@ -72,6 +72,21 @@ two different problems. The reader binarizes and blows up the crop, restricts th
 `0-9A` and retries the block with a wider segmentation and a 1.6× wider band before giving
 up, and the loop keeps trying (2 s, then 4 s) instead of stopping after a minute.
 
+### A read is never accepted silently: four codes, one tap
+
+`A040313076` read as `A040313072` is **one digit** — perfectly plausible to the reader,
+completely wrong for the household. So a medicine is **never** finalised from a single OCR
+read: `_medAskAic()` asks the local catalogue for the real rows closest to it
+(`med_lookup?near=1` → `medicineFindNeighbours()`, ranked by edit distance) and paints up to
+**four** candidates on the scan page, each with the name, the dosage and the pack printed on
+its box. The read itself stays first (distance 0), so an easy scan is still one tap; a wrong
+digit is visible at a glance because the name of the neighbour does not match the box in
+hand. "Nessuno di questi" opens the hand entry. Without a loaded catalogue there are no
+real neighbours to offer, and the card says so instead of inventing them.
+
+The guide frame fills in with the **digits already recognised** (`_medPreviewSample()`,
+`A0403130···`), so "it is reading" and "it is stuck" no longer look the same.
+
 **Italy decodes no barcode there at all** (`scan.barcodes: false`): the native detector, ZBar,
 Quagga and the digit OCR are skipped, so the only input is the printed block inside the
 rectangle. **A barcode is never the drug number in that panel.** The SSN label carries several Code 39s —
@@ -122,6 +137,19 @@ php scripts/import-medicines.php file.csv --country=IT                # explicit
 - `GET med_lookup?aic=…` / `?q=…` answers from that table (authenticated, read-only, no
   network). The medicine form shows the match — name, ingredient, form, pack, company — with a
   **"Usa questo nome"** button: the household confirms, nothing is auto-filled.
+
+### Loading it from the browser
+
+Settings → Farmaci carries **Importa il file del catalogo** (`POST med_catalog_import`):
+the same import as `scripts/import-medicines.php`, without SSH, for the households that do
+not have a shell. Multipart, capped at 96 MB, imported into the local table and deleted;
+the answer carries the count and the block repaints. The columns come from the country
+module, so the same button loads a PZN list or an NDC export. **No medicine API is called,
+ever** — the free national dataset is a file, and it is read here.
+
+The card that names a box carries its **source** (`Fonte: AIFA open data · N farmaci`) next
+to the name, with the active ingredient, form, pack, company, ATC and class: an
+identification, never a therapy suggestion.
 
 ## The credit for the source follows the module
 

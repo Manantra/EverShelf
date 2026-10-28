@@ -553,16 +553,16 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "select"
         },
         {
-            "id": "med-search-btn",
+            "id": "med-dataset-file",
             "env": "",
             "tab": "tab-medical",
             "group": "medical",
-            "label": "medical.search_open",
-            "hint": "medical.no_catalogue",
+            "label": "medical.import_btn",
+            "hint": "medical.import_hint",
             "card": "medical.title",
             "card_hint": "medical.hint",
             "keywords": "",
-            "type": "text"
+            "type": "file"
         },
         {
             "id": "setting-health-enabled",

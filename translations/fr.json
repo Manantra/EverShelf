@@ -2982,6 +2982,23 @@
     "scan_code_ignored": "Code-barres lu ({code}) : ce n’est pas le numéro du médicament, je lis l’étiquette. Vise le grand code qui commence par A.",
     "ocr_read_ok": "Lu : AIC {code}",
     "ocr_read_none": "Lu « {text} » — aucun code A. Vise seulement la ligne avec le A.",
-    "ocr_read_empty": "Aucun texte lisible dans le cadre : approche-toi et fais le point sur la ligne avec le A."
+    "ocr_read_empty": "Aucun texte lisible dans le cadre : approche-toi et fais le point sur la ligne avec le A.",
+    "choice_status": "Je ne suis pas sûr de tous les chiffres : choisis le code lu sur la boîte.",
+    "choice_title": "J’ai lu {code}. Quel code est imprimé sur la boîte ?",
+    "choice_nocatalog": "J’ai lu {code} : catalogue non chargé, vérifie les chiffres dans la fiche.",
+    "choice_unknown": "pas dans le catalogue",
+    "choice_none": "Aucun de ceux-ci — ajouter à la main",
+    "match_atc": "ATC {value}",
+    "match_fascia": "Classe {value}",
+    "match_source": "Source : {source} · {count} médicaments",
+    "import_btn": "Importer le fichier du catalogue",
+    "import_hint": "Le fichier reste sur ce serveur : rien ne sort de la maison.",
+    "import_working": "Importation…",
+    "import_done": "Catalogue mis à jour : {count} médicaments.",
+    "import_no_file": "Aucun fichier reçu : choisis le CSV ou l’XML de l’AIFA.",
+    "import_too_big": "Fichier trop volumineux (max 96 Mo).",
+    "import_no_country": "Aucun module pour ce pays : le catalogue est illisible.",
+    "import_no_columns": "Le fichier n’a pas les colonnes du catalogue : est-ce l’export officiel ?",
+    "import_failed": "Import échoué : le fichier n’a pas pu être lu."
   }
 }

@@ -158,6 +158,65 @@ function _medIgnoredLabelKey(code) {
     return '';
 }
 
+/**
+ * How far two printed codes are (edit distance). Only used to ORDER the candidates of a doubtful
+ * read: an OCR read that differs by one digit is "close", the same read twice is distance 0.
+ */
+function _medEditDistance(a, b) {
+    const s1 = String(a || '');
+    const s2 = String(b || '');
+    if (!s1.length) return s2.length;
+    if (!s2.length) return s1.length;
+    let prev = new Array(s2.length + 1);
+    let cur = new Array(s2.length + 1);
+    for (let j = 0; j <= s2.length; j++) prev[j] = j;
+    for (let i = 1; i <= s1.length; i++) {
+        cur[0] = i;
+        for (let j = 1; j <= s2.length; j++) {
+            const cost = s1.charAt(i - 1) === s2.charAt(j - 1) ? 0 : 1;
+            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        }
+        const swap = prev; prev = cur; cur = swap;
+    }
+    return prev[s2.length];
+}
+
+/**
+ * The candidates of a doubtful read, closest first, at most `limit`.
+ *
+ * This is the answer to "the OCR read a wrong last digit": the household gets the codes that are
+ * one edit away from what the camera saw — real rows of the local catalogue, each with the name
+ * that is printed on the box — and confirms with one tap. The read itself, when the catalogue
+ * knows it, stays first (distance 0), so an easy case is still a single tap.
+ *
+ * @param {string} read the number the reader produced (canonical, no prefix letter)
+ * @param {Array<{aic: string}>} rows catalogue rows to choose from
+ * @param {number} [limit]
+ * @returns {Array<{aic: string, distance: number, row: object|null}>}
+ */
+function _medChoiceCandidates(read, rows, limit = 4) {
+    // No national rule here: the country module says what the read means (Italy drops the printed
+    // `A`, the US keeps the NDC groups), and the core only ranks what comes back.
+    const raw = String(read || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+    const local = (typeof _medLocalCode === 'function') ? _medLocalCode(raw) : null;
+    const code = local ? String(local.aic || local.code || raw) : raw;
+    const out = [];
+    const seen = {};
+    for (const row of (Array.isArray(rows) ? rows : [])) {
+        const aic = String((row && row.aic) || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+        if (!aic || seen[aic]) continue;
+        seen[aic] = true;
+        out.push({ aic: aic, distance: _medEditDistance(code, aic), row: row });
+    }
+    // The read itself is always offered, even when the catalogue does not know it: it is what
+    // the camera saw, and hiding it would hide the evidence.
+    if (code && !seen[code]) {
+        out.unshift({ aic: code, distance: 0, row: null });
+    }
+    out.sort((a, b) => (a.distance - b.distance) || (a.aic < b.aic ? -1 : a.aic > b.aic ? 1 : 0));
+    return out.slice(0, Math.max(1, limit));
+}
+
 /** The shape the label prints (e.g. `A000000000`): the guide frame shows it, from the data. */
 function _medOcrSample() {
     const schema = _medStatus && _medStatus.schema;
