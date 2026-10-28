@@ -3027,6 +3027,8 @@
     "form_qty_label": "Wie viel hast du",
     "form_expiry_label": "📅 Aufgedrucktes Haltbarkeitsdatum *",
     "ask_title": "Ich kann den Code nicht lesen",
-    "ask_body": "Tippe ihn unten ein, wie er auf der Packung steht (z. B. A040313076), oder starte den Scan erneut."
+    "ask_body": "Tippe ihn unten ein, wie er auf der Packung steht (z. B. A040313076), oder starte den Scan erneut.",
+    "almost_title": "Der Code stimmt nicht genau: welche Packung hast du?",
+    "scan_code_almost": "Fast richtig: Packung wählen"
   }
 }

@@ -5,6 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.5] - 2026-10-28
+
+### Fixed
+- **`A029788027` was not an unknown medicine: it was a misread pack.** The formulary has
+  `029788015`, `029788041` and `029788054` — all *Destrometorfano Bromidrato Sella* (compresse,
+  gocce, sciroppo) — because an AIC is **6 digits of the medicinal product + 3 of the pack**, and
+  the digits an OCR loses are the last ones. A read with no exact row is now checked against its
+  **pack family** (`_medFamilyRows()`): when the family exists the form opens on the correction
+  card (“Il codice non è esatto: quale confezione hai in mano?”) with the real names and pack
+  sizes, and the wrong number is **never stored** (`_medOpenFamily()` leaves the barcode empty).
+  Only a read whose prefix is unknown too keeps the old “twice identical → open with a warning”
+  path.
+
+### Added
+- **An OPTIONAL online catalogue provider, off by default.** `MED_LOOKUP_PROVIDER` /
+  `MED_LOOKUP_URL` / `MED_LOOKUP_KEY` (see `.env.example`): when a household sets them, a code the
+  local table knows nowhere is asked to the provider (Medifontis’ documented `GET /v1/drugs`, or
+  an own endpoint) and the answer is **written into the local table**, so the next scan is instant
+  and offline. Evaluation of why it is not the default: Medifontis indexes the **same AIFA open
+  data** we already import (`sourceUrl: confezioni_fornitura.csv`, ~160k packs), so it adds no
+  coverage; it adds a key, a quota, a network failure in a pharmacy with no signal, and it sends
+  the AIC of what someone just scanned to a third party — a health signal. The catalogue stays the
+  authority a scan is verified against.
+
 ## [1.28.4] - 2026-10-28
 
 ### Fixed

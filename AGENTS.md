@@ -246,7 +246,10 @@ python3 scripts/i18n-value-audit.py
 # Shell scripts (local-only for now, like the test suite)
 shellcheck -S warning backup.sh scripts/*.sh
 
-# Import the Italian medicine catalogue (AIFA open data; the app never calls a medicine API).
+# Import the Italian medicine catalogue (AIFA open data; the scan never calls a medicine API).
+# Optional: fill the gaps from an ONLINE provider, off unless MED_LOOKUP_PROVIDER is set.
+# It is consulted only for a code nothing local knows, and the answer is cached in the table.
+# MED_LOOKUP_PROVIDER=medifontis MED_LOOKUP_URL=... MED_LOOKUP_KEY=...  (see .env.example)
 # Run it ONCE, from a shell, after downloading the AIFA file (CSV or XML):
 php scripts/import-medicines.php data/aifa_farmaci.csv --dry-run   # parse + header map, writes nothing
 php scripts/import-medicines.php data/aifa_farmaci.csv             # import / refresh (AIC is the key)

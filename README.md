@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.4-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.5-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,9 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.28.5** — **`A029788027` non era un farmaco sconosciuto: era una confezione letta male.** Nel catalogo ci sono `029788015`, `029788041` e `029788054` — tutte *Destrometorfano Bromidrato Sella* (compresse, gocce, sciroppo) — perché un AIC è **6 cifre del medicinale + 3 della confezione** e le cifre che l'OCR perde sono le ultime. Ora una lettura senza riga esatta viene confrontata con la sua **famiglia**: se esiste, il form si apre sulla card «Il codice non è esatto: quale confezione hai in mano?» con nomi e formati veri, e **il numero sbagliato non viene mai salvato**. Solo se anche il prefisso è sconosciuto resta il vecchio «due letture identiche → apri con avviso». In più c'è un **provider online OPZIONALE, spento di default** (`MED_LOOKUP_PROVIDER` / `MED_LOOKUP_URL` / `MED_LOOKUP_KEY`): interrogato solo per un codice che il catalogo locale non conosce, e la risposta viene **scritta nel catalogo locale** (la prossima scansione è istantanea e offline). Valutazione del perché non è il default: Medifontis indicizza **gli stessi open data AIFA** che importiamo già (~160k confezioni), quindi non aggiunge copertura — aggiunge una chiave, una quota, un guasto di rete in farmacia senza segnale e manda a terzi l'AIC di ciò che uno ha appena scansionato, che è un dato sanitario.
+
 
 **v1.28.4** — **dopo 20 secondi il lettore te lo CHIEDE, con parole che ci stanno.** Il fermo della camera lo diceva il chip di stato — una riga `nowrap` con i puntini — quindi sul fermo immagine si leggeva una scritta tagliata e incomprensibile. Ora l'inquadratura si copre con una card vera: icona, «Non riesco a leggere il codice» e la frase intera «Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione», in sei lingue; il chip resta vuoto, guide/HUD/torcia spariscono, il campo prende tutta la larghezza e sotto ci sono **Conferma** e **Riprova la scansione**. E si fermano anche i tentativi, non solo lo stream: `_scannerGen` viene incrementato, così una passata rimasta nel worker non può più aprire un form dietro la card.
 

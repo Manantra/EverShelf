@@ -102,7 +102,11 @@ that cannot be expressed as a pattern — Italy's three printed AIC forms plus A
 - **The DataMatrix is standard, the number inside it is national.** The core parses the GS1
   element string and exposes AI `71x`; the country module decides what it means.
 - **No catalogue is bundled.** The names come from a national open-data import, on the household's
-  own server (`scripts/import-medicines.php`, CSV/XML/JSON). No medicine API is ever called.
+  own server (`scripts/import-medicines.php`, CSV/XML/JSON). No medicine API is called by
+  default. An OPTIONAL online provider (`MED_LOOKUP_PROVIDER=medifontis`, `MED_LOOKUP_KEY`,
+  off unless set) is asked only for a code the local table knows nowhere — and its answer is
+  written into the local table, so the next scan works offline. The catalogue stays the
+  authority: a provider fills gaps, it does not replace the verification.
 
 ## Related
 

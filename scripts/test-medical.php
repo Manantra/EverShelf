@@ -855,7 +855,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 192 medical keys', $aligned && count($base) === 192);
+check('all six locales carry the same 194 medical keys', $aligned && count($base) === 194);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -929,7 +929,7 @@ check('a file without an AIC column is refused, not imported as garbage',
 check('the catalogue FILLS the form: name, company, notes and the closed category',
     str_contains($html, 'id="pf-med-match"')
     && str_contains($app, 'async function _medShowCatalogueMatch(code)')
-    && (bool)preg_match('/function _medMatchCard\(aic, rows\)[\s\S]{0,2000}?_medUseMatch\(\$\{i\}\)/s', $app)
+    && (bool)preg_match("/function _medMatchCard\(aic, rows, titleKey = 'medical.match_title'\)[\\s\\S]{0,2000}?_medUseMatch\\(\\$\\{i\\}\\)/s", $app)
     // A CONFIRMED read shows one line and a "not this?" link, never a list of alternatives.
     && str_contains($app, 'function _medShowAlternatives()')
     && (bool)preg_match("/function _medFillFromCatalogue\(row, options = \{\}\)[\s\S]{0,1400}?set\('pf-name'/s", $app)
@@ -1202,7 +1202,7 @@ check('a read is VERIFIED against the catalogue before anything opens',
     && (bool)preg_match("/const hits = \(_medRejectHits\\.code === code \? _medRejectHits\\.n : 0\) \\+ 1;/s", $app)
     && (bool)preg_match("/if \(hits < 2\) \{[\s\S]{0,300}?medical\.scan_code_invalid/s", $app)
     && (bool)preg_match("/medical\.read_unknown_hint/s", $app)
-    && (bool)preg_match("/function _medConfirmRead\\(read, method = 'OCR'\\)[\\s\\S]{0,2600}?_finalizeBarcode\\('A' \\+ code, method\\);/s", $app)
+    && (bool)preg_match("/function _medConfirmRead\\(read, method = 'OCR'\\)[\\s\\S]{0,6000}?_finalizeBarcode\\('A' \\+ code, method\\);/s", $app)
     && (bool)preg_match('/_medNeighbourCodes = loaded \\? _medChoiceCandidates\(code, rows, 4\)/s', $app)
     && (bool)preg_match('/_medNeighboursHtml\\(rows\\)/s', $app));
 check('a doubtful read is correctable where the name is (not over the camera)',
@@ -1548,6 +1548,115 @@ check('a box smaller than the pantry floor is still stock (10 ml of eye drops)',
     // so both sides skip it for a medical row — otherwise half the pharmacy is unfillable.
     return str_contains($app, '!_isMedicalRow(currentProduct) && addQty < minAdd')
         && str_contains($api, 'if (!$isMedicalProduct && $quantity < $minAdd)');
+})());
+
+// ── A misread pack is a QUESTION, not an unknown box ─────────────────────────
+check('a read that matches a real PACK FAMILY opens the correction card, not "unknown"', (function () use ($app, $med) {
+    // The household's box printed A029788027 and the app said "not in catalogue". The formulary
+    // has 029788015 / 029788041 / 029788054 (Destrometorfano Sella): an AIC is 6 digits of the
+    // medicine + 3 of the pack, and the digits an OCR loses are the last ones. So a missing exact
+    // row is checked against its family BEFORE the box is called unknown.
+    return str_contains($app, 'function _medFamilyRows(code, rows)')
+        && str_contains($app, 'function _medOpenFamily(code, rows)')
+        && str_contains($app, 'const family = _medFamilyRows(code, (res && Array.isArray(res.results)) ? res.results : []);')
+        && str_contains($app, '_medOpenFamily(code, family);')
+        // the family branch comes BEFORE the two-identical-reads fallback
+        && strpos($app, 'if (family.length)') < strpos($app, 'const hits = (_medRejectHits.code === code')
+        // and the read itself is never stored as a barcode
+        && (bool)preg_match("/function _medOpenFamily\(code, rows\) \{[\s\S]{0,400}?startManualEntry\(''\);/s", $app)
+        && str_contains($app, "_medMatchCard(String(code || ''), _medMatchResults, 'medical.almost_title')")
+        && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+            return $c && mb_strlen((string)($med[$l]['almost_title'] ?? '')) > 10
+                && mb_strlen((string)($med[$l]['scan_code_almost'] ?? '')) > 5;
+        }, true);
+})());
+$familyFn = '';
+if (preg_match('/function _medFamilyRows\(code, rows\) \{.*?\n\}/s', $app, $m7)) { $familyFn = $m7[0]; }
+check('the family matcher is extractable', $familyFn !== '');
+if ($familyFn !== '') {
+    $fh = $familyFn . <<<'JS'
+const rows = [
+    { aic: '029788015', name: 'DESTROMETORFANO BROMIDRATO SELLA' },
+    { aic: '029788041', name: 'DESTROMETORFANO BROMIDRATO SELLA' },
+    { aic: '029788054', name: 'DESTROMETORFANO BROMIDRATO SELLA' },
+    { aic: '040313076', name: 'ALTRO FARMACO' },
+];
+console.log(JSON.stringify({
+    family: _medFamilyRows('029788027', rows).map(r => r.aic),
+    none: _medFamilyRows('012345678', rows),
+    other: _medFamilyRows('040313072', rows).map(r => r.aic),
+}));
+JS;
+    $ftmp = sys_get_temp_dir() . '/med_family_' . getmypid() . '.js';
+    file_put_contents($ftmp, $fh);
+    $fraw = shell_exec('node ' . escapeshellarg($ftmp) . ' 2>&1');
+    @unlink($ftmp);
+    $f = json_decode(trim((string)$fraw), true);
+    check('the family harness runs in node', is_array($f), (string)$fraw);
+    if (is_array($f)) {
+        check('A029788027 offers the three real Sella packs', ($f['family'] ?? []) === ['029788015', '029788041', '029788054'], json_encode($f['family'] ?? null));
+        check('a code with no family offers nothing (the unknown path stays)', ($f['none'] ?? null) === [], json_encode($f['none'] ?? null));
+        check("another medicine's family is not mixed in", ($f['other'] ?? []) === ['040313076'], json_encode($f['other'] ?? null));
+    }
+}
+
+// ── The OPTIONAL online provider: off, and only for what the local table lacks ─
+check('the online catalogue provider is OFF unless .env turns it on', (function () use ($libMeds) {
+    // The local AIFA import is already the whole formulary (~160k packs) and never leaves the
+    // house: a provider is a way to FILL it, not the authority a scan depends on.
+    return str_contains($libMeds, "env('MED_LOOKUP_PROVIDER', 'off')")
+        && str_contains($libMeds, 'function medicinesProviderConfig(): array')
+        && str_contains($libMeds, "if (!\$cfg['enabled'] || \$code === '') {")
+        // cached into the local table, so the next scan is offline
+        && str_contains($libMeds, "medicineUpsert(\$db, \$row);")
+        && str_contains($libMeds, "EverLog::info('Medicine provider filled");
+})());
+check('the lookup asks the provider ONLY when nothing local matched', (function () use ($api) {
+    return str_contains($api, "if (!\$results && \$aic !== '') {")
+        && str_contains($api, "medicinesProviderLookup(\$db, \$country, (string)\$aic)")
+        && str_contains($api, "'source' => 'provider'");
+})());
+check('a provider answer is parsed, never trusted blindly', (function () use ($libMeds) {
+    // The code must be the one we asked for: a provider that answers a neighbour (or nonsense)
+    // must not become a medicine; the AIC is also read out of an `identifiers[]` record.
+    return str_contains($libMeds, 'function medicinesProviderParseRow(array $payload, string $aic): ?array')
+        && str_contains($libMeds, "if (\$code === '' || \$code !== \$want) {")
+        && str_contains($libMeds, "=== 'aic'");
+})());
+
+check('the provider is OFF by default, and its answer is mapped, not trusted', (function () {
+    // Two shapes, and only two, are understood: a Medifontis record (`identifiers[]` + `data{}`)
+    // and a plain row from an own endpoint. A provider that answers a neighbour, or nonsense,
+    // yields null: a machine that invents a medicine is worse than a scanner that says no.
+    $cfg = medicinesProviderConfig();
+    $off = getenv('MED_LOOKUP_PROVIDER') !== false || $cfg['enabled'] === false;
+    $medifontis = medicinesProviderParseRow(['results' => [[
+        'sourceId' => 'it.aifa.packages',
+        'id' => 'it:aifa:packages:029788015',
+        'name' => 'DESTROMETORFANO BROMIDRATO SELLA',
+        'identifiers' => [['value' => '029788015', 'scheme' => 'aic'], ['value' => 'R05DA09', 'scheme' => 'atc']],
+        'data' => [
+            'aic' => '029788015', 'atc' => 'R05DA09', 'form' => 'Compresse',
+            'name' => 'DESTROMETORFANO BROMIDRATO SELLA',
+            'holder' => 'LABORATORIO CHIMICO FARMACEUTICO A. SELLA S.R.L.',
+            'useDomain' => 'human',
+        ],
+    ]]], '029788015');
+    $plain = medicinesProviderParseRow(['results' => [[
+        'aic' => '029788015', 'name' => 'DESTROMETORFANO BROMIDRATO SELLA', 'company' => 'SELLA',
+    ]]], '029788015');
+    // The code asked for is the code answered, or nothing.
+    $wrong = medicinesProviderParseRow(['results' => [[
+        'aic' => '029788041', 'name' => 'DESTROMETORFANO BROMIDRATO SELLA',
+    ]]], '029788015');
+    $nonsense = medicinesProviderParseRow(['results' => [['name' => '???']]], '029788015');
+    return $off
+        && ($medifontis['name'] ?? '') === 'DESTROMETORFANO BROMIDRATO SELLA'
+        && ($medifontis['atc'] ?? '') === 'R05DA09'
+        && ($medifontis['company'] ?? '') === 'LABORATORIO CHIMICO FARMACEUTICO A. SELLA S.R.L.'
+        && ($plain['aic'] ?? '') === '029788015'
+        && $wrong === null
+        && $nonsense === null;
 })());
 
 echo "\n" . ($fail === 0 ? 'PASS' : 'FAIL') . " — {$checks} checks, {$fail} failed\n";

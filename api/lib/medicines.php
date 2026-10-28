@@ -117,6 +117,39 @@ function medicinesFetchUrl(string $url, int $maxBytes = 41943040, int $timeout =
 }
 
 /**
+ * Fetch a URL server-side with extra headers (the optional catalogue provider's key).
+ *
+ * Same contract as `medicinesFetchUrl()`: the body, or null on any failure. Kept separate so the
+ * open-data download (no headers, 40 MB cap) stays exactly as it is.
+ *
+ * @param array<int,string> $headers raw header lines, e.g. `Authorization: Bearer ...`
+ */
+function medicinesFetchUrlWithHeaders(string $url, array $headers = [], int $maxBytes = 1048576, int $timeout = 8): ?string
+{
+    if (!preg_match('#^https?://#i', $url) || !function_exists('curl_init')) {
+        return null;
+    }
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_USERAGENT => 'EverShelf/1 medicine catalogue',
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_MAXFILESIZE => $maxBytes,
+        CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers),
+    ]);
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($body === false || $status < 200 || $status >= 300 || strlen((string)$body) > $maxBytes) {
+        return null;
+    }
+    return (string)$body;
+}
+
+/**
  * Download a URL straight to a file (curl streams it: the AIFA formulary is ~82 MB).
  *
  * @returns int bytes written, or -1 on failure
@@ -785,4 +818,137 @@ function _medicinesImportXml(string $path, int $limit, callable $save, array $al
         }
     }
     return $columns;
+}
+
+/**
+ * The OPTIONAL online lookup, for a pack the local catalogue does not have.
+ *
+ * OFF by default, and deliberately so: EverShelf already imports the WHOLE official formulary
+ * (`med_catalog_sync` → the AIFA "confezioni" export, ~160k packs), so an online provider would
+ * answer with the same file — while sending the AIC of what a household just scanned to a third
+ * party, which is a health signal, and while introducing a key, a quota and a network failure in
+ * the one flow that must always work (the box in your hand, in a pharmacy with no signal).
+ *
+ * When a household turns it on (`MED_LOOKUP_PROVIDER=medifontis`), it is consulted ONLY for a
+ * code the local table knows nowhere — no exact row, no pack family — and the answer is written
+ * INTO the local table (`medicineUpsert`), so the next scan of that box is instant and offline.
+ *
+ * Config (.env):
+ *   MED_LOOKUP_PROVIDER=off|medifontis|custom   (default: off)
+ *   MED_LOOKUP_URL=https://api.medifontis.com/v1/drugs
+ *   MED_LOOKUP_KEY=mf_live_...                 (the free key the provider gives you)
+ *
+ * @returns array{enabled:bool, provider:string, url:string, key:string}
+ */
+function medicinesProviderConfig(): array
+{
+    $provider = strtolower(trim((string)env('MED_LOOKUP_PROVIDER', 'off')));
+    if (!in_array($provider, ['medifontis', 'custom'], true)) {
+        $provider = '';
+    }
+    $url = trim((string)env('MED_LOOKUP_URL', ''));
+    if ($url === '' && $provider === 'medifontis') {
+        $url = 'https://api.medifontis.com/v1/drugs';
+    }
+    $key = trim((string)env('MED_LOOKUP_KEY', ''));
+    // A provider needs somewhere to ask; a key is required by every commercial one, not by a
+    // self-hosted endpoint of your own (`custom`).
+    $enabled = $provider !== '' && preg_match('#^https?://#i', $url) === 1
+        && ($provider === 'custom' || $key !== '');
+    return ['enabled' => $enabled, 'provider' => $provider, 'url' => $url, 'key' => $key];
+}
+
+/**
+ * Parse one provider answer into a catalogue row (no I/O: this is the part worth testing).
+ *
+ * Two shapes are understood, because they are the two that exist: Medifontis' record
+ * (`identifiers[]` + `data{}`, the AIFA fields renamed) and a plain `{results:[{aic,name,...}]}`
+ * that an own endpoint returns. Anything else yields null — a provider that answers nonsense must
+ * not become a medicine.
+ *
+ * @param array $payload the decoded JSON body
+ * @param string $aic the code that was asked for
+ */
+function medicinesProviderParseRow(array $payload, string $aic): ?array
+{
+    $want = medicineNormalizeAic($aic);
+    if ($want === '') {
+        return null;
+    }
+    $rows = [];
+    if (isset($payload['results']) && is_array($payload['results'])) {
+        $rows = $payload['results'];
+    } elseif (isset($payload['result']) && is_array($payload['result'])) {
+        $rows = [$payload['result']];
+    } elseif (isset($payload['data']) && is_array($payload['data'])) {
+        $rows = [$payload];
+    }
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $data = isset($row['data']) && is_array($row['data']) ? $row['data'] : $row;
+        $code = medicineNormalizeAic((string)($data['aic'] ?? $row['aic'] ?? ''));
+        if ($code === '' && isset($row['identifiers']) && is_array($row['identifiers'])) {
+            foreach ($row['identifiers'] as $id) {
+                if (is_array($id) && strtolower((string)($id['scheme'] ?? '')) === 'aic') {
+                    $code = medicineNormalizeAic((string)($id['value'] ?? ''));
+                    break;
+                }
+            }
+        }
+        if ($code === '' || $code !== $want) {
+            continue; // the answer must be the code we asked for, never a neighbour
+        }
+        $name = trim((string)($data['name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        return [
+            'aic' => $code,
+            'name' => $name,
+            'ingredient' => (string)($data['ingredient'] ?? $data['activeIngredient'] ?? ''),
+            'form' => (string)($data['form'] ?? ''),
+            'dosage' => (string)($data['dosage'] ?? ''),
+            'pack' => (string)($data['pack'] ?? $data['description'] ?? ''),
+            'company' => (string)($data['holder'] ?? $data['company'] ?? ''),
+            'atc' => (string)($data['atc'] ?? ''),
+            'fascia' => (string)($data['fascia'] ?? ''),
+        ];
+    }
+    return null;
+}
+
+/**
+ * Ask the optional provider for ONE code and keep the answer in the local catalogue.
+ *
+ * @returns array|null the row now stored locally (or null: no provider, unknown code, failure)
+ */
+function medicinesProviderLookup(PDO $db, string $country, string $aic): ?array
+{
+    $cfg = medicinesProviderConfig();
+    $code = medicineNormalizeAic($aic);
+    if (!$cfg['enabled'] || $code === '') {
+        return null;
+    }
+    $url = $cfg['url'] . (str_contains($cfg['url'], '?') ? '&' : '?')
+        . http_build_query(['country' => $country !== '' ? $country : 'it', 'q' => $code]);
+    $body = medicinesFetchUrlWithHeaders($url, $cfg['key'] !== '' ? ['Authorization: Bearer ' . $cfg['key']] : [], 1048576, 8);
+    if ($body === null) {
+        EverLog::warn('Medicine provider lookup failed', ['event' => 'med_lookup_provider_failed', 'provider' => $cfg['provider'], 'aic' => $code]);
+        return null;
+    }
+    $payload = json_decode($body, true);
+    if (!is_array($payload)) {
+        return null;
+    }
+    $row = medicinesProviderParseRow($payload, $code);
+    if ($row === null) {
+        EverLog::info('Medicine provider does not know this code', ['event' => 'med_lookup_provider_miss', 'provider' => $cfg['provider'], 'aic' => $code]);
+        return null;
+    }
+    // Cached: a provider is a way to FILL the local catalogue, never a dependency of the scan.
+    medicineUpsert($db, $row);
+    EverLog::info('Medicine provider filled a missing code', ['event' => 'med_lookup_provider_hit', 'provider' => $cfg['provider'], 'aic' => $code]);
+    return medicineFindByAic($db, $code) ?: $row;
 }

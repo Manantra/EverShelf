@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zm'; // bump when translations change
+const _I18N_VERSION = '20261028zn'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15697,7 +15697,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zm';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zn';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15707,7 +15707,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zm';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zn';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16571,6 +16571,54 @@ let _medNeighbourCodes = [];
 let _medNeighbourRead = '';
 
 /**
+ * The real packs that share the first six digits of a read: the SAME medicine, another pack.
+ *
+ * An AIC is `6 digits of the medicinal product + 3 of the pack`, and the digits an OCR gets wrong
+ * are the last ones. The household's box printed `A029788027`; the formulary has `029788015`,
+ * `029788041`, `029788054` — all Destrometorfano Bromidrato Sella (compresse, gocce, sciroppo).
+ * So "not found" was never the whole story: the medicine WAS there, under real pack numbers.
+ *
+ * @param {string} code the read (digits only)
+ * @param {Array<object>} rows what `med_lookup?near=1` returned
+ * @returns {Array<object>} the family rows (empty when even the prefix is unknown)
+ */
+function _medFamilyRows(code, rows) {
+    const prefix = String(code || '').replace(/\D/g, '').slice(0, 6);
+    if (prefix.length < 6) return [];
+    return (Array.isArray(rows) ? rows : []).filter(row => {
+        const aic = String((row && row.aic) || '').replace(/\D/g, '');
+        return aic.length >= 6 && aic.slice(0, 6) === prefix;
+    });
+}
+
+/**
+ * The read is one digit off: open the form with NO code and the correction card.
+ *
+ * Storing what the camera read would poison every later scan of that box (no medicine has that
+ * number), so the field stays empty and the card asks the only question worth asking — WHICH pack
+ * is in your hand — with the real names, forms and pack sizes in front of the household.
+ *
+ * @param {string} code the read, kept as evidence in the card
+ * @param {Array<object>} rows the real family rows
+ */
+function _medOpenFamily(code, rows) {
+    // The form, empty and in medicine mode: nothing the camera read is stored (no medicine has
+    // that number), and the card is the question the household answers with the box in hand.
+    startManualEntry('');
+    _medArmProductForm();
+    _medNeighbourRead = String(code || '');
+    _medMatchResults = Array.isArray(rows) ? rows.slice() : [];
+    _medNeighbourCodes = _medChoiceCandidates(String(code || ''), _medMatchResults, 4);
+    showToast(t('medical.scan_code_almost'), 'warning', 6000);
+    const host = document.getElementById('pf-med-match');
+    if (!host) return;
+    host.hidden = false;
+    host.classList.remove('is-link-only');
+    host.innerHTML = '';
+    _medMatchCard(String(code || ''), _medMatchResults, 'medical.almost_title');
+}
+
+/**
  * Ask the catalogue for the codes around this read, then continue to the form.
  *
  * The neighbours are not a question on the camera: they are kept for `_medShowCatalogueMatch()`,
@@ -16601,10 +16649,24 @@ async function _medConfirmRead(read, method = 'OCR') {
     const loaded = !!(res && res.dataset && res.dataset.loaded);
     const exact = !!(res && res.exact);
     if (loaded && !exact) {
-        // The same read comes back on every pass. One rejection keeps the scanner going (a wrong
-        // digit must not open a box), but a SECOND identical read means the digits are stable and
-        // the catalogue simply does not have that pack (stale or incomplete export): a dead end is
-        // worse than an honest warning, so the form opens WITH the code and says it is unknown.
+        // The catalogue HAS this medicine: the read lost its last digits. An AIC is 6 digits of
+        // the product + 3 of the pack, so `029788027` is one-digit-away from `029788015/041/054`
+        // (Destrometorfano Sella). Ask WHICH pack instead of calling the box unknown: the family
+        // rows carry the names, the forms and the pack sizes, and no wrong number is ever stored.
+        const family = _medFamilyRows(code, (res && Array.isArray(res.results)) ? res.results : []);
+        if (family.length) {
+            _medRejectHits = { code: '', n: 0 };
+            _medConfirmingCode = '';
+            _medLastRejectedAt = Date.now();
+            _setScanStatus(t('medical.scan_code_almost'), 'partial', '');
+            scanLog(`Medicine read ${code} is in the catalogue at another pack: offering ${family.length} real rows`);
+            _medOpenFamily(code, family);
+            return true;
+        }
+        // The same read comes back on every pass, and nothing shares its digits. One rejection
+        // keeps the scanner going (a wrong digit must not open a box), but a SECOND identical read
+        // means the digits are stable and the catalogue simply does not have that pack (stale or
+        // incomplete export): a dead end is worse than an honest warning.
         const hits = (_medRejectHits.code === code ? _medRejectHits.n : 0) + 1;
         _medRejectHits = { code: code, n: hits };
         _medLastRejectedAt = Date.now();
@@ -17238,10 +17300,10 @@ function _medShowAlternatives() {
 }
 
 /** The correction card: the real codes around a doubtful read, each with the name on its box. */
-function _medMatchCard(aic, rows) {
+function _medMatchCard(aic, rows, titleKey = 'medical.match_title') {
     const host = document.getElementById('pf-med-match');
     if (!host) return;
-    host.innerHTML += `<h5 class="med-match-title">${escapeHtml(t('medical.match_title'))}</h5>` +
+    host.innerHTML += `<h5 class="med-match-title">${escapeHtml(t(titleKey))}</h5>` +
         rows.map((row, i) => {
             const meta = [
                 row.ingredient ? t('medical.match_ingredient').replace('{value}', row.ingredient) : '',

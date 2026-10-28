@@ -9869,6 +9869,16 @@ function medLookupAction(PDO $db): void {
             $results[] = medicinePublicRow($row);
         }
     }
+    // The OPTIONAL online provider (off unless MED_LOOKUP_PROVIDER says otherwise): asked ONLY for
+    // a code the local catalogue knows nowhere, and the answer is written into the local table, so
+    // this is a way to FILL the catalogue — never a dependency of the scan.
+    if (!$results && $aic !== '') {
+        $remote = medicinesProviderLookup($db, $country, (string)$aic);
+        if ($remote) {
+            $results[] = medicinePublicRow($remote) + ['distance' => 0, 'source' => 'provider'];
+            $exact = true;
+        }
+    }
     EverLog::info('Medicine catalogue lookup', [
         'event' => 'med_lookup',
         'country' => $country,

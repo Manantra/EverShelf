@@ -3027,6 +3027,8 @@
     "form_qty_label": "Quanto ne hai",
     "form_expiry_label": "📅 Scadenza stampata sulla scatola *",
     "ask_title": "Non riesco a leggere il codice",
-    "ask_body": "Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione."
+    "ask_body": "Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione.",
+    "almost_title": "Il codice non è esatto: quale confezione hai in mano?",
+    "scan_code_almost": "Quasi: scegli la confezione"
   }
 }

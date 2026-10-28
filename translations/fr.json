@@ -3027,6 +3027,8 @@
     "form_qty_label": "Combien en avez-vous",
     "form_expiry_label": "📅 Date de péremption imprimée *",
     "ask_title": "Je ne parviens pas à lire le code",
-    "ask_body": "Saisissez-le ci-dessous tel qu'il est imprimé (ex. A040313076), ou relancez la lecture."
+    "ask_body": "Saisissez-le ci-dessous tel qu'il est imprimé (ex. A040313076), ou relancez la lecture.",
+    "almost_title": "Le code n'est pas exact : quelle boîte avez-vous ?",
+    "scan_code_almost": "Presque juste : choisissez la boîte"
   }
 }
