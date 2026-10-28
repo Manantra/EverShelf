@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zj'; // bump when translations change
+const _I18N_VERSION = '20261028zk'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13791,7 +13791,7 @@ function _medCloseBlocked(resume = false) {
 /** "Aggiungi a mano" from the blocked dialog: the medicine form, nothing else. */
 function _medBlockedManual() {
     _medCloseBlocked(false);
-    _medStartManualEntry('', true, '');
+    _medStartManualEntry('');
 }
 
 let _medBlockedShown = false;
@@ -15695,7 +15695,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zj';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zk';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15705,7 +15705,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zj';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zk';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16692,16 +16692,12 @@ async function _medOcrFallback(code, options = {}) {
         // The barcode was a packaging code of a medicine box: open the form rather than a
         // toast the household cannot act on. The code is NOT stored as the product's barcode —
         // a Pharmacode/Laetus identifies the line, not the drug, and saving it would make the
-        // next scan of that same pack open a row it does not describe. It stays on the banner
-        // as information.
+        // next scan of that same pack open a row it does not describe, and it does not deserve
+        // a line on the form either: the household is looking at the box, not at the line number.
         showToast(t('medical.ocr_not_found'), 'info', 5000);
         _setScanHudState('idle');
         _setScanStatus(t('scan.status_scanning'), '', '');
-        _medStartManualEntry('', true, 'medical.code_line');
-        const bannerCode = document.getElementById('pf-med-banner-code');
-        if (bannerCode && code) {
-            bannerCode.textContent = `${t('medical.code_line')} · ${String(code).toUpperCase()}`;
-        }
+        _medStartManualEntry('');
         return true;
     }
     if (!options.silent) {
@@ -17135,7 +17131,7 @@ function _medUseCode(code) {
     const value = String(code || '');
     const field = document.getElementById('pf-barcode');
     if (field) field.value = value;
-    _medFormSetMode(true, { code: value, label_key: 'medical.code_aic' });
+    _medFormSetMode(true);
     _medMatchResults = [];
     _medShowCatalogueMatch(value);
     showToast(t('medical.choice_switched').replace('{code}', value), 'success');
@@ -17157,6 +17153,7 @@ async function _medShowCatalogueMatch(code) {
     const aic = (local && local.aic) ? String(local.aic) : '';
     if (!aic) { host.hidden = true; host.innerHTML = ''; _medMatchResults = []; return; }
     host.hidden = false;
+    host.classList.remove('is-link-only');
     host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_searching'))}</p>`;
     let res = null;
     try {
@@ -17196,8 +17193,11 @@ async function _medShowCatalogueMatch(code) {
         _medMatchResults = rows;
         _medNeighbourRead = aic;
         _medNeighbourCodes = [];
-        host.innerHTML = `<p class="settings-hint med-match-filled">${escapeHtml(t('medical.match_filled').replace('{code}', 'A' + aic))}</p>`
-            + `<div class="med-match-foot"><button type="button" class="med-alt-link" onclick="_medShowAlternatives()">${escapeHtml(t('medical.not_this'))}</button></div>`;
+        // ONE link and no card: the name is already in the field above, and a "riconosciuto
+        // A042386348" line under it only ate vertical space on a phone. The alternatives stay
+        // one tap away for the case the read was one digit off.
+        host.classList.add('is-link-only');
+        host.innerHTML = `<button type="button" class="med-alt-link" onclick="_medShowAlternatives()">${escapeHtml(t('medical.not_this'))}</button>`;
         return;
     }
     _medMatchCard(aic, rows);
@@ -17207,6 +17207,7 @@ async function _medShowCatalogueMatch(code) {
 function _medShowAlternatives() {
     const host = document.getElementById('pf-med-match');
     if (!host) return;
+    host.classList.remove('is-link-only');
     host.innerHTML = '';
     _medMatchCard(_medNeighbourRead || '', _medMatchResults || []);
 }
@@ -17247,8 +17248,6 @@ function _medUseMatch(index) {
     _medFillFromCatalogue(row, { force: true });
     const code = document.getElementById('pf-barcode');
     if (code && row.aic) code.value = 'A' + String(row.aic);
-    const banner = document.getElementById('pf-med-banner-code');
-    if (banner && row.aic) banner.textContent = `${t('medical.code_aic')} · A${row.aic}`;
     showToast(t('medical.match_used'), 'success');
 }
 
@@ -18068,7 +18067,7 @@ async function onBarcodeDetected(barcode) {
         if (national && !_localRowForBarcode(national.code)) {
             _setScanHudState('idle');
             _setScanStatus(t('scan.status_scanning'), '', '');
-            _medStartManualEntry(national.code, true, national.label_key);
+            _medStartManualEntry(national.code);
             return;
         }
         if (national) {
@@ -18090,10 +18089,10 @@ async function onBarcodeDetected(barcode) {
                     _medConfirmRead(reading.aic);
                     return;
                 }
-                _medStartManualEntry('', true, '');
+                _medStartManualEntry('');
             }).catch(() => {
                 _setScanStatus(t('scan.status_scanning'), '', '');
-                _medStartManualEntry('', true, '');
+                _medStartManualEntry('');
             });
             return;
         } else {
@@ -18150,15 +18149,14 @@ async function onBarcodeDetected(barcode) {
  * "Codice rilevato": the medicine path of the scanner.
  *
  * `medical` switches the product form into MEDICINE mode before it is shown (food fields
- * hidden, medical taxonomy shown, the read code in the banner), so the box is born as a
- * medicine instead of being re-classified later. `labelKey` is the schema label of the code
- * (`medical.code_aic`), so the banner can name it — and the local AIFA catalogue is asked in
- * the background, so a known AIC arrives with its name instead of an empty field.
+ * hidden, medical taxonomy shown), so the box is born as a medicine instead of being
+ * re-classified later — and the local AIFA catalogue is asked in the background, so a known
+ * AIC arrives with its name instead of an empty field.
  */
-function _medStartManualEntry(barcode, medical = true, labelKey = '') {
+function _medStartManualEntry(barcode, medical = true) {
     showToast(t('medical.code_detected'), 'info', 4000);
     startManualEntry(barcode);
-    if (medical) _medArmProductForm(barcode, labelKey);
+    if (medical) _medArmProductForm();
     // A known AIC gets its name from the local catalogue; an unknown one keeps an empty field.
     if (medical) _medShowCatalogueMatch(barcode);
 }
@@ -18167,31 +18165,22 @@ function _medStartManualEntry(barcode, medical = true, labelKey = '') {
  * Switch the product form into MEDICINE mode (or back to the normal product form).
  *
  * A recognised medicine code must not land in the food form: there is nothing to confirm
- * (the app already knows), the name is typed by the household (no drug catalogue), and the
- * category is the closed medical taxonomy. CSS hides the food-only fields under
- * `is-medicine-form`; here we repaint the wording, the banner and the medical block.
+ * (the app already knows), the name comes from the local catalogue, and the category is the
+ * closed medical taxonomy. CSS hides the food-only fields under `is-medicine-form`; here we
+ * repaint the wording and the medical block. Nothing prints the code we read: the name is
+ * already in the field, and the digits of the box are not the household's business.
  *
  * @param {boolean} on
- * @param {{code?:string, label_key?:string}} [info] what the scanner read
  */
-function _medFormSetMode(on, info = {}) {
+function _medFormSetMode(on) {
     const page = document.getElementById('page-product-form');
     if (page) page.classList.toggle('is-medicine-form', !!on);
 
-    const banner = document.getElementById('pf-med-banner');
-    if (banner) banner.hidden = !on;
-    const codeEl = document.getElementById('pf-med-banner-code');
-    if (codeEl) {
-        const type = on && info.label_key ? t(info.label_key) : '';
-        const code = on && info.code ? String(info.code) : '';
-        // textContent, never innerHTML: the code comes from a barcode.
-        codeEl.textContent = [type, code].filter(Boolean).join(' · ');
-    }
     // Back to the food form: a catalogue card left over from a medicine must not follow the
     // household into the next product.
     if (!on) {
         const match = document.getElementById('pf-med-match');
-        if (match) { match.hidden = true; match.innerHTML = ''; }
+        if (match) { match.hidden = true; match.classList.remove('is-link-only'); match.innerHTML = ''; }
         _medMatchResults = [];
     }
 
@@ -18243,12 +18232,12 @@ function _medFormIsMedicine() {
 }
 
 /** Turn the product form's medical switch on (and paint the closed categories). */
-function _medArmProductForm(code = '', labelKey = '') {
+function _medArmProductForm() {
     // A new box, a new auto-fill: what we wrote for the previous one must not be "ours" here.
     _medAutoFilled = {};
     const group = document.getElementById('pf-medical-group');
     if (!group || !_medOn()) return;
-    _medFormSetMode(true, { code: String(code || ''), label_key: String(labelKey || '') });
+    _medFormSetMode(true);
     const loc = (getSettings().medical_locations || [])[0];
     const addLoc = document.getElementById('add-location');
     if (loc && addLoc) {

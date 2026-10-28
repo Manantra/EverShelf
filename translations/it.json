@@ -3005,7 +3005,6 @@
     "choice_title_inline": "Non è questo? Scegli il codice che leggi sulla scatola:",
     "choice_switched": "Codice impostato: {code}",
     "ocr_engine_error": "Il lettore OCR non è disponibile su questo dispositivo: scrivi il codice a mano.",
-    "match_filled": "Riconosciuto {code}",
     "match_needs_catalog": "Codice {code} salvato, ma il catalogo non è caricato: nome e ditta non si possono compilare. Importalo da Impostazioni → Farmaci.",
     "match_name_from_label": "Nome letto dall’etichetta: “{name}”. Controllalo: il catalogo non lo conosce.",
     "scan_code_invalid": "Il codice letto non esiste nel catalogo: continuo a leggere…",

@@ -3005,7 +3005,6 @@
     "choice_title_inline": "Nicht dieser? Wähle den Code, der auf der Schachtel steht:",
     "choice_switched": "Code gesetzt: {code}",
     "ocr_engine_error": "Der OCR-Leser ist auf diesem Gerät nicht verfügbar: Code von Hand eingeben.",
-    "match_filled": "Erkannt: {code}",
     "match_needs_catalog": "Code {code} gespeichert, aber kein Katalog geladen: Name und Firma können nicht gefüllt werden. Importiere ihn unter Einstellungen → Medikamente.",
     "match_name_from_label": "Name vom Etikett gelesen: „{name}“. Bitte prüfen: der Katalog kennt ihn nicht.",
     "scan_code_invalid": "Der gelesene Code steht nicht im Katalog: ich lese weiter…",

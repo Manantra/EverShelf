@@ -3005,7 +3005,6 @@
     "choice_title_inline": "不是这个？请选择包装上印的代码：",
     "choice_switched": "已设为代码：{code}",
     "ocr_engine_error": "此设备不支持 OCR 识别：请手动输入代码。",
-    "match_filled": "已识别 {code}",
     "match_needs_catalog": "代码 {code} 已保存，但未加载目录：无法填写名称和公司。请到设置 → 药品中导入。",
     "match_name_from_label": "从包装上读到的名称：{name}。请核对：目录中没有这个名称。",
     "scan_code_invalid": "读到的代码不在目录中：继续识别…",

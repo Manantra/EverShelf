@@ -3005,7 +3005,6 @@
     "choice_title_inline": "Not this one? Pick the code you read on the box:",
     "choice_switched": "Code set: {code}",
     "ocr_engine_error": "The OCR reader is not available on this device: type the code by hand.",
-    "match_filled": "Recognised {code}",
     "match_needs_catalog": "Code {code} saved, but no catalogue is loaded: name and company cannot be filled. Import it from Settings → Medicines.",
     "match_name_from_label": "Name read from the label: “{name}”. Check it: the catalogue does not know it.",
     "scan_code_invalid": "The code I read is not in the catalogue: still reading…",

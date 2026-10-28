@@ -3005,7 +3005,6 @@
     "choice_title_inline": "Pas celui-ci ? Choisis le code lu sur la boîte :",
     "choice_switched": "Code défini : {code}",
     "ocr_engine_error": "Le lecteur OCR n’est pas disponible sur cet appareil : saisis le code à la main.",
-    "match_filled": "Reconnu {code}",
     "match_needs_catalog": "Code {code} enregistré, mais aucun catalogue chargé : le nom et le laboratoire ne peuvent pas être remplis. Importe-le depuis Réglages → Médicaments.",
     "match_name_from_label": "Nom lu sur l’étiquette : « {name} ». Vérifie-le : le catalogue ne le connaît pas.",
     "scan_code_invalid": "Le code lu n’existe pas dans le catalogue : je continue à lire…",

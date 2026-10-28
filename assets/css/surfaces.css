@@ -2242,7 +2242,6 @@ a.free-api:hover { border-color: var(--brand-primary); }
 }
 .med-pieces-block { margin-top: 10px; }
 /* A confirmed read: the correction is a footnote, not a choice to make. */
-.med-match-foot { margin-top: 2px; text-align: right; }
 .med-alt-link {
     background: none;
     border: 0;
@@ -2256,33 +2255,12 @@ a.free-api:hover { border-color: var(--brand-primary); }
 
 /* ── Adding a medicine is not adding food ────────────────────────────────────
    A recognised code switches #page-product-form into `is-medicine-form`: the food-only
-   fields (AI photo fill, food category, unit/package, tags, family) disappear, the medical
-   block shows WITHOUT its "is it a medicine?" switch, and the banner states what the app
-   already knows — the code it read. */
+   fields (AI photo fill, food category, unit/package, tags, family) disappear and the
+   medical block shows WITHOUT its "is it a medicine?" switch. No banner prints the code we
+   read: the catalogue puts the NAME in the field. */
 #page-product-form.is-medicine-form .pf-food-only { display: none !important; }
 #page-product-form.is-medicine-form #pf-med-toggle-row,
 #page-product-form.is-medicine-form #pf-med-toggle-hint { display: none !important; }
-.med-form-banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin: 0 0 14px;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid #6366f1;
-    background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), transparent 70%);
-}
-.med-form-banner[hidden] { display: none; }
-.med-form-banner-icon { font-size: 1.35rem; line-height: 1; }
-.med-form-banner-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.med-form-banner-body strong { font-size: 0.95rem; font-weight: 800; color: var(--text-main); }
-.med-form-banner-code {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--text-main);
-    word-break: break-all;
-}
-.med-form-banner-hint { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); }
 /* ── The AIFA catalogue card (medicine form) + the dataset block (Settings) ─────
    Identification, not advice: one row per match, the name in bold, the AIC and the pack
    under it, and ONE neutral button that fills the field. Nothing is auto-filled. */
@@ -2294,6 +2272,16 @@ a.free-api:hover { border-color: var(--brand-primary); }
     background: var(--surface-bg);
 }
 .med-match-card[hidden] { display: none; }
+/* A confirmed read is ONE line: "Non è questo?" is a link, not a card. The name it would
+   repeat is already in the field above, and on a phone that card stole the first screen. */
+.med-match-card.is-link-only {
+    margin: 0 0 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: right;
+}
+.med-match-card.is-link-only .med-alt-link { padding: 6px 2px; font-size: 0.78rem; }
 .med-match-title {
     margin: 0 0 8px;
     font-size: 0.86rem;

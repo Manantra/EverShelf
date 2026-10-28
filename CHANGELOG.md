@@ -5,6 +5,16 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.2] - 2026-10-28
+
+### Changed
+- **The medicine form stopped talking about numbers.** A confirmed read opened with
+  “AIC · A042386348” over a name the catalogue had already put in the field: the
+  banner is gone (markup, JS and CSS), the “Riconosciuto…” line is gone (it repeated
+  the field above), and what is left is **one link**, “Non è questo?”, without the card
+  around it — the alternatives are still one tap away when a digit was read wrong. The
+  packaging code of a box is announced by a toast, never printed on the form.
+
 ## [1.28.1] - 2026-10-28 · branch `refactor_25_10_2026`
 
 ### Fixed
