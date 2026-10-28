@@ -46,6 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`recalculateAddExpiry()` returns early for a medical row).
 
 ### Fixed
+- **The month list of a medicine's expiry was always empty.** The markup names those controls
+  `pf-med-expiry-month` / `pf-med-expiry-year` (hidden `pf-med-expiry`), while the helpers build
+  every id from a prefix (`#<prefix>-expiry-month`) and were called with `'pf'`: the lookup found
+  nothing, so the `<select>` stayed empty, the hidden ISO date was never written and the save
+  answered "inserisci la scadenza". The prefix is `'pf-med'` at every call site now (the pantry
+  step keeps `'add'`, which always matched), the two prefixes live in
+  `_MED_EXPIRY_FORM_PREFIXES`, and `_medExpiryFillPickers()` **warns in the console** when a
+  prefix does not match the markup instead of leaving a dead control on a phone. Verified with a
+  harness that reads the ids **from `index.html`**.
 - **The month of a medicine's expiry could not be chosen at all.** The list was painted by JS only,
   so whenever that painter did not run (a box added **by hand** through the "è un farmaco?"
   switch, a form reopened) the `<select>` was empty — and, in a flex row with `min-width: 0`,

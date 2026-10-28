@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zzb'; // bump when translations change
+const _I18N_VERSION = '20261028zzc'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14374,7 +14374,7 @@ function _syncProductMedicalUi(product) {
     // The printed-expiry pair is painted here too: a medicine opened by hand — or from Settings —
     // must never find an empty month list (the scan path is not the only way into this form).
     // `keep` protects a month/year the household has already typed.
-    if (isMed) _medExpiryFillPickers('pf', _medExpiryIso('pf'), true);
+    if (isMed) _medExpiryFillPickers('pf-med', _medExpiryIso('pf-med'), true);
 }
 
 /** The closed categories, as chips (the only values a box may carry). */
@@ -15788,7 +15788,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzb';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzc';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15798,7 +15798,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzb';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzc';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18435,7 +18435,7 @@ function _medFormStockReset() {
     if (expiry) expiry.value = '';
     // The printed expiry is a month + a year (see `_medExpiryFillPickers`): a new box starts with
     // both pickers blank, so nobody inherits the date of the previous box.
-    _medExpiryFillPickers('pf');
+    _medExpiryFillPickers('pf-med');
     const hint = document.getElementById('pf-med-qty-hint');
     if (hint) hint.textContent = '';
     document.querySelectorAll('#pf-med-state .med-state-chip').forEach(b => {
@@ -18453,7 +18453,9 @@ function _medFormStockReset() {
  * month, which is what "10/2026" means ("good until the end of October") and what the pantry row
  * must carry to expire right.
  *
- * `prefix` is the form that owns the pair: 'pf' on the product form, 'add' on the pantry step.
+ * `prefix` is the form that owns the pair, and it IS the id prefix of that form: 'pf-med' on the
+ * product form (`#pf-med-expiry-month`, `#pf-med-expiry-year`, hidden `#pf-med-expiry`) and 'add'
+ * on the pantry step (`#add-expiry-month`, `#add-expiry-year`, hidden `#add-expiry`).
  * The two controls are painted by `_medExpiryFillPickers()` at BOOT and every time the medical
  * block appears (`_medArmProductForm()`, `_syncProductMedicalUi()`, `onProductMedicalToggle()`,
  * `showAddForm()`): an empty `<select>` has nothing to choose, and that was the reported bug —
@@ -18461,6 +18463,16 @@ function _medFormStockReset() {
  * used to be the only painter.
  */
 const _MED_EXPIRY_YEARS_AHEAD = 12;
+
+/**
+ * The id prefixes of the two printed-expiry pairs, in ONE place.
+ *
+ * The markup owns the ids (`pf-med-expiry-month` / `-year` / the hidden `pf-med-expiry` on
+ * the product form, `add-expiry-*` on the pantry step) and the helpers build them from a
+ * prefix: when the two disagree the `<select>` stays EMPTY and the date is never written —
+ * exactly the bug `_medExpiryFillPickers()` now warns about instead of failing silently.
+ */
+const _MED_EXPIRY_FORM_PREFIXES = ['pf-med', 'add'];
 
 /**
  * The twelve month options of a printed expiry, in the UI language.
@@ -18496,7 +18508,7 @@ function _medExpiryMonthOptionsHtml() {
  * reset its selection), an empty one is filled, and a language change repaints it.
  */
 function _medExpiryPaintMonthOptions() {
-    for (const prefix of ['pf', 'add']) {
+    for (const prefix of _MED_EXPIRY_FORM_PREFIXES) {
         const sel = document.getElementById(`${prefix}-expiry-month`);
         if (!sel || sel.tagName !== 'SELECT') continue;
         const painted = !!sel.options && sel.options.length > 0 && sel.dataset.i18nMonths === _currentLang;
@@ -18515,14 +18527,20 @@ function _medExpiryPaintMonthOptions() {
  * rebuilt here unless the control is still empty: this function decides **what is selected**.
  * With `keep` a repaint never wipes what the household already picked.
  *
- * @param {string} prefix 'pf' | 'add'
+ * @param {string} prefix 'pf-med' | 'add'
  * @param {string} [iso] a YYYY-MM-DD value already chosen
  * @param {boolean} [keep] keep the month/year already on screen when `iso` is incomplete
  */
 function _medExpiryFillPickers(prefix, iso = '', keep = false) {
     const monthSel = document.getElementById(`${prefix}-expiry-month`);
     const yearEl = document.getElementById(`${prefix}-expiry-year`);
-    const monthIsSelect = !!monthSel && monthSel.tagName === 'SELECT';
+    if (!monthSel) {
+        // A prefix that does not match the markup leaves an EMPTY `<select>` and a date that is
+        // never written: say it in the console instead of leaving a dead control on a phone.
+        console.warn('[med expiry] no control for prefix', prefix);
+        return;
+    }
+    const monthIsSelect = monthSel.tagName === 'SELECT';
     // Last line of defence: a control that somehow arrived without its options is filled here.
     if (monthIsSelect && (!monthSel.options || !monthSel.options.length)) {
         monthSel.innerHTML = _medExpiryMonthOptionsHtml();
@@ -18576,7 +18594,7 @@ function _medExpiryIso(prefix) {
  * not a key: a key returned through a helper is invisible to `scripts/i18n-audit.py`, and a
  * missing translation would then reach a phone as `add.expiry_required`.
  *
- * @param {string} prefix 'pf' | 'add'
+ * @param {string} prefix 'pf-med' | 'add'
  * @returns {string} the message to show
  */
 function _medExpiryErrorText(prefix) {
@@ -18654,7 +18672,7 @@ function _medFormStockFieldsVisible() {
     if (!box) return;
     const editing = !!String(document.getElementById('pf-id')?.value || '');
     box.hidden = editing;
-    if (!editing) _medExpiryFillPickers('pf', _medExpiryIso('pf'), true);
+    if (!editing) _medExpiryFillPickers('pf-med', _medExpiryIso('pf-med'), true);
 }
 
 /** Turn the product form's medical switch on (and paint the closed categories). */
@@ -19275,11 +19293,11 @@ async function submitProduct(e) {
         // The two pickers are the answer ("scadenza MM/AAAA"); the hidden field keeps the ISO
         // value the pantry row stores (last day of the month). Reading the pickers first means a
         // stale hidden value can never outvote what is on screen.
-        const expiry = _medExpiryIso('pf') || String(document.getElementById('pf-med-expiry')?.value || '');
+        const expiry = _medExpiryIso('pf-med') || String(document.getElementById('pf-med-expiry')?.value || '');
         if (!expiry) {
             // "Inserisci la scadenza" when a control is empty, "data nel passato" when the year
             // typed has already gone: the second one is an answer, not a missing step.
-            showToast(_medExpiryErrorText('pf'), 'error', 6000);
+            showToast(_medExpiryErrorText('pf-med'), 'error', 6000);
             monthEl?.focus();
             return;
         }
