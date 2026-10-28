@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028e'; // bump when translations change
+const _I18N_VERSION = '20261028f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3432,6 +3432,8 @@ const _LOCAL_OCR_DELAY_NATIVE_MS = 3500;    // defer heavy OCR when Native Barco
 const _MED_OCR_FIRST_MS = 600;
 const _MED_OCR_INTERVAL_MS = 2000;
 const _MED_OCR_MAX_ATTEMPTS = 45;
+/** After that many passes the loop keeps reading, just slower (never stops on a live camera). */
+const _MED_OCR_IDLE_MS = 4000;
 const _ZBAR_FALLBACK_DELAY_MS = 350;        // skip ZBar until native had a few frames
 const _BARCODE_PERSIST_KEY = 'evershelf_barcode_resolve_v1';
 const _BARCODE_PERSIST_MAX = 500;
@@ -13642,6 +13644,9 @@ function _setScanMode(mode) {
     if (frame) frame.hidden = !readable;
     const sample = document.getElementById('scan-med-frame-sample');
     if (sample) sample.textContent = _medOcrSample();
+    // A leftover read line from the previous product would look like a result of this one.
+    const readEl = document.getElementById('scan-med-read');
+    if (readEl) { readEl.hidden = !medical; readEl.innerHTML = ''; }
     const medManual = document.getElementById('scan-med-manual-btn');
     if (medManual) medManual.hidden = !medical;
     const ocrBtn = document.getElementById('scan-med-ocr-btn');
@@ -15430,7 +15435,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15440,7 +15445,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15816,8 +15821,14 @@ async function _ensureTesseractWorker(mode = 'digits') {
 async function _tesseractConfigure(worker, mode) {
     if (!worker || _tesseractWorkerMode === mode) return;
     try {
-        if (mode === 'med') {
-            // AIC = `A` + 9 digits; the letters are needed for the A and for a name guess.
+        if (mode === 'aic') {
+            // The printed AIC is `A` + 9 digits and nothing else: every other letter is noise
+            // (`O`/`0`, `I`/`1`). Fewer characters, far fewer wrong readings.
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789A',
+                tessedit_pageseg_mode: '7',
+            });
+        } else if (mode === 'med') {
             await worker.setParameters({
                 tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
                 tessedit_pageseg_mode: '6',
@@ -15872,19 +15883,21 @@ async function _tryLocalEanDigitOcr(videoEl) {
  *
  * @returns {{sx:number, sy:number, sw:number, sh:number}|null}
  */
-function _medGuideRect(videoEl) {
+function _medGuideRect(videoEl, expand = 1) {
     const box = document.getElementById('scan-med-frame');
     const vp = document.getElementById('scanner-viewport');
     if (!box || !vp || !videoEl || !videoEl.videoWidth) return null;
+    const grow = Math.max(1, Math.min(2.2, Number(expand) || 1));
     const b = box.getBoundingClientRect();
     const v = vp.getBoundingClientRect();
     if (b.width < 8 || b.height < 8 || !v.width || !v.height) return null;
     const scale = Math.max(v.width / videoEl.videoWidth, v.height / videoEl.videoHeight);
     const ox = (videoEl.videoWidth * scale - v.width) / 2;
     const oy = (videoEl.videoHeight * scale - v.height) / 2;
-    // A phone never frames perfectly: read a little beyond the rectangle.
-    const padX = b.width * 0.12;
-    const padY = b.height * 0.35;
+    // A phone never frames perfectly: read a little beyond the rectangle (and more when a
+    // wider band is asked for: the AIC line of a real box is wider than the drawn frame).
+    const padX = b.width * (0.12 - 0.10 * (grow - 1));
+    const padY = b.height * (0.35 - 0.25 * (grow - 1));
     const left = (b.left - v.left + padX + ox) / scale;
     const top = (b.top - v.top + padY + oy) / scale;
     const w = (b.width - 2 * padX) / scale;
@@ -15903,18 +15916,50 @@ function _medGuideRect(videoEl) {
  * `region` = the guide rectangle (the normal case); without it the whole frame, downscaled —
  * used only as a single second chance when the framed pass found nothing.
  */
-function _captureMedLabelFrame(videoEl, region = null) {
+/**
+ * Dark ink on light paper is the one case a global threshold fixes: a webcam's contrast is poor
+ * and a warm lamp eats the thin strokes of an OCR-B digit, which is exactly why a clean-looking
+ * AIC line comes back as "A0l2345678" or as nothing at all.
+ */
+function _binarizeScanCanvas(canvas) {
+    try {
+        const ctx = canvas.getContext('2d');
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = img.data;
+        let min = 255;
+        let max = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            const l = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+            d[i] = d[i + 1] = d[i + 2] = l;
+            if (l < min) min = l;
+            if (l > max) max = l;
+        }
+        // Halfway between the darkest ink and the brightest paper, skewed to the paper: the
+        // printed block is bold, the shading around it is not ink.
+        const thr = min + Math.max(1, max - min) * 0.58;
+        for (let i = 0; i < d.length; i += 4) {
+            const v = d[i] > thr ? 255 : 0;
+            d[i] = d[i + 1] = d[i + 2] = v;
+        }
+        ctx.putImageData(img, 0, 0);
+    } catch (e) {
+        scanLog(`Medicine binarize failed: ${e.message}`);
+    }
+}
+
+function _captureMedLabelFrame(videoEl, region = null, binarize = false) {
     if (!videoEl || !videoEl.videoWidth) return null;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (region) {
         // A small crop blown up: the printed AIC is 10 characters, so it reads best big.
-        const up = Math.min(3, 900 / Math.max(region.sw, 1));
+        const up = Math.min(3.5, 900 / Math.max(region.sw, 1));
         const sized = _capScanCanvasSize(region.sw * up, region.sh * up);
         canvas.width = sized.width;
         canvas.height = sized.height;
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(videoEl, region.sx, region.sy, region.sw, region.sh, 0, 0, canvas.width, canvas.height);
+        if (binarize) _binarizeScanCanvas(canvas);
         return canvas;
     }
     const vw = videoEl.videoWidth;
@@ -15941,37 +15986,79 @@ async function _medReadLabelOcr(options = {}) {
     const patterns = _medOcrPatterns();
     if (!patterns.length) return null;
     const videoEl = document.getElementById('scanner-video');
-    const worker = await _ensureTesseractWorker('med');
+    const worker = await _ensureTesseractWorker('aic');
     if (!worker) return null;
     if (!options.silent) {
         _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
     }
-    // Pass 1: exactly the rectangle the UI shows. Pass 2 (only if the first found nothing):
-    // the whole frame, for a hand that is not steady. Both use the same A-form pattern.
-    const passes = [];
+    // Three passes, cheapest first. A real AIC line is WIDE and the character spacing is huge
+    // (OCR-B), so a single narrow strip often clips it: pass 2 opens the page segmentation
+    // (single block) and pass 3 widens the band by 1.6×. A hit on any of them is the answer.
     const guide = _medGuideRect(videoEl);
+    const wide = guide ? _medGuideRect(videoEl, 1.6) : null;
+    const passes = [];
     if (guide) {
-        // The frame IS the field of view: nothing outside it is read (the pack serial printed
-        // under the SSN barcode lives there, and it must never become the drug number).
-        passes.push(_captureMedLabelFrame(videoEl, guide));
-    } else {
-        passes.push(_captureMedLabelFrame(videoEl));
+        passes.push({ region: guide, psm: '7', label: 'frame' });
+        passes.push({ region: guide, psm: '7', label: 'frame-ink', binarize: true });
+        passes.push({ region: guide, psm: '6', label: 'frame-block' });
     }
+    if (wide) passes.push({ region: wide, psm: '6', label: 'wide', binarize: true });
+    if (!passes.length) passes.push({ region: null, psm: '6', label: 'full' });
+
     let text = '';
-    for (const canvas of passes) {
+    let preview = '';
+    for (const pass of passes) {
+        const raw = _captureMedLabelFrame(videoEl, pass.region, false);
+        const canvas = pass.binarize && raw ? _captureMedLabelFrame(videoEl, pass.region, true) : raw;
         if (!canvas) continue;
+        if (!preview && raw && raw.toDataURL) {
+            // The preview is the picture the household framed, not the black-and-white copy.
+            try { preview = raw.toDataURL('image/jpeg', 0.6); } catch (e) { preview = ''; }
+        }
         try {
+            await worker.setParameters({ tessedit_pageseg_mode: pass.psm });
             const { data } = await worker.recognize(canvas);
             const page = String((data && data.text) || '');
             text += (text ? ' ' : '') + page;
             const aic = _medOcrFindAic(page, patterns);
-            scanLog(`Medicine OCR (${guide && canvas === passes[0] ? 'frame' : 'full'}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
-            if (aic) return { aic: aic, text: page };
+            scanLog(`Medicine OCR (${pass.label}, psm ${pass.psm}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
+            _medOcrFeedback(page, aic, preview);
+            if (aic) return { aic: aic, text: page, preview: preview };
         } catch (e) {
-            scanLog(`Medicine OCR error: ${e.message}`);
+            scanLog(`Medicine OCR error (${pass.label}): ${e.message}`);
         }
     }
-    return { aic: null, text: text };
+    _medOcrFeedback(text, null, preview);
+    return { aic: null, text: text, preview: preview };
+}
+
+/** Last line painted under the medicine camera, so the 2 s loop does not repaint it. */
+let _medOcrLastFeedback = '';
+
+/**
+ * What the reader saw, on screen. Without this the household has no way to tell "it did not
+ * find the block" from "it read the block and I typed it wrong", and neither have we.
+ * In debug mode (`?debug=1`) the crop itself is shown too.
+ */
+function _medOcrFeedback(page, aic, preview) {
+    const el = document.getElementById('scan-med-read');
+    if (!el) return;
+    const raw = String(page || '').replace(/\s+/g, ' ').trim();
+    // The loop runs every 2 s: repaint only when the reading really changed, or the line blinks.
+    const stamp = `${aic || ''}|${raw.slice(0, 60)}`;
+    if (_medOcrLastFeedback === stamp && el.innerHTML) return;
+    _medOcrLastFeedback = stamp;
+    el.hidden = false;
+    // The crop itself is the answer to "where is it reading?": show it exactly when the read
+    // failed (that is when the household needs to see what the app was looking at).
+    const shot = preview && (!aic || _bootDebug)
+        ? `<img class="scan-med-read-preview" src="${escapeAttr(preview)}" alt="">`
+        : '';
+    el.innerHTML = aic
+        ? `<span class="scan-med-read-ok">${escapeHtml(t('medical.ocr_read_ok').replace('{code}', 'A' + aic))}</span>`
+        : `<span>${escapeHtml(raw
+            ? t('medical.ocr_read_none').replace('{text}', raw.slice(0, 40))
+            : t('medical.ocr_read_empty'))}</span>${shot}`;
 }
 
 /**
@@ -16301,12 +16388,13 @@ function startUnifiedScanner(videoEl) {
 
         // 5) MEDICINE PANEL: the label is what we read. This is the PRIMARY path there, not a
         // fallback — an Italian box carries no drug barcode, the AIC is printed. It starts on
-        // the first usable frames and keeps trying every 2 s (bounded), so pointing the camera
-        // at the box is enough. The barcode decoders above still run: a Code 39 that carries the
-        // AIC is a bonus, never the requirement.
+        // the first usable frames and keeps trying every 2 s, slowing down to 4 s after the
+        // first `_MED_OCR_MAX_ATTEMPTS` rather than giving up: a hand that moves the box into
+        // the rectangle must be answered, and the read line under the camera says what it saw.
+        const medOcrInterval = medOcrAttempts >= _MED_OCR_MAX_ATTEMPTS ? _MED_OCR_IDLE_MS : _MED_OCR_INTERVAL_MS;
         if (_scanModeIsMedical() && _medOcrPatterns().length
-            && elapsed > _MED_OCR_FIRST_MS && medOcrAttempts < _MED_OCR_MAX_ATTEMPTS
-            && !medOcrBusy && (Date.now() - lastMedOcrAt) > _MED_OCR_INTERVAL_MS) {
+            && elapsed > _MED_OCR_FIRST_MS
+            && !medOcrBusy && (Date.now() - lastMedOcrAt) > medOcrInterval) {
             medOcrAttempts++;
             lastMedOcrAt = Date.now();
             medOcrBusy = true;
@@ -16314,11 +16402,9 @@ function startUnifiedScanner(videoEl) {
             _medReadLabelOcr({ silent: true }).then(reading => {
                 if (gen !== _scannerGen || !scannerStream) return;
                 if (!reading || !reading.aic) {
-                    // Keep reading, but stop pretending to be busy after a few empty frames.
-                    if (medOcrAttempts === 8) _setScanStatus(t('medical.ocr_not_found'), 'partial', '');
-                    if (medOcrAttempts >= _MED_OCR_MAX_ATTEMPTS) {
-                        _setScanStatus(t('medical.ocr_not_found'), '', '');
-                    }
+                    // Never a silent stop: the line under the camera already shows what was read,
+                    // and the status says the reader is still trying (the button is the shortcut).
+                    if (medOcrAttempts >= 8) _setScanStatus(t('medical.ocr_not_found'), 'partial', '');
                     return;
                 }
                 showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');

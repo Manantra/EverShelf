@@ -66,6 +66,12 @@ rejected** — `014058142` is the pack's progressive number (the second Code 39 
 and accepting it stored a serial as if it were a medicine. When a barcode like that is read the
 panel says so in the status line (`medical.scan_code_ignored`) and goes back to the label.
 
+Under the camera a one-line report says **what the reader actually saw** (`Letto «…»`, and the
+crop itself when nothing matched): “it does not read” and “it read something else” are
+two different problems. The reader binarizes and blows up the crop, restricts the alphabet to
+`0-9A` and retries the block with a wider segmentation and a 1.6× wider band before giving
+up, and the loop keeps trying (2 s, then 4 s) instead of stopping after a minute.
+
 **Italy decodes no barcode there at all** (`scan.barcodes: false`): the native detector, ZBar,
 Quagga and the digit OCR are skipped, so the only input is the printed block inside the
 rectangle. **A barcode is never the drug number in that panel.** The SSN label carries several Code 39s —

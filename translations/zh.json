@@ -2979,6 +2979,9 @@
     "dataset_pzn": "PZN 目录（IFA）",
     "dataset_openfda": "openFDA — NDC Directory",
     "dataset_closed": "该目录不是开放数据：需要其所有者的许可（或导出文件）。扫描照常可用，名称由你输入。",
-    "scan_code_ignored": "已读取条码（{code}）：这不是药品编号，我正在读取标签。请对准以 A 开头的大号代码。"
+    "scan_code_ignored": "已读取条码（{code}）：这不是药品编号，我正在读取标签。请对准以 A 开头的大号代码。",
+    "ocr_read_ok": "识别到：AIC {code}",
+    "ocr_read_none": "识别到“{text}”——其中没有 A 码。只对准带 A 的那一行。",
+    "ocr_read_empty": "框内没有可读文字：请靠近并对准带 A 的那一行。"
   }
 }

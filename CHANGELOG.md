@@ -73,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Italy now declares **`scan.barcodes: false`**, so the medicine panel runs **no barcode engine
   whatsoever** (native detector, ZBar, Quagga and the digits OCR are skipped); Germany and the
   US keep their barcode path, because there the Code 39/EAN *is* the drug number.
+- **Fixed: the label reader can be watched, and it reads a real label.** A one-line report under
+  the camera says what it actually saw (“Letto «…»”, plus the crop when nothing matched), so
+  “it does not read” and “it read something else” can be told apart at a glance. The crop is
+  binarized and blown up, the alphabet is cut to `0-9A`, the block is retried with a wider
+  page segmentation and a 1.6× wider band, a letter-spaced `A 0 1 2 3 4 5 6 7 8` and the classic
+  `A0l2345678` confusions are repaired (inside an A-code only), and the loop keeps reading at
+  4 s instead of stopping after 45 passes.
 
 ### Changed
 - **Two scan panels, never mixed.** The household said it plainly: a food panel that answers with

@@ -186,13 +186,18 @@ function _medOcrPatterns() {
 function _medOcrFindAic(text, patterns) {
     const source = String(text || '');
     if (!source) return null;
-    const compact = source.replace(/[\s.\-_:]+/g, '');
+    // OCR of an OCR-B line inserts spaces between the digits and confuses `1`/`l`/`I` and
+    // `0`/`O`. Both are repaired ONLY inside a candidate that still starts with the country's
+    // prefix letter, so the pack serial can never be promoted to a drug number.
+    const compact = source.replace(/[\s.\-_:|/]+/g, '').replace(/^a/i, 'A');
+    const confusable = compact
+        .replace(/A[0-9lIO]{9}/gi, (run) => run.charAt(0) + run.slice(1).replace(/[lI]/g, '1').replace(/O/g, '0'));
     const hits = [];
     for (const pattern of (patterns || [])) {
         let re = null;
         try { re = new RegExp(pattern, 'i'); } catch (e) { re = null; }
         if (!re) continue;
-        for (const haystack of [source, compact]) {
+        for (const haystack of [source, compact, confusable]) {
             const m = re.exec(haystack);
             if (!m) continue;
             const local = _medLocalCode(m[0]);

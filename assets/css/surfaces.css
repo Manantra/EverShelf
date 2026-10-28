@@ -2369,6 +2369,34 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: var(--text-muted);
 }
 .scan-med-hint[hidden] { display: none; }
+/* What the label reader saw. The household must be able to tell "it did not find the block"
+   from "it read something else" without opening a console. */
+.scan-med-read {
+    max-width: min(92%, 420px);
+    margin: 6px auto 0;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    word-break: break-word;
+    text-align: center;
+}
+.scan-med-read[hidden] { display: none; }
+.scan-med-read-ok {
+    color: var(--brand-primary);
+    font-weight: 700;
+}
+.scan-med-read-preview {
+    display: block;
+    width: 180px;
+    margin: 6px auto 0;
+    border-radius: 6px;
+    border: 1px solid var(--surface-border);
+}
 /* A drug code read inside the FOOD panel: one inline notice, both answers visible. */
 .scan-med-cross {
     display: flex;

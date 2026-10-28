@@ -417,7 +417,9 @@ check('the guide rectangle is the OCR field of view (and says what to frame)',
     str_contains($html, 'id="scan-med-frame"')
     && str_contains($html, 'id="scan-med-frame-sample"')
     && str_contains($app, 'function _medGuideRect(')
-    && (bool)preg_match('/const guide = _medGuideRect\(videoEl\);\s*if \(guide\) \{[\s\S]{0,300}?passes\.push\(_captureMedLabelFrame\(videoEl, guide\)\);/s', $app)
+    && (bool)preg_match('/const guide = _medGuideRect\(videoEl\);\s*const wide = guide \? _medGuideRect\(videoEl, 1\.6\) : null;/s', $app)
+    && (bool)preg_match('/passes\\.push\\(\\{\\s*region: guide, psm: /s', $app)
+    && (bool)preg_match('/const canvas = pass\.binarize[\s\S]{0,200}?_captureMedLabelFrame\(videoEl, pass\.region, true\)/s', $app)
     && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,1600}?sample\.textContent = _medOcrSample\(\);/s', $app));
 check('the barcode-hunting chrome is gone from the medicine panel',
     str_contains($css, '#page-scan.is-medical-scan .scanner-line')
@@ -810,7 +812,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 148 medical keys', $aligned && count($base) === 148);
+check('all six locales carry the same 151 medical keys', $aligned && count($base) === 151);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -912,6 +914,26 @@ check('in the medicine panel the LABEL is the source, not the fallback',
     && str_contains($app, 'async function _medReadLabelOcr('));
 check('the medicine panel says what it is doing (it reads a label, not a barcode)',
     (bool)preg_match("/_setScanStatus\(_scanModeIsMedical\(\) \? t\('medical\.ocr_reading'\)/s", $app));
+check('the label reader shows WHAT it read (a silent failure is not debuggable)',
+    str_contains($html, 'id="scan-med-read"')
+    && str_contains($app, 'function _medOcrFeedback(')
+    && (bool)preg_match('/_medOcrFeedback\(page, aic, preview\);\s*if \(aic\) return/s', $app)
+    && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,2000}?readEl\.hidden = !medical; readEl\.innerHTML = /s', $app)
+    && str_contains($css, '.scan-med-read {')
+    && str_contains($css, '.scan-med-read-ok')
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+        return $c && isset($med[$l]['ocr_read_ok'], $med[$l]['ocr_read_none'], $med[$l]['ocr_read_empty']);
+    }, true));
+check('the reader makes the printed block readable (binarize, upscale, three passes)',
+    // A webcam's contrast is what makes a clean AIC line come back as "A0l2345678": the crop is
+    // binarized and blown up, and the block is retried with a wider page segmentation and a
+    // wider band before giving up.
+    (bool)preg_match('/function _binarizeScanCanvas\(canvas\)[\s\S]{0,1200}?putImageData/s', $app)
+    && str_contains($app, 'if (binarize) _binarizeScanCanvas(canvas);')
+    && (bool)preg_match("/if \(mode === 'aic'\)[\s\S]{0,300}?tessedit_char_whitelist: '0123456789A'/s", $app)
+    && str_contains($app, "passes.push({ region: guide, psm: '7', label: 'frame' });")
+    && str_contains($app, "passes.push({ region: guide, psm: '7', label: 'frame-ink', binarize: true });")
+    && str_contains($app, "label: 'wide', binarize: true"));
 check('the OCR button exists on the scan page and only for the module',
     str_contains($html, 'id="scan-med-ocr-btn"')
     && str_contains($app, '_medOcrFromScan()')
@@ -923,6 +945,10 @@ if (count($jsFns) === 9 && $itFn !== '') {
         "IBUPROFENE 200 mg\n16G87N\nLotto 123",
         "codice 014058142\n666000000\nA014058142",
         "NOME Commerciale\nA040313076\nTITOLARE A.I.C.",
+        // A real camera reads OCR-B with the tracking printed into the line: every digit comes
+        // back with a space around it, and a thin 1 arrives as `l`.
+        "A 0 1 2 3 4 5 6 7 8\nTITOLARE A.I.C.",
+        "A0l2345678\nTITOLARE A.I.C.",
     ];
     $ocrHarness = 'let _medStatus = ' . json_encode(['schema' => $ccs['IT'] ?? []]) . ";\n"
         . $medCoreJs . "\n" . $medItJs . "\n"
@@ -941,6 +967,10 @@ if (count($jsFns) === 9 && $itFn !== '') {
             json_encode($ocrOut));
         check('a lot/serial page yields no AIC (no loose 9-digit fallback)',
             array_key_exists(1, $ocrOut) && $ocrOut[1] === null, json_encode($ocrOut));
+        check('a letter-spaced AIC line is read (A 0 1 2 3 4 5 6 7 8)',
+            ($ocrOut[4] ?? null) === '012345678', json_encode($ocrOut));
+        check('the classic OCR confusions are repaired inside an A-code only (A0l2345678)',
+            ($ocrOut[5] ?? null) === '012345678', json_encode($ocrOut));
     }
 }
 

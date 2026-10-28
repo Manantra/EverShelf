@@ -2979,6 +2979,9 @@
     "dataset_pzn": "PZN-Katalog (IFA)",
     "dataset_openfda": "openFDA — NDC Directory",
     "dataset_closed": "Dieser Katalog ist keine Open Data: es braucht eine Lizenz (oder einen Export) des Inhabers. Der Scan funktioniert trotzdem, den Namen tippst du ein.",
-    "scan_code_ignored": "Barcode gelesen ({code}): das ist nicht die Arzneimittelnummer, ich lese das Etikett. Richte die Kamera auf den großen Code, der mit A beginnt."
+    "scan_code_ignored": "Barcode gelesen ({code}): das ist nicht die Arzneimittelnummer, ich lese das Etikett. Richte die Kamera auf den großen Code, der mit A beginnt.",
+    "ocr_read_ok": "Gelesen: AIC {code}",
+    "ocr_read_none": "Gelesen „{text}“ — kein A-Code darin. Nur die Zeile mit dem A erfassen.",
+    "ocr_read_empty": "Kein lesbarer Text im Rahmen: näher heran und auf die Zeile mit dem A scharf stellen."
   }
 }
