@@ -87,7 +87,7 @@
             }
         },
         {
-            "atc": "S01X",
+            "atc": "S01",
             "label_key": "medical.atc_eye",
             "symptoms": {
                 "it": ["occhio", "occhi", "occhio secco", "congiuntivite", "irritazione occhio"],
@@ -108,6 +108,30 @@
                 "fr": ["anxiété", "agitation", "insomnie"],
                 "es": ["ansiedad", "agitación", "insomnio"],
                 "zh": ["焦虑", "失眠", "烦躁"]
+            }
+        },
+        {
+            "atc": "M02A",
+            "label_key": "medical.atc_antiinflammatory",
+            "symptoms": {
+                "it": ["infiammazione", "dolore muscolare", "muscoli", "ginocchio", "schiena", "contusione", "gel"],
+                "en": ["inflammation", "muscle pain", "muscles", "knee", "back", "bruise", "gel"],
+                "de": ["entzündung", "muskelschmerzen", "muskeln", "knie", "rücken", "prellung", "gel"],
+                "fr": ["inflammation", "douleur musculaire", "muscles", "genou", "dos", "contusion", "gel"],
+                "es": ["inflamación", "dolor muscular", "músculos", "rodilla", "espalda", "contusión", "gel"],
+                "zh": ["炎症", "肌肉痛", "肌肉", "膝盖", "背部", "挫伤", "凝胶"]
+            }
+        },
+        {
+            "atc": "A02A",
+            "label_key": "medical.atc_antacid",
+            "symptoms": {
+                "it": ["antiacido", "acidità", "bruciore di stomaco"],
+                "en": ["antacid", "acidity", "heartburn"],
+                "de": ["antazidum", "übersäuerung", "sodbrennen"],
+                "fr": ["antiacide", "acidité", "brûlures d’estomac"],
+                "es": ["antiácido", "acidez", "ardor de estómago"],
+                "zh": ["抗酸", "胃酸", "烧心"]
             }
         }
     ]

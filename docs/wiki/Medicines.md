@@ -86,6 +86,12 @@ it would change already is — the catalogue card carries a **“Non è questo?�
 distance), each with the name, the dosage and the pack printed on its box. One tap rewrites the
 code and asks the catalogue again (`_medUseCode()`).
 
+**The category comes from the ATC, as data.** `_medCategoryFromAtc()` resolves the row’s ATC against the prefixes in
+`data/medical_categories.json`, so the closed chip is ticked without the household choosing it: a topical NSAID
+(“Fastum gel”, `M02AA15`) is **pain** through `M02A`, an eye drop `S01*` is **eyes**, a disinfectant `D08*` is
+**firstaid**, an antacid `A02A` is **stomach**, any cough `R05*` is **cold**. An ATC the closed taxonomy does not
+know (an antibiotic, `J01*`) simply leaves the chips empty: the app never invents a household category.
+
 **The form fills itself from the catalogue.** An exact AIC writes the **name, the company (titolare), the notes** (active ingredient, form, pack, ATC, class) and ticks the closed category the ATC belongs to (`_medFillFromCatalogue()`, `_medCategoryFromAtc()`). Empty fields only: what the household typed always wins, and what we wrote is remembered so switching to another neighbour code rewrites ours and nothing else.
 
 **A medicine the catalogue cannot name is not added.** The catalogue is not optional any more: `_medStartManualEntry()` asks it **before** any form opens (`_medLookupCatalogue()`), and a code it does not know keeps the scanner running (`medical.only_catalogue`, or `medical.scan_needs_catalog` when no dataset is imported, which points at the import in Settings → Medicines). There is no typed title and no name read off the label: the form's name field is **read-only** in medicine mode (`#pf-med-name-hint`, `medical.name_from_catalogue`) and `submitProduct()` refuses a medical row without `_medConfirmedAic` — the flag `_medFillFromCatalogue()` sets when a real `medicines` row names the box. The only two ways in are that catalogue row and a product that already exists (`pf-id`, opened for editing). Even the blocked-country dialog has lost its “Aggiungi a mano”.

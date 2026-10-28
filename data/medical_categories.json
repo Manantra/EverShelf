@@ -5,7 +5,7 @@
         {
             "slug": "pain",
             "label_key": "medical.cat_pain",
-            "atc": ["N02B", "M01A"],
+            "atc": ["N02B", "M01A", "M02A"],
             "symptoms": {
                 "it": ["mal di testa", "emicrania", "febbre", "dolore", "dolori", "mal di schiena", "dolore muscolare", "infiammazione", "mal di denti"],
                 "en": ["headache", "migraine", "fever", "pain", "ache", "back pain", "muscle pain", "inflammation", "toothache"],
@@ -18,7 +18,7 @@
         {
             "slug": "stomach",
             "label_key": "medical.cat_stomach",
-            "atc": ["A02B", "A07F"],
+            "atc": ["A02B", "A02A", "A03", "A06", "A07F"],
             "symptoms": {
                 "it": ["stomaco", "reflusso", "bruciore di stomaco", "acidità", "digestione", "dissenteria", "fermenti", "gonfiore", "nausea"],
                 "en": ["stomach", "reflux", "heartburn", "acidity", "indigestion", "diarrhoea", "probiotics", "bloating", "nausea"],
@@ -31,7 +31,7 @@
         {
             "slug": "cold",
             "label_key": "medical.cat_cold",
-            "atc": ["R05C", "R01A", "R02A"],
+            "atc": ["R05", "R01A", "R02A"],
             "symptoms": {
                 "it": ["raffreddore", "tosse", "catarro", "muco", "mal di gola", "gola", "naso chiuso", "congestione", "influenza"],
                 "en": ["cold", "cough", "phlegm", "mucus", "sore throat", "throat", "blocked nose", "congestion", "flu"],
@@ -44,7 +44,7 @@
         {
             "slug": "allergy",
             "label_key": "medical.cat_allergy",
-            "atc": ["R06A", "D04A"],
+            "atc": ["R06", "D04A"],
             "symptoms": {
                 "it": ["allergia", "prurito", "starnuti", "orticaria", "raffreddore da fieno", "puntura", "zanzare"],
                 "en": ["allergy", "itching", "sneezing", "hives", "hay fever", "bite", "mosquito"],
@@ -57,7 +57,7 @@
         {
             "slug": "firstaid",
             "label_key": "medical.cat_firstaid",
-            "atc": [],
+            "atc": ["D08", "D03", "D06", "D09"],
             "symptoms": {
                 "it": ["ferita", "ferite", "taglio", "disinfettante", "cerotto", "cerotti", "garza", "ustione", "contusione", "livido", "sangue"],
                 "en": ["wound", "wounds", "cut", "disinfectant", "plaster", "plasters", "bandage", "burn", "bruise", "blood"],
@@ -70,7 +70,7 @@
         {
             "slug": "eyes",
             "label_key": "medical.cat_eyes",
-            "atc": ["S01X"],
+            "atc": ["S01"],
             "symptoms": {
                 "it": ["occhio", "occhi", "occhio secco", "congiuntivite", "irritazione occhio", "lacrime"],
                 "en": ["eye", "eyes", "dry eye", "conjunctivitis", "eye irritation", "tears"],
@@ -83,7 +83,7 @@
         {
             "slug": "muscles",
             "label_key": "medical.cat_muscles",
-            "atc": ["M03B", "A12C"],
+            "atc": ["M03", "A12C"],
             "symptoms": {
                 "it": ["crampi", "crampo", "muscoli", "contrattura", "strappo", "magnesio", "potassio", "gambe"],
                 "en": ["cramp", "cramps", "muscles", "strain", "magnesium", "potassium", "legs"],

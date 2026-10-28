@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-10-28
 
 ### Changed
+- **The application category is ticked from the ATC, and the map now covers what a household
+  actually has.** “Fastum gel” (`M02AA15`, a topical NSAID) arrived with **no category** because
+  `data/medical_categories.json` only listed the oral ones (`M01A`). The ATC prefixes are DATA, and
+  the form ticks the closed chip they resolve to (`_medCategoryFromAtc()`), so the map was widened:
+  `M02A` → **pain**, `S01` → **eyes** (not only `S01X`), `D08/D03/D06/D09` → **firstaid** (it had
+  none), `A02A/A03/A06` join `stomach`, `R05*`/`R06`/`M03` replace their narrower prefixes. The
+  same prefixes feed the offline «cosa ho in casa per…» search (`med_symptom_search`), and
+  `data/medical_atc.json` (the Phase-2 map) gains `M02A` and `A02A` so both files agree. An ATC the
+  closed taxonomy does not know (an antibiotic, `J01*`) leaves the chips empty on purpose: the app
+  never invents a household category.
 - **A medicine box asks its state first, and the pack is read from the container — not from the
   dose.** “Fastum gel 2,5% 25 mg/g … tubo 50 g” was shown as **25 mg**: the form took the first
   number on the box, which is a dose per gram, not what the tube holds. `_medPackSize()`
