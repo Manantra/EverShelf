@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dashboard. The **package code is no longer shown** on a medicine (`#pf-barcode-group` hidden: if
   the form is open, the code was already read and verified), and the pack size — “how many it should
   hold” — is the catalogue's (`medical.pieces_hint`), with the quantity prefilled from it, so the
-  only question left is “how many you have”.
+  only question left is “how many you have”. Editing a catalogue entry ends in the same place
+  (the cabinet list, or the dashboard when no cabinet exists) instead of the pantry step.
 - **The label reader preprocesses the crop properly, instead of making “one black-and-white copy”.**
   Tesseract binarizes internally (Otsu), so the old single **global** threshold (58 % between min and
   max) let the lamp gradient of a glossy blister decide the cut: measured on a synthetic strip with a
