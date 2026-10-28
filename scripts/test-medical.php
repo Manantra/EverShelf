@@ -1140,6 +1140,9 @@ check('the reader says WHY it cannot read (engine, geometry, frames)',
     && str_contains($app, 'function _medOcrGeometryNote(videoEl, region)')
     && (bool)preg_match('/GEOM frame [^`]{0,12}crop/s', $app)
     && str_contains($app, "label: 'whole-frame'")
+    // A 640x480 stream is an unreadable crop: the medicine panel asks for more pixels.
+    && (bool)preg_match('/if \(medical\) _medBoostResolution\(\)/s', $app)
+    && (bool)preg_match('/async function _medBoostResolution\(\)[\s\S]{0,1600}?applyConstraints/s', $app)
     && (bool)preg_match("/if \(now - _medFullPassAt > 6000\)/s", $app)
     && str_contains($css, '.scan-med-read-geom')
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {

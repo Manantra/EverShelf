@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028i'; // bump when translations change
+const _I18N_VERSION = '20261028j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13700,6 +13700,8 @@ function _setScanMode(mode) {
     if (medManual) medManual.hidden = !medical;
     const ocrBtn = document.getElementById('scan-med-ocr-btn');
     if (ocrBtn) ocrBtn.hidden = !readable;
+    // The label is small print: give the reader the pixels it needs (when the camera allows).
+    if (medical) _medBoostResolution().catch(() => {});
     if (medical && !_medScanSupported()) _medBlockedPopup();
     const actionBar = document.getElementById('scan-action-bar');
     if (actionBar) actionBar.classList.toggle('has-med', !!(ocrBtn && !ocrBtn.hidden));
@@ -15484,7 +15486,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15494,7 +15496,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16159,6 +16161,35 @@ function _medOcrFeedback(page, aic, preview, note = '') {
             : t('medical.ocr_read_empty'))}</span>${shot}`
         // `?debug=1` only: frame size and crop rectangle, the answer to "why does it not read".
         + (note && _bootDebug ? `<span class="scan-med-read-geom">${escapeHtml(note)}</span>` : '');
+}
+
+/**
+ * Ask the camera for its highest resolution while the medicine panel is open.
+ *
+ * OCR needs pixels: a 640×480 stream gives the guide rectangle a crop of ~100×30 px, and no
+ * amount of upscaling invents the strokes back. The rear camera is opened with `ideal` sizes
+ * (1280×720), which a phone is free to ignore — so for the label reader the live track is
+ * re-constrained, when it says it can.
+ */
+async function _medBoostResolution() {
+    const videoEl = document.getElementById('scanner-video');
+    const stream = videoEl && videoEl.srcObject;
+    const track = (stream && stream.getVideoTracks) ? stream.getVideoTracks()[0] : null;
+    if (!track || typeof track.applyConstraints !== 'function') return;
+    const caps = typeof track.getCapabilities === 'function' ? (track.getCapabilities() || {}) : {};
+    const maxW = Number(caps.width && caps.width.max) || 1920;
+    const maxH = Number(caps.height && caps.height.max) || 1080;
+    if (maxW < 1280 && maxH < 720) return;
+    try {
+        await track.applyConstraints({
+            width: { ideal: Math.min(1920, maxW) },
+            height: { ideal: Math.min(1080, maxH) },
+        });
+        const now = typeof track.getSettings === 'function' ? (track.getSettings() || {}) : {};
+        scanLog(`Medicine scan resolution: ${now.width || '?'}x${now.height || '?'}`);
+    } catch (e) {
+        scanLog(`Medicine resolution boost refused: ${e.message}`);
+    }
 }
 
 /**
