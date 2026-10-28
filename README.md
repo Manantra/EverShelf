@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.6-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.7-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,9 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.28.7** — **un farmaco scansionato non chiede più dove metterlo: va nel suo armadietto.** La scatola veniva salvata con `is_medical = 0` (nel tuo DB c'era l'AIC `A012745093` con le note del catalogo ma nessun flag), così il passo dispensa offriva Dispensa/Frigo. Ora: `submitProduct()` legge la risposta "è un farmaco" dal **modo della pagina**, dallo switch o dai chip, e in modo farmaco chiama **sempre** `med_classify` (il flag nel DB si scrive anche senza chip) dicendo a voce se fallisce; `_isMedicalRow()` considera farmaco anche una riga con `med_tags`/`med_ingredient`; e salvare un farmaco **non passa più dalla pagina d'azione**: si atterra **direttamente sul passo dispensa**, col posto **bloccato sull'armadietto** e quantità, data stampata e sigillata/aperta già compilate — un tocco. Se l'armadietto non è configurato lo dice (`medical.no_cabinet`) invece di ripiegare sulla dispensa.
+
 
 **v1.28.6** — **pulizia: via la rete di test e tutto ciò che non serve più.** Cancellati i 71 file `scripts/test-*.php` con i loro `scripts/fixtures/`, i CLI una-tantum (audit, backfill, triage GitHub, migrazioni, merge duplicati, re-enrich), il job CI `unit-tests` con la sua attesa nell'auto-merge, il **`docs/openapi.yaml`** (39 path, cinque settimane di ritardo sul router: mancavano `med_lookup`, `support_qr`, `location_rename`, `recipe_archive`, `app_bootstrap` — e tre documenti lo chiamavano «specifica OpenAPI completa») e la diagnostica temporanea dei farmaci (`data/med_debug/`, `MED_DEBUG`). Rimossi anche i pezzi morti: `_medRenderNeighbours()` e le promesse «guard test `scripts/test-…`» sparse in `api/*`, `app.js` e nei generatori. Restano i controlli di sintassi, gli audit i18n, `shellcheck` e il check degli artefatti generati. La rete di test è recuperabile con un comando: `git revert <questo commit>`.
 

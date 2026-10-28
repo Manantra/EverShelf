@@ -3029,6 +3029,7 @@
     "ask_title": "I cannot read the code",
     "ask_body": "Type it below exactly as printed on the box (e.g. A040313076), or try scanning again.",
     "almost_title": "The code is not exact: which pack do you have?",
-    "scan_code_almost": "Nearly right: pick the pack"
+    "scan_code_almost": "Nearly right: pick the pack",
+    "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored."
   }
 }

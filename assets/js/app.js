@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zp'; // bump when translations change
+const _I18N_VERSION = '20261028zq'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13994,6 +13994,9 @@ function _medCountryLabel(cc) {
 function _isMedicalRow(item) {
     if (!item) return false;
     if (item.is_medical === true || item.is_medical === 1 || item.is_medical === '1') return true;
+    // A row classified by the closed taxonomy IS a medicine, even if a save happened to leave the
+    // boolean at 0: the tags/ingredient only exist for medicines.
+    if (String(item.med_tags || '').trim() || String(item.med_ingredient || '').trim()) return true;
     const loc = _medLocationKey(item.location);
     if (!loc) return false;
     const meds = (getSettings().medical_locations || []).map(_medLocationKey);
@@ -15697,7 +15700,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zp';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zq';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15707,7 +15710,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zp';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zq';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18923,8 +18926,14 @@ async function submitProduct(e) {
     // Medicine mode: a box the scanner recognised. The closed medical taxonomy IS the
     // category here (no drug catalogue can fill it), so at least one chip is required; the
     // unit is the box, and the food category is not asked at all.
-    const isMedicine = _medFormIsMedicine();
-    if (isMedicine && !document.querySelector('#pf-med-cats input:checked')) {
+    // A medicine is a medicine wherever the answer comes from: the medicine MODE of the page (a
+    // scanned box), the switch the household ticked by hand, or medical chips already selected.
+    // Reading only `_medFormIsMedicine()` meant a box saved while the form had fallen back to the
+    // food layout landed with `is_medical = 0` — and the pantry then offered Dispensa/Frigo.
+    const medToggle = !!document.getElementById('pf-is-medical')?.checked;
+    const isMedicine = _medFormIsMedicine() || medToggle;
+    const medChips = document.querySelectorAll('#pf-med-cats input');
+    if (isMedicine && medChips.length && !document.querySelector('#pf-med-cats input:checked')) {
         showToast(t('medical.pick_category'), 'error', 5000);
         return;
     }
@@ -18986,11 +18995,17 @@ async function submitProduct(e) {
             // reused or merged row still receives the labels the user typed.
             await _saveProductTags(result.id, document.getElementById('pf-tags')?.value || '');
             await _saveProductFamily(result.id, document.getElementById('pf-parent')?.value || '');
-            const medPayload = _pfMedicalPayload();
+            // The DB flag is what makes the pantry treat the box as a medicine (`_isMedicalRow`,
+            // the location domain, the add step): the call is mandatory in medicine mode, and a
+            // failure is said out loud instead of swallowed.
+            const medPayload = _pfMedicalPayload() || (isMedicine ? { tags: [], ingredient: '', pao_days: 0 } : null);
             if (medPayload) {
                 // One action owns the medical columns (validated tags, PAO bounds): reuse it
                 // instead of widening product_save.
-                await api('med_classify', { product_id: result.id, ...medPayload }, 'POST').catch(() => null);
+                const classified = await api('med_classify', { product_id: result.id, ...medPayload }, 'POST').catch(() => null);
+                if (!classified || classified.success === false) {
+                    showToast(t('medical.classify_error'), 'error', 7000);
+                }
                 productData.is_medical = 1;
                 productData.med_tags = medPayload.tags.join(',');
                 productData.med_ingredient = medPayload.ingredient;
@@ -19001,7 +19016,14 @@ async function submitProduct(e) {
             _medFormStock = medStock;
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
-            showProductAction();
+            if (isMedicine) {
+                // The box is stocked from THIS form (quantity, printed date, sealed/opened): going
+                // through the food action page only put "Dispensa / Frigo" in front of a medicine.
+                // The add step opens on the cabinet with everything answered — one tap to save.
+                showAddForm();
+            } else {
+                showProductAction();
+            }
         } else if (result.error === 'barcode_already_used' && result.existing_id) {
             const full = await api('product_get', { id: result.existing_id }).catch(() => null);
             if (full?.product) {
@@ -20255,8 +20277,14 @@ function showAddForm() {
     const autoLoc = resolveLocationKey((_isMedicalRow(currentProduct) && medLoc) ? medLoc : guessLocation(currentProduct)) || 'dispensa';
     // The picker follows THIS product's domain: a medicine only to the cabinet, food never
     // into it (_renderLocationSelector). The server enforces the same rule.
-    _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, _isMedicalRow(currentProduct) ? 'medical' : 'food');
+    const addIsMedical = _isMedicalRow(currentProduct);
+    _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, addIsMedical ? 'medical' : 'food');
     document.getElementById('add-location').value = autoLoc;
+    // A medicine with no cabinet configured must not silently fall back to the pantry: the server
+    // refuses that write, so the reason is said here, where it can still be fixed.
+    if (addIsMedical && !medLoc) {
+        showToast(t('medical.no_cabinet'), 'warning', 9000);
+    }
     
     // Exactly one button, chosen by key: the old text match lit up both "Dispensa" and
     // "Dispensa cucina", because one label contains the other.

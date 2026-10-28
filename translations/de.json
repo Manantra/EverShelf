@@ -3029,6 +3029,7 @@
     "ask_title": "Ich kann den Code nicht lesen",
     "ask_body": "Tippe ihn unten ein, wie er auf der Packung steht (z. B. A040313076), oder starte den Scan erneut.",
     "almost_title": "Der Code stimmt nicht genau: welche Packung hast du?",
-    "scan_code_almost": "Fast richtig: Packung wählen"
+    "scan_code_almost": "Fast richtig: Packung wählen",
+    "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern."
   }
 }

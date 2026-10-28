@@ -3029,6 +3029,7 @@
     "ask_title": "Non riesco a leggere il codice",
     "ask_body": "Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione.",
     "almost_title": "Il codice non è esatto: quale confezione hai in mano?",
-    "scan_code_almost": "Quasi: scegli la confezione"
+    "scan_code_almost": "Quasi: scegli la confezione",
+    "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto."
   }
 }

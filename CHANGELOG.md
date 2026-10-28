@@ -5,6 +5,25 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.7] - 2026-10-28
+
+### Fixed
+- **A scanned medicine asked where to put it: “Dispensa / Frigo” instead of the cabinet.** The box
+  was saved with `products.is_medical = 0` (the row in the household’s DB: AIC
+  `A012745093`, the catalogue notes filled in, no flag), so `_isMedicalRow()` said “food” and the
+  pantry step offered the fridge. Three guarantees now make that impossible:
+  * `submitProduct()` reads the medicine answer from the page MODE **or** the switch **or** the
+    medical chips, and in medicine mode it always calls `med_classify` — the DB flag is written
+    even when the taxonomy chips are empty — and a failure is said out loud instead of being
+    swallowed by `.catch()`;
+  * `_isMedicalRow()` also treats a row carrying `med_tags` / `med_ingredient` as a medicine, so a
+    classification written by any path counts;
+  * saving a medicine no longer goes through the product ACTION page: it lands **straight on the
+    pantry step**, whose place is pinned to the cabinet (`_renderLocationSelector(.., ‘medical’)`),
+    with quantity, printed date and sealed/opened already answered — one tap. A medicine with no
+    cabinet configured now says so (`medical.no_cabinet`) instead of quietly falling back to the
+    pantry, which the server refuses anyway.
+
 ## [1.28.6] - 2026-10-28
 
 ### Removed

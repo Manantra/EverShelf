@@ -3029,6 +3029,7 @@
     "ask_title": "No consigo leer el código",
     "ask_body": "Escríbelo abajo tal como está impreso en la caja (p. ej. A040313076), o vuelve a escanear.",
     "almost_title": "El código no es exacto: ¿qué caja tienes?",
-    "scan_code_almost": "Casi: elige la caja"
+    "scan_code_almost": "Casi: elige la caja",
+    "no_cabinet": "Ningún botiquín configurado: créalo en Ajustes → Medicamentos, o un fármaco no se puede guardar."
   }
 }
