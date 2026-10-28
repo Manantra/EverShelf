@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zze'; // bump when translations change
+const _I18N_VERSION = '20261028zzf'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15788,7 +15788,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zze';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzf';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15798,7 +15798,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zze';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzf';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19526,10 +19526,13 @@ async function submitProduct(e) {
                     showToast(t('medical.stock_failed'), 'error', 9000);
                 }
             } else if (isMedicine) {
-                // An edited catalogue entry (no stock answers on this form): the pantry step.
+                // Editing a catalogue entry is not adding a box: no pantry step here either — the
+                // edit ends where a medicine lives (the cabinet), or on the dashboard.
                 showLoading(false);
                 showToast(t('toast.product_saved'), 'success');
-                showAddForm();
+                const cabinet = resolveLocationKey((getSettings().medical_locations || [])[0] || '');
+                if (cabinet && isMedicalLocation(cabinet)) showPage('inventory', cabinet);
+                else showPage('dashboard');
             } else {
                 showLoading(false);
                 showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
