@@ -3039,6 +3039,8 @@
     "only_catalogue": "Un farmaco si aggiunge solo se il codice è nel catalogo AIFA o se la scatola è già in dispensa.",
     "name_from_catalogue": "Il nome arriva dal catalogo AIFA: non si scrive a mano.",
     "scan_needs_catalog": "Il catalogo farmaci non è caricato: senza catalogo nessuna scatola può essere aggiunta. Importalo da Impostazioni → Farmaci.",
+    "cabinet_created": "Ho creato «{place}» per i farmaci.",
+    "stock_failed": "Il farmaco è salvato ma non sono riuscito a metterlo nell’armadietto: riprova con Salva.",
     "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto."
   },
   "months": {

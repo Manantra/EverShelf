@@ -3039,6 +3039,8 @@
     "only_catalogue": "只有编码在 AIFA 目录中或药盒已在药柜里时，才能添加药品。",
     "name_from_catalogue": "名称来自 AIFA 目录，不能手动输入。",
     "scan_needs_catalog": "未加载药品目录：没有目录无法添加药盒。请到设置 → 药品中导入。",
+    "cabinet_created": "已为药品创建「{place}」。",
+    "stock_failed": "药品已保存，但没能放进药柜：请再次保存。",
     "no_cabinet": "尚未设置药箱：请在“设置 → 药品”中创建，否则无法存放药品。"
   },
   "months": {

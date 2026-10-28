@@ -3039,6 +3039,8 @@
     "only_catalogue": "Un medicamento solo se añade si su código está en el catálogo AIFA o si la caja ya está en el botiquín.",
     "name_from_catalogue": "El nombre viene del catálogo AIFA: no se escribe a mano.",
     "scan_needs_catalog": "No hay catálogo de medicamentos cargado: sin él no se puede añadir ninguna caja. Impórtalo en Ajustes → Medicamentos.",
+    "cabinet_created": "He creado «{place}» para los medicamentos.",
+    "stock_failed": "El medicamento está guardado pero no he podido ponerlo en el botiquín: vuelve a Guardar.",
     "no_cabinet": "Ningún botiquín configurado: créalo en Ajustes → Medicamentos, o un fármaco no se puede guardar."
   },
   "months": {

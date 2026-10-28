@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zzd'; // bump when translations change
+const _I18N_VERSION = '20261028zze'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15788,7 +15788,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzd';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zze';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15798,7 +15798,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzd';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zze';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18472,6 +18472,10 @@ function _medFormSetMode(on) {
         notesInput.setAttribute('data-i18n-placeholder', on ? 'medical.form_notes_placeholder' : 'product.notes_placeholder');
         notesInput.placeholder = on ? t('medical.form_notes_placeholder') : t('product.notes_placeholder');
     }
+    // The package code is NOT shown on a medicine: if the form is open, the code was already read
+    // (or typed) and verified — a box of tablets does not ask the household to retype its number.
+    const barcodeGroup = document.getElementById('pf-barcode-group');
+    if (barcodeGroup) barcodeGroup.style.display = on ? 'none' : '';
     // The field holds the AIC of the box, not a shop barcode: say it with the printed shape.
     const codeInput = document.getElementById('pf-barcode');
     if (codeInput) {
@@ -19313,11 +19317,48 @@ function _expiryDaysLeft(iso) {
  * @param {{qty:number, unit:string, expiry:string, state:string}} stock
  * @returns {Promise<boolean>} true when the box is in the cabinet
  */
+/**
+ * The cabinet to stock into, created on the spot when the household never chose one.
+ *
+ * "One screen" is only true if the place cannot be missing. A medicine may live nowhere else, so
+ * when `medical_locations` is empty the default cabinet is created and marked — the same name and
+ * the same two writes the first-run wizard uses (`_saveCustomLocations()` then
+ * `_medSaveInstanceSettings()`). Without this the server refuses the row and the household lands on
+ * a SECOND screen (the pantry step) to answer the same questions again.
+ *
+ * @returns {Promise<string>} the cabinet key, or '' when it could not be provisioned
+ */
+async function _medEnsureCabinet() {
+    const configured = resolveLocationKey((getSettings().medical_locations || [])[0] || '');
+    if (configured && isMedicalLocation(configured)) return configured;
+    const name = String(t('medical.default_location_name') || '').trim();
+    if (!name) return '';
+    try {
+        const before = getSettings();
+        const list = Array.isArray(before.custom_locations) ? before.custom_locations.slice() : [];
+        if (!list.some(v => String(v).toLowerCase() === name.toLowerCase())) {
+            if (!(await _saveCustomLocations([...list, name]))) return '';
+            before.custom_locations = [...list, name];
+            saveSettingsToStorage(before);
+        }
+        mergeCustomLocations(before.custom_locations);
+        const next = getSettings();
+        next.medical_locations = [name];
+        saveSettingsToStorage(next);
+        await _medSaveInstanceSettings({ medical_locations: [name] });
+        showToast(t('medical.cabinet_created').replace('{place}', name), 'info', 5000);
+        return resolveLocationKey(name);
+    } catch (e) {
+        scanLog(`Medicine cabinet: cannot create the default place (${e.message})`);
+        return '';
+    }
+}
+
 async function _medStockAddDirect(productId, stock) {
-    const cabinet = resolveLocationKey((getSettings().medical_locations || [])[0] || '');
-    if (!cabinet || !isMedicalLocation(cabinet)) {
+    const cabinet = await _medEnsureCabinet();
+    if (!cabinet) {
         // Nothing is written: the server refuses a medicine outside the cabinet, so the missing
-        // place is said where it can still be fixed.
+        // place is said where it can still be fixed (never by opening a second form).
         showToast(t('medical.no_cabinet'), 'warning', 9000);
         return false;
     }
@@ -19360,7 +19401,9 @@ async function _medStockAddDirect(productId, stock) {
         ts: Date.now(),
     });
     if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    showPage('dashboard');
+    // Show the place the box went to: the cabinet list, with the new product in it
+    // (`showPage('inventory', key)` sets the filter and reloads, like the dashboard pill does).
+    showPage('inventory', cabinet);
     return true;
 }
 
@@ -19477,9 +19520,10 @@ async function submitProduct(e) {
                 const stocked = await _medStockAddDirect(result.id, medStock);
                 showLoading(false);
                 if (!stocked) {
-                    // Nothing lost: the pantry step opens with every answer already filled.
-                    showToast(t('toast.product_saved'), 'success');
-                    showAddForm();
+                    // The catalogue row IS saved; only the stock is missing. The form keeps every
+                    // answer (the id included), so tapping save again retries it — a second screen
+                    // asking the same questions is exactly what this flow must not do.
+                    showToast(t('medical.stock_failed'), 'error', 9000);
                 }
             } else if (isMedicine) {
                 // An edited catalogue entry (no stock answers on this form): the pantry step.

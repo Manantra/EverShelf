@@ -3039,6 +3039,8 @@
     "only_catalogue": "Ein Medikament lässt sich nur hinzufügen, wenn der Code im AIFA-Katalog steht oder die Packung schon im Schrank ist.",
     "name_from_catalogue": "Der Name kommt aus dem AIFA-Katalog: er wird nicht von Hand geschrieben.",
     "scan_needs_catalog": "Kein Medikamentenkatalog geladen: ohne ihn kann keine Packung hinzugefügt werden. Importiere ihn unter Einstellungen → Medikamente.",
+    "cabinet_created": "„{place}“ für Medikamente angelegt.",
+    "stock_failed": "Das Medikament ist gespeichert, konnte aber nicht in den Schrank gelegt werden: erneut speichern.",
     "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern."
   },
   "months": {

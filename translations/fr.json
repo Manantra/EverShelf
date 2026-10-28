@@ -3039,6 +3039,8 @@
     "only_catalogue": "Un médicament ne s'ajoute que si son code est dans le catalogue AIFA ou si la boîte est déjà dans l'armoire.",
     "name_from_catalogue": "Le nom vient du catalogue AIFA : il ne s'écrit pas à la main.",
     "scan_needs_catalog": "Aucun catalogue de médicaments chargé : sans lui, aucune boîte ne peut être ajoutée. Importe-le depuis Réglages → Médicaments.",
+    "cabinet_created": "J’ai créé « {place} » pour les médicaments.",
+    "stock_failed": "Le médicament est enregistré mais je n’ai pas pu le ranger dans l’armoire : réessaie avec Enregistrer.",
     "no_cabinet": "Aucune armoire configurée : ouvrez-la dans Réglages → Médicaments, sinon un médicament ne peut pas être rangé."
   },
   "months": {

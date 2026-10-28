@@ -3039,6 +3039,8 @@
     "only_catalogue": "A medicine can be added only when its code is in the AIFA catalogue or the box is already in the pantry.",
     "name_from_catalogue": "The name comes from the AIFA catalogue: it is not typed by hand.",
     "scan_needs_catalog": "No medicine catalogue is loaded: without it no box can be added. Import it from Settings → Medicines.",
+    "cabinet_created": "I created “{place}” for medicines.",
+    "stock_failed": "The medicine is saved but I could not put it in the cabinet: try Save again.",
     "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored."
   },
   "months": {

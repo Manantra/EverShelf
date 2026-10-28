@@ -222,12 +222,14 @@ A scanned box is stocked from the **medicine form itself** (`submitProduct()` �
 the pack**, sealed or already opened — write the pantry row **straight into the cabinet** the
 module owns, and the flow ends on the dashboard with a confirmation. There is no pantry step, so
 the household is never asked **where** to put it (a medicine has exactly one legal place, and the
-server refuses any other) nor **how much** a second time, and the screen speaks about the cabinet:
+server refuses any other) nor **how much** a second time, and the screen speaks about the cabinet
+(the package code is not shown either: if the form is open, the code was already read and verified):
 the button says *Salva nell'armadietto* (`medical.form_save`), the pantry step of a medicine is
 titled *Aggiungi all'armadietto* and hides the place picker, and a medical row's action page says
-*nell'armadietto dei farmaci* and offers no recipe. The pantry step survives only as the
-**fallback of a refused write** (no cabinet configured, a server answer), opening with every
-answer already filled in.
+*nell'armadietto dei farmaci* and offers no recipe. There is no second screen at all: a missing
+cabinet is created on the spot (`_medEnsureCabinet()`), a refused write keeps the form with every
+answer and says so (`medical.stock_failed`), and the flow ends on the **cabinet list** with the new
+row in it.
 
 The expiry of a box is a **month and a year**, because that is what the pack prints
 (“scadenza 10/2026”): the month is a picker whose **twelve names live in the language file**

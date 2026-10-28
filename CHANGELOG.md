@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-10-28
 
 ### Changed
+- **One screen for a medicine, and it ends in the cabinet.** The flow used to be able to fall back
+  to the pantry step (asking the same quantity a second time) whenever the stock write was refused.
+  Now a missing cabinet is **created on the spot** (`_medEnsureCabinet()` → the default
+  `medical.default_location_name`, `medical.cabinet_created`), a failed write **keeps the form with
+  every answer** and says `medical.stock_failed` (tap Save again), and a success lands on the
+  **cabinet list with the new row in it** (`showPage('inventory', cabinet)`) instead of the
+  dashboard. The **package code is no longer shown** on a medicine (`#pf-barcode-group` hidden: if
+  the form is open, the code was already read and verified), and the pack size — “how many it should
+  hold” — is the catalogue's (`medical.pieces_hint`), with the quantity prefilled from it, so the
+  only question left is “how many you have”.
 - **The label reader preprocesses the crop properly, instead of making “one black-and-white copy”.**
   Tesseract binarizes internally (Otsu), so the old single **global** threshold (58 % between min and
   max) let the lamp gradient of a glossy blister decide the cut: measured on a synthetic strip with a
