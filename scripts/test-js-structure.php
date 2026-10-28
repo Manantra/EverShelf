@@ -36,7 +36,9 @@ function check(string $label, bool $ok, string $detail = ''): void
 $files = array_merge(
     [$root . '/sw.js'],
     glob($root . '/assets/js/*.js') ?: [],
-    glob($root . '/assets/js/core/*.js') ?: []
+    glob($root . '/assets/js/core/*.js') ?: [],
+    // Medicine country modules (assets/js/med/<slug>.js): one file per country, same rules.
+    glob($root . '/assets/js/med/*.js') ?: []
 );
 // Generated data files have no logic (and no declarations to nest).
 $files = array_values(array_filter($files, fn($f) => !str_contains($f, 'generated')));

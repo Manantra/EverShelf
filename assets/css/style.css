@@ -1733,7 +1733,15 @@ body.server-offline .bottom-nav {
     background: rgba(99, 102, 241, 0.10);
 }
 
-.location-tabs .location-select {
+/* While another place is open the cabinet pill is removed from the strip (it sits BEFORE the
+   dropdown, so it was the first thing on screen after opening the fridge). */
+.location-tabs .tab[hidden] { display: none; }
+
+/* The place dropdown: the pantry filter and the dashboard bar share one control —
+   the same grammar in both places, so a native picker (which opens on touch) is what
+   the household learns once. */
+.location-tabs .location-select,
+.location-bar .location-select {
     flex: 1 1 auto;
     min-width: 0;
     max-width: 320px;
@@ -1746,6 +1754,7 @@ body.server-offline .bottom-nav {
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
+    text-overflow: ellipsis;
 }
 
 .tab {
@@ -2420,6 +2429,10 @@ body.server-offline .bottom-nav {
     flex-direction: column;
     gap: 6px;
 }
+
+/* A group with nothing to choose (e.g. the location of a medicine, which can only live in
+   its cabinet) is removed from the form: `display:flex` would otherwise defeat [hidden]. */
+.form-group[hidden] { display: none; }
 
 .form-group label {
     font-weight: 600;

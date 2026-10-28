@@ -553,6 +553,18 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "select"
         },
         {
+            "id": "med-search-btn",
+            "env": "",
+            "tab": "tab-medical",
+            "group": "medical",
+            "label": "medical.search_open",
+            "hint": "medical.no_catalogue",
+            "card": "medical.title",
+            "card_hint": "medical.hint",
+            "keywords": "",
+            "type": "text"
+        },
+        {
             "id": "setting-health-enabled",
             "env": "HEALTH_ENABLED",
             "tab": "tab-health",

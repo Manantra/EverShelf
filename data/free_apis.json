@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "note": "The free services this app actually talks to. Shown on the splash and in Settings → Credits, with the licence each one asks to be credited with. `logo` is the official icon, vendored under assets/img/apis/ (no external request at runtime); `mark` is the neutral monogram used as the fallback if an image is missing. `wide: true` marks a HORIZONTAL wordmark: it needs a wide box to be readable, not a 28 px square. `splash: false` keeps a logo off the boot splash — a 7:1 wordmark squashed into 22 px is an invisible sliver, and the splash shows only the marks that read at a glance; the full list, with the names, the licences and the why/where, lives in Settings → API gratuite.",
+    "note": "The free services and OPEN DATA SOURCES this app actually talks to or imports. Shown on the splash and in Settings -> Credits, with the licence each one asks to be credited with. `when` makes a source CONDITIONAL: the AIFA catalogue only exists for an instance whose medicine module is on AND whose country is Italy (the country module decides that), so its logo appears on the splash and in the credits only there. `logo` is the official icon, vendored under assets/img/apis/ (no external request at runtime); `mark` is the neutral monogram used as the fallback if an image is missing. `wide: true` marks a HORIZONTAL wordmark: it needs a wide box to be readable, not a 28 px square. `splash: false` keeps a logo off the boot splash - a 7:1 wordmark squashed into 22 px is an invisible sliver; the full list, with names, licences and the why/where, lives in Settings -> API gratuite.",
     "logo_note": "Logos belong to their projects and are used only to identify the service (nominative use). Sources: the projects' own published brand assets.",
     "apis": [
         {
@@ -59,6 +59,21 @@
             "wide": true,
             "splash": false,
             "note": "Mangimi per animali: chiude la catena dei codici non alimentari (umani)."
+        },
+        {
+            "id": "aifa",
+            "name": "AIFA — Banca dati dei farmaci",
+            "mark": "AIFA",
+            "url": "https://www.aifa.gov.it/",
+            "licence": "CC-BY · open data",
+            "splash": true,
+            "note": "Il catalogo dei farmaci italiani (AIC → nome, principio attivo, confezione). Importato una volta con scripts/import-medicines.php: nessuna richiesta esce dal server.",
+            "when": {
+                "medical": true,
+                "country": [
+                    "IT"
+                ]
+            }
         }
     ],
     "sources": [
@@ -93,15 +108,6 @@
             "url": "https://en.wikipedia.org/wiki/Falsified_Medicines_Directive",
             "licence": "Public act",
             "use_key": "credits.source_fmd_what"
-        },
-        {
-            "id": "aifa",
-            "name": "AIFA — Open Data (Fase 2, non usato)",
-            "mark": "AIFA",
-            "url": "https://www.aifa.gov.it",
-            "licence": "Italian public data",
-            "use_key": "credits.source_aifa_what",
-            "planned": true
         }
     ]
 }

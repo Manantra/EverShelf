@@ -201,6 +201,228 @@ function medicalCountrySchema(string $cc): ?array
 }
 
 /**
+ * A scanned read without the decoration a label or a scanner adds around it.
+ *
+ * `A 040 313 076`, `a040313076` and `A040313076` are one code; the printed labels of the
+ * Italian packs are spaced and the OCR of a photo inserts whatever it likes in between.
+ */
+function medicalCompactCode(string $code): string
+{
+    return (string)preg_replace('/[\s\-\._\/]+/u', '', strtoupper(trim($code)));
+}
+
+/**
+ * The GS1 element string of a 2D DataMatrix (EU FMD), parsed into its AIs.
+ *
+ * Country-NEUTRAL on purpose: it knows the GS1 standard, not what a country means by a number.
+ * A medicine box under the Falsified Medicines Directive carries GTIN (`01`), expiry (`17`),
+ * batch (`10`) and serial (`21`); AI `71x` is the national reimbursement number, whose CONTENT
+ * belongs to the country module (in Italy the AIC lives there — `api/lib/med/it.php`).
+ *
+ * Parsed by walking the string, because the AIs have different lengths: `01`/`02` take 14
+ * characters, `11`/`15`/`17` take 6, and a variable-length AI (`10`, `21`, `30`, `37`, `71x`)
+ * ends at the GS separator (FNC1, `\x1d`). An AI we do not know with no separator ends the
+ * walk — guessing there is how a lot number becomes a drug code. A read that yields no AI at
+ * all is not a GS1 element string (a plain EAN, for instance) and is left alone.
+ *
+ * @return array{fmd:bool,ais:array<string,string>,gtin:?string,expiry:?string,batch:?string,serial:?string}
+ */
+function medicalGs1Parse(string $read): array
+{
+    $out = ['fmd' => false, 'ais' => [], 'gtin' => null,
+            'expiry' => null, 'batch' => null, 'serial' => null];
+    $s = trim((string)$read);
+    if ($s === '') {
+        return $out;
+    }
+    // Some engines hand back the GS separator as the literal text "\u001d"/"\x1d".
+    $s = str_replace(['\\u001d', '\\x1d'], "\x1d", $s);
+    $fixed = ['01' => 14, '02' => 14, '11' => 6, '15' => 6, '17' => 6, '20' => 2];
+    $variable = ['10', '21', '30', '37'];
+    $len = strlen($s);
+    $pos = 0;
+    while ($pos < $len) {
+        if ($s[$pos] === "\x1d") {
+            $pos++;
+            continue;
+        }
+        $three = substr($s, $pos, 3);
+        if (preg_match('/^71\d$/', $three) === 1) {
+            $end = strpos($s, "\x1d", $pos + 3);
+            $end = $end === false ? $len : $end;
+            $value = substr($s, $pos + 3, $end - $pos - 3);
+            if ($value !== '') {
+                $out['ais']['71'] = strtoupper($value);
+            }
+            $pos = $end;
+            continue;
+        }
+        $two = substr($s, $pos, 2);
+        if (isset($fixed[$two])) {
+            $value = substr($s, $pos + 2, $fixed[$two]);
+            if (strlen($value) < $fixed[$two]) {
+                break;
+            }
+            $out['ais'][$two] = $value;
+            $pos += 2 + $fixed[$two];
+            continue;
+        }
+        if (in_array($two, $variable, true)) {
+            $end = strpos($s, "\x1d", $pos + 2);
+            $end = $end === false ? $len : $end;
+            $value = substr($s, $pos + 2, $end - $pos - 2);
+            if ($value !== '') {
+                $out['ais'][$two] = $value;
+            }
+            $pos = $end;
+            continue;
+        }
+        break;
+    }
+    if (!$out['ais']) {
+        return $out;
+    }
+    $out['gtin'] = $out['ais']['01'] ?? null;
+    $out['expiry'] = $out['ais']['17'] ?? null;
+    $out['batch'] = $out['ais']['10'] ?? null;
+    $out['serial'] = $out['ais']['21'] ?? null;
+    $out['fmd'] = $out['gtin'] !== null || isset($out['ais']['71']) || $out['expiry'] !== null;
+    return $out;
+}
+
+/**
+ * The COUNTRY MODULE for this schema, or null.
+ *
+ * A country that needs more than a regex — Italy prints its AIC in three shapes and carries it
+ * in AI 710 — declares `"module": "<slug>"` in `data/medical_code_schemas.json`, and its code
+ * lives in `api/lib/med/<slug>.php` with a `medical<Slug>Module()` descriptor. The core stays
+ * country-neutral: it only asks the module "is this read one of YOUR codes?".
+ *
+ * @return array{cc:string,slug:string,local_code?:string,dataset_columns?:string,dataset_id?:string}|null
+ */
+function medicalCountryModule(string $cc): ?array
+{
+    static $memo = [];
+    $cc = strtoupper(trim($cc));
+    if ($cc === '') {
+        return null;
+    }
+    if (array_key_exists($cc, $memo)) {
+        return $memo[$cc];
+    }
+    $memo[$cc] = null;
+    $schema = medicalCountrySchema($cc);
+    $slug = strtolower(trim((string)($schema['module'] ?? '')));
+    if ($slug === '' || preg_match('/^[a-z]{3,16}$/', $slug) !== 1) {
+        return null;
+    }
+    $path = __DIR__ . '/med/' . $slug . '.php';
+    if (!is_readable($path)) {
+        EverLog::warn('medical country module missing', [
+            'event' => 'medical_country_module_missing',
+            'country' => $cc,
+            'slug' => $slug,
+        ]);
+        return null;
+    }
+    require_once $path;
+    $fn = 'medical' . ucfirst($slug) . 'Module';
+    if (!function_exists($fn)) {
+        return null;
+    }
+    $module = $fn();
+    if (!is_array($module)) {
+        return null;
+    }
+    $module['cc'] = $cc;
+    $module['slug'] = $slug;
+    $memo[$cc] = $module;
+    return $module;
+}
+
+/**
+ * Is this read one of the DRUG CODES of the active country?
+ *
+ * Delegates to the country module (Italy: the AIC). Returns the module's answer untouched —
+ * `{code, type, label_key, aic?}` — or null. The core never interprets it.
+ *
+ * @return array{code:string,type:string,label_key:string,aic?:string}|null
+ */
+function medicalLocalCode(string $code, string $country): ?array
+{
+    $module = medicalCountryModule($country);
+    $fn = (string)($module['local_code'] ?? '');
+    if ($fn === '' || !is_callable($fn)) {
+        return null;
+    }
+    $result = $fn($code);
+    return is_array($result) && !empty($result['code']) ? $result : null;
+}
+
+/**
+ * Is this read one of the PACKAGING codes the schema tells us to throw away?
+ *
+ * In Italy the SSN label is a Pharmacode/Laetus and the 2D DataMatrix carries a lot/serial:
+ * neither says which drug the box contains, so claiming one as "a medicine code" put the
+ * wrong identifier on the product. The schema lists them under `ignored` with the action the
+ * scanner must take instead (`ocr`: read the AIC printed on the label).
+ */
+function medicalCodeIgnored(string $code, string $country): bool
+{
+    if (medicalIgnoredLabelKey($code, $country) !== '') {
+        return true;
+    }
+    $schema = medicalCountrySchema($country);
+    $c = medicalCompactCode($code);
+    if (!$schema || $c === '' || empty($schema['ignored'])) {
+        return false;
+    }
+    // The country's own drug code is never a packaging code.
+    if (medicalLocalCode($c, $country) !== null) {
+        return false;
+    }
+    foreach ((array)$schema['ignored'] as $def) {
+        $pattern = (string)($def['pattern'] ?? '');
+        if ($pattern === '') {
+            continue;
+        }
+        if (@preg_match('~' . str_replace('~', '\\~', $pattern) . '~', $c) === 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** The label of an ignored code (`medical.code_line`), so the UI can say what it read. */
+function medicalIgnoredLabelKey(string $code, string $country): string
+{
+    $schema = medicalCountrySchema($country);
+    $c = medicalCompactCode($code);
+    if (!$schema || $c === '' || empty($schema['ignored'])) {
+        return '';
+    }
+    // The country's own drug code is never a packaging code, whatever the patterns say.
+    if (medicalLocalCode($c, $country) !== null) {
+        return '';
+    }
+    foreach ((array)$schema['ignored'] as $def) {
+        $pattern = (string)($def['pattern'] ?? '');
+        if ($pattern !== '' && @preg_match('~' . str_replace('~', '\\~', $pattern) . '~', $c) === 1) {
+            return (string)($def['label_key'] ?? '');
+        }
+    }
+    return '';
+}
+
+/** The OCR patterns of the country block: what the label prints, written down as data. */
+function medicalOcrPatterns(string $country): array
+{
+    $schema = medicalCountrySchema($country);
+    $patterns = (array)($schema['ocr']['patterns'] ?? []);
+    return array_values(array_filter(array_map('strval', $patterns)));
+}
+
+/**
  * Which country's labels are on the box. `MED_COUNTRY` wins, then the instance language
  * (it→IT, de→DE, fr→FR, es→ES); anything else stays empty instead of guessing (an English UI
  * says nothing about the country of the pharmacy).
@@ -236,14 +458,39 @@ function medicalActiveCountry(?PDO $db = null, string $uiLang = ''): string
 }
 
 /**
+ * Can the medicine scanner identify a box in this country AT ALL?
+ *
+ * `false` means the country has no schema, or a schema that declares neither a national code nor
+ * the FMD DataMatrix (see `data/medical_code_schemas.json`). The UI then BLOCKS the scan with a
+ * dialog that says so, offers the manual entry and points at the contribution guide — silently
+ * scanning a label the app knows nothing about is how a household loses trust in the feature.
+ */
+function medicalScanSupported(string $country): bool
+{
+    $schema = medicalCountrySchema($country);
+    if (!$schema || (string)($schema['status'] ?? 'none') === 'none') {
+        return false;
+    }
+    if (!empty($schema['scan']['supported'])) {
+        return true;
+    }
+    return !empty($schema['codes']) || !empty($schema['fmd']);
+}
+
+/**
  * Is this scanned code a medicine pack, for the active country?
  *
- * @return array{detected:bool,confidence:string,type:string,label_key:string,status:string,country:string}
+ * Country-NEUTRAL: the identifying code comes from the country module (`medicalLocalCode()` —
+ * Italy: the printed AIC in its three forms), the packaging codes from the schema's `ignored`
+ * list, and the remaining national formats are plain patterns (`pzn`, `cn`, `ndc`, …). A
+ * country with no schema gets `none` and the app claims nothing.
+ *
+ * @return array{detected:bool,confidence:string,type:string,label_key:string,status:string,country:string,aic:?string,ignored:bool}
  */
 function medicalDetectCode(string $code, string $country): array
 {
     $out = ['detected' => false, 'confidence' => 'none', 'type' => '', 'label_key' => '',
-            'status' => 'none', 'country' => strtoupper($country)];
+            'status' => 'none', 'country' => strtoupper($country), 'aic' => null, 'ignored' => false];
     $schema = medicalCountrySchema($country);
     if (!$schema) {
         return $out;
@@ -254,6 +501,29 @@ function medicalDetectCode(string $code, string $country): array
         return $out;
     }
     $digits = preg_replace('/\D/', '', $c);
+
+    // 1. The country's own drug code (Italy: the AIC) — only if the schema declares that type,
+    //    so a data file stays in charge of what is recognisable.
+    $local = medicalLocalCode($c, $country);
+    if ($local !== null) {
+        foreach ((array)($schema['codes'] ?? []) as $codeDef) {
+            if (($codeDef['type'] ?? '') === ($local['type'] ?? '')) {
+                $out['detected'] = true;
+                $out['confidence'] = $out['status'] === 'full' ? 'high' : 'probable';
+                $out['type'] = (string)$local['type'];
+                $out['label_key'] = (string)($local['label_key'] ?? ($codeDef['label_key'] ?? ''));
+                $out['aic'] = isset($local['aic']) ? (string)$local['aic'] : null;
+                return $out;
+            }
+        }
+    }
+
+    // 2. A packaging code (a line code of the box): say so, claim nothing.
+    if (medicalCodeIgnored($c, $country)) {
+        $out['ignored'] = true;
+        $out['label_key'] = medicalIgnoredLabelKey($c, $country);
+        return $out;
+    }
 
     // EAN-13 (the box barcode): it is "ours" when the GS1 prefix belongs to the country AND
     // the country schema is complete enough to say so. A foreign EAN is left alone.
@@ -293,24 +563,58 @@ function medicalDetectCode(string $code, string $country): array
         if ($type === 'ean13' || $type === 'pzn_in_ean') {
             continue;
         }
-        $digitsWanted = $codeDef['digits'] ?? null;
-        $lenOk = false;
-        if (is_array($digitsWanted)) {
-            $lenOk = in_array(strlen($digits), array_map('intval', $digitsWanted), true);
-        } elseif (is_int($digitsWanted) && $digitsWanted > 0) {
-            $lenOk = strlen($digits) === $digitsWanted;
-        } elseif ($type === 'pharmacode') {
-            $min = (int)($codeDef['min'] ?? 3);
-            $max = (int)($codeDef['max'] ?? 131070);
-            $lenOk = ctype_digit($digits) && (int)$digits >= $min && (int)$digits <= $max;
+        if (!medicalCodeMatches($codeDef, $c, $digits)) {
+            continue;
         }
-        if ($lenOk) {
-            $out['detected'] = true;
-            $out['confidence'] = $out['status'] === 'full' ? 'high' : 'probable';
-            $out['type'] = $type;
-            $out['label_key'] = (string)($codeDef['label_key'] ?? '');
-            return $out;
-        }
+        $out['detected'] = true;
+        $out['confidence'] = $out['status'] === 'full' ? 'high' : 'probable';
+        $out['type'] = $type;
+        $out['label_key'] = (string)($codeDef['label_key'] ?? '');
+        return $out;
     }
     return $out;
+}
+
+/**
+ * Does this read match ONE code definition of the country schema?
+ *
+ * `pattern` is matched against the WHOLE read, letters included — the same rule as the
+ * browser's `_medCodeMatches()`: the digit-stripped form of `16G87N` is `1687`, which used to
+ * pass as a 4-digit Laetus Pharmacode. A definition without a pattern falls back to its digit
+ * count (a schema written before the patterns still works), and the numeric bounds
+ * (Pharmacode 3…131070) always apply.
+ */
+function medicalCodeMatches(array $def, string $code, string $digits): bool
+{
+    if (!empty($def['pattern'])) {
+        $re = '~' . str_replace('~', '\\~', (string)$def['pattern']) . '~';
+        if (@preg_match($re, $code) !== 1) {
+            return false;
+        }
+    } else {
+        $wanted = $def['digits'] ?? null;
+        if (is_array($wanted)) {
+            if (!in_array(strlen($digits), array_map('intval', $wanted), true)) {
+                return false;
+            }
+        } elseif (is_int($wanted) && $wanted > 0) {
+            if (strlen($digits) !== $wanted) {
+                return false;
+            }
+        } elseif (($def['type'] ?? '') !== 'pharmacode') {
+            return false;
+        }
+    }
+    if (($def['type'] ?? '') === 'pharmacode' || isset($def['min']) || isset($def['max'])) {
+        if (!ctype_digit($code)) {
+            return false;
+        }
+        $min = (int)($def['min'] ?? 3);
+        $max = (int)($def['max'] ?? 131070);
+        $n = (int)$code;
+        if ($n < $min || $n > $max) {
+            return false;
+        }
+    }
+    return true;
 }

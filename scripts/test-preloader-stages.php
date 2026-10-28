@@ -228,8 +228,10 @@ assert_true(str_contains($css, '@keyframes preloader-api-glow')
 assert_true(preg_match('/@media \(prefers-reduced-motion: reduce\) \{[^@]*?\.preloader-api \{[^}]*animation: none/s', $css) === 1,
     'the glowing logos respect prefers-reduced-motion');
 // A logo that cannot be read at 22 px is not painted here (a 7:1 wordmark is an invisible
-// sliver): those live in Settings → API gratuite, with their names.
-assert_true(str_contains($app, "if (api.splash === false) return '';"),
+// sliver): those live in Settings → API gratuite, with their names. The row is also filtered
+// by `_activeFreeApis()`: a CONDITIONAL source (the national medicine catalogue) is painted
+// only where its module is on and the country matches.
+assert_true((bool)preg_match('/function _renderPreloaderApis\(\)[\s\S]{0,700}?api\.splash !== false/s', $app),
     'the splash skips the logos the data marks as unreadable at that size');
 
 // ── [5c] debug vs production: the check list is not for the household ──────

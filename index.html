@@ -12,21 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261027zf">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261027zf">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261027zf">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261028d">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028d">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028d">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261027zf">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261027zf">
-    <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261027zf"></script>
-    <script src="assets/js/core/auth.js?v=20261027zf"></script>
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028d">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028d">
+    <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
+    <script src="assets/js/core/dom.js?v=20261028d"></script>
+    <script src="assets/js/core/auth.js?v=20261028d"></script>
+    <script src="assets/js/core/med.js?v=20261028d"></script>
+    <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
+         declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
+         only the GS1 standard and the data file; everything national — Italy's printed AIC,
+         the packaging codes to throw away, the AIFA columns — lives here. -->
+    <script src="assets/js/med/italy.js?v=20261028d"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261027zf"></script>
+    <script src="assets/js/core/support.js?v=20261028d"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -34,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027zf';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028d';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -43,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027zf';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028d';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261027zf"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261028d"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -114,7 +120,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.27.0</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.28.0</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -183,7 +189,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.27.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.28.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -242,11 +248,13 @@
 
     <!-- ===== DASHBOARD ===== -->
     <section class="page active" id="page-dashboard">
-        <!-- Locations as a snapping pill rail (UI audit, block 1): one horizontal row
-             of dynamic locations — the old 2x2 grid pushed the alerts below the fold
-             and mixed stocking states with the purchase flow (the shopping count now
-             lives as a badge on the Spesa tab). Rendered by renderLocationRail(). -->
-        <div class="location-rail" id="location-rail" role="list"
+        <!-- Locations: one dropdown for the places (the same grammar as the pantry filter,
+             because a pill row stops working at the fourth place) plus the medicine cabinet
+             as its own 💊 pill OUTSIDE the list — a cabinet buried in a menu is a cabinet
+             nobody opens. The old 2x2 grid pushed the alerts below the fold and mixed
+             stocking states with the purchase flow (the shopping count is a badge on the
+             Spesa tab now). Rendered by renderLocationRail(). -->
+        <div class="location-bar" id="location-rail" role="group"
              aria-label="Locazioni" data-i18n-aria="dashboard.locations_aria"></div>
 
         <!-- ── System / inventory alerts (UI audit round 3) ─────────────────────
@@ -423,8 +431,21 @@
              The total is asked with a numeric keypad at the END of the shopping session. -->
         <div class="page-header">
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
-            <h2 data-i18n="scan.title">Scansiona</h2>
+            <h2 id="scan-title" data-i18n="scan.title">Scansiona</h2>
             <button class="scan-spesa-chip" id="scan-spesa-btn" onclick="startSpesaMode()" data-i18n="scan.spesa_btn">📷 Continua</button>
+        </div>
+        <!-- The panel has TWO modes, never mixed: food (default) and medicines, chosen by the
+             place the pantry is showing (the cabinet → medicines). `is-medical-scan` hides every
+             food-only control in CSS; the medicine ones are shown by _setScanMode(). -->
+        <p class="scan-med-hint" id="scan-med-hint" hidden data-i18n="medical.scan_hint">Inquadra l’etichetta: leggo il codice AIC stampato sulla scatola.</p>
+        <!-- A medicine code read while the FOOD panel is open: say where it belongs instead of
+             sending it to a food catalogue. Both actions stay inline. -->
+        <div class="scan-med-cross" id="scan-med-cross" hidden>
+            <span class="scan-med-cross-text" data-i18n="medical.scan_food_hint">È un farmaco: aprilo dalla dispensa dei farmaci e usa la scansione farmaci.</span>
+            <div class="scan-med-cross-actions">
+                <button type="button" class="btn btn-outline btn-small" onclick="_medHideCrossHint()" data-i18n="medical.fallback_cancel">Annulla</button>
+                <button type="button" class="btn btn-primary btn-small" onclick="_medGoToCabinetScan()" data-i18n="medical.scan_open_cabinet">Apri 💊 farmaci</button>
+            </div>
         </div>
         <div class="spesa-mode-banner" id="spesa-mode-banner" style="display:none">
             <div class="spesa-banner-left">
@@ -459,6 +480,14 @@
                 </div>
                 <div class="scanner-overlay">
                     <div class="scanner-line"></div>
+                </div>
+                <!-- Medicine panel: WHERE to aim, and WHAT the app expects to read there.
+                     The rectangle is also the OCR's field of view (_medGuideRect()), so the
+                     small pack serial printed under the SSN barcode is never read as the drug
+                     number. The sample comes from the country data (schema.ocr.sample). -->
+                <div class="scan-med-frame" id="scan-med-frame" hidden aria-hidden="true">
+                    <span class="scan-med-frame-sample" id="scan-med-frame-sample">A000000000</span>
+                    <span class="scan-med-frame-label" data-i18n="medical.code_aic">codice AIC</span>
                 </div>
                 <!-- Tracking feedback: AI-like particle cloud + lock box on barcode -->
                 <div class="scan-tracking-layer" id="scan-tracking-layer" aria-hidden="true">
@@ -519,6 +548,18 @@
                 <button type="button" class="scan-action-btn" id="scan-manual-btn" onclick="startManualEntry()">
                     <span class="scan-action-icon" aria-hidden="true">✏️</span>
                     <span class="scan-action-label" data-i18n="scan.manual_entry_short">Manuale</span>
+                </button>
+                <!-- Medicines: separate panel, separate actions. The box carries no drug barcode
+                     (Italy prints the AIC), so the reader that OCRs the label is one tap away.
+                     Both this button and "Aggiungi a mano" exist ONLY in the medicine panel
+                     (hidden unless the module is on AND the country prints a code to read). -->
+                <button type="button" class="scan-action-btn scan-action-med" id="scan-med-ocr-btn" hidden onclick="_medOcrFromScan()">
+                    <span class="scan-action-icon" aria-hidden="true">💊</span>
+                    <span class="scan-action-label" data-i18n="medical.ocr_btn">Leggi AIC</span>
+                </button>
+                <button type="button" class="scan-action-btn" id="scan-med-manual-btn" hidden onclick="_medManualFromScan()">
+                    <span class="scan-action-icon" aria-hidden="true">✏️</span>
+                    <span class="scan-action-label" data-i18n="medical.scan_manual">Aggiungi a mano</span>
                 </button>
             </div>
 
@@ -715,9 +756,13 @@
             <div class="med-form-banner-body">
                 <strong data-i18n="medical.form_detected">Farmaco riconosciuto</strong>
                 <span class="med-form-banner-code" id="pf-med-banner-code"></span>
-                <span class="med-form-banner-hint" data-i18n="medical.form_no_catalogue">Nessun catalogo farmaci: scrivi tu nome e casa farmaceutica.</span>
+                <span class="med-form-banner-hint" data-i18n="medical.form_no_catalogue">Il nome arriva dal catalogo AIFA locale quando il codice è riconosciuto.</span>
             </div>
         </div>
+        <!-- The AIFA catalogue's answer for the AIC just read (or OCR'd): name, active
+             ingredient, form, pack, company — with a button, never auto-filled. Painted by
+             _medShowCatalogueMatch(); the dataset is a local table (scripts/import-medicines.php --country=IT). -->
+        <div class="med-match-card" id="pf-med-match" hidden></div>
         <form class="form" onsubmit="submitProduct(event)">
             <input type="hidden" id="pf-id">
             <div id="pf-ai-fill-row" class="form-group pf-food-only">
@@ -1816,6 +1861,20 @@
                              free text, or the offline symptom search would rot. -->
                         <p class="settings-hint" data-i18n="medical.classify_hint">Classifica i farmaci che hai in casa: le categorie servono a rispondere a «cosa ho in casa per…».</p>
                         <div class="med-classify-list" id="med-classify-list"></div>
+                        <!-- The local medicine catalogue: AIFA open data, imported ONCE from a
+                             shell (scripts/import-medicines.php --country=IT). There is no free unlimited REST API
+                             for Italian medicines, so the app never calls one — it reads this
+                             table. `loaded: false` is stated, never disguised. The texts are set
+                             by _renderMedDataset() with t(): this block sits after the search
+                             button, and a data-i18n here would steal its label in the settings
+                             search schema (generated from this file). -->
+                        <div class="form-group" id="med-dataset-block" hidden>
+                            <h5 class="settings-subheading" id="med-dataset-title"></h5>
+                            <p class="settings-hint" id="med-dataset-hint"></p>
+                            <p class="settings-hint" id="med-dataset-note"></p>
+                            <code class="med-dataset-cmd" id="med-dataset-cmd">php scripts/import-medicines.php &lt;file.csv|file.xml|file.json&gt;</code>
+                            <a class="med-dataset-link" id="med-dataset-link" target="_blank" rel="noopener" hreflang="it" hidden></a>
+                        </div>
                     </div>
                     <button type="button" class="btn btn-outline full-width" id="med-search-btn" hidden onclick="_medOpenSearch()" data-i18n="medical.search_open">🔎 Cerca in casa per sintomo</button>
                     <!-- The first-run question is never a dead end: whoever clicked through it
@@ -3254,15 +3313,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261027zf"></script>
-<script src="assets/js/food_facts.generated.js?v=20261027zf"></script>
-<script src="assets/js/free_apis.generated.js?v=20261027zf"></script>
-<script src="assets/js/core/vocab.js?v=20261027zf"></script>
-<script src="assets/js/app.js?v=20261027zf"></script>
-<script src="assets/js/audit.js?v=20261027zf"></script>
-<script src="assets/js/receipt.js?v=20261027zf"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261027zf"></script>
-<script src="assets/js/settings_search.js?v=20261027zf"></script>
+<script src="assets/js/vocab.generated.js?v=20261028d"></script>
+<script src="assets/js/food_facts.generated.js?v=20261028d"></script>
+<script src="assets/js/free_apis.generated.js?v=20261028d"></script>
+<script src="assets/js/core/vocab.js?v=20261028d"></script>
+<script src="assets/js/app.js?v=20261028d"></script>
+<script src="assets/js/audit.js?v=20261028d"></script>
+<script src="assets/js/receipt.js?v=20261028d"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261028d"></script>
+<script src="assets/js/settings_search.js?v=20261028d"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

@@ -261,6 +261,11 @@ function migrateDB(PDO $db): void {
     require_once __DIR__ . '/lib/barcode_catalog.php';
     barcodeCatalogEnsureTable($db);
 
+    // The local medicine catalogue (AIFA open data). Created empty on every boot: the rows are
+    // put there by `scripts/import-medicines.php --country=IT`, never by a network call from the app.
+    require_once __DIR__ . '/lib/medicines.php';
+    medicinesEnsureTable($db);
+
     $db->exec("CREATE TABLE IF NOT EXISTS shopping_templates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,

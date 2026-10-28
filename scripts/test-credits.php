@@ -53,9 +53,15 @@ foreach ($apis as $api) {
 }
 
 // ── The logos are real local files ─────────────────────────────────────────
+// A source may also ship WITHOUT a file: then it is drawn with its monogram (the guaranteed
+// fallback), which is what the national catalogue does until its official mark is vendored.
 foreach ($apis as $api) {
     $id   = (string)($api['id'] ?? '');
     $logo = (string)($api['logo'] ?? '');
+    if ($logo === '') {
+        check("{$id}: no logo file, so it draws its monogram", trim((string)($api['mark'] ?? '')) !== '');
+        continue;
+    }
     $path = $root . '/' . $logo;
     check("{$id}: the logo is a local asset under assets/img/", str_starts_with($logo, 'assets/img/') && is_file($path), $logo);
     if (!is_file($path)) {
@@ -231,6 +237,93 @@ check('the credits page renders the sources and the medicines row',
     && str_contains($app, 'EVERSHELF_DATA_SOURCES'));
 check('the generated file carries the sources (splash-safe, offline)',
     str_contains((string)file_get_contents($root . '/assets/js/free_apis.generated.js'), 'EVERSHELF_DATA_SOURCES'));
+
+// ── A source that exists only in some configurations ───────────────────────
+// The national medicine catalogue is not a service everybody uses: it is real only for an
+// instance whose module is ON and whose country module is Italy. Its logo must be on the
+// splash AND in the thanks page there, and ABSENT everywhere else — a credit list that shows
+// a source the app does not use is advertising, not attribution.
+$byId = [];
+foreach ($apis as $api) { $byId[(string)($api['id'] ?? '')] = $api; }
+$aifa = $byId['aifa'] ?? [];
+check('the national catalogue is a declared source with a "when" gate',
+    ($aifa['when']['medical'] ?? false) === true
+    && in_array('IT', (array)($aifa['when']['country'] ?? []), true)
+    && ($aifa['splash'] ?? true) !== false);
+check('it is the only conditional source (the others are always on)',
+    array_reduce($apis, fn($c, $api) => $c && ((string)($api['id'] ?? '') === 'aifa' || empty($api['when'])), true));
+check('the generator carries the gate into the generated file',
+    str_contains((string)file_get_contents($root . '/scripts/gen-free-apis-js.php'), "'when'    => _freeApiWhen(")
+    && str_contains((string)file_get_contents($root . '/assets/js/free_apis.generated.js'), '"when":{"medical":true,"country":["IT"]}'));
+check('the splash paints only the sources in use (and repaints when the state arrives)',
+    (bool)preg_match('/function _renderPreloaderApis\(\)[\s\S]{0,900}?_activeFreeApis\(/s', $app)
+    && str_contains($app, 'el.dataset.sig === sig')
+    && (bool)preg_match('/function _medRefreshStatus\(\)[\s\S]{0,2600}?_syncCreditSources\(\);/s', $app));
+check('the thanks page and the why/where dialog use the same filter',
+    (bool)preg_match('/function _loadFreeApis\(\)[\s\S]{0,2200}?const active = _activeFreeApis\(_freeApisCache\);/s', $app)
+    && (bool)preg_match('/function _openFreeApisDialog\(\)[\s\S]{0,900}?_activeFreeApis\(list\)/s', $app));
+check('the gate reads the module state and the active country',
+    (bool)preg_match('/function _freeApiActive\(api\)[\s\S]{0,1400}?when\.medical === true && !_medOn\(\)/s', $app)
+    && (bool)preg_match('/function _freeApiActive\(api\)[\s\S]{0,1700}?_medStatus\.country/s', $app));
+check('the last known set is remembered for the splash before the token',
+    str_contains($app, "localStorage.setItem('evershelf_credits_seen_v1'")
+    && (bool)preg_match('/function _freeApiActive\(api\)[\s\S]{0,900}?_creditsSeenIds\(\)/s', $app));
+// The gate must actually DO it: a harness with a fake `_medStatus` and a fake localStorage.
+$gateFn = '';
+foreach (['_freeApiActive(api)', '_creditsSeenIds()'] as $sig) {
+    if (preg_match('/function ' . preg_quote($sig, '/') . ' \{.*?\n\}/s', $app, $mFn)) {
+        $gateFn .= $mFn[0] . "\n";
+    }
+}
+check('the source gate is extractable', $gateFn !== '');
+if ($gateFn !== '') {
+    $gateHarness = "const __store = {};\n"
+        . "globalThis.localStorage = { getItem: k => (k in __store ? __store[k] : null), setItem: (k, v) => { __store[k] = String(v); } };\n"
+        . "let _medStatus = { schema: null, enabled: false, accepted: false, country: '' };\n"
+        . "function _medOn() { return !!(_medStatus.enabled && _medStatus.accepted); }\n"
+        . $gateFn
+        . "const aifa = { id: 'aifa', when: { medical: true, country: ['IT'] } };\n"
+        . "const off = { id: 'off' };\n"
+        . "const out = [];\n"
+        . "out.push(['unknown state, never seen', _freeApiActive(aifa)]);\n"
+        . "localStorage.setItem('evershelf_credits_seen_v1', JSON.stringify(['aifa']));\n"
+        . "out.push(['unknown state, seen last boot', _freeApiActive(aifa)]);\n"
+        . "_medStatus = { schema: {}, enabled: false, accepted: false, country: 'IT' };\n"
+        . "out.push(['module off', _freeApiActive(aifa)]);\n"
+        . "_medStatus = { schema: {}, enabled: true, accepted: true, country: 'DE' };\n"
+        . "out.push(['module on, another country', _freeApiActive(aifa)]);\n"
+        . "_medStatus = { schema: {}, enabled: true, accepted: true, country: 'IT' };\n"
+        . "out.push(['module on, Italy', _freeApiActive(aifa)]);\n"
+        . "out.push(['unconditional source always on', _freeApiActive(off)]);\n"
+        . "console.log(JSON.stringify(out));";
+    $gateTmp = sys_get_temp_dir() . '/credits_gate_' . getmypid() . '.js';
+    file_put_contents($gateTmp, $gateHarness);
+    $gateRaw = shell_exec('node ' . escapeshellarg($gateTmp) . ' 2>&1');
+    @unlink($gateTmp);
+    $gateOut = json_decode(trim((string)$gateRaw), true);
+    check('the gate harness runs in node', is_array($gateOut), (string)$gateRaw);
+    if (is_array($gateOut)) {
+        $got = [];
+        foreach ($gateOut as $row) { $got[(string)$row[0]] = (bool)$row[1]; }
+        check('the catalogue follows the module state and the country (not a fixed list)',
+            ($got['unknown state, never seen'] ?? true) === false
+            && ($got['unknown state, seen last boot'] ?? false) === true
+            && ($got['module off'] ?? true) === false
+            && ($got['module on, another country'] ?? true) === false
+            && ($got['module on, Italy'] ?? false) === true
+            && ($got['unconditional source always on'] ?? false) === true,
+            json_encode($got));
+    }
+}
+
+check('the catalogue has its own why/where sentence in six locales',
+    array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
+        $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
+        return $c && mb_strlen(trim((string)($d['credits']['api_aifa'] ?? ''))) > 40
+            && mb_strlen(trim((string)($d['credits']['api_aifa_where'] ?? ''))) > 40;
+    }, true));
+
+
 
 // ── Every barcode source the API really queries is credited ─────────────────
 // The complaint that started this: Open Products/Beauty/Pet Food Facts were queried by the

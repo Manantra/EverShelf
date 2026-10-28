@@ -26,6 +26,16 @@
         min-width: 0;
     }
 
+    /* ── Page header: the pantry names the OPEN PLACE ────────────────────── */
+    /* `_syncInventoryTitle()` writes "🧊 Frigo" (or a custom name up to 40 chars) in the
+       header: one line, so the import/export buttons keep their place on the row. */
+    .page-header h2 {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     /* ── Dashboard: expiring / expired / opened / unused-for-too-long ────── */
     .alert-item {
         flex-wrap: wrap;

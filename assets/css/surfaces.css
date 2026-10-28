@@ -257,24 +257,27 @@ body {
 }
 .quick-recipe-bar .btn-quick-recipe:active { transform: scale(0.99); }
 
-/* ── Location rail (pill carousel) ─────────────────────────────────────────
-   One horizontal, snapping row instead of a 2x2 grid that pushes the alerts
-   below the fold. Geometry only — colours come from the theme. */
-.location-rail {
+/* ── Locations bar: one dropdown + the cabinet's own pill ──────────────────
+   A snapping row of pills stops working at the fourth place, so the places live
+   in a native select (the same grammar as the pantry filter) and the medicine
+   cabinet keeps its pill OUTSIDE the list. Geometry only — colours come from the
+   theme. */
+.location-bar {
     display: flex;
+    align-items: center;
     gap: 8px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    flex-wrap: wrap;
     padding: 2px 2px 10px;
     margin-bottom: 6px;
 }
-.location-rail::-webkit-scrollbar { display: none; }
+.location-bar .location-select {
+    flex: 1 1 190px;
+    min-width: 0;
+    max-width: none;
+}
+.location-bar .location-pill { flex: 0 0 auto; }
 
 .location-pill {
-    scroll-snap-align: start;
-    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -291,6 +294,7 @@ body {
 }
 .location-pill:active { transform: scale(0.98); }
 .location-pill .loc-icon { font-size: 1.05rem; line-height: 1; }
+.location-pill .loc-label { white-space: nowrap; }
 .location-pill .loc-count {
     font-variant-numeric: tabular-nums;
     font-size: 0.78rem;
@@ -311,10 +315,16 @@ body {
     right: 8px;
 }
 .location-pill.is-empty { opacity: 0.55; }
+/* The cabinet owns the medical tint, exactly like its pantry pill. */
+.location-pill.location-pill-medical {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.10);
+}
 .location-pill.location-pill-add {
     border-style: dashed;
     color: var(--text-light);
     background: transparent;
+    padding: 8px 12px;
 }
 
 /* Compact month strip: the analytic digest that stays on the dashboard. */
@@ -1549,6 +1559,14 @@ a.free-api:hover { border-color: var(--brand-primary); }
     font-weight: 800;
     letter-spacing: 0.02em;
     color: var(--text-muted);
+    overflow: hidden;
+}
+/* A four-letter monogram ("AIFA") does not fit the 22 px square the two/three-letter marks
+   use on the splash: let it grow instead of clipping the name. */
+.preloader-api .preloader-api-logo.free-api-mark {
+    width: auto;
+    min-width: 24px;
+    padding: 0 5px;
 }
 .free-api-body { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .free-api-name { font-size: 12px; font-weight: 700; color: var(--text-main); }
@@ -2223,6 +2241,152 @@ a.free-api:hover { border-color: var(--brand-primary); }
     word-break: break-all;
 }
 .med-form-banner-hint { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); }
+/* ── The AIFA catalogue card (medicine form) + the dataset block (Settings) ─────
+   Identification, not advice: one row per match, the name in bold, the AIC and the pack
+   under it, and ONE neutral button that fills the field. Nothing is auto-filled. */
+.med-match-card {
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.med-match-card[hidden] { display: none; }
+.med-match-title {
+    margin: 0 0 8px;
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.med-match-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--surface-border);
+}
+.med-match-row:first-of-type { border-top: 0; }
+.med-match-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.med-match-body strong { font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
+.med-match-aic { font-size: 0.74rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em; }
+.med-match-meta {
+    margin: 2px 0 0;
+    padding-left: 16px;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+.med-dataset-cmd {
+    display: block;
+    margin: 6px 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app);
+    font-size: 0.76rem;
+    color: var(--text-main);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.med-dataset-link { font-size: 0.78rem; color: var(--brand-primary); text-decoration: underline; }
+/* A country the scanner cannot read: the dialog says it, once, with the contribution guide. */
+.med-blocked-card { max-width: 540px; }
+.med-blocked-card code.med-dataset-cmd { white-space: normal; }
+/* `display: flex` would defeat the [hidden] attribute on the scan action bar (the medical
+   button only exists when the module is on and the country prints a code to OCR). */
+.scan-action-btn[hidden] { display: none; }
+/* Four visible buttons (the medicine AIC reader) get four columns: the bar's own rule fixes
+   three, so a fourth would wrap alone onto a second row. */
+#scan-action-bar.has-med { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* ── Two scan panels, never mixed ─────────────────────────────────────────────
+   `#page-scan.is-medical-scan` is the medicine panel: it keeps the camera, the AIC reader and
+   a hand entry, and hides every food-only control (AI vision, food search, shopping session,
+   favourites/recents of the pantry). The reverse is true too: the medicine buttons exist only
+   in this mode (JS keeps them `hidden`). */
+#page-scan.is-medical-scan .scan-spesa-chip,
+#page-scan.is-medical-scan .scan-spesa-quick-btn,
+#page-scan.is-medical-scan .spesa-mode-banner,
+#page-scan.is-medical-scan .scan-quick-rail,
+#page-scan.is-medical-scan #scan-ai-manual-btn,
+#page-scan.is-medical-scan #scan-search-btn,
+#page-scan.is-medical-scan #scan-manual-btn { display: none !important; }
+/* The medicine panel reads a LABEL, not a barcode: the particle cloud, the corner frame and the
+   sweeping red line belong to the barcode hunt and only add noise here. What replaces them is
+   one rectangle that says where to aim and what the app expects to see inside it. */
+#page-scan.is-medical-scan .scanner-line,
+#page-scan.is-medical-scan .scan-ai-cloud,
+#page-scan.is-medical-scan .scan-tracking-pulse,
+#page-scan.is-medical-scan .scan-tracking-dots,
+#page-scan.is-medical-scan .scan-lock-box,
+#page-scan.is-medical-scan .scan-guide-frame,
+#page-scan.is-medical-scan .scan-live-code { display: none !important; }
+.scan-med-frame {
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    transform: translate(-50%, -50%);
+    width: 78%;
+    height: 18%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 2px dashed rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.28);
+    box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.18);
+    pointer-events: none;
+}
+.scan-med-frame[hidden] { display: none; }
+/* The AIC is printed in a monospaced OCR face: show the expected shape in the same rhythm, so
+   "what I must frame" is read at a glance instead of explained. */
+.scan-med-frame-sample {
+    font-family: ui-monospace, "OCR B", "OCR-B", "Courier New", monospace;
+    font-size: 1.02rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+.scan-med-frame-label {
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
+}
+.scan-med-hint {
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 0.82rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+.scan-med-hint[hidden] { display: none; }
+/* A drug code read inside the FOOD panel: one inline notice, both answers visible. */
+.scan-med-cross {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    font-size: 0.84rem;
+    line-height: 1.35;
+    color: var(--text-main);
+}
+.scan-med-cross[hidden] { display: none; }
+.scan-med-cross-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+
 .med-box-list {
     display: flex;
     flex-direction: column;

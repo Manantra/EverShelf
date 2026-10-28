@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261027zf'; // bump when translations change
+const _I18N_VERSION = '20261028d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2274,7 +2274,16 @@ function _syncLocationFilterUi() {
     const locKey = currentLocation ? normalizeLocationKey(currentLocation) : '';
     tabs.querySelectorAll('.tab').forEach(btn => {
         btn.classList.toggle('active', !!locKey && btn.dataset.loc === locKey);
+        // The strip shows the place you just opened. The cabinet pill sits BEFORE the
+        // dropdown, so opening the fridge made "Armadietto farmaci" the first thing on screen
+        // while the place you asked for was written on the control next to it. The pill stays
+        // where it is the way in: when the cabinet is the open place, or when nothing is
+        // filtered (it is still one tap from "Tutti" — never buried in a menu).
+        if (btn.classList.contains('tab-medical')) {
+            btn.hidden = !!locKey && !isMedicalLocation(locKey);
+        }
     });
+    _syncInventoryTitle(locKey);
     const sel = document.getElementById('location-select');
     if (!sel) return;
     sel.querySelectorAll('option[data-med-shortcut]').forEach(o => o.remove());
@@ -2295,12 +2304,63 @@ function _syncLocationFilterUi() {
 }
 
 /**
+ * The pantry header says WHICH PLACE you are looking at.
+ *
+ * The page is called "Dispensa" whatever it shows, so opening the fridge left "Dispensa" above
+ * a list of milk: the only thing the household had just chosen was the one thing not written
+ * on screen. With "Tutti" the page name comes back, `data-i18n` and all, so a later language
+ * pass cannot leave a stale place name in the header.
+ */
+function _syncInventoryTitle(locKey) {
+    const title = document.getElementById('inventory-title');
+    if (!title) return;
+    const meta = locKey ? LOCATIONS[locKey] : null;
+    if (!meta) {
+        if (!title.hasAttribute('data-i18n')) title.setAttribute('data-i18n', 'inventory.title');
+        title.textContent = t('inventory.title');
+        return;
+    }
+    // The icon comes from the one location list, the label is plain (never icon + label).
+    title.removeAttribute('data-i18n');
+    title.textContent = `${meta.icon} ${meta.label}`;
+}
+
+/**
  * The places a product may move TO: a medicine only to its cabinet, food never into it.
  * `fromLoc` is where it is now (never offered back to itself).
  */
 function _locationsForDomain(isMedical, fromLoc = '') {
     return Object.entries(LOCATIONS).filter(([key]) =>
         key !== fromLoc && (isMedical ? isMedicalLocation(key) : !isMedicalLocation(key)));
+}
+
+/**
+ * The domain of an EDIT form: the PRODUCT decides, then the place it currently sits in.
+ *
+ * A row that merely sits in the cabinet (legacy data, from before the domain rule) must keep a
+ * way OUT: `_isMedicalRow()` would read it as a medicine by its location and lock it there,
+ * while the server happily accepts the move to a food place. A product flagged as a medicine
+ * stays a medicine whatever place the row is in.
+ */
+function _editDomainIsMedical(item) {
+    const flag = item ? item.is_medical : null;
+    if (flag === true || flag === 1 || flag === '1') return true;
+    if (flag === false || flag === 0 || flag === '0') return false;
+    return _isMedicalRow(item);
+}
+
+/**
+ * The places the EDIT screen may offer: the one the row is in, plus the legal ones.
+ *
+ * Food and medicines never share a place, so a food's edit screen must not even *show* the
+ * medicine cabinet and a medicine's must not show the fridge: the server refuses both
+ * (`inventoryLocationDomainError`), and a button that answers "Invalid location" is worse than
+ * no button. The current place is always kept, so the form never lies about where the stock is.
+ */
+function _locationsForEdit(isMedical, currentLoc) {
+    const key = normalizeLocationKey(currentLoc || '');
+    return Object.entries(LOCATIONS).filter(([k]) =>
+        k === key || (isMedical ? isMedicalLocation(k) : !isMedicalLocation(k)));
 }
 
 /**
@@ -2347,10 +2407,13 @@ function rebuildLocationPickers() {
         _syncLocationFilterUi();
     }
     // The add form follows the product: a medicine can only go to the cabinet, food never
-    // into it (Rebuild runs on settings changes too, so it reads `currentProduct` live).
+    // into it (Rebuild runs on settings changes too, so it reads `currentProduct` live). The
+    // "where do I take it from" picker follows the same domain, so a food never shows the
+    // cabinet even when this function repaints it after a settings change.
     const addKind = _isMedicalRow(currentProduct) ? 'medical' : 'food';
+    const useKind = currentProduct ? (_isMedicalRow(currentProduct) ? 'medical' : 'food') : 'any';
     _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', document.getElementById('add-location')?.value, addKind);
-    _renderLocationSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value, 'any');
+    _renderLocationSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value, useKind);
 }
 
 /**
@@ -3360,8 +3423,15 @@ let _detectorZbar = null;
 let _barcodeEnginesReady = null;
 let _tesseractWorker = null;
 let _tesseractInitPromise = null;
+let _tesseractWorkerMode = '';              // 'digits' | 'med' — one worker, two parameter sets
 const _LOCAL_OCR_DELAY_MS = 1800;           // local digit OCR when no native engine
 const _LOCAL_OCR_DELAY_NATIVE_MS = 3500;    // defer heavy OCR when Native BarcodeDetector is active
+// Medicine panel: the label is the SOURCE, not the fallback. An Italian box has no drug
+// barcode (the AIC is printed), so the OCR starts almost at once and keeps going while the
+// panel is open — bounded so a forgotten tablet does not burn the battery for ever.
+const _MED_OCR_FIRST_MS = 600;
+const _MED_OCR_INTERVAL_MS = 2000;
+const _MED_OCR_MAX_ATTEMPTS = 45;
 const _ZBAR_FALLBACK_DELAY_MS = 350;        // skip ZBar until native had a few frames
 const _BARCODE_PERSIST_KEY = 'evershelf_barcode_resolve_v1';
 const _BARCODE_PERSIST_MAX = 500;
@@ -5454,6 +5524,73 @@ async function _submitBugReport() {
 let _freeApisCache = null;
 
 /**
+ * Is this source IN USE right now?
+ *
+ * A source can be conditional (`when` in data/free_apis.json): the national medicine catalogue
+ * exists only for an instance whose medicine module is on AND whose country matches, so its
+ * logo belongs on the splash and in the credits only there. `when` is data, so another country
+ * adds its own source without touching this file.
+ *
+ * The splash is painted BEFORE there is a token (no `med_status` yet): until the server answers,
+ * the LAST known set is used — `evershelf_credits_seen_v1`, written every time the real state
+ * arrives. Offline, a warm boot therefore still shows the right row instead of an empty one.
+ */
+function _freeApiActive(api) {
+    const when = api && api.when;
+    if (!when || typeof when !== 'object') return true;
+    const id = String((api && api.id) || '');
+    const known = !!(_medStatus && _medStatus.schema);
+    if (!known) return _creditsSeenIds().includes(id);
+    if (when.medical === true && !_medOn()) return false;
+    const countries = Array.isArray(when.country) ? when.country.map(cc => String(cc).toUpperCase()) : [];
+    if (countries.length) {
+        const active = String((_medStatus && _medStatus.country) || '').toUpperCase();
+        if (!active || !countries.includes(active)) return false;
+    }
+    return true;
+}
+
+/** The ids of the sources that were active the last time the server answered. */
+function _creditsSeenIds() {
+    try {
+        const raw = JSON.parse(localStorage.getItem('evershelf_credits_seen_v1') || '[]');
+        return Array.isArray(raw) ? raw.map(String) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/** Remember which sources are in use, so the next splash can paint them before any token. */
+function _creditsRememberActive() {
+    const list = (typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
+        ? EVERSHELF_FREE_APIS
+        : [];
+    try {
+        localStorage.setItem('evershelf_credits_seen_v1',
+            JSON.stringify(list.filter(_freeApiActive).map(api => String(api.id || ''))));
+    } catch (e) { /* quota: the splash falls back to the unconditional sources */ }
+}
+
+/** The sources to paint: the always-on ones plus the conditional ones that are in use. */
+function _activeFreeApis(list) {
+    return (Array.isArray(list) ? list : []).filter(api => !!api && _freeApiActive(api));
+}
+
+/**
+ * Re-paint the credit surfaces when the module state changes.
+ *
+ * The national medicine catalogue is a CONDITIONAL source (`when` in data/free_apis.json): the
+ * moment `med_status` says the module is on and the country matches, its logo joins the splash
+ * row and the thanks page — and when the household turns the module off again, it leaves both.
+ * The active set is remembered for the next splash, which is painted before there is a token.
+ */
+function _syncCreditSources() {
+    _creditsRememberActive();
+    _renderPreloaderApis();
+    _loadFreeApis().catch(() => {});
+}
+
+/**
  * The official logo of a service, with the monogram as the guaranteed fallback.
  *
  * The images are vendored under assets/img/apis/ (official icons from each project's own
@@ -5490,6 +5627,8 @@ function _freeApiUsage(api) {
         case 'open_products_facts':  return t('credits.api_open_products_facts');
         case 'open_beauty_facts':    return t('credits.api_open_beauty_facts');
         case 'open_pet_food_facts':  return t('credits.api_open_pet_food_facts');
+        // The national catalogue: an IMPORT, not a request (the Italy module owns the file).
+        case 'aifa':            return t('credits.api_aifa');
         default: return '';
     }
 }
@@ -5502,6 +5641,7 @@ function _freeApiWhere(api) {
         case 'open_products_facts':  return t('credits.api_open_products_facts_where');
         case 'open_beauty_facts':    return t('credits.api_open_beauty_facts_where');
         case 'open_pet_food_facts':  return t('credits.api_open_pet_food_facts_where');
+        case 'aifa':            return t('credits.api_aifa_where');
         default: return '';
     }
 }
@@ -5597,8 +5737,9 @@ async function _loadFreeApis() {
             _freeApisCache = [];
         }
     }
-    const chips = _freeApisCache.map(_freeApiCardHtml).join('');
-    const page = _freeApisCache.map(_freeApiPageHtml).join('');
+    const active = _activeFreeApis(_freeApisCache);
+    const chips = active.map(_freeApiCardHtml).join('');
+    const page = active.map(_freeApiPageHtml).join('');
     ['app-footer-apis', 'settings-free-apis'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = chips;
@@ -5643,7 +5784,7 @@ function _openFreeApisDialog() {
         : [];
     const whyLabel = escapeHtml(t('credits.why_usage'));
     const whereLabel = escapeHtml(t('credits.why_where'));
-    const rows = list.map(api => {
+    const rows = _activeFreeApis(list).map(api => {
         const name = escapeHtml(String((api && api.name) || (api && api.id) || ''));
         if (!name) return '';
         const why = String(_freeApiUsage(api) || '');
@@ -5704,18 +5845,18 @@ function _closeFreeApisDialog() {
  */
 function _renderPreloaderApis() {
     const el = document.getElementById('preloader-apis');
-    if (!el || el.childElementCount) return;
-    const list = (typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
+    if (!el) return;
+    const list = _activeFreeApis((typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
         ? EVERSHELF_FREE_APIS
-        : [];
-    let order = 0;
-    el.innerHTML = list.map(api => {
-        if (!api || !(api.id || api.name)) return '';
-        // An unreadable logo is not shown here: the full, named list is one tap away.
-        if (api.splash === false) return '';
-        const delay = order++;
-        return `<span class="preloader-api" style="--i:${delay}">${_freeApiLogoHtml(api, 'preloader-api-logo')}</span>`;
-    }).join('');
+        : []).filter(api => !!api && (api.id || api.name) && api.splash !== false);
+    // Repaintable on purpose: the splash is up before the token, and when `med_status` arrives
+    // a conditional source (the national medicine catalogue) joins the row. Same list → no work.
+    const sig = list.map(api => String(api.id || '')).join(',');
+    if (el.dataset.sig === sig && el.childElementCount) return;
+    el.dataset.sig = sig;
+    el.innerHTML = list.map((api, delay) =>
+        `<span class="preloader-api" style="--i:${delay}">${_freeApiLogoHtml(api, 'preloader-api-logo')}</span>`
+    ).join('');
 }
 
 async function loadSettingsUI() {
@@ -7633,6 +7774,9 @@ function showPage(pageId, param = null, options = {}) {
             _warmScanCaches();
             _dismissFamilySiblingPrompt();
             _resetAiFallbackForNewScan();
+            // The panel follows the PLACE the pantry is showing: the medicine cabinet opens the
+            // medicine scanner, any other place the food one (two panels, never mixed).
+            _setScanMode(_scanModeForLocation(currentLocation));
             // Black cover until the stream actually plays (avoids grey ▶ poster)
             document.getElementById('scanner-viewport')?.classList.add('scanner-off');
             initScanner();
@@ -8798,17 +8942,22 @@ function _syncUrgencyHub() {
 }
 
 /**
- * Locations rail (UI audit, block 1).
+ * Locations control (UI audit, block 1 — second pass).
  *
- * One snapping row of pills — icon, name, count — built from the *dynamic* list
- * (builtin + custom), so a household that keeps a "Cantina" gets a pill instead of
- * a fixed 2x2 grid. A red dot marks a location that holds something expired or
- * expiring: the count stays the number of products, the dot carries the urgency.
- * The last pill leads to the place where locations are added.
+ * Two controls, not one long row: a native `<select>` lists the places with their
+ * product count (a pill row stops working at the fourth place, and the pantry filter
+ * already speaks this grammar), and the **medicine cabinet stays outside the list** as
+ * its own 💊 pill — a cabinet buried in a dropdown is a cabinet nobody opens. The count
+ * stays the number of products; a place that holds something expired or expiring gets a
+ * ⚠ in its option (a select cannot carry the red dot of a pill) and a red dot on the
+ * cabinet pill. The last control leads to the place where locations are added.
+ *
+ * The whole list comes from `LOCATIONS` (builtin + custom, in the one app-wide order), so
+ * a household that keeps a "Cantina" gets an entry instead of a fixed 2x2 grid.
  */
 function renderLocationRail(summary, stats) {
-    const rail = document.getElementById('location-rail');
-    if (!rail) return;
+    const bar = document.getElementById('location-rail');
+    if (!bar) return;
     const counts = {};
     for (const row of (summary || [])) {
         const key = normalizeLocationKey(row.location);
@@ -8825,31 +8974,76 @@ function renderLocationRail(summary, stats) {
     flag(stats && stats.expired);
     flag(stats && stats.expiring_soon);
 
-    const html = Object.entries(LOCATIONS).map(([key, meta]) => {
+    const isCabinet = (key) => isMedicalLocation(key, (LOCATIONS[key] || {}).label);
+    const keys = Object.keys(LOCATIONS);
+    const cabinetKeys = keys.filter(isCabinet);
+    const placeKeys = keys.filter(key => !isCabinet(key));
+
+    // One option per place: icon, name, how many products, and a ⚠ when there is food to
+    // save there. `is-empty` cannot be styled inside a native list, the count says it.
+    const options = placeKeys.map(key => {
+        const meta = LOCATIONS[key];
+        const count = counts[key] || 0;
+        const alerts = urgent[key] || 0;
+        const label = `${meta.icon} ${meta.label} · ${count}${alerts ? ' ⚠' : ''}`;
+        return `<option value="${escapeAttr(key)}">${escapeHtml(label)}</option>`;
+    });
+
+    // The cabinet, when the household marked one, keeps its own pill outside the list.
+    const cabinet = cabinetKeys.map(key => {
+        const meta = LOCATIONS[key] || { icon: MEDICAL_LOCATION_ICON, label: key };
         const count = counts[key] || 0;
         const alerts = urgent[key] || 0;
         const dot = alerts
             ? `<span class="loc-dot" title="${escapeAttr(t('dashboard.location_alerts', { n: alerts }))}"></span>`
             : '';
-        return `<button type="button" class="location-pill${count === 0 ? ' is-empty' : ''}" role="listitem" data-loc="${escapeAttr(key)}" onclick="showPage('inventory', '${escapeAttr(key)}')">`
-            + `<span class="loc-icon" aria-hidden="true">${meta.icon}</span>`
+        return `<button type="button" class="location-pill location-pill-medical${count === 0 ? ' is-empty' : ''}"`
+            + ` data-loc="${escapeAttr(key)}" onclick="showPage('inventory', '${escapeAttr(key)}')">`
+            + `<span class="loc-icon" aria-hidden="true">${MEDICAL_LOCATION_ICON}</span>`
             + `<span class="loc-label">${escapeHtml(meta.label)}</span>`
             + `<span class="loc-count">${count}</span>${dot}</button>`;
-    });
-    html.push(`<button type="button" class="location-pill location-pill-add" role="listitem" onclick="_openLocationsSettings()">`
-        + `<span class="loc-icon" aria-hidden="true">＋</span>`
-        + `<span class="loc-label">${escapeHtml(t('dashboard.add_location'))}</span></button>`);
-    rail.innerHTML = html.join('');
+    }).join('');
+
+    bar.innerHTML = `<select class="location-select" id="dashboard-location-select"`
+        + ` aria-label="${escapeAttr(t('dashboard.locations_aria'))}" data-i18n-aria="dashboard.locations_aria"`
+        + ` onchange="_dashboardLocationGo(this)">`
+        + `<option value="">${escapeHtml(t('dashboard.locations_pick'))}</option>${options.join('')}`
+        + `</select>`
+        + cabinet
+        + `<button type="button" class="location-pill location-pill-add"`
+        + ` aria-label="${escapeAttr(t('dashboard.add_location'))}" data-i18n-aria="dashboard.add_location"`
+        + ` title="${escapeAttr(t('dashboard.add_location'))}" data-i18n-title="dashboard.add_location"`
+        + ` onclick="_openLocationsSettings()">`
+        + `<span class="loc-icon" aria-hidden="true">＋</span></button>`;
 }
 
-/** First paint: the pills the instance always has, with no invented numbers. */
+/**
+ * The dashboard's place dropdown is a WAY IN, not a filter: it opens the pantry on the
+ * place and immediately resets, so the same place can be picked again next time (a
+ * selected option never fires `change` a second time).
+ */
+function _dashboardLocationGo(sel) {
+    const key = String((sel && sel.value) || '');
+    if (!key) return;
+    sel.value = '';
+    showPage('inventory', key);
+}
+
+/** First paint: the same two controls, with no invented numbers. */
 function _paintLocationRailSkeleton() {
-    const rail = document.getElementById('location-rail');
-    if (!rail) return;
-    rail.innerHTML = Object.values(LOCATIONS).slice(0, 4).map(meta =>
-        `<span class="location-pill is-empty"><span class="loc-icon" aria-hidden="true">${meta.icon}</span>`
-        + `<span class="loc-count">–</span></span>`
-    ).join('');
+    const bar = document.getElementById('location-rail');
+    if (!bar) return;
+    const places = Object.entries(LOCATIONS)
+        .filter(([key, meta]) => !isMedicalLocation(key, meta.label))
+        .slice(0, 4);
+    bar.innerHTML = `<select class="location-select" id="dashboard-location-select" disabled`
+        + ` aria-label="${escapeAttr(t('dashboard.locations_aria'))}" data-i18n-aria="dashboard.locations_aria">`
+        + `<option value="">${escapeHtml(t('dashboard.locations_pick'))}</option>`
+        + places.map(([key, meta]) =>
+            `<option value="${escapeAttr(key)}">${escapeHtml(`${meta.icon} ${meta.label} · –`)}</option>`
+        ).join('')
+        + `</select><span class="location-pill location-pill-add is-empty" aria-hidden="true">`
+        + `<span class="loc-icon">＋</span></span>`;
 }
 
 /** "+" pill: the existing, tested place where locations are added. */
@@ -13255,7 +13449,7 @@ function _topOverlay() {
 // The symptom search is deterministic and offline: the ATC map is `data/medical_atc.json`,
 // the server matches it against this household's inventory and returns NO dosage. The app
 // lists boxes; the doctor and the leaflet treat people.
-let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, unsupportedNoteKey: 'medical.country_none_hint' };
+let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, dataset: { loaded: false, count: 0, updated_at: '' }, scanSupported: true, contribDoc: '', unsupportedNoteKey: 'medical.country_none_hint' };
 
 /** Read the module state from the server (single source: env + the shared settings). */
 async function _medRefreshStatus() {
@@ -13273,6 +13467,9 @@ async function _medRefreshStatus() {
                 country: String(r.country || ''),
                 countries: Array.isArray(r.countries) ? r.countries : [],
                 schema: r.schema && typeof r.schema === 'object' ? r.schema : null,
+                dataset: r.dataset && typeof r.dataset === 'object' ? r.dataset : { loaded: false, count: 0, updated_at: '' },
+                scanSupported: r.scan_supported !== false,
+                contribDoc: String(r.contrib_doc || ''),
                 unsupportedNoteKey: String(r.unsupported_note_key || 'medical.country_none_hint'),
             };
             // The cabinet is painted with its own pill and sits right after Dispensa on EVERY
@@ -13286,9 +13483,11 @@ async function _medRefreshStatus() {
             }
         }
     } catch (e) {
-        _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, unsupportedNoteKey: 'medical.country_none_hint' };
+        _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, dataset: { loaded: false, count: 0, updated_at: '' }, scanSupported: true, contribDoc: '', unsupportedNoteKey: 'medical.country_none_hint' };
     }
     _applyMedUi();
+    // A conditional credit source (the national catalogue) follows the module: on/off, country.
+    _syncCreditSources();
     return _medStatus;
 }
 
@@ -13298,83 +13497,204 @@ function _medOn() {
 }
 
 /**
- * Is this scanned code a medicine pack, for the active country?
+ * Can the medicine scanner identify a box in this country?
  *
- * The rules are DATA (`data/medical_code_schemas.json`, served by `med_status`): GS1 prefix
- * ranges per country, national short codes (Pharmacode/Laetus in Italy, PZN in Germany, CN in
- * Spain, NDC in the US) and the EU FMD DataMatrix. `none` means we have no schema for that
- * country, and the app then claims NOTHING (the household adds the medicine by hand).
- *
- * @returns {{detected:boolean, confidence:'high'|'probable'|'none', type:string, label_key:string}}
+ * The answer comes from the SERVER (`med_status.scan_supported`, computed from the country
+ * schema): a country that declares no national code and no FMD DataMatrix must not pretend to
+ * read a label. Where it is false the panel is BLOCKED with a dialog (contribution guide +
+ * manual entry) — see `_medBlockedPopup()`.
  */
-function _medDetectCode(code) {
-    const out = { detected: false, confidence: 'none', type: '', label_key: '' };
+function _medScanSupported() {
+    if (typeof _medStatus.scanSupported === 'boolean') return _medStatus.scanSupported;
     const schema = _medStatus.schema;
-    if (!schema || !schema.status || schema.status === 'none') return out;
-    const c = String(code || '').trim().toUpperCase();
-    if (!c) return out;
-    const digits = c.replace(/\D/g, '');
-    const status = String(schema.status || 'none');
+    if (!schema || !schema.status || schema.status === 'none') return false;
+    return (Array.isArray(schema.codes) && schema.codes.length > 0) || schema.fmd === true;
+}
 
-    // Austrian PZN is embedded in the EAN (908888…): check it before the plain EAN rule.
-    for (const def of (schema.codes || [])) {
-        if (def.type === 'pzn_in_ean' && def.prefix && c.startsWith(String(def.prefix))) {
-            return { detected: true, confidence: 'high', type: def.type, label_key: def.label_key || '' };
-        }
+/** The line above the camera: what to frame, in the words of the active country. */
+function _medScanHintText() {
+    const key = String((_medStatus.schema && _medStatus.schema.ocr && _medStatus.schema.ocr.hint_key) || '');
+    switch (key) {
+        case 'medical.scan_hint_pzn': return t('medical.scan_hint_pzn');
+        case 'medical.scan_hint_ndc': return t('medical.scan_hint_ndc');
+        case 'medical.scan_hint': return t('medical.scan_hint');
+        default: return t('medical.scan_hint');
     }
-
-    // EAN-13: "ours" only when the GS1 prefix belongs to this country.
-    if (/^\d{13}$/.test(c)) {
-        for (const range of (schema.gs1 || [])) {
-            const lo = String((range && range[0]) || '');
-            const hi = String((range && range[1]) || lo);
-            const prefix = c.slice(0, lo.length);
-            if (lo && prefix >= lo && prefix <= hi) {
-                const def = (schema.codes || []).find(d => d.type === 'ean13' && Number(d.digits || 13) === 13);
-                if (def) {
-                    return { detected: true, confidence: status === 'full' ? 'high' : 'probable', type: 'ean13', label_key: def.label_key || '' };
-                }
-            }
-        }
-        return out;
-    }
-
-    // National short codes.
-    for (const def of (schema.codes || [])) {
-        if (def.type === 'ean13' || def.type === 'pzn_in_ean') continue;
-        const wanted = def.digits;
-        let lenOk = false;
-        if (Array.isArray(wanted)) lenOk = wanted.map(Number).includes(digits.length);
-        else if (typeof wanted === 'number' && wanted > 0) lenOk = digits.length === wanted;
-        else if (def.type === 'pharmacode') {
-            const min = Number(def.min || 3), max = Number(def.max || 131070);
-            const n = Number(digits);
-            lenOk = /^\d+$/.test(digits) && n >= min && n <= max;
-        }
-        if (lenOk) {
-            return { detected: true, confidence: status === 'full' ? 'high' : 'probable', type: def.type, label_key: def.label_key || '' };
-        }
-    }
-    return out;
 }
 
 /**
- * A NATIONAL short code — the pack's own number: an Italian AIC printed as `A017837016`, a
- * Pharmacode/Laetus, a German PZN, a Spanish CN, a US NDC. No food catalogue can know it, so
- * the scanner must not spend five requests asking; an EAN stays on the food path first
- * (Open Products Facts may well know the pack), which is why this returns null for one.
+ * The dialog for a country the scanner cannot read: say it, offer the hand entry, and point at
+ * the contribution guide (one JSON block per country). Shown once per session.
+ */
+function _medBlockedPopup() {
+    if (_medBlockedShown || !_medOn()) return;
+    _medBlockedShown = true;
+    const country = _medCountryLabel(_medStatus.country || '') || '—';
+    const ov = document.createElement('div');
+    ov.id = 'med-blocked-overlay';
+    ov.className = 'modal-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    const doc = String(_medStatus.contribDoc || 'docs/wiki/Medicines-Country-Schemas.md');
+    ov.innerHTML = `
+        <div class="modal-content med-blocked-card">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('medical.scan_unsupported_title'))}</h3>
+                <button type="button" class="modal-close" onclick="_medCloseBlocked(true)"
+                        aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+            </div>
+            <p>${escapeHtml(t('medical.scan_unsupported_body').replace('{country}', country))}</p>
+            <p class="settings-hint">${escapeHtml(t('medical.scan_unsupported_contrib'))}</p>
+            <code class="med-dataset-cmd">${escapeHtml(doc)}</code>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="_medCloseBlocked(true)">${escapeHtml(t('medical.fallback_cancel'))}</button>
+                <button type="button" class="btn btn-primary" onclick="_medBlockedManual()">${escapeHtml(t('medical.scan_unsupported_manual'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(ov);
+    ov.style.display = 'flex';
+    _medBlockedShown = false;  // the dialog can be reopened from the panel button
+}
+
+function _medCloseBlocked(resume = false) {
+    const ov = document.getElementById('med-blocked-overlay');
+    if (ov) ov.remove();
+    if (resume) resumeScanner();
+}
+
+/** "Aggiungi a mano" from the blocked dialog: the medicine form, nothing else. */
+function _medBlockedManual() {
+    _medCloseBlocked(false);
+    _medStartManualEntry('', true, '');
+}
+
+let _medBlockedShown = false;
+
+/**
+ * Which scan panel is open: 'food' (the default) or 'medicine'.
  *
- * The code is returned exactly as the box prints it, letters included: the `A` of the AIC is
- * part of the label and used to be thrown away by the digit-only cache key.
+ * The two are never mixed — the household said it plainly: a food panel that answers with drug
+ * codes (and a drug panel that asks a food catalogue) is confusion. The panel follows the PLACE
+ * the pantry is showing: open the cabinet and the scanner is the medicine one; open the fridge
+ * and it is the food one again. `_setScanMode()` owns the title, the hint and which actions
+ * exist; the recognition paths ask `_scanModeIsMedical()` before doing anything.
+ */
+let _scanMode = 'food';
+
+function _scanModeIsMedical() {
+    // A country the scanner cannot read is not a scanner: the panel shows the blocked dialog and
+    // the hand entry, and no code path pretends to identify anything.
+    return _scanMode === 'medicine' && _medOn() && _medScanSupported();
+}
+
+/** The panel implied by a place: the marked medicine cabinet → medicine, everything else → food. */
+function _scanModeForLocation(loc) {
+    if (!_medOn()) return 'food';
+    const key = _medLocationKey(loc || currentLocation || '');
+    if (!key) return 'food';
+    const meds = (getSettings().medical_locations || []).map(_medLocationKey);
+    return meds.includes(key) ? 'medicine' : 'food';
+}
+
+/**
+ * Switch the scan panel (and everything visible with it).
  *
- * @returns {{code:string, type:string}|null}
+ * Food: the AI/name/manual/torch bar and the continuous shopping mode.
+ * Medicines: the AIC reader and a hand entry, nothing else — no food search, no AI vision, no
+ * shopping session. Also used when a mode needs to be re-asserted after the module is toggled.
+ */
+function _setScanMode(mode) {
+    const want = mode === 'medicine' && _medOn() ? 'medicine' : 'food';
+    _scanMode = want;
+    const medical = want === 'medicine';
+    const page = document.getElementById('page-scan');
+    if (page) page.classList.toggle('is-medical-scan', medical);
+    const title = document.getElementById('scan-title');
+    if (title) {
+        title.setAttribute('data-i18n', medical ? 'medical.scan_title' : 'scan.title');
+        title.textContent = medical ? t('medical.scan_title') : t('scan.title');
+    }
+    // The scanner only exists where the country schema says what to read: otherwise the panel
+    // keeps the camera and the hand entry, and a dialog explains why.
+    const readable = medical && _medScanSupported() && _medOcrPatterns().length > 0;
+    const hint = document.getElementById('scan-med-hint');
+    if (hint) {
+        hint.hidden = !medical;
+        hint.textContent = medical ? _medScanHintText() : t('medical.scan_hint');
+    }
+    // The guide rectangle IS the reader's field of view: what is inside it is what gets OCR'd
+    // (and it shows the shape to look for, e.g. `A000000000`, taken from the country data).
+    const frame = document.getElementById('scan-med-frame');
+    if (frame) frame.hidden = !readable;
+    const sample = document.getElementById('scan-med-frame-sample');
+    if (sample) sample.textContent = _medOcrSample();
+    const medManual = document.getElementById('scan-med-manual-btn');
+    if (medManual) medManual.hidden = !medical;
+    const ocrBtn = document.getElementById('scan-med-ocr-btn');
+    if (ocrBtn) ocrBtn.hidden = !readable;
+    if (medical && !_medScanSupported()) _medBlockedPopup();
+    const actionBar = document.getElementById('scan-action-bar');
+    if (actionBar) actionBar.classList.toggle('has-med', !!(ocrBtn && !ocrBtn.hidden));
+    if (!medical) _medHideCrossHint();
+}
+
+/** Food panel: a medicine box was read here — point at the right panel, never scan it as food. */
+function _medShowCrossHint() {
+    const box = document.getElementById('scan-med-cross');
+    if (box) box.hidden = false;
+}
+
+function _medHideCrossHint() {
+    const box = document.getElementById('scan-med-cross');
+    if (box) box.hidden = true;
+}
+
+/**
+ * "Apri 💊 farmaci" (the notice shown when a drug code is read in the FOOD panel).
+ *
+ * Puts the pantry on the cabinet AND opens the medicine panel straight away — the household
+ * asked to scan a medicine, so the two steps belong to one tap. From now on `currentLocation`
+ * is the cabinet, which is what keeps `_scanModeForLocation()` returning 'medicine'.
+ */
+function _medGoToCabinetScan() {
+    _medHideCrossHint();
+    const loc = (getSettings().medical_locations || [])[0] || '';
+    const slug = loc ? resolveLocationKey(loc) : '';
+    stopScanner();
+    if (slug) filterLocation(slug);
+    showPage('scan');
+}
+
+/** Medicine panel: the form opens with the medicine mode already armed and nothing else asked. */
+function _medManualFromScan() {
+    stopScanner();
+    _medStartManualEntry('', true, '');
+}
+
+/**
+ * A NATIONAL short code — the pack's own number: an Italian AIC, a German PZN, a Spanish CN, a
+ * US NDC. No food catalogue can know it, so the scanner must not spend five requests asking;
+ * an EAN stays on the food path first (Open Products Facts may well know the pack), which is
+ * why this returns null for one.
+ *
+ * The code and its canonical form come from the COUNTRY MODULE (`_medDetectCode()` already asked
+ * it): for Italy the box prints `A` + 9 digits whatever the scanner or the OCR handed over
+ * (`a040313076`, `A 040 313 076`, the bare 9 digits of Code 32, or an FMD DataMatrix whose
+ * AI 710 carries it), and `aic` holds the 9 digits the local AIFA catalogue is keyed by. A code
+ * the schema lists as PACKAGING (Italy's Pharmacode/Laetus) returns null: it is not a drug
+ * identifier at all.
+ *
+ * @returns {{code:string, type:string, label_key:string, aic:string}|null}
  */
 function _medNationalCode(code) {
     const det = _medDetectCode(code);
     if (!det.detected || !det.type) return null;
     if (det.type === 'ean13' || det.type === 'pzn_in_ean') return null;
-    const clean = String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
-    return clean ? { code: clean, type: det.type, label_key: det.label_key || '' } : null;
+    const local = _medLocalCode(code);
+    const aic = String(det.aic || (local && local.aic) || '');
+    const clean = String((local && local.code) || '').trim()
+        || (aic ? ('A' + aic) : String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, ''));
+    return clean ? { code: clean, type: det.type, label_key: det.label_key || '', aic: aic } : null;
 }
 
 /**
@@ -13460,9 +13780,14 @@ function _applyMedUi() {
     if (btn) btn.hidden = !_medOn();
     const pfGroup = document.getElementById('pf-medical-group');
     if (pfGroup) pfGroup.hidden = !_medOn();
+    // The scan panel is re-asserted on every module change: switching the module off must put
+    // the food panel back (the medicine one exists only where the cabinet does).
+    _setScanMode(_scanMode);
     if (_medOn()) { _medRenderCountryPicker(); _renderMedLocations(); _medRenderLocationPicker(); _renderMedClassify(); }
     else _renderMedicalBlock([]);
+    _renderMedDataset();
 }
+
 
 /**
  * The locations the household can mark as medical: the built-ins plus the custom ones,
@@ -14149,7 +14474,9 @@ const _OVERLAY_CLOSERS = {
     // EverShelf Med dialogs: Esc must clean up, not just hide the box.
     'med-search-overlay': () => _medCloseSearch(),
     'med-setup-overlay': () => _medCloseSetup(),
-    'med-fallback-overlay': () => _medCloseFallback(true),
+    // A country the scanner cannot read: the dialog says so, Esc closes it and the camera
+    // resumes (the household is still standing in front of the cabinet).
+    'med-blocked-overlay': () => _medCloseBlocked(true),
     // The two dialogs the Settings page opens in place: the free-API explanation and the
     // location rename. Esc closes them without leaving a half-typed rename behind.
     'free-apis-overlay': () => _closeFreeApisDialog(),
@@ -14591,6 +14918,8 @@ function editInventoryItem(id, _retried) {
         package_unit: item.package_unit || '',
     };
     
+    // The places the edit may offer: a medicine only its cabinet, food never the cabinet.
+    const editLocs = _locationsForEdit(_editDomainIsMedical(item), item.location);
     // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header edit-modal-header">
@@ -14636,10 +14965,10 @@ function editInventoryItem(id, _retried) {
                     </select>
                 </div>
             </div>
-            <div class="form-group" id="edit-loc-group">
+            <div class="form-group" id="edit-loc-group"${editLocs.length > 1 ? '' : ' hidden'}>
                 <label>${t('inventory.label_position')}</label>
                 <div class="location-selector">
-                    ${Object.entries(LOCATIONS).map(([k, v]) => `
+                    ${editLocs.map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
                             onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('edit-loc').value='${k}';recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry')">${v.icon} ${v.label}</button>
                     `).join('')}
@@ -15087,7 +15416,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261027zf';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15097,7 +15426,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261027zf';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15214,15 +15543,49 @@ function _tryConfirmBarcode(code, format, method, geo = null) {
     let digits = raw.replace(/\D/g, '');
     if (!digits) return false;
 
-    // A medicine pack carries its OWN number, not an EAN: the Italian Pharmacode is 3–7
-    // digits, the AIC is `A` + 9. The 8-digit floor below is an EAN floor, and applying it to
-    // those codes is what made the documented "Pharmacode → prefilled manual entry" path
-    // dead (only 8+ digit codes ever reached the medical detection).
-    const national = _medOn() ? _medNationalCode(raw) : null;
-    if (digits.length < 8 && !national) return false;
-    // Keep the box's own code for the medicine path (the `A` of the AIC included); the food
-    // path stays digit-only, which is what every catalogue expects.
-    const scanCode = national ? national.code : digits;
+    // MEDICINE PANEL. A barcode is NOT the drug number here: the SSN label carries several
+    // Code 39s (the AIC on top, the pack's progressive number at the bottom) that are
+    // INDISTINGUISHABLE by shape — `A014058142` is a serial, not the medicine — and taking one
+    // of them was exactly the bug. Only the EU FMD DataMatrix, whose AI 710 is the national
+    // number by standard, is accepted; everything else sends the scanner to the PRINTED block
+    // the guide frame shows (OCR), which is what the household asked for.
+    if (_scanModeIsMedical()) {
+        const gs1 = _medGs1Parse(raw);
+        const fmdNational = (gs1 && gs1.ais) ? String(gs1.ais['71'] || '') : '';
+        if (fmdNational) {
+            const local = _medLocalCode(raw);
+            if (local) {
+                scanLog(`Medicine panel: FMD DataMatrix, AI 710 = ${local.code}`);
+                _finalizeBarcode(local.code, method);
+                return true;
+            }
+        }
+        // Not the DataMatrix: this barcode is not the drug number (it is the pack's progressive
+        // number or another Code 39 of the SSN label). Say it out loud — the household must see
+        // that the code was read and DISCARDED — and read the printed block instead.
+        scanLog(`Medicine panel: barcode ${raw} (${method}) is not the drug number -> label OCR`);
+        _setScanStatus(t('medical.scan_code_ignored').replace('{code}', raw), 'partial', method);
+        _scanLastCode = '';
+        _scanConsecCount = 0;
+        _medOcrKick();
+        return false;
+    }
+
+    // Food panel: a drug code or a packaging code belongs to the medicine panel. Hand it over
+    // (the household gets a way in) and never query a catalogue with it.
+    if (_medOn() && (_medNationalCode(raw) || _medCodeIgnored(raw))) {
+        scanLog(`Food panel: medicine code (${method}): ${raw} -> medicine panel`);
+        _finalizeBarcode(raw, method);
+        return true;
+    }
+
+    // A code carrying letters is not an EAN/UPC, so no food catalogue can look it up (a lot, a
+    // batch, a serial): never strip its letters into a digit key and send that to five
+    // catalogues.
+    if (/[A-Z]/.test(raw)) return false;
+
+    if (digits.length < 8) return false;
+    const scanCode = digits;
 
     // UPC-A (12) → EAN-13 with leading 0 so the checksum path and the server
     // candidate list agree on one canonical form.
@@ -15265,8 +15628,9 @@ function _tryConfirmBarcode(code, format, method, geo = null) {
     else { _scanLastCode = scanCode; _scanConsecCount = 1; }
     _showScanLiveCode(scanCode);
     _setScanStatus(t('scan.status_partial').replace('{code}', scanCode), 'partial', method);
-    // A national medicine code has no catalogue to pre-fetch from: skip the wasted request.
-    if (!national) _scheduleSpeculativeBarcodePrefetch(digits);
+    // Every code that reaches this point is a product barcode (a drug code was handed to the
+    // medicine panel above), so the food lookup can be warmed while the frame settles.
+    _scheduleSpeculativeBarcodePrefetch(digits);
     // Non-EAN (Code128/39): one hit from native is enough; ZBar still wants 2
     const need = (method === 'Native') ? 1 : 2;
     if (_scanConsecCount >= need) {
@@ -15378,9 +15742,24 @@ function _captureDigitStrip(videoEl) {
     return canvas;
 }
 
-async function _ensureTesseractWorker() {
-    if (_tesseractWorker) return _tesseractWorker;
-    if (_tesseractInitPromise) return _tesseractInitPromise;
+/**
+ * The local OCR engine (Tesseract, bundled — see assets/vendor/tesseract).
+ *
+ * Two modes on ONE worker: `digits` reads the numbers printed under an EAN, `med` reads the
+ * label of a medicine box (letters + digits, so the `A` of the AIC survives, and the block
+ * segmentation of a whole box instead of a single line). Reconfiguring the parameters is what
+ * makes one worker enough — a second worker would cost a second WASM heap on a phone.
+ */
+async function _ensureTesseractWorker(mode = 'digits') {
+    if (_tesseractWorker) {
+        await _tesseractConfigure(_tesseractWorker, mode);
+        return _tesseractWorker;
+    }
+    if (_tesseractInitPromise) {
+        const worker = await _tesseractInitPromise;
+        if (worker) await _tesseractConfigure(worker, mode);
+        return worker;
+    }
     _tesseractInitPromise = (async () => {
         if (typeof Tesseract === 'undefined') {
             await new Promise((resolve, reject) => {
@@ -15398,12 +15777,10 @@ async function _ensureTesseractWorker() {
             langPath: `${base}/lang`,
             gzip: true,
         });
-        await worker.setParameters({
-            tessedit_char_whitelist: '0123456789',
-            tessedit_pageseg_mode: '7',
-        });
+        _tesseractWorkerMode = '';
+        await _tesseractConfigure(worker, mode);
         _tesseractWorker = worker;
-        scanLog('Local digit OCR engine ready');
+        scanLog('Local OCR engine ready');
         return worker;
     })().catch(e => {
         scanLog(`Local OCR init failed: ${e.message}`);
@@ -15412,6 +15789,29 @@ async function _ensureTesseractWorker() {
     });
     return _tesseractInitPromise;
 }
+
+/** Apply the parameters of a mode, once per switch (setting them every frame is slow). */
+async function _tesseractConfigure(worker, mode) {
+    if (!worker || _tesseractWorkerMode === mode) return;
+    try {
+        if (mode === 'med') {
+            // AIC = `A` + 9 digits; the letters are needed for the A and for a name guess.
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+                tessedit_pageseg_mode: '6',
+            });
+        } else {
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789',
+                tessedit_pageseg_mode: '7',
+            });
+        }
+        _tesseractWorkerMode = mode;
+    } catch (e) {
+        scanLog(`OCR parameter switch failed: ${e.message}`);
+    }
+}
+
 
 async function _tryLocalEanDigitOcr(videoEl) {
     if (_scannerPaused || !scannerStream) return false;
@@ -15435,6 +15835,319 @@ async function _tryLocalEanDigitOcr(videoEl) {
     return false;
 }
 
+// ===== MEDICINE OCR (Italy: the AIC is printed, the barcode is packaging) =====
+
+/**
+ * Where the guide frame is, in VIDEO pixels.
+ *
+ * The medicine panel draws a rectangle over the camera (`#scan-med-frame`) that shows exactly
+ * what to aim at — the printed block `A000000000`. Reading THAT region is what keeps the OCR
+ * away from the small pack serial printed under the SSN barcode, which looks just like an AIC
+ * and used to land in the form as if it were the drug number.
+ *
+ * The video is painted with `object-fit: cover`, so both the viewport box and the guide box
+ * are mapped through the same scale/offset.
+ *
+ * @returns {{sx:number, sy:number, sw:number, sh:number}|null}
+ */
+function _medGuideRect(videoEl) {
+    const box = document.getElementById('scan-med-frame');
+    const vp = document.getElementById('scanner-viewport');
+    if (!box || !vp || !videoEl || !videoEl.videoWidth) return null;
+    const b = box.getBoundingClientRect();
+    const v = vp.getBoundingClientRect();
+    if (b.width < 8 || b.height < 8 || !v.width || !v.height) return null;
+    const scale = Math.max(v.width / videoEl.videoWidth, v.height / videoEl.videoHeight);
+    const ox = (videoEl.videoWidth * scale - v.width) / 2;
+    const oy = (videoEl.videoHeight * scale - v.height) / 2;
+    // A phone never frames perfectly: read a little beyond the rectangle.
+    const padX = b.width * 0.12;
+    const padY = b.height * 0.35;
+    const left = (b.left - v.left + padX + ox) / scale;
+    const top = (b.top - v.top + padY + oy) / scale;
+    const w = (b.width - 2 * padX) / scale;
+    const h = (b.height - 2 * padY) / scale;
+    if (w < 16 || h < 8) return null;
+    const sx = Math.max(0, Math.min(videoEl.videoWidth - 2, left));
+    const sy = Math.max(0, Math.min(videoEl.videoHeight - 2, top));
+    const sw = Math.max(16, Math.min(videoEl.videoWidth - sx, w));
+    const sh = Math.max(8, Math.min(videoEl.videoHeight - sy, h));
+    return { sx: sx, sy: sy, sw: sw, sh: sh };
+}
+
+/**
+ * Crop the frame for a label read.
+ *
+ * `region` = the guide rectangle (the normal case); without it the whole frame, downscaled —
+ * used only as a single second chance when the framed pass found nothing.
+ */
+function _captureMedLabelFrame(videoEl, region = null) {
+    if (!videoEl || !videoEl.videoWidth) return null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (region) {
+        // A small crop blown up: the printed AIC is 10 characters, so it reads best big.
+        const up = Math.min(3, 900 / Math.max(region.sw, 1));
+        const sized = _capScanCanvasSize(region.sw * up, region.sh * up);
+        canvas.width = sized.width;
+        canvas.height = sized.height;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(videoEl, region.sx, region.sy, region.sw, region.sh, 0, 0, canvas.width, canvas.height);
+        return canvas;
+    }
+    const vw = videoEl.videoWidth;
+    const vh = videoEl.videoHeight;
+    const scale = Math.min(1, 1280 / Math.max(vw, vh));
+    const sized = _capScanCanvasSize(vw * scale, vh * scale);
+    canvas.width = sized.width;
+    canvas.height = sized.height;
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    return canvas;
+}
+
+/**
+ * Read the label of a medicine box with the bundled OCR engine.
+ *
+ * Used when the barcode is useless (a Pharmacode/Laetus, a lot/serial) and, in the scanner
+ * loop, after a few seconds without any read — the user's photo of the box is exactly the case
+ * this exists for. Never invents a result: no AIC in the text means `aic: null`.
+ *
+ * @returns {Promise<{aic:string|null, text:string}|null>}
+ */
+async function _medReadLabelOcr(options = {}) {
+    if (!_medOn()) return null;
+    const patterns = _medOcrPatterns();
+    if (!patterns.length) return null;
+    const videoEl = document.getElementById('scanner-video');
+    const worker = await _ensureTesseractWorker('med');
+    if (!worker) return null;
+    if (!options.silent) {
+        _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+    }
+    // Pass 1: exactly the rectangle the UI shows. Pass 2 (only if the first found nothing):
+    // the whole frame, for a hand that is not steady. Both use the same A-form pattern.
+    const passes = [];
+    const guide = _medGuideRect(videoEl);
+    if (guide) {
+        // The frame IS the field of view: nothing outside it is read (the pack serial printed
+        // under the SSN barcode lives there, and it must never become the drug number).
+        passes.push(_captureMedLabelFrame(videoEl, guide));
+    } else {
+        passes.push(_captureMedLabelFrame(videoEl));
+    }
+    let text = '';
+    for (const canvas of passes) {
+        if (!canvas) continue;
+        try {
+            const { data } = await worker.recognize(canvas);
+            const page = String((data && data.text) || '');
+            text += (text ? ' ' : '') + page;
+            const aic = _medOcrFindAic(page, patterns);
+            scanLog(`Medicine OCR (${guide && canvas === passes[0] ? 'frame' : 'full'}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
+            if (aic) return { aic: aic, text: page };
+        } catch (e) {
+            scanLog(`Medicine OCR error: ${e.message}`);
+        }
+    }
+    return { aic: null, text: text };
+}
+
+/**
+ * The automatic fallback: the scan read a packaging code (or nothing usable) and this is a
+ * medicine — read the printed AIC instead of feeding the packaging code to a catalogue.
+ *
+ * Three outcomes, all honest:
+ *   * an AIC was read  → the medicine form opens on it (and the local catalogue names it);
+ *   * no AIC, but the barcode TOLD us it is a medicine (a line code) → the form opens anyway,
+ *     in medicine mode, with the code it read, so nothing is lost;
+ *   * no AIC and no reason to think it is a medicine → the camera resumes with a hint.
+ *
+ * @param {string} code the read that could not be used
+ * @param {{medical?:boolean, silent?:boolean}} [options]
+ */
+async function _medOcrFallback(code, options = {}) {
+    const medicalPack = options.medical === true;
+    const reading = await _medReadLabelOcr({ silent: !!options.silent });
+    if (reading && reading.aic) {
+        showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');
+        _setScanHudState('idle');
+        _setScanStatus(t('scan.status_scanning'), '', '');
+        _medStartManualEntry('A' + reading.aic, true, 'medical.code_aic');
+        return true;
+    }
+    if (medicalPack) {
+        // The barcode was a packaging code of a medicine box: open the form rather than a
+        // toast the household cannot act on. The code is NOT stored as the product's barcode —
+        // a Pharmacode/Laetus identifies the line, not the drug, and saving it would make the
+        // next scan of that same pack open a row it does not describe. It stays on the banner
+        // as information.
+        showToast(t('medical.ocr_not_found'), 'info', 5000);
+        _setScanHudState('idle');
+        _setScanStatus(t('scan.status_scanning'), '', '');
+        _medStartManualEntry('', true, 'medical.code_line');
+        const bannerCode = document.getElementById('pf-med-banner-code');
+        if (bannerCode && code) {
+            bannerCode.textContent = `${t('medical.code_line')} · ${String(code).toUpperCase()}`;
+        }
+        return true;
+    }
+    if (!options.silent) {
+        showToast(t('medical.ocr_not_found'), 'info', 4000);
+        _setScanHudState('idle');
+        _setScanStatus(t('scan.status_scanning'), '', '');
+        resumeScanner();
+    }
+    return false;
+}
+
+let _medOcrKickAt = 0;
+
+/**
+ * A barcode was read in the medicine panel and it is NOT the drug number: read the printed
+ * block immediately (debounced), instead of waiting for the loop's next slot.
+ */
+function _medOcrKick() {
+    if (!_scanModeIsMedical()) return;
+    const now = Date.now();
+    if (now - _medOcrKickAt < 1200) return;
+    _medOcrKickAt = now;
+    _medOcrFallback('', { silent: true }).catch(() => {});
+}
+
+/** The "🏷️ Leggi il codice AIC" button of the scan page (a manual trigger for the same read). */
+async function _medOcrFromScan() {
+    if (!_medOn()) return;
+    // Nothing to read? `_medOcrFallback` says so and resumes the camera itself.
+    await _medOcrFallback('', { silent: false });
+}
+
+// ===== LOCAL MEDICINE CATALOGUE (AIFA open data, imported once) =====
+
+/** The catalogue rows on screen, kept so `_medUseMatch(n)` knows what to fill. */
+let _medMatchResults = [];
+
+/**
+ * Ask the local catalogue about the code and paint the card in the medicine form.
+ *
+ * The dataset is a local table (imported by `scripts/import-medicines.php --country=IT`): one
+ * request to OUR server, no third party, no key. Which number to look up comes from the country
+ * module (`_medLocalCode()`), so the same card works for a country that keys its catalogue on a
+ * PZN or an NDC. The household still presses the button, and the identification notice stays on
+ * screen: knowing what a box is, is not a prescription.
+ */
+async function _medShowCatalogueMatch(code) {
+    const host = document.getElementById('pf-med-match');
+    if (!host) return;
+    const local = _medLocalCode(code);
+    const aic = (local && local.aic) ? String(local.aic) : '';
+    if (!aic) { host.hidden = true; host.innerHTML = ''; _medMatchResults = []; return; }
+    host.hidden = false;
+    host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_searching'))}</p>`;
+    let res = null;
+    try {
+        res = await api('med_lookup', { aic: aic, lang: _currentLang || '' });
+    } catch (e) { res = null; }
+    const rows = (res && Array.isArray(res.results)) ? res.results : [];
+    const loaded = !!(res && res.dataset && res.dataset.loaded);
+    _medMatchResults = rows;
+    // No catalogue imported? Say NOTHING: the form is already the answer (the code is stored,
+    // the household types the name). A notice about a database to download in the middle of a
+    // scan reads like a requirement, and it is not — the catalogue is optional.
+    if (!loaded) { host.hidden = true; host.innerHTML = ''; return; }
+    if (!rows.length) {
+        host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_none'))}</p>`;
+        return;
+    }
+    host.innerHTML = `<h5 class="med-match-title">${escapeHtml(t('medical.match_title'))}</h5>` +
+        rows.map((row, i) => {
+            const meta = [
+                row.ingredient ? t('medical.match_ingredient').replace('{value}', row.ingredient) : '',
+                [row.form, row.dosage].filter(Boolean).join(' '),
+                row.pack ? t('medical.match_pack').replace('{value}', row.pack) : '',
+                row.company ? t('medical.match_company').replace('{value}', row.company) : '',
+            ].filter(Boolean).map(line => `<li>${escapeHtml(line)}</li>`).join('');
+            return `<div class="med-match-row">
+                <div class="med-match-body">
+                    <strong>${escapeHtml(row.name)}</strong>
+                    <span class="med-match-aic">AIC ${escapeHtml(row.aic)}</span>
+                    <ul class="med-match-meta">${meta}</ul>
+                </div>
+                <button type="button" class="btn btn-outline btn-small" onclick="_medUseMatch(${i})">${escapeHtml(t('medical.match_use'))}</button>
+            </div>`;
+        }).join('') +
+        `<p class="settings-hint">${escapeHtml(t('medical.match_advice'))}</p>`;
+}
+
+/** Fill the form with the chosen catalogue row (the user's click, never automatic). */
+function _medUseMatch(index) {
+    const row = _medMatchResults[Number(index)];
+    if (!row) return;
+    const name = document.getElementById('pf-name');
+    if (name && row.name) {
+        name.value = String(row.name);
+        name.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const brand = document.getElementById('pf-brand');
+    if (brand && row.company) brand.value = String(row.company);
+    const code = document.getElementById('pf-barcode');
+    if (code && !String(code.value || '').trim() && row.aic) code.value = 'A' + String(row.aic);
+    const banner = document.getElementById('pf-med-banner-code');
+    if (banner && row.aic) banner.textContent = `${t('medical.code_aic')} · A${row.aic}`;
+    showToast(t('medical.match_used'), 'success');
+}
+
+/**
+ * The catalogue block of Settings → Farmaci: how many medicines are loaded, since when, and
+ * the exact command to import them. `loaded: false` is said out loud — an unknown AIC then
+ * means "no catalogue yet", not "this drug does not exist".
+ */
+function _renderMedDataset() {
+    const block = document.getElementById('med-dataset-block');
+    if (!block) return;
+    block.hidden = !_medOn();
+    if (!_medOn()) return;
+    const info = _medStatus.dataset || {};
+    // The texts are painted here (not with data-i18n in the markup): this block follows the
+    // search button, and a static label there would be attributed to that button by
+    // scripts/gen-settings-schema.php.
+    const title = document.getElementById('med-dataset-title');
+    if (title) title.textContent = t('medical.dataset_label');
+    const note = document.getElementById('med-dataset-note');
+    if (note) note.textContent = t('medical.dataset_hint');
+    const ds = (_medStatus.schema && _medStatus.schema.dataset) ? _medStatus.schema.dataset : null;
+    const isOpen = !ds || ds.open !== false;
+    const hint = document.getElementById('med-dataset-hint');
+    if (hint) {
+        if (!isOpen) {
+            // A national catalogue behind a licence: say it, do not offer a command that cannot work.
+            hint.textContent = t(String(ds.note_key || 'medical.dataset_closed'));
+        } else {
+            hint.textContent = info.loaded
+                ? t('medical.dataset_loaded')
+                    .replace('{count}', String(Number(info.count) || 0))
+                    .replace('{date}', formatDate(String(info.updated_at || '').slice(0, 10)))
+                : t('medical.dataset_empty');
+        }
+    }
+    // The command is the one the COUNTRY declares (Italy: AIFA CSV/XML; US: the openFDA JSON);
+    // a closed catalogue shows no command at all.
+    const cmd = document.getElementById('med-dataset-cmd');
+    if (cmd) {
+        cmd.hidden = !isOpen;
+        if (isOpen) cmd.textContent = String(ds && ds.importer ? ds.importer : 'php scripts/import-medicines.php <file.csv|file.xml|file.json>');
+    }
+    const src = document.getElementById('med-dataset-link');
+    if (src) {
+        if (ds && ds.url) {
+            src.href = String(ds.url);
+            src.textContent = ds.label_key ? t(String(ds.label_key)) : String(ds.url);
+            src.hidden = false;
+        } else {
+            src.hidden = true;
+        }
+    }
+}
+
 // ===== UNIFIED SCANNER (Native + ZBar + local digit OCR) =====
 function startUnifiedScanner(videoEl) {
     const gen = ++_scannerGen;
@@ -15445,6 +16158,9 @@ function startUnifiedScanner(videoEl) {
     let frameCount = 0;
     let digitOcrBusy = false;
     let lastDigitOcrAt = 0;
+    let medOcrBusy = false;
+    let medOcrAttempts = 0;
+    let lastMedOcrAt = 0;
     let missFrames = 0;
     const scannerLine = document.querySelector('.scanner-line');
 
@@ -15482,7 +16198,9 @@ function startUnifiedScanner(videoEl) {
         const elapsed = Date.now() - startTime;
         if (frameCount === 1) {
             feedback('scanning');
-            _setScanStatus(t('scan.status_scanning'), '', _detectorNative ? 'Native+ZBar' : 'ZBar');
+            // The medicine panel reads a LABEL, not a code: say what it is doing.
+            _setScanStatus(_scanModeIsMedical() ? t('medical.ocr_reading') : t('scan.status_scanning'), '',
+                _scanModeIsMedical() ? t('scan.method_med_ocr') : (_detectorNative ? 'Native+ZBar' : 'ZBar'));
         }
 
         let foundThisFrame = false;
@@ -15545,12 +16263,41 @@ function startUnifiedScanner(videoEl) {
             }
         }
 
-        // 4) Local digit OCR (numbers under barcode) — after delay, works offline
+        // 4) Local digit OCR (numbers under an EAN) — FOOD panel only: in the medicine panel the
+        // printed AIC is read by step 5, and hunting digits under the bars there is what put a
+        // pack serial into the form.
         const ocrDelay = _detectorNative ? _LOCAL_OCR_DELAY_NATIVE_MS : _LOCAL_OCR_DELAY_MS;
-        if (elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > 1800) {
+        if (!_scanModeIsMedical() && elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > 1800) {
             lastDigitOcrAt = Date.now();
             digitOcrBusy = true;
             _tryLocalEanDigitOcr(videoEl).finally(() => { digitOcrBusy = false; });
+        }
+
+        // 5) MEDICINE PANEL: the label is what we read. This is the PRIMARY path there, not a
+        // fallback — an Italian box carries no drug barcode, the AIC is printed. It starts on
+        // the first usable frames and keeps trying every 2 s (bounded), so pointing the camera
+        // at the box is enough. The barcode decoders above still run: a Code 39 that carries the
+        // AIC is a bonus, never the requirement.
+        if (_scanModeIsMedical() && _medOcrPatterns().length
+            && elapsed > _MED_OCR_FIRST_MS && medOcrAttempts < _MED_OCR_MAX_ATTEMPTS
+            && !medOcrBusy && (Date.now() - lastMedOcrAt) > _MED_OCR_INTERVAL_MS) {
+            medOcrAttempts++;
+            lastMedOcrAt = Date.now();
+            medOcrBusy = true;
+            _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+            _medReadLabelOcr({ silent: true }).then(reading => {
+                if (gen !== _scannerGen || !scannerStream) return;
+                if (!reading || !reading.aic) {
+                    // Keep reading, but stop pretending to be busy after a few empty frames.
+                    if (medOcrAttempts === 8) _setScanStatus(t('medical.ocr_not_found'), 'partial', '');
+                    if (medOcrAttempts >= _MED_OCR_MAX_ATTEMPTS) {
+                        _setScanStatus(t('medical.ocr_not_found'), '', '');
+                    }
+                    return;
+                }
+                showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');
+                _finalizeBarcode('A' + reading.aic, 'OCR');
+            }).catch(() => {}).finally(() => { medOcrBusy = false; });
         }
 
         if (!foundThisFrame) {
@@ -16105,16 +16852,61 @@ async function onBarcodeDetected(barcode) {
     }
     const fastPath = _spesaMode || _shoppingBoughtFlow;
 
-    // A national medicine code (AIC / Pharmacode / PZN / CN / NDC) is the pack's own
-    // number: no food catalogue knows it, so asking five of them before opening the
-    // medicine entry was five wasted requests and a "not found" (offline: an error) on a box
-    // the app had already recognised. Answer here, at once — unless the box is already one of
-    // our products: then the ordinary local lookup opens its row (and makes no external call).
-    const national = _medOn() ? _medNationalCode(barcode) : null;
-    if (national && !_localRowForBarcode(national.code)) {
+    // TWO panels, never mixed (see `_setScanMode`): this function routes by the panel that is
+    // open. The medicine panel never asks a food catalogue; the food panel never opens the
+    // medicine form.
+    const rawCode = String(barcode || '').trim().toUpperCase();
+
+    if (_scanModeIsMedical()) {
+        const national = _medNationalCode(rawCode);
+        if (national && !_localRowForBarcode(national.code)) {
+            _setScanHudState('idle');
+            _setScanStatus(t('scan.status_scanning'), '', '');
+            _medStartManualEntry(national.code, true, national.label_key);
+            return;
+        }
+        if (national) {
+            // Already one of our boxes: the ordinary local lookup opens its own row.
+        } else if (_medCodeIgnored(rawCode)) {
+            // A packaging code (the SSN label, a lot): the printed AIC is read instead.
+            _setScanHudState('idle');
+            _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+            showToast(t('medical.code_line_hint').replace('{code}', rawCode), 'info', 5000);
+            _medOcrFallback(rawCode, { medical: true });
+            return;
+        } else if (/[A-Z]/.test(rawCode)) {
+            // A lot/serial fragment: read the label, then let the household name the box.
+            _setScanHudState('idle');
+            _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+            _medReadLabelOcr({ silent: true }).then(reading => {
+                _setScanStatus(t('scan.status_scanning'), '', '');
+                if (reading && reading.aic) {
+                    showToast(t('medical.ocr_found').replace('{code}', 'A' + reading.aic), 'success');
+                    _medStartManualEntry('A' + reading.aic, true, 'medical.code_aic');
+                    return;
+                }
+                _medStartManualEntry('', true, '');
+            }).catch(() => {
+                _setScanStatus(t('scan.status_scanning'), '', '');
+                _medStartManualEntry('', true, '');
+            });
+            return;
+        } else {
+            // A barcode the panel cannot use (an EAN, or a numeric read that reached here from
+            // the legacy Quagga engine): say it and go back to the printed block.
+            _setScanHudState('idle');
+            _setScanStatus(t('medical.scan_not_medicine'), 'invalid', '');
+            _medOcrKick();
+            return;
+        }
+    }
+
+    // FOOD panel: a drug code or a packaging code belongs to the medicine panel. Show the way
+    // in, and never query a catalogue with a code that is not a product barcode.
+    if (_medOn() && (_medNationalCode(rawCode) || _medCodeIgnored(rawCode))) {
         _setScanHudState('idle');
         _setScanStatus(t('scan.status_scanning'), '', '');
-        _medStartManualEntry(national.code, true, national.label_key);
+        _medShowCrossHint();
         return;
     }
 
@@ -16136,29 +16928,6 @@ async function onBarcodeDetected(barcode) {
             return;
         }
 
-        // EverShelf Med: no drug catalogue is queried (see MED in the wiki), so a box the food
-        // catalogues do not know is NOT a failure. An EAN the food world does not know is
-        // ambiguous, so the household decides instead of the app guessing; a code the country
-        // schema names as a medicine goes straight to the prefilled manual entry.
-        if (_medOn()) {
-            _setScanHudState('idle');
-            _setScanStatus(t('scan.status_scanning'), '', '');
-            const det = _medDetectCode(code);
-            if (det.detected && det.confidence === 'high') {
-                // The country schema knows this code is a medicine: no question needed.
-                _medStartManualEntry(code, true, det.label_key);
-            } else if (det.detected) {
-                // A schema exists but only by GS1 range/FMD: ask, do not claim.
-                _medOfferMedicalFallback(code);
-            } else if (!_medStatus.schema || _medStatus.schema.status === 'none') {
-                // No schema for this country: the app says so instead of pretending.
-                showToast(t(_medStatus.unsupportedNoteKey || 'medical.country_none_hint'), 'info', 6000);
-                resumeScanner();
-            } else {
-                _medOfferMedicalFallback(code);
-            }
-            return;
-        }
         showToast(t('error.not_found_manual'), 'error');
         _setScanHudState('idle');
         _setScanStatus(t('scan.status_scanning'), '', '');
@@ -16173,29 +16942,20 @@ async function onBarcodeDetected(barcode) {
 }
 
 /**
- * A Pharmacode/Laetus (base-32, 4-7 digits) or a short code: no food catalogue can know it,
- * and no drug catalogue is queried — it is the box's own number.
- */
-function _looksLikeMedicineCode(code) {
-    const c = String(code || '').trim().toUpperCase();
-    if (!c) return false;
-    // EAN-13 / EAN-8 are the food path: they are ambiguous here, so the UI asks instead.
-    if (/^\d{13}$/.test(c) || /^\d{8}$/.test(c)) return false;
-    return /^\d{4,7}$/.test(c) || /^[0-9A-Z]{4,8}$/.test(c);
-}
-
-/**
  * "Codice rilevato": the medicine path of the scanner.
  *
  * `medical` switches the product form into MEDICINE mode before it is shown (food fields
  * hidden, medical taxonomy shown, the read code in the banner), so the box is born as a
  * medicine instead of being re-classified later. `labelKey` is the schema label of the code
- * (`medical.code_aic`), so the banner can name it.
+ * (`medical.code_aic`), so the banner can name it — and the local AIFA catalogue is asked in
+ * the background, so a known AIC arrives with its name instead of an empty field.
  */
 function _medStartManualEntry(barcode, medical = true, labelKey = '') {
     showToast(t('medical.code_detected'), 'info', 4000);
     startManualEntry(barcode);
     if (medical) _medArmProductForm(barcode, labelKey);
+    // A known AIC gets its name from the local catalogue; an unknown one keeps an empty field.
+    if (medical) _medShowCatalogueMatch(barcode);
 }
 
 /**
@@ -16221,6 +16981,13 @@ function _medFormSetMode(on, info = {}) {
         const code = on && info.code ? String(info.code) : '';
         // textContent, never innerHTML: the code comes from a barcode.
         codeEl.textContent = [type, code].filter(Boolean).join(' · ');
+    }
+    // Back to the food form: a catalogue card left over from a medicine must not follow the
+    // household into the next product.
+    if (!on) {
+        const match = document.getElementById('pf-med-match');
+        if (match) { match.hidden = true; match.innerHTML = ''; }
+        _medMatchResults = [];
     }
 
     // The switch is a question ("is it a medicine?") only when the app did NOT recognise the
@@ -16284,57 +17051,6 @@ function _medArmProductForm(code = '', labelKey = '') {
         addLoc.dataset.userPicked = '1';
         markLocationButton('#page-add .loc-btn', addLoc.value);
     }
-}
-
-/**
- * An EAN-13/EAN-8 the food catalogues do not know: with the module on, the household is asked
- * once instead of the app guessing. Nothing is created until the answer.
- * (Italian boxes carry both the SSN label — a Pharmacode — and an EAN: either path lands here.)
- */
-function _medOfferMedicalFallback(code) {
-    _medCloseFallback();
-    const ov = document.createElement('div');
-    ov.id = 'med-fallback-overlay';
-    ov.className = 'modal-overlay';
-    ov.setAttribute('role', 'dialog');
-    ov.setAttribute('aria-modal', 'true');
-    ov.innerHTML = `
-        <div class="modal-content med-fallback-card">
-            <div class="modal-header">
-                <h3>${escapeHtml(t('medical.fallback_title'))}</h3>
-                <button type="button" class="modal-close" onclick="_medCloseFallback(true)"
-                        aria-label="${escapeAttr(t('btn.close'))}">✕</button>
-            </div>
-            <p>${escapeHtml(t('medical.fallback_ask').replace('{code}', String(code || '')))}</p>
-            <p class="settings-hint">${escapeHtml(t('medical.no_catalogue'))}</p>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-outline" onclick="_medCloseFallback(true)">${escapeHtml(t('medical.fallback_cancel'))}</button>
-                <button type="button" class="btn btn-outline" onclick="_medFallbackFood()">${escapeHtml(t('medical.fallback_no'))}</button>
-                <button type="button" class="btn btn-primary" onclick="_medFallbackMedicine()">${escapeHtml(t('medical.fallback_yes'))}</button>
-            </div>
-        </div>`;
-    document.body.appendChild(ov);
-    ov.style.display = 'flex';
-    window._medFallbackCode = String(code || '');
-}
-
-function _medCloseFallback(resume = false) {
-    const ov = document.getElementById('med-fallback-overlay');
-    if (ov) ov.remove();
-    window._medFallbackCode = '';
-    if (resume) resumeScanner();
-}
-
-function _medFallbackMedicine() {
-    const code = window._medFallbackCode || '';
-    _medCloseFallback(false);
-    _medStartManualEntry(code, true);
-}
-
-function _medFallbackFood() {
-    const code = window._medFallbackCode || '';
-    _medCloseFallback(false);
-    startManualEntry(code);
 }
 
 /** Manual barcode typing was removed from the scan page (soft keyboard covers the camera on Android). */
@@ -17324,6 +18040,8 @@ function editActionInventoryItem(inventoryId) {
     const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
     
     window._editingProduct = { name: item.name || currentProduct.name, category: item.category || currentProduct.category || '' };
+    // Same rule as the main edit form: only the places this product may actually live in.
+    const editLocs = _locationsForEdit(_editDomainIsMedical(item), item.location);
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -17357,10 +18075,10 @@ function editActionInventoryItem(inventoryId) {
                     </select>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group"${editLocs.length > 1 ? '' : ' hidden'}>
                 <label>${t('inventory.label_position')}</label>
                 <div class="location-selector">
-                    ${Object.entries(LOCATIONS).map(([k, v]) => `
+                    ${editLocs.map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
                             onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('action-edit-loc').value='${k}';recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry')">${v.icon} ${v.label}</button>
                     `).join('')}
@@ -31345,6 +32063,9 @@ function initSpesaMode() {
 }
 
 async function startSpesaMode() {
+    // Shopping is a FOOD flow: it must never run on the medicine panel, even when the pantry is
+    // showing the cabinet (the two panels stay separate).
+    _setScanMode('food');
     _spesaMode = true;
     _spesaSession = [];
     _spesaSpendPromptShown = false;

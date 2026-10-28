@@ -1,7 +1,8 @@
 # EverShelf Med — the opt-in medicine cabinet
 
-> Status: **first slice shipped** (v1.21.0). The AIFA/AIC catalogue import is the next step;
-> nothing here invents medicine data.
+> Status: **shipped** (v1.21.0 the cabinet, v1.28.0 the printed-AIC reader and the local AIFA
+> catalogue). No medicine data is bundled with the repository: the names come from the AIFA
+> open data **imported by the household**, on their own server.
 
 EverShelf is a pantry manager. Counting boxes of paracetamol is a different job with a
 different risk profile, so the module is **opt-in, off by default and self-contained**:
@@ -21,67 +22,148 @@ different risk profile, so the module is **opt-in, off by default and self-conta
 | Keep an **expiring** box in the expiry lists with the 💊 tint | Put an expired box back among the food to "save" |
 | Answer "what do I have for a headache?" from a **local** taxonomy file | Call a model to guess a therapy |
 | Show what is already in the house, with the leaflet/doctor disclaimer on top | State a dose, a diagnosis or "take this one" |
-| Turn a **Pharmacode/short code** into the prefilled manual entry | Dead-end on "not found" or invent a catalogue entry |
+| Read the **AIC printed** on the box (OCR) and name the drug from a **local** AIFA import | Claim a packaging code (Pharmacode/Laetus) is the drug's number |
 
-## Where the barcode stands (Phase 1)
+## Italy: the AIC is PRINTED, and it lives in its own module
 
-**No medicine catalogue is queried.** The scan of a medicine box therefore does not "recognise"
-anything, and that is by design:
+A medicine pack does **not** carry the drug's number in a barcode. What a scan reads first is
+packaging:
 
-- the food catalogues the app already uses (Open Food Facts) **do not cover medicines**, and no
-  free/open equivalent exists that is safe to use for a household cabinet. Inventing drug data
-  would be worse than having none;
-- drug data is **national** (AIFA in Italy, other registries elsewhere), and Italian boxes carry
-  **two** codes: the EAN-13 (often `80…`, GS1 Italy) and the **SSN label**, which is a
-  **Pharmacode/Laetus** (base-32 or 4–7 digits), not an EAN;
-- so the app **stores whichever code it saw on the box you create** and you type the name. It
-  works in every country, with no API, no key and no country gate — there is nothing to gate
-  while nothing is looked up.
+| Read | What it is | What the app does |
+|---|---|---|
+| `A040313076` (Code 39) | the **AIC**, printed on the box | medicine path: the local catalogue names it |
+| `040313076` (9 digits) | the AIC in the older Code 32 form | same, normalised to `A040313076` |
+| `01…17…10…710…` (2D DataMatrix, FMD) | GTIN + expiry + batch + serial + **AIC in AI 710** | parses the AIs and takes the AIC, never the lot |
+| `123456` (Pharmacode/Laetus, SSN label) | a **packaging** code of the line | thrown away: the label is OCR'd for the AIC |
+| `16G87N` (lot/serial fragment) | the DataMatrix's batch field | thrown away: the label is OCR'd for the AIC |
+| an EAN-13 | the shop barcode | the ordinary food path first; unknown → *"is it a medicine?"* |
 
-What the scanner does with the module on:
+**All of that is Italian, so all of that is a module** — never the core:
 
-| Scanned | Behaviour |
+| File | Role |
 |---|---|
-| Pharmacode / Laetus / short code | straight to the manual entry, **medical switch already on** + the 8 chips |
-| EAN-13 / EAN-8 the food catalogues miss | one question: *"È un farmaco o un integratore?"* → **[💊 Sì]** (medical form) / **[No]** (normal product) / [Annulla] (camera resumes) |
-| EAN-13 the food catalogues know | normal product path (a pharmacy item that happens to be in OFF is fine) |
+| `api/lib/medical.php` · `assets/js/core/med.js` | **core, country-neutral**: schema loader, GS1 element-string walker, `codes`/`ignored`/`ocr` lists, the module registry, the "ask the module" hook |
+| `api/lib/med/italy.php` · `assets/js/med/italy.js` | **Italy**: the three AIC forms, AI 710, the AIFA column names |
+| `data/medical_code_schemas.json` | which country uses which module (`"module": "italy"`), its `codes`, `ignored`, `ocr.patterns`, `fmd_national_ai`, `dataset` |
 
-The UI says it in *Settings → Farmaci* (`medical.no_catalogue`) and the credits page says it
-where the free APIs are thanked (`credits.medicines_note`): the missing service is part of an
-honest credit list.
+The core asks one question — *"is this read one of YOUR drug codes?"* — and the answer arrives
+from the module. A country that only needs a regex (PZN, CN, NDC) declares it in `codes` and
+needs no module at all; dropping Italy leaves a scanner that still recognises the others.
 
-**Phase 2 will need the country**: when the AIFA catalogue lands (filtered to OTC/SOP/C, a
-2–3 MB local file), the module has to be enabled only for the matching country — a national
-dataset cannot answer for another country's boxes. That gate does not exist today because
-there is no catalogue to misuse.
+The label reader is the **bundled** Tesseract (`assets/vendor/tesseract`), the same engine that
+reads the digits under an EAN, in a second parameter set (letters + digits, block
+segmentation). In the medicine panel it is the PRIMARY reader, not a fallback: it starts on the
+first usable frames and repeats every 2 s (bounded to 45 attempts, then it says it could not
+read the code), and `💊 Leggi AIC` forces one pass by hand. It reads **only the printed `A` + 9
+digits** — a bare 9-digit run is the pack's serial number, printed under the SSN barcode, and is
+never accepted — and it reads it **inside the rectangle** the panel draws (`#scan-med-frame`,
+`_medGuideRect()`): the frame prints the expected shape (`A000000000`, from
+`schema.ocr.sample`) in a monospaced face, and the particle cloud and the sweeping line of the
+barcode hunt are hidden there.
 
+**Only the printed block counts.** The Italian AIC is `A` + 9 digits: a **bare 9-digit read is
+rejected** — `014058142` is the pack's progressive number (the second Code 39 of the SSN label),
+and accepting it stored a serial as if it were a medicine. When a barcode like that is read the
+panel says so in the status line (`medical.scan_code_ignored`) and goes back to the label.
+
+**A barcode is never the drug number in that panel.** The SSN label carries several Code 39s —
+the AIC on top and the pack's progressive number at the bottom — and they are indistinguishable
+by shape (`A014058142` is a serial, not a medicine). Only the EU FMD DataMatrix is accepted,
+because AI 710 is the national number by standard; any other read sends the scanner to the
+printed block (OCR). It never invents a result: no drug code in the text, no medicine.
+
+### Two scan panels, never mixed
+
+`#page-scan` has two modes, chosen by the **place the pantry is showing**:
+
+| Where you are | Panel | What it has |
+|---|---|---|
+| the medicine cabinet | **Scansiona farmaci** (`is-medical-scan`) | camera, 💊 Leggi AIC, Aggiungi a mano |
+| any food place (`Dispensa`, frigo, freezer, custom) | **Scansiona** (food) | AI vision, name search, manual entry, continuous shopping |
+
+`_scanModeForLocation()` reads the place, `_setScanMode()` paints the mode (title, hint, which
+actions exist), and each recognition path asks `_scanModeIsMedical()` first. A drug code read in
+the food panel gets an inline notice (*Apri 💊 farmaci* → the pantry on the cabinet and the
+medicine panel in one tap); an EAN read in the medicine panel is refused with
+`medical.scan_not_medicine`. The old "is it a medicine?" dialog no longer exists: the panel you
+are in already answers that.
+
+## The catalogue: national open data, imported once
+
+There is **no free, unlimited, key-less REST API** for Italian medicines (AIFA publishes open
+data, not a service). So the app never calls one: it reads a local table.
+
+```bash
+# CSV or XML, headers recognised by NAME (CODICE_AIC, DENOMINAZIONE, PRINCIPIO_ATTIVO, …)
+php scripts/import-medicines.php aifa_farmaci.csv                     # import / refresh (IT)
+php scripts/import-medicines.php aifa_farmaci.xml --truncate          # full refresh
+php scripts/import-medicines.php file.csv --dry-run                   # check the header map
+php scripts/import-medicines.php file.csv --country=IT                # explicit, same thing
+```
+
+- One importer, one module per country: the **column names** of a national export live in the
+  country module (`medicalItalyColumnAliases()`), the store (`api/lib/medicines.php`) only knows
+  how to read a table. A country without a module is refused instead of guessed.
+- Where to get the Italian file: AIFA open data (<https://www.aifa.gov.it/>) or the national
+  catalogue (<https://www.dati.gov.it/>, search "AIFA farmaci"). No registration.
+- `medicines` (SQLite, created by `initializeDB`) holds **identification only**: AIC, commercial
+  name, active ingredient, form, pack, company, ATC, fascia.
+- The AIC is the primary key, so re-running the importer updates instead of duplicating.
+- **Settings → 💊 Farmaci** shows how many medicines are loaded and when. "Not loaded yet" is
+  said out loud: an unknown AIC then means *no catalogue*, not *no such drug*.
+- `GET med_lookup?aic=…` / `?q=…` answers from that table (authenticated, read-only, no
+  network). The medicine form shows the match — name, ingredient, form, pack, company — with a
+  **"Usa questo nome"** button: the household confirms, nothing is auto-filled.
+
+## The credit for the source follows the module
+
+AIFA is a **conditional** source in `data/free_apis.json`:
+
+```json
+{ "id": "aifa", "mark": "AIFA", "licence": "CC-BY · open data",
+  "splash": true, "when": { "medical": true, "country": ["IT"] } }
+```
+
+So its mark appears on the **splash** and in the **thanks page** only on an instance whose
+medicine module is on *and* whose country module is Italy — a credit for a catalogue the app
+does not use would be advertising. `_freeApiActive()` does the filtering on all four surfaces,
+`_syncCreditSources()` repaints them when `med_status` arrives (and when the module is switched
+off), and the last active set is kept in `evershelf_credits_seen_v1` so the splash — painted
+before there is a token — is right even offline. Another country ships its own entry with its
+own `when`, no code change.
+
+The official AIFA mark is not vendored in this repository: the entry draws its monogram
+(`mark: "AIFA"`), and dropping the project's own asset at `assets/img/apis/aifa.svg` plus a
+`"logo"` field makes the real mark appear everywhere (`logo_note` covers the attribution).
 
 `medicalMatchSymptom()` reads `data/medical_categories.json` (8 household categories → i18n
+
 label + the words a household actually says, in the six shipped locales), tries the **longest
 phrase first** (“mal di testa” before “testa”), and returns the categories.
 `med_symptom_search` then lists the **medical rows only** whose `products.med_tags` contain one
 of those categories (falling back to the ATC prefix both ways — `N02BE01` belongs to `N02B` —
-when the Phase-2 catalogue sets one). Offline, no AI, no dosage.
+when the imported catalogue sets one). Offline, no AI, no dosage.
 
 From **Settings → 💊 Farmaci** each product gets its category chips, its active ingredient and
 its PAO number (`med_classify`), and each physical box gets **🔓 Segna aperto**
 (`med_open` → expiry = today + N, `expiry_user_set = 1`, so a rescan cannot undo it).
 SHELFY hands a sentence it cannot act on to the same map, so “ho un forte mal di testa” opens
-the list instead of creating a product, and the scanner turns a Pharmacode/Laetus (4–7 digits
-or a base-32 code) into the prefilled manual entry with *"Codice rilevato…"*.
+the list instead of creating a product, and the scanner turns the printed AIC into the
+prefilled medical entry with *"Codice rilevato…"*.
 
-## What is next (Phase 2)
+## What is next
 
-1. **AIFA open data import** (AIC → commercial name, active ingredient, ATC) into a local
-   catalogue, plus the **Pharmacode (base-32) → AIC** decode on the scanner, so a box is
-   recognised instead of typed.
-2. **Duplicate active-ingredient warning** (“you already have 2 boxes of ibuprofen”).
-3. **Leaflet link** by AIC (the paper box is often gone).
-4. Per-medicine **PAO** override (eye drops 28 days, syrup 30) on top of the generic
+1. **Duplicate active-ingredient warning** (“you already have 2 boxes of ibuprofen”), now that
+   the catalogue brings `principle_attivo` with the name.
+2. **Leaflet link** by AIC (the paper box is often gone).
+3. Per-medicine **PAO** override (eye drops 28 days, syrup 30) on top of the generic
    `data/opened_shelf_life.json` families.
+4. **More countries**: the schema already carries `codes`, `dataset` and `ignored` per country;
+   a national open-data importer is the missing piece (AIFA is the one implemented).
 
-Guard test: `php scripts/test-medical.php` (42 checks: opt-in, disclaimer, domain
-separation, matcher, safety copy, schema, wiring).
+Guard test: `php scripts/test-medical.php` (167 checks: opt-in, disclaimer, domain separation,
+matcher, safety copy, the AIC/FMD/ignored rules in both ports, the catalogue importer, the
+label OCR, and the copy in six locales).
 
 ## Country schemas — add yours (contributors)
 
@@ -94,19 +176,60 @@ declares:
   claims nothing and only offers manual entry);
 - `gs1`: the prefix ranges owned by that country's GS1 office (Italy `800–839`, Germany
   `400–440`, France `300–379`, Spain `840–849`, UK `500–509`, US `000–139`, …);
-- `codes`: the national formats — `ean13`, `pharmacode` (Italy's SSN label: an integer
-  3–131070 read from bars, **not** decimal digits), `pzn` (Germany, 8 digits in Code 39),
-  `pzn_in_ean` (Austria, `908888…`), `cn` (Spain), `ndc` (US), `aic` (Italy, printed);
-- `fmd`: whether the EU Falsified Medicines Directive DataMatrix applies.
+- `module` (optional): the country code module (`med/<slug>.php` + `assets/js/med/<slug>.js`) for
+  a country whose number cannot be expressed as one regex. Italy declares `italy`; Germany does
+  not need one (its PZN is a plain pattern);
+- `codes`: the formats that IDENTIFY the drug — `aic` (Italy, **printed**: `A` + 9 digits, or
+  the bare 9 of Code 32), `pzn` (Germany, 8 digits in Code 39), `pzn_in_ean` (Austria,
+  `908888…`), `cn` (Spain), `ndc` (US), `ean13` **only where the national code really is an
+  EAN** (France's CIP13, for instance);
+- `ignored`: the PACKAGING codes that must be thrown away, each with `action: "ocr"` — Italy's
+  `pharmacode`/`laetus` label and any short alphanumeric (the lot/serial of a DataMatrix);
+- `ocr`: the `patterns` to look for on the printed label (`A[ .:-]?\d{9}`, `\d{9}`) and their
+  `label_key`;
+- `fmd` + `fmd_national_ai`: whether the EU Falsified Medicines Directive DataMatrix applies,
+  and which AI carries the national number (`710` in Italy);
+- `dataset`: the catalogue source (`id`, `label_key`, `url`, `importer`, `licence`) — the
+  importer is a script, because the app never calls a medicine API.
 
 **Adding a country is a data change**: copy a block, set the ranges and the code types, add it
 to the table below, and run `php scripts/test-medical.php` (it asserts the file parses, that
-`IT`/`DE` stay complete, and that a country with no schema claims **nothing**). No code, no
-new action, no migration.
+`IT`/`DE` stay complete, that Italy claims only the AIC, and that a country with no schema
+claims **nothing**). No new action, no migration.
+
+**Unless your country needs logic instead of a pattern** (Italy: the AIC in three printed
+forms plus AI 710). Then add `"module": "<slug>"` to the block and two small files that the
+core calls:
+
+```php
+// api/lib/med/<slug>.php
+function medical<Slug>Module(): array {
+    return [
+        'cc' => 'IT',
+        'local_code' => 'medical<Slug>LocalCode',      // fn(string $read): ?array{code,type,label_key,aic?}
+        'dataset_columns' => 'medical<Slug>ColumnAliases', // the national export's headers
+        'dataset_id' => '<id>',
+    ];
+}
+```
+
+```js
+// assets/js/med/<slug>.js  (loaded in index.html + sw.js, before app.js)
+_medRegisterCountryModule('<slug>', {
+    cc: 'IT',
+    localCode(read) { /* the national rule; return {code,type,label_key,aic} or null */ },
+});
+```
+
+The core never learns what an AIC is: it asks the module. The full per-country picture (what is
+supported today, what to put in each field, and the traps) is
+[`Medicines-Country-Schemas.md`](Medicines-Country-Schemas.md); a country with no schema is
+**blocked** by a dialog that points there. Deleting `italy.php` / `italy.js` and
+the `"module"` line leaves a scanner that still reads the other countries' patterns.
 
 | Country | Status | What we can say |
 |---|---|---|
-| 🇮🇹 IT | full | EAN-13 `80…`, SSN Pharmacode/Laetus, AIC printed |
+| 🇮🇹 IT | full | AIC printed (`A` + 9 digits / 9 digits) and AI 710 of the FMD DataMatrix; Pharmacode/Laetus is packaging → OCR |
 | 🇩🇪 DE | full | EAN-13 `40…`, PZN (Code 39) |
 | 🇦🇹 AT | partial | EAN-13 `90…`, PZN embedded (`908888…`) |
 | 🇫🇷 FR | partial | EAN-13 `30…` (CIP13) |
@@ -115,8 +238,8 @@ new action, no migration.
 | 🇺🇸 US | partial | UPC/EAN `00–13`, NDC |
 | anything else | none | nothing: manual entry, and the app says so |
 
-**Still missing (the honest gap):** the **EU FMD DataMatrix** is declared (`fmd: true`) but not
-yet decoded: most browser barcode engines do not expose `data_matrix`, and parsing its GS1
-element string (GTIN + expiry + batch + serial) needs its own tests. That is the next step
-that would let the scan prefill the **expiry date** straight from the box — and it is the
-reason a modern EU box may still need the manual path today.
+**The FMD DataMatrix is decoded**: `medicalGs1Parse()` / `_medGs1Parse()` (the CORE, GS1 standard)
+walk the element string (fixed-length AIs, variable ones ending at FNC1) and return GTIN, expiry,
+batch, serial and AI `71x`; the country module turns that into its own number (Italy: the AIC). The **scanner engine** is the limit: most browsers do not expose
+`data_matrix` in `BarcodeDetector`, so a modern EU box still falls back to the printed AIC and
+the OCR — which is exactly what the Italian schema is built around.

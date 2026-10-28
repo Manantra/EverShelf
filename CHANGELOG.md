@@ -5,6 +5,95 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-10-27 · branch `refactor_25_10_2026`
+
+### Added
+- **A medicine box is now read the way Italy prints it: the AIC, not the barcode.** The Italian
+  pack carries no drug barcode — the SSN label is a **Pharmacode/Laetus** (a packaging code of
+  the line) and the 2D DataMatrix carries a lot/serial — while the number that identifies the
+  drug is **printed** (`A040313076`, Code 39; or 9 bare digits in the older Code 32 form; or
+  AI **710** of the FMD DataMatrix). The scanner now follows that: the AIC is the only medicine
+  code, the packaging codes are listed as `ignored` in
+  `data/medical_code_schemas.json` and are **never** sent to a catalogue, and the label is
+  OCR'd instead (the bundled Tesseract, second parameter set: letters + digits, block
+  segmentation). In the medicine panel the label is the SOURCE, not a fallback: the read starts
+  on the first usable frames, repeats every 2 s (bounded to 45 attempts) and takes **only the
+  printed `A` + 9 digits** — a bare 9-digit run is the pack serial printed under the SSN barcode
+  and is never accepted. The panel draws **one rectangle** (the OCR's field of view) with the
+  expected shape `A000000000` in a monospaced face, and hides the particle cloud and the
+  sweeping line of the barcode hunt. Above all, **a barcode is no longer a drug number in that
+  panel**: the SSN label carries several Code 39s (AIC on top, pack serial at the bottom) that
+  are indistinguishable by shape, so only the EU FMD DataMatrix (AI 710) is accepted; anything
+  else sends the scanner to the printed block. A **💊 Leggi AIC** button forces a pass.
+  Every path that used to claim a Pharmacode as the medicine number is gone, including the dead
+  `_looksLikeMedicineCode()` heuristic.
+- **The Italian rule is a MODULE, not a corner of the core.** `api/lib/medical.php` and
+  `assets/js/core/med.js` are now country-neutral: they load the schema, walk the GS1 element
+  string, apply the `codes`/`ignored`/`ocr` lists and ask the country module one question —
+  *is this read one of YOUR drug codes?* The AIC (three printed forms + AI 710) and the AIFA
+  column names live in `api/lib/med/italy.php` and `assets/js/med/italy.js`, registered by the
+  `"module": "italy"` the schema declares. A country that only needs a regex (PZN, CN, NDC)
+  needs no module at all; dropping Italy leaves a scanner that still reads the others.
+- **A local AIFA catalogue, imported once.** Because no free, unlimited, key-less REST API
+  exists for Italian medicines, the app never calls one: `php scripts/import-medicines.php
+  <file.csv|xml> --country=IT` loads the AIFA open data into a `medicines` table (AIC as the
+  key, headers recognised by NAME from the country module, `--dry-run`/`--truncate`/`--limit`,
+  CSV and XML, fixtures in `scripts/fixtures/aifa_sample.*`). `GET med_lookup` answers by AIC or by name from that table
+  (authenticated, read-only, no network), and the medicine form shows the match — name, active
+  ingredient, form, pack, company — with a **"Usa questo nome"** button: the household
+  confirms, nothing is auto-filled. Settings → 💊 Farmaci says how many medicines are loaded,
+  and says it out loud when none are (an unknown AIC then means "no catalogue", not "no such
+  drug").
+- **The FMD DataMatrix is decoded.** `medicalGs1Parse()` / `_medGs1Parse()` (core, GS1
+  standard) walk the element string — fixed-length AIs, variable ones ending at FNC1 — and
+  return GTIN, expiry, batch, serial and AI `71x`; the Italian module reads the AIC out of
+  AI 710, so a modern EU box is answered with its drug number instead of its lot.
+
+- **The label standard is a CONTRIBUTABLE per-country schema, and the scanner is BLOCKED where it
+  is missing.** `data/medical_code_schemas.json` is now v3: every country declares `codes`
+  (what identifies the drug), `ignored` (the packaging codes to throw away), `ocr` (the printed
+  pattern + the `sample` the guide frame shows + the `hint_key` for that country), `fmd` +
+  `fmd_national_ai`, `dataset` (open data? which importer?) and a `scan` summary the UI reads. Two
+  more countries are wired: **Germany** (PZN printed in clear text and as Code 39, `PZN 00000000`;
+  the IFA catalogue is licensed, so the name is typed) and the **United States** (NDC printed,
+  `00000-0000-00`, with the **openFDA NDC Directory** as a free JSON catalogue — the importer now
+  reads JSON too, and the catalogue key is the national number whatever its length). France keeps
+  the EAN-13 (the CIP-13 *is* the EAN), Spain and Austria use the FMD/AI 710, and a country with no
+  schema gets a **dialog** that says the label standard is missing, offers the hand entry and
+  points at the new contributor guide `docs/wiki/Medicines-Country-Schemas.md`.
+### Fixed
+- **The pack serial is no longer read as the drug number.** An SSN label carries a second Code 39
+  with the pack's progressive number (`014058142`), which has the same shape as an old Code 32
+  AIC: the scan stored it as "A014058142" and the catalogue, of course, knew nothing about it.
+  Italy now accepts **only the printed `A` + 9 digits** (and AI 710 of the FMD DataMatrix) — in the
+  barcode path too — so a bare 9-digit read is refused. When such a barcode is read the medicine
+  panel says it in the status line (`medical.scan_code_ignored`) and goes back to the label, the
+  digit-under-the-bars OCR does not run in that panel at all, and the label reader reads **only**
+  the guide rectangle (no full-frame second chance, which could catch another printed number).
+
+### Changed
+- **Two scan panels, never mixed.** The household said it plainly: a food panel that answers with
+  drug codes (and a drug panel that asks a food catalogue) is confusion. `#page-scan` now has two
+  modes chosen by the PLACE the pantry is showing — open the medicine cabinet and the scanner IS
+  the medicine panel: title *Scansiona farmaci*, only **💊 Leggi AIC** and **Aggiungi a mano**, no
+  AI vision, no food name search, no shopping session, no favourites rail (`is-medical-scan`
+  hides every food control in CSS and JS hides the medicine ones outside that mode). Any other
+  place keeps the food panel. A drug code read in the food panel shows one inline notice with
+  *Apri 💊 farmaci*, which puts the pantry on the cabinet and opens the medicine panel in the same
+  tap; an EAN read in the medicine panel is refused with `medical.scan_not_medicine` instead of
+  being sent to five food catalogues. The old "is it a medicine?" dialog is gone, with its
+  four translation keys.
+- **The name catalogue is optional, and it says so.** The medicine form no longer announces a
+  database to download when nothing has been imported: it simply shows no catalogue card, the
+  code is stored and the household types the name. Settings → 💊 Farmaci still explains the
+  optional AIFA import (`medical.dataset_empty`), and the card only appears when there is
+  something to offer.
+- **The medicine form's catalogue note and the credits page tell the truth again**: the name
+  can now come from the AIFA import (`medical.no_catalogue`, `medical.sources_note`,
+  `credits.medicines_note`, `credits.source_aifa_what`, `credits.source_pharmacode_what`,
+  `credits.source_fmd_what`), and the identifying-data disclaimer stays on screen. 21 new keys
+  in six locales.
+
 ## [1.27.0] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Added
@@ -27,6 +116,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   translated in all six locales.
 
 ### Changed
+- **The dashboard's places are one dropdown, and the medicine cabinet keeps its own 💊 pill.**
+  A row of pills stops working at the fourth place — the exact reason the pantry filter became
+  a `<select>`. The Home block now follows the same grammar: `#dashboard-location-select` lists
+  Dispensa, the fridges and every custom place with its product count (and a ⚠ where there is
+  something expired or expiring, since a native list has no red dot), and picking one opens the
+  pantry **on that place**. The control is a way in, not a filter, so it resets after the pick:
+  the same place can be chosen twice. The marked cabinet is deliberately **outside** the list as
+  an always-visible 💊 pill — a cabinet buried in a dropdown is a cabinet nobody opens — and the
+  `＋` that leads to Settings → Luoghi stays next to them.
+- **A food's screen no longer offers the medicine cabinet (and a medicine offers no food place).**
+  The edit form's "📍 Posizione" drew every location the instance has, so a yoghurt could be
+  sent to 💊 *Armadietto farmaci* and a box of pills to the fridge — and the server answered
+  `error.food_in_cabinet` / `error.medicine_needs_cabinet` on save. The group now comes from
+  `_locationsForEdit()` (the row's own place plus the legal ones) and the domain is decided by
+  the **product** (`_editDomainIsMedical()`, falling back to where the row sits): a flagged
+  medicine only ever sees the cabinet, a food never sees it. When a row has a single legal place
+  — a medicine already in its cabinet — the whole block is removed instead of drawing one dead
+  button (`.form-group[hidden]`, because `display: flex` would otherwise defeat `hidden`). The
+  same domain rule now guards the "Da dove?" picker when a settings change repaints it.
+- **The pantry shows the place you opened — header included.** Opening the fridge left the page
+  header reading "Dispensa" and, right above the list, the **medicine-cabinet pill** (it sits
+  before the dropdown): the one thing the household had just chosen was the only thing not
+  written on screen. `_syncInventoryTitle()` now puts the opened place in the header (its icon
+  and name, from the one location list) and restores `inventory.title` — `data-i18n` and all, so
+  a later language pass cannot leave a stale name — when the filter goes back to "Tutti". The
+  cabinet pill is removed from the strip while **another** place is open and comes back where it
+  is the way in: the cabinet itself, or "Tutti" (never buried in a menu).
+- **A medicine box's lot code is no longer read as its AIC.** The report's code `16G87N` is the
+  lot/serial part of the box's EU FMD DataMatrix, not a national medicine code: the detector
+  stripped its letters, got `1687`, and happily claimed a "4-digit Pharmacode", opening the
+  medicine form for a code nobody had read. The rules now live in
+  `data/medical_code_schemas.json` as a `pattern` per code, matched against the **whole** read by
+  both detectors (`_medCodeMatches()` in the browser, `medicalCodeMatches()` on the server — two
+  ports, one rule): the AIC is `^A?\d{9}$`, so both forms the box can print are recognised (the
+  official 9 digits, and `A` + 9 digits in Code 39, e.g. `A017837016`), the Pharmacode is a
+  numeric `^\d{3,6}$` inside 3…131070, and a read with letters in it that matches nothing is
+  **not** claimed. Such a code never reaches the five food catalogues either (its digits are not
+  a product code — that was a wrong lookup waiting to resolve somebody else's product): the
+  household is asked once, with the code it heard. A real Italian drug catalogue exists (AIFA
+  publishes the medicines dataset as open data; third-party REST aggregators expose it), and the
+  schema note says so — wiring one in stays a product decision, because the module deliberately
+  claims no drug and works offline.
 - **The medicine cabinet always sits right after Dispensa, and wears a 💊 instead of the
   cardboard box.** A custom location used to be appended in the order it was typed, with the
   same 📦 as a cellar: the cabinet ended up last in the dashboard rail, in the pantry tabs and
@@ -129,6 +260,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the slug), so the tint, the block and the recipe exclusion apply to the real cabinet.
 
 ### Guard
+- `scripts/test-location-rail.php` (rewritten): runs the shipped `renderLocationRail()` and
+  `_dashboardLocationGo()` in node against stubs and locks the new grammar — the places are one
+  `<select>` (one option each, count + ⚠), the cabinet is **not** an option and keeps its 💊 pill
+  with its own count and red dot, a custom place gets its own option, a hostile name is escaped,
+  the `＋` is the last control and picking a place opens the pantry on it and resets the select.
+- `scripts/test-medical.php` gained the code-format block: every national definition carries a
+  whole-code `pattern`, `16G87N` is **not** a medicine code, the AIC is recognised as
+  `A017837016` and as the bare 9 digits, a number above 131070 is not claimed, a letter-carrying
+  code never reaches the food catalogues, and the shipped JS detector is run in node and
+  compared with the PHP one over a probe list (including the EAN that must stay a food path).
+- `scripts/test-medical.php` gained the edit-screen block: the position group is built from
+  `_locationsForEdit()` in both edit forms (never from every location), a single legal place hides
+  the block, and the shipped `_editDomainIsMedical()` + `_locationsForEdit()` run in node — food
+  never gets the cabinet button, a medicine only its cabinet, a food flagged as food keeps a way
+  OUT of the cabinet, and the legacy `altro` key still reads as the pantry.
+- `scripts/test-location-order.php` grew the strip behaviour: it runs the shipped
+  `_syncLocationFilterUi()` + `_syncInventoryTitle()` in node and locks that opening a place
+  hides the cabinet pill and writes "🧊 Frigo" in the header, while "Tutti" brings both the page
+  name and the pill back (the `[hidden]` rule is checked in CSS too).
 - `scripts/test-location-rename.php` (new): the action is dispatched, the handler moves stock
   + history + the medicine marking in one transaction, rewrites the label list in place,
   writes/reads back the env value, refuses with `error_key`s, and the client paints a pencil,

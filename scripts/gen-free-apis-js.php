@@ -42,7 +42,40 @@ foreach ($data['apis'] as $api) {
         // belong there. Both are data, so adding a service needs no code change.
         'wide'    => !empty($api['wide']),
         'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
+        // A source can be CONDITIONAL (`when`): the national medicine catalogue exists only
+        // for the instance whose module is on and whose country matches. The splash and the
+        // credits read this, so the logo of a source that is not in use is never shown.
+        'when'    => _freeApiWhen($api['when'] ?? null),
     ];
+}
+
+/**
+ * The `when` gate of a source, normalised for the generated file.
+ *
+ * @return array{medical?:bool,country?:array<int,string>}|null
+ */
+function _freeApiWhen($when): ?array
+{
+    if (!is_array($when)) {
+        return null;
+    }
+    $out = [];
+    if (!empty($when['medical'])) {
+        $out['medical'] = true;
+    }
+    if (is_array($when['country'] ?? null)) {
+        $countries = [];
+        foreach ($when['country'] as $cc) {
+            $cc = strtoupper(trim((string)$cc));
+            if (preg_match('/^[A-Z]{2}$/', $cc) === 1) {
+                $countries[] = $cc;
+            }
+        }
+        if ($countries) {
+            $out['country'] = $countries;
+        }
+    }
+    return $out ?: null;
 }
 // Reference sources: the documents the app's own DATA files are built from (the medical
 // code schemas cite GS1, Wikipedia, the EU regulation). They are not called at runtime; they

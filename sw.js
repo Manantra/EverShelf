@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.27.0f';
+const CACHE = 'evershelf-v1.28.0d';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -41,6 +41,10 @@ const SHELL = [
     BASE + 'assets/js/core/auth.js',
     BASE + 'assets/js/core/dom.js',
     BASE + 'assets/js/core/support.js',
+    // The medicine scanner: a country-neutral core + one module per country (Italy prints its
+    // AIC, so its rules live in assets/js/med/italy.js, never in the core).
+    BASE + 'assets/js/core/med.js',
+    BASE + 'assets/js/med/italy.js',
     // Barcode decoding must work offline too.
     BASE + 'assets/vendor/quagga/quagga.min.js',
     BASE + 'assets/vendor/zbar/index.js',

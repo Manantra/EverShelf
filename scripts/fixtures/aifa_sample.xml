@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<medicines>
+    <record>
+        <CODICE_AIC>900000001</CODICE_AIC>
+        <DENOMINAZIONE>FARMACO DEMO ALFA 500 mg compresse</DENOMINAZIONE>
+        <PRINCIPIO_ATTIVO>principio demo alfa</PRINCIPIO_ATTIVO>
+        <FORMA>compresse</FORMA>
+        <DOSAGGIO>500 mg</DOSAGGIO>
+        <CONFEZIONE>20 compresse</CONFEZIONE>
+        <TITOLARE>Ditta Demo S.p.A.</TITOLARE>
+        <ATC>N02BE01</ATC>
+        <FASCIA>A</FASCIA>
+    </record>
+    <record>
+        <CODICE_AIC>900000003</CODICE_AIC>
+        <DENOMINAZIONE>FARMACO DEMO BETA 200 mg capsule rigide</DENOMINAZIONE>
+        <PRINCIPIO_ATTIVO>principio demo beta</PRINCIPIO_ATTIVO>
+        <FORMA>capsule rigide</FORMA>
+        <DOSAGGIO>200 mg</DOSAGGIO>
+        <CONFEZIONE>30 capsule</CONFEZIONE>
+        <TITOLARE>Ditta Esempio S.r.l.</TITOLARE>
+        <ATC>M01AE01</ATC>
+        <FASCIA>C</FASCIA>
+    </record>
+</medicines>

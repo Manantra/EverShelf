@@ -1226,6 +1226,11 @@ try {
         case 'med_status':
             medStatusAction();
             break;
+        // GET med_lookup — the local AIFA catalogue (AIC or name). Read-only, no network:
+        // the dataset is imported once with scripts/import-medicines.php --country=IT.
+        case 'med_lookup':
+            medLookupAction($db);
+            break;
         case 'med_symptom_search':
             medSymptomSearchAction($db);
             break;
@@ -9673,6 +9678,13 @@ function medStatusAction(): void {
         'country' => $country,
         'countries' => $countries,
         'schema' => $schema,
+        // Can this country be scanned at all? `false` makes the client BLOCK the panel with a
+        // dialog (contribution guide + manual entry) instead of pretending to read a label.
+        'scan_supported' => medicalScanSupported($country),
+        'contrib_doc' => (string)(medicalCodeSchemas()['contrib_doc'] ?? ''),
+        // The local AIFA catalogue: how many medicines the importer left behind and when.
+        // `loaded: false` is a fact the UI has to be able to say out loud.
+        'dataset' => medicinesDatasetInfo($db),
         // Where the medicine cabinet is (label or slug, as stored): the client normalises it.
         'medical_locations' => array_values($medLocations),
         'unsupported_note_key' => (string)(medicalCodeSchemas()['unsupported_note_key'] ?? 'medical.country_none_hint'),
@@ -9688,6 +9700,66 @@ function _medicalSettingsMap(PDO $db): array {
         }
     } catch (Throwable $e) { /* no settings: the product flag is enough */ }
     return $out;
+}
+
+/**
+ * GET med_lookup — what the local AIFA catalogue knows about this AIC (or this name).
+ *
+ * The dataset is a local SQLite table imported from the AIFA open data
+ * (`scripts/import-medicines.php --country=IT`): no request ever leaves this server, no key, no quota. The answer
+ * is identification only — AIC, commercial name, active ingredient, form, pack, company — and
+ * says `dataset.loaded=false` when nothing has been imported yet, so the UI can tell "I have no
+ * catalogue" from "I do not know this box".
+ *
+ * Params: `aic` (A+9 or 9 digits, or an FMD DataMatrix that carries it) or `q` (a name read off
+ * the box). Both may be sent: the AIC wins.
+ */
+function medLookupAction(PDO $db): void {
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => true, 'enabled' => false, 'results' => [], 'dataset' => medicinesDatasetInfo($db)], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $country = medicalActiveCountry($db, (string)($_GET['lang'] ?? ''));
+    $raw = (string)($_GET['aic'] ?? '');
+    $query = trim((string)($_GET['q'] ?? ''));
+    // The country module says which number a read carries (Italy: the AIC); the catalogue is
+    // keyed by that number, in its canonical 9-digit form.
+    $local = $raw !== '' ? medicalLocalCode($raw, $country) : null;
+    $aic = (string)($local['aic'] ?? '');
+    if ($aic === '' && $raw !== '') {
+        $aic = medicineNormalizeAic($raw);
+    }
+    $results = [];
+    if ($aic !== '') {
+        $row = medicineFindByAic($db, (string)$aic);
+        if ($row) {
+            $results[] = medicinePublicRow($row);
+        }
+    }
+    if (!$results && $query !== '') {
+        foreach (medicineSearch($db, $query) as $row) {
+            $results[] = medicinePublicRow($row);
+        }
+    }
+    EverLog::info('Medicine catalogue lookup', [
+        'event' => 'med_lookup',
+        'country' => $country,
+        'aic' => (string)$aic,
+        'query_len' => mb_strlen($query),
+        'results' => count($results),
+    ]);
+    echo json_encode([
+        'success' => true,
+        'enabled' => true,
+        'country' => $country,
+        'aic' => (string)$aic,
+        'results' => $results,
+        'dataset' => medicinesDatasetInfo($db),
+        // The source and the licence are shown next to the result: the household must know
+        // where the name came from, and that it is an identification, not advice.
+        'dataset_key' => 'medical.dataset_aifa',
+        'advice_key' => 'medical.no_dosage',
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 /**
@@ -9877,9 +9949,40 @@ function getFreeApis(): void {
             // box, and `splash: false` keeps it off the boot splash (see data/free_apis.json).
             'wide'    => !empty($api['wide']),
             'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
+            // A CONDITIONAL source (`when`): only shown when the module it belongs to is on and
+            // the country matches. Without this field the offline fallback would paint the
+            // national catalogue on an instance that never imported it.
+            'when'    => _freeApiWhenPublic($api['when'] ?? null),
         ];
     }
     echo json_encode(['success' => true, 'apis' => $out], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * The `when` gate of a source, normalised for the client (same shape the generated file has).
+ *
+ * @return array{medical?:bool,country?:array<int,string>}|null
+ */
+function _freeApiWhenPublic($when): ?array
+{
+    if (!is_array($when)) {
+        return null;
+    }
+    $out = [];
+    if (!empty($when['medical'])) {
+        $out['medical'] = true;
+    }
+    $countries = [];
+    foreach ((array)($when['country'] ?? []) as $cc) {
+        $cc = strtoupper(trim((string)$cc));
+        if (preg_match('/^[A-Z]{2}$/', $cc) === 1) {
+            $countries[] = $cc;
+        }
+    }
+    if ($countries) {
+        $out['country'] = $countries;
+    }
+    return $out ?: null;
 }
 
 /**

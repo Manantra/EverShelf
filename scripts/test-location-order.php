@@ -266,6 +266,75 @@ check('the filter label exists in six locales', array_reduce(['it','en','de','fr
     return $c && trim((string)($d['inventory']['location_filter'] ?? '')) !== '';
 }, true));
 
+// ── The place you opened is what the pantry shows ───────────────────────────
+// "When I open a place I do not want to see the medicine cabinet or anything else above it:
+// I want to see the place I opened." The cabinet pill sits BEFORE the dropdown, and the header
+// was always the page name ("Dispensa") — even above the fridge — so the one thing the
+// household had just chosen was the one thing not written on screen.
+$syncFn = extract_fn($app, '_syncLocationFilterUi');
+$titleFn = extract_fn($app, '_syncInventoryTitle');
+check('the pantry strip paints its state through one function', $syncFn !== '' && $titleFn !== '');
+check('the cabinet pill is removed while another place is open',
+    (bool)preg_match("/if \\(btn\\.classList\\.contains\\('tab-medical'\\)\\) \\{\\s*btn\\.hidden = !!locKey && !isMedicalLocation\\(locKey\\);/s", $syncFn));
+check('a hidden tab is really hidden (author CSS cannot resurrect it)',
+    str_contains((string)file_get_contents($root . '/assets/css/style.css'), '.location-tabs .tab[hidden] { display: none; }'));
+if ($syncFn !== '' && $titleFn !== '') {
+    $syncHarness = $syncFn . "\n" . $titleFn . <<<'JS'
+let currentLocation = 'frigo';
+const LOCATIONS = {
+    dispensa: { icon: '🗄️', label: 'Dispensa' },
+    custom_armadietto: { icon: '💊', label: 'Armadietto' },
+    frigo: { icon: '🧊', label: 'Frigo' },
+};
+const MEDICAL_LOCATION_ICON = '💊';
+const isMedicalLocation = (key) => key === 'custom_armadietto';
+const normalizeLocationKey = (k) => String(k || '');
+const t = (k) => k;
+const pill = (loc) => ({
+    dataset: { loc }, hidden: false,
+    classList: { _c: new Set(['tab', loc === 'custom_armadietto' ? 'tab-medical' : 'tab']),
+        contains(c) { return this._c.has(c); }, toggle(c, on) { if (on) this._c.add(c); else this._c.delete(c); } },
+});
+const pills = [pill('custom_armadietto'), pill('frigo')];
+const tabs = { querySelectorAll: () => pills };
+const sel = { value: 'X', querySelectorAll: () => [], insertBefore: () => {} };
+const title = {
+    textContent: 'Dispensa', attrs: { 'data-i18n': 'inventory.title' },
+    hasAttribute(k) { return k in this.attrs; },
+    setAttribute(k, v) { this.attrs[k] = v; },
+    removeAttribute(k) { delete this.attrs[k]; },
+};
+const document = { getElementById: (id) => ({ 'location-tabs': tabs, 'location-select': sel, 'inventory-title': title })[id] || null };
+
+_syncLocationFilterUi();
+const fridge = { pillHidden: pills[0].hidden, title: title.textContent, i18nAttr: title.attrs['data-i18n'] || '', select: sel.value };
+currentLocation = '';
+pills[0].hidden = false;
+_syncLocationFilterUi();
+const all = { pillHidden: pills[0].hidden, title: title.textContent, i18nAttr: title.attrs['data-i18n'] || '' };
+console.log(JSON.stringify({ fridge, all }));
+JS;
+    $syncTmp = sys_get_temp_dir() . '/loc_sync_' . getmypid() . '.js';
+    file_put_contents($syncTmp, $syncHarness);
+    $syncRaw = shell_exec('node ' . escapeshellarg($syncTmp) . ' 2>&1');
+    @unlink($syncTmp);
+    $sync = json_decode(trim((string)$syncRaw), true);
+    check('the strip harness runs in node', is_array($sync), (string)$syncRaw);
+    if (is_array($sync)) {
+        check('opening a place hides the cabinet pill and names the place in the header',
+            ($sync['fridge']['pillHidden'] ?? false) === true
+            && ($sync['fridge']['title'] ?? '') === '🧊 Frigo'
+            && ($sync['fridge']['i18nAttr'] ?? 'x') === ''
+            && ($sync['fridge']['select'] ?? '') === 'frigo',
+            json_encode($sync['fridge'] ?? []));
+        check('"Tutti" brings the page name and the cabinet pill back',
+            ($sync['all']['pillHidden'] ?? true) === false
+            && ($sync['all']['title'] ?? '') === 'inventory.title'
+            && ($sync['all']['i18nAttr'] ?? '') === 'inventory.title',
+            json_encode($sync['all'] ?? []));
+    }
+}
+
 // ── Opening a place means "that place" ──────────────────────────────────────
 // "I put 5 products in Dispensa cucina and I see 1": a leftover search query (and a tag
 // filter) followed the household from another place, and the search itself looked at the

@@ -221,6 +221,28 @@ foreach ((array)($freeApis['apis'] ?? []) as $api) {
         // `splash: false` keeps a logo that cannot be read at 22 px off the boot splash.
         'wide'    => !empty($api['wide']),
         'splash'  => !array_key_exists('splash', $api) || $api['splash'] !== false,
+        // A CONDITIONAL source (`when`): the national catalogue is shown only where its module
+        // is on and the country matches. Same normalisation as scripts/gen-free-apis-js.php.
+        'when'    => (static function ($when): ?array {
+            if (!is_array($when)) {
+                return null;
+            }
+            $out = [];
+            if (!empty($when['medical'])) {
+                $out['medical'] = true;
+            }
+            $cc = [];
+            foreach ((array)($when['country'] ?? []) as $one) {
+                $one = strtoupper(trim((string)$one));
+                if (preg_match('/^[A-Z]{2}$/', $one) === 1) {
+                    $cc[] = $one;
+                }
+            }
+            if ($cc) {
+                $out['country'] = $cc;
+            }
+            return $out ?: null;
+        })($api['when'] ?? null),
     ];
 }
 $freeGenerated = (string)file_get_contents($root . '/assets/js/free_apis.generated.js');

@@ -1,0 +1,22 @@
+{
+    "meta": { "results": { "skip": 0, "limit": 2, "total": 2 } },
+    "results": [
+        {
+            "product_ndc": "00000-0001-01",
+            "brand_name": "DEMO DRUG ALPHA",
+            "generic_name": "demo ingredient alpha",
+            "labeler_name": "Demo Pharma LLC",
+            "dosage_form": "TABLET",
+            "product_type": "HUMAN PRESCRIPTION DRUG",
+            "active_ingredients": [ { "name": "demo ingredient alpha", "strength": "500 mg" } ]
+        },
+        {
+            "product_ndc": "00000-0002-02",
+            "brand_name": "DEMO DRUG BETA COLD AND FLU",
+            "generic_name": "demo ingredient beta",
+            "labeler_name": "Demo Pharma LLC",
+            "dosage_form": "CAPSULE",
+            "product_type": "HUMAN OTC DRUG"
+        }
+    ]
+}
