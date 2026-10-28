@@ -111,6 +111,17 @@ check('the product modal has a quantity stepper',
     str_contains($app, 'function _itemDetailConsume(')
     && str_contains($app, 'class="item-detail-stepper"')
     && str_contains($css, '.item-detail-step-value {'));
+check('the modal keeps the quarter/half/three-quarter shortcuts',
+    // Reported by the household: when "Usa" started opening this sheet instead of the legacy
+    // page, the fraction buttons stayed behind. A piece is still eaten in quarters.
+    str_contains($app, 'function _itemDetailFractionOptions(item)')
+    && str_contains($app, 'function _itemDetailSetQty(value)')
+    && (bool)preg_match('/_itemDetailFractionsHtml\(item\)/s', $app)
+    && (bool)preg_match("/add\(0\.25, '¼'\);\s*add\(0\.5, '½'\);\s*add\(0\.75, '¾'\);/s", $app)
+    && str_contains($app, 'class="item-detail-frac')
+    && str_contains($css, '.item-detail-frac-row {')
+    // Only where a fraction is reachable: one option is not a choice.
+    && (bool)preg_match('/if \(opts\.length < 2\) return/s', $app));
 check('the product modal has one primary, one secondary, neutral support',
     str_contains($app, 'class="item-detail-primary"')
     && str_contains($app, 'class="item-detail-secondary"')

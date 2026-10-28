@@ -2402,6 +2402,36 @@ a.free-api:hover { border-color: var(--brand-primary); }
 .scan-med-hint[hidden] { display: none; }
 /* "Non è questo?": the codes one digit away, inside the form where the name they change is.
    A pill row on the card's own surface — never a panel over the camera. */
+/* Quarter / half / three-quarter shortcuts in the product modal: neutral chips (the emerald is
+   the Consume button), one row, wrapping on a phone. */
+.item-detail-frac-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 2px;
+}
+.item-detail-frac {
+    flex: 1 1 auto;
+    min-width: 46px;
+    padding: 9px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.item-detail-frac:hover,
+.item-detail-frac:focus-visible {
+    border-color: var(--brand-primary);
+}
+.item-detail-frac.is-on {
+    border-color: var(--brand-primary);
+    box-shadow: inset 0 0 0 1px var(--brand-primary);
+    color: var(--brand-primary);
+}
 .med-match-filled {
     color: var(--brand-primary);
     font-weight: 600;

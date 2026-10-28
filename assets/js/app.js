@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028m'; // bump when translations change
+const _I18N_VERSION = '20261028n'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13293,6 +13293,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     <span class="item-detail-step-value" id="item-detail-qty-value">${_itemDetailQtyLabel()}</span>
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
                 </div>
+                ${_itemDetailFractionsHtml(item)}
                 <button type="button" class="item-detail-primary" onclick="_itemDetailConsume()">
                     <span class="item-detail-action-icon" aria-hidden="true">✓</span>
                     <span>${escapeHtml(t('inventory.detail_consume'))}</span>
@@ -13378,6 +13379,70 @@ function _itemDetailQtyLabel() {
     const n = Math.round(q.value * 100) / 100;
     const label = q.unit === 'conf' ? t('units.conf') : (q.unit === 'pz' ? t('units.pz') : q.unit);
     return `${n} ${label}`;
+}
+
+/**
+ * The quarter / half / three-quarter shortcuts of the product modal.
+ *
+ * They lived only on the legacy USE page, so when "Usa" started opening this sheet they
+ * disappeared from the household's hands — the stepper alone cannot say "un quarto". A piece or
+ * a pack is still eaten in fractions, and one tap is the whole point.
+ *
+ * @param {object} item the inventory row (for a packaged product's own size)
+ * @returns {Array<{value:number,label:string}>}
+ */
+function _itemDetailFractionOptions(item) {
+    const q = _itemDetailQty;
+    const opts = [];
+    const seen = {};
+    const add = (value, label) => {
+        const v = Math.round(Number(value) * 100) / 100;
+        if (!(v > 0) || v > q.max + 1e-6 || seen[v]) return;
+        seen[v] = true;
+        opts.push({ value: v, label: label });
+    };
+    if (q.unit === 'pz' || q.unit === 'conf') {
+        add(0.25, '¼');
+        add(0.5, '½');
+        add(0.75, '¾');
+        add(1, q.unit === 'conf' ? `1 ${t('units.conf')}` : t('use.one_whole'));
+        if (q.max >= 2) add(2, q.unit === 'conf' ? `2 ${t('units.conf')}` : '2');
+    } else if (q.unit === 'g' || q.unit === 'ml' || q.unit === 'kg' || q.unit === 'l') {
+        // A weight is used in fractions of the PACK when the pack size is known.
+        const pack = parseFloat(item && item.default_quantity);
+        if (pack > 0) {
+            add(pack * 0.25, '¼');
+            add(pack * 0.5, '½');
+            add(pack * 0.75, '¾');
+            add(pack, t('use.one_whole'));
+        }
+    }
+    return opts;
+}
+
+/** The chip row itself (empty string when no fraction can be chosen). */
+function _itemDetailFractionsHtml(item) {
+    const opts = _itemDetailFractionOptions(item);
+    if (opts.length < 2) return '';
+    const current = Math.round(_itemDetailQty.value * 100) / 100;
+    return `<div class="item-detail-frac-row">` + opts.map(o => {
+        const on = Math.abs(o.value - current) < 0.005;
+        return `<button type="button" class="item-detail-frac${on ? ' is-on' : ''}" data-frac="${o.value}" onclick="_itemDetailSetQty(${o.value})">${escapeHtml(o.label)}</button>`;
+    }).join('') + `</div>`;
+}
+
+/** One of the shortcuts: the number goes into the stepper, the chips follow. */
+function _itemDetailSetQty(value) {
+    const q = _itemDetailQty;
+    const v = Math.round(Number(value) * 100) / 100;
+    if (!(v > 0)) return;
+    q.value = Math.min(q.max, v);
+    const el = document.getElementById('item-detail-qty-value');
+    if (el) el.textContent = _itemDetailQtyLabel();
+    document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
+        const f = parseFloat(b.dataset.frac);
+        b.classList.toggle('is-on', Math.abs(f - q.value) < 0.005);
+    });
 }
 
 function _itemDetailStep(dir) {
@@ -15546,7 +15611,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028m';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15556,7 +15621,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
