@@ -5,6 +5,192 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.1] - 2026-10-28 · branch `refactor_25_10_2026`
+
+### Fixed
+- **The camera never started: `_setScanMode()` threw on every scan page open.** v1.28.0 removed
+  the "💊 Leggi AIC" button and left the identifier behind (`ocrBtn`) in the panel setup. The
+  function threw `ReferenceError`, so `showPage('scan')` never reached **`initScanner()`**: the
+  camera, the barcode decoder and the label OCR never ran, the status chip never changed and the
+  household saw a frozen frame — which reads exactly as "it does not read anything". The dead
+  line (and the CSS that sized its column) is gone, and `_setScanMode()` now runs its body inside
+  a `try` (`_setScanModeInner()`): a cosmetic detail can never cost the scanner again. Guard:
+  `scripts/test-medical.php` fails if that identifier ever comes back, if the wrapper
+  disappears, or if `initScanner()` stops following `_setScanMode()` in the scan branch.
+- **The reader answers faster, and a certain read stops asking questions.** From the household's
+  own successful scan: the pass that read the code was the **binarized strip** (0.8 s) and it
+  arrived only after eight passes and two AI calls. The rotation is five regions now, the
+  binarized one first, the region that worked last time goes first on the next attempt, and
+  the AI fallback waits for ~8 passes and runs at most once every 12 s. A **confirmed** AIC
+  shows one line ("riconosciuto A…") and a **"Non è questo?"** link that reveals the
+  neighbours on demand: the alternatives belonged to a doubtful read, and showing them next to
+  a code the catalogue confirms only made the household wonder. The **active ingredient** now
+  fills its own field (it lived only inside the notes), and the add step **refuses an expiry
+  date in the past** and warns when it is three days away — nothing is written before that
+  check. The "an opened pack counts its expiry from the opening" line is gone: it explained a
+  rule nobody asked about on that screen.
+- **The thin `0` after the A: a read is now REPAIRED as a candidate, and the catalogue decides.**
+  The household's label (`A042386348`) was read `A42386348` by every pass — a correct line with
+  one character lost — so the pattern never matched and nothing happened. A read of `A` + 8
+  digits now yields the `0`-restored number as a **candidate**, which goes through the same
+  catalogue verification as any read (`_medTryLooseReads` → `_medConfirmRead`): verified on the
+  household's own read, `A42386348` resolves to AIC `042386348` = Brufen Analgesico 400 mg
+  12 compresse (Mylan). The AI never guesses a medicine: a variant that is not in the AIFA rows
+  opens nothing — and the reader never asks a model: the catalogue is the only authority.
+- **One label attempt at a time.** The scan loop and the barcode kick could run together, the
+  jobs interleaved in the worker and every one of them timed out (the 20 s storm in the log) —
+  which also made the reader believe the device was slow and shrink the pictures. The size is
+  now lowered only when a pass FINISHES slowly.
+- **No more worker restarts, and a slow device gets smaller pictures.** Every timeout used to
+  terminate the OCR worker, so the next attempt reloaded the 3 MB model — the household's log
+  shows a restart loop where NOTHING could ever finish (12 s timeouts on a 102k-pixel strip). 
+  Now a timeout only releases the queue, the deadline is 20 s, and the pictures get smaller
+  (640 px / 60k) only when a pass FINISHES slowly — the timeouts were the queue storm, not the
+  device. Each pass logs **how long it took**, so the real speed is measured instead of guessed.
+- **The printed `A` must START a token.** The log showed the reader returning `AIC 014058142`: 
+  the pack's progressive number promoted to a drug code because the tail of the word printed
+  above it (`AAA`) sat right before the digits. A letter `A` in front now rejects the match,
+  while any other letter (the previous word of the line, after the separators are compacted)
+  is accepted — the case `…compresseA040313076` still reads.
+- **A medicine now has a real expiry, and no estimate.** Food gets a shelf-life estimate because
+  nobody prints one; a medicine box prints `scadenza MM/AAAA`, so the add step for a medical row
+  shows **an empty date field and asks for that date** (`add.expiry_from_pack`), refuses a past
+  one, warns when it is three days away, and **refuses to save without it**
+  (`add.expiry_required`). The history average and the AI shelf-life hint are skipped for a
+  medicine (they would invent a date), and switching "appena comprato"/"ce l'avevo già" keeps
+  the date the household typed instead of re-estimating it. The expiry camera button stays
+  food-only: the medicines module never calls a model.
+- **A code the catalogue does not have is no longer a dead end.** The household's box read
+  `A029788027` three times, identically, and the AIFA rows have no such pack: the app refused
+  it (rightly — a wrong digit must not open a box) and the screen simply kept scanning, which
+  reads as "it did nothing". The SECOND identical read now opens the form **with that code** and
+  says it: "A029788027 non è nel catalogo AIFA: controlla il codice sulla scatola o correggilo
+  qui" (chip + toast, six locales). Nothing is invented: the code is what the camera read, the
+  name stays empty until the household fills it.
+- **Twenty seconds, and the camera really stops.** The nudge used to be a toast over a live
+  preview — invisible in practice. Now `stopScanner()` releases the camera, the code row lights
+  up and takes the focus, and a **"Riprendi"** button restarts the reader when the household
+  wants another go.
+- **The medicine form lost its noise.** A confirmed box now shows the code in the banner and one
+  line ("Riconosciuto A042386348"), with **"Non è questo?" as a small footnote at the end** of the
+  card instead of a button in the middle of the information; the "Farmaco riconosciuto / il nome
+  arriva dal catalogo…" texts and the "Fonte: AIFA · N farmaci" line are gone (three keys
+  removed from the six locales). The **"Scade dopo l'apertura (giorni)" field is gone too**: it
+  asked the household to compute a rule the pack never prints. A PAO already stored in Settings
+  is preserved, and the closed category + the active ingredient still fill themselves from the
+  catalogue row (ATC → category, `PF-MED-INGREDIENT` ← principio attivo).
+- **Ten seconds without a read, and the household is asked for the code.** The log of one scan of
+  the Brufen box shows 25 `job timed out` and passes coming back with `"A"`, `"A 2"`, `""`: on
+  that phone the bundled engine cannot finish a pass, and the camera loop was busy waiting for
+  it. After ten seconds the code row is **highlighted, focused, and says so** in six locales
+  ("scrivilo qui sotto, es. A042386348"); after three timeouts in the same session the local
+  engine is **not asked again** — it wedges — while the barcode keeps trying, so the camera stays
+  responsive and the field is the answer. The number is verified by the catalogue exactly like a
+  read: nothing is guessed.
+- **The BARCODE comes first again, magnified.** The household's log showed the decoder
+  hallucinating on a dense Code 39 (`18FJXD`, `1836XD` for a bollino that prints
+  `A042386348`): at 720p, with the sticker filling a third of the frame, each module is ~2 px.
+  The medicine panel now decodes a **2× crop of the guide rectangle** (native detector + ZBar,
+  every other frame) **before** any OCR: that is the pharmacist's path — the number that comes
+  back IS the catalogue key, no guesswork — and the rear camera asks for 1920×1080 instead of
+  1280×720. The OCR stays as the second path (binarized strip first). A worker that stops
+  answering is replaced after two timeouts without a successful pass in between: the 20 s
+  `job timed out` storms in the log were a wedged engine, not a slow device.
+- **The medicine reader NEVER calls the AI.** A vision-model fallback (`gemini_med_aic`) was
+  added for devices too slow for the local engine and has been **removed on the household's
+  instruction**: a medicine is identified by a printed code verified against the catalogue,
+  never by a model. The shelf-life AI hint is skipped on a medical row too, so nothing about a
+  drug ever leaves the database. Guard: `scripts/test-medical.php` fails if any `gemini_*` /
+  `_medReadLabelAi` reference comes back.
+- **The phone needed half a second per 10k pixels: the reader now sends STRIPS.** The read
+  diagnostic caught it: on the household's phone every `recognize()` exceeded 7 s (a 400k-pixel
+  crop), while the engine's self-test (77k) passed — the frames themselves were perfect. The
+  unit of work is now a **thin strip of the guide rectangle** (~1/3 of its height, 900 px wide,
+  ~100k pixels, three overlapping strips covering the whole label, plus the 1.5× one and a
+  binarized copy), the whole-frame pass is gone (0.9 Mpx bought nothing), the pixel budget is
+  180k and a job may take 12 s. The guide rectangle itself is taller (18% → 26% of the viewport)
+  with the hint "inquadra l'etichetta intera": the household aimed at a letterbox and the
+  printed line kept falling out of it.
+- **Two undeclared variables: the label reader had NEVER run.** `_medFullPassAt` (shipped in
+  v1.28.0) and `_medOcrQueue` (lost in this cycle's timeout refactor) were used but never
+  declared, so `_medReadLabelOcr()` threw `ReferenceError` before reading anything: the OCR
+  produced **no log line, no frame, no feedback**, and the scan loop swallowed the error. Both
+  are declared now, a failed attempt always says why (`Medicine OCR attempt failed: …`), and
+  `scripts/test-medical.php` gained a **static declaration check** over every `_med*` symbol
+  the app uses (declarations may live in app.js, `core/med.js` or `med/italy.js`) — the check
+  fails on the exact bug that cost this round, and on the next one.
+- **The phone's own video is portrait, and the reader now knows it.** The remote client log showed
+  `videoWidth: 720, videoHeight: 1280`: the bands were computed for a landscape frame and the
+  canvas could reach 0.7 Mpx, which `tesseract.js` chews on for tens of seconds. The bands are
+  now 40% of the height with a 0.4 Mpx **pixel budget**, the side cap is 900 px again, and every
+  OCR job has a **7 s deadline** that releases the queue and replaces the worker after two
+  timeouts — a `recognize()` that never settled used to hold `medOcrBusy` forever, which is
+  exactly 'two minutes and nothing happens'. The reader also says WHY it bailed out (module
+  off, no pattern, no frame) and the scan panel logs which mode it is in.
+- **TEMPORARY diagnostic for the medicine reader (`MED_DEBUG=true`).** `POST med_debug` records,
+  per OCR pass, the region/psm/video geometry, the text it got and — bounded to a dozen small
+  JPEGs per session — the crop itself, under `data/med_debug/` (400 events / 40 pictures max,
+  nothing leaves the server, 403 the moment the flag is off). It is the tool used to diagnose
+  the household's own phone: turn `MED_DEBUG=false`, or delete the folder, when the
+  investigation is over.
+- **The medicine reader can read a printed AIC again, and a barcode is a way in again.** The
+  scanner had been left with ONE path — the OCR of the printed block — because an earlier
+  release refused every barcode in the medicine panel. On a real Italian box that means a single
+  point of failure: one missed digit and the reader reports nothing at all, which is exactly what
+  "l'OCR non funziona più" looked like. Now:
+  - the **AIC itself, printed as a Code 39 on the bollino** (`A040313076`), is accepted again, and
+    so is AI `710` of the FMD DataMatrix. Both go through the same verification as any read
+    (`_medConfirmRead()`): a number the AIFA catalogue does not contain — the lot `16G87N`, the
+    pack's progressive number `0140581421`, a serial that happens to start with an `A` — is
+    refused and the reader keeps going, instead of blindfolding the whole scanner;
+  - Italy's schema declares `national_code: "both"` / `barcodes: true`, and the pack's
+    progressive number is now listed under `ignored` with its own label
+    (`medical.code_progressive`), so the household is told *what* was read and discarded;
+  - the OCR regained the hand of a human holding the box: **one rotating band of the whole frame
+    per attempt** (`_medFrameBands()`, half the frame tall, 50 % overlap) beside the guide
+    rectangle, so a printed block that sits outside the drawn box is still found;
+  - the modes were measured, not guessed, on a reproduction of a real Italian bollino
+    (Tachipirina orosolubile, `A040313076`, lot `16G87N`, progressive `014058142`): a half-frame
+    **band read with the single-line mode (psm 7) returns `'32'` — or nothing at all on a
+    smaller frame — because a band holds several lines; with psm 6 the same band reads
+    `A040313076`**. The band pass therefore switched to psm 6, and a **psm 13 (raw line)** pass
+    was added on the guide rectangle: it is the pass that returned the printed block clean even
+    on a blurred, downscaled frame (`44040313076`, repaired to the AIC by the prefix tolerance);
+  - **the reader now answers in about a second instead of five**, and the chip belongs to it: on a
+    phone ONE attempt used to run six OCR jobs in a row (3-5 s) while the lot barcode rewrote the
+    status every 1.5 s with a 125-character sentence the chip cut to "… non è il numero …". Now
+    an attempt is **one region**, rotating through the rectangle and three half-frame bands, with
+    the two winning regions first (measured on a 1280x720 phone frame with the sticker at 40% of
+    the width: the block segmentation on the rectangle and the middle band carried the AIC),
+    every 900 ms; a packaging code announces itself once per 8 s and never over a line the reader
+    just wrote; the message fits the chip in six locales; the crop now **grows** beyond the drawn
+    rectangle instead of shrinking inside it (an AIC line wider than the frame lost a character at
+    each end), and the canvas is 1400 px so a box read from 30 cm has thick enough characters;
+  - the printed `A` that the camera turns into a `4` (or `@`, `&`) is **recovered**, and a page
+    whose letter is lost entirely hands its digit runs to the catalogue
+    (`_medOcrDigitCandidates()` → `_medTryLooseReads()`, four at most, each one verified). Both
+    forgiving paths are **closed when no catalogue is loaded**: there is nothing to prove a
+    number with, so the strict rule stays.
+- **Moving a product to another place no longer re-dates it.** The suggested expiry follows the
+  **kind** of place — pantry, fridge, freezer — and never its name, so "Dispensa cucina" is
+  dated exactly like "Dispensa" (`storageKindOfLocation()`, ported to PHP as
+  `storageKindOfLocationPHP()`; the kind is read from the built-in key, from the label the
+  built-ins carry in the active language and from the words the CSV import already knew — no new
+  vocabulary, six locales covered). Beyond that, a pick between two places of the **same** kind
+  now leaves the date alone instead of silently replacing it with a rule estimate: the add form
+  (`recalculateAddExpiry()`) and both edit modals (`recalcEditExpiry()`) recompute only when the
+  kind changes, or on purpose (the vacuum toggle, "appena comprato"), and the AI hint may no
+  longer apply days that belong to a place the household did not choose. A custom freezer
+  ("Freezer garage") is a freezer for the estimate and for the safety verdict too.
+
+### Added
+- **The add step asks a medicine box its own two questions.** Food asks "quanto?" and "quando
+  scade?"; a box also asks **sigillata o già aperta** — an opened pack calls `med_open`, so its
+  expiry becomes today + the storage life after opening (`med_pao_days`) — and **quante ne
+  restano**, as fractions of the pack the catalogue describes ("10 buste" → tutta / ¾ / ½ / ¼,
+  from `_medPackCount()`). A liquid ("1 flacone 200 ml") names no pieces: the fraction row stays
+  hidden and the quantity field is the answer. Nine new keys in all six locales.
+
 ## [1.28.0] - 2026-10-27 · branch `refactor_25_10_2026`
 
 ### Added

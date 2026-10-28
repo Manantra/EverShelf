@@ -101,7 +101,7 @@ check('the last step requires a location, existing or brand new',
 check('finishing stores enable + consent + location + setup_done in one save',
     (bool)preg_match('/med_enabled: true,[\s\S]{0,200}?med_disclaimer_accepted: true,[\s\S]{0,200}?medical_locations: \[name\],[\s\S]{0,120}?med_setup_done: true/s', $app));
 check('the UI re-reads the server after saving (the switch cannot lie)',
-    (bool)preg_match('/await _medSaveInstanceSettings\(\{[\s\S]{0,900}?await _medRefreshStatus\(\);/s', $app));
+    (bool)preg_match('/await _medSaveInstanceSettings\(\{[\s\S]{0,1600}?await _medRefreshStatus\(\);/s', $app));
 check('the introduction can be reopened from Settings',
     str_contains($html, 'onclick="_medReopenSetup()"') && str_contains($app, 'function _medReopenSetup'));
 
@@ -186,7 +186,7 @@ check('the Italian schema never claims an EAN or a Pharmacode as a drug code',
     && ($ccs['IT']['gs1'][0] ?? []) === ['800', '839']);
 check('the packaging codes are listed as IGNORED, with the action to take instead',
     array_reduce($ccs['IT']['ignored'] ?? [], fn($c, $def) => $c
-        && in_array($def['type'] ?? '', ['pharmacode', 'laetus'], true)
+        && in_array($def['type'] ?? '', ['pharmacode', 'laetus', 'progressivo'], true)
         && ($def['action'] ?? '') === 'ocr'
         && !empty($def['pattern']), true)
     && count($ccs['IT']['ignored'] ?? []) >= 2);
@@ -276,7 +276,7 @@ check('both files are loaded by the app shell and by the service worker',
     && str_contains((string)file_get_contents($root . '/sw.js'), "assets/js/core/med.js")
     && str_contains((string)file_get_contents($root . '/sw.js'), "assets/js/med/italy.js"));
 if (count($jsFns) === 9 && $itFn !== '') {
-    $probes = ['A040313076', 'A034548040', 'A012745182', '014058142', 'a 040 313 076',
+    $probes = ['A040313076', 'A034548040', 'A012745182', '014058142', '0140581421', 'a 040 313 076',
         '123456', '16G87N', '999999', '8012345678901', 'LOT2024ABC', '8001234567890',
         "01080123456789011727043010ABC123\x1d710040313076"];
     $detectHarness = 'let _medStatus = ' . json_encode(['schema' => $ccs['IT'] ?? []]) . ";\n"
@@ -308,6 +308,8 @@ if (count($jsFns) === 9 && $itFn !== '') {
             ($js['16G87N'][2] ?? false) === true
             && ($js['A040313076'][1] ?? '') === 'aic'
             && ($js['014058142'][0] ?? true) === false
+            && ($js['0140581421'][0] ?? true) === false
+            && ($js['0140581421'][2] ?? false) === true
             && ($js["01080123456789011727043010ABC123\x1d710040313076"][1] ?? '') === 'aic'
             && ($js['8012345678901'][0] ?? true) === false,
             json_encode($js));
@@ -377,9 +379,11 @@ check('a code above the Pharmacode maximum is not claimed either',
 check('a letter-carrying code never reaches a food catalogue',
     str_contains($app, 'if (/[A-Z]/.test(raw)) return false;'));
 check('in Italy the medicine panel runs NO barcode engine at all',
-    // The household's words: "it must not read the barcode". The flag is data
-    // (`scan.barcodes: false` for IT) and it gates the native detector, ZBar, the crop pass,
-    // the digit OCR, Quagga and the confirm path.
+    // The household's words: "it must not read the barcode". They were about the SERIAL printed
+    // next to the AIC, and the answer is not "read no barcode at all" (the AIC itself is one, and
+    // that is the most reliable read on the pack): it is "accept only the drug number". The flag
+    // is still DATA (`scan.barcodes` in the country schema) and still gates the native detector,
+    // ZBar, the crop pass, the digit OCR, Quagga and the confirm path.
     (bool)preg_match('/function _medScanBarcodes\(\)[\s\S]{0,400}?scan\.barcodes/s', $app)
     && (bool)preg_match('/const decodeBarcodes = !_scanModeIsMedical\(\) \|\| _medScanBarcodes\(\);/s', $app)
     && (bool)preg_match('/if \(decodeBarcodes && _detectorNative\)/s', $app)
@@ -398,11 +402,13 @@ check('the hint is ONE short line over the viewfinder (it was a white card)',
             && (bool)preg_match('/\.scan-med-hint \{[^}]*background: none;/s', $css)
             && (bool)preg_match('/\.scan-med-hint \{[^}]*border: 0;/s', $css);
     })());
-check('the medicine panel never takes the drug number from a barcode',
-    // Only the FMD DataMatrix is unambiguous (AI 710); every other Code 39 on the SSN label
-    // — the AIC on top AND the pack serial at the bottom — has the same shape as an AIC, so
-    // none of them is accepted: the printed block is read instead. Asserted on the scan-loop
-    // branch itself (the OBDetected one below still asks _medNationalCode, by design).
+check('the medicine panel takes ONLY the drug number from a barcode (never a packaging code)',
+    // TWO reads identify the drug: AI 710 of the FMD DataMatrix, and the AIC itself printed as a
+    // Code 39 (`A040313076` — the bollino carries it, and it is the most reliable read on the
+    // pack). Everything else on that sticker is PACKAGING: the lot (`16G87N`), the pack's
+    // progressive number (`0140581421`), the DataMatrix that joins them, the Laetus/Pharmacode.
+    // Those still send the reader to the printed block, and nothing is opened before the
+    // catalogue proves the number (`_medConfirmRead`).
     (function () use ($app) {
         $anchor = "    if (_scanModeIsMedical()) {\n        const gs1 = _medGs1Parse(raw);";
         $from = strpos($app, $anchor);
@@ -411,19 +417,36 @@ check('the medicine panel never takes the drug number from a barcode',
         if ($to === false) { return false; }
         $branch = substr($app, $from, $to - $from);
         return str_contains($branch, "gs1.ais['71']")
+            && str_contains($branch, 'const printedForm = /^A\\d{9}$/.test(_medCompactCode(raw));')
+            && str_contains($branch, '_medConfirmRead(local.aic, method);')
             && str_contains($branch, '_medOcrKick();')
             && str_contains($branch, "t('medical.scan_code_ignored')")
-            && !str_contains($branch, '_medNationalCode(')
             && !str_contains($branch, '_finalizeBarcode(raw,');
+    })());
+check('the schema, not the app, says which carriers a country reads',
+    // Italy declares BOTH (`national_code: both`, `barcodes: true`) because the AIC is a barcode
+    // as well as printed text; the packaging patterns stay in the same data file.
+    (($schemas['countries']['IT']['scan']['barcodes'] ?? null) === true)
+    && (($schemas['countries']['IT']['scan']['national_code'] ?? '') === 'both')
+    && in_array('progressivo', array_column($schemas['countries']['IT']['ignored'] ?? [], 'type'), true)
+    && (function () use ($schemas) {
+        foreach (($schemas['countries']['IT']['ignored'] ?? []) as $row) {
+            if (($row['type'] ?? '') === 'progressivo') {
+                return ($row['pattern'] ?? '') === '^\\d{9,10}$'
+                    && ($row['label_key'] ?? '') === 'medical.code_progressive'
+                    && ($row['action'] ?? '') === 'ocr';
+            }
+        }
+        return false;
     })());
 check('the guide rectangle is the OCR field of view (and says what to frame)',
     str_contains($html, 'id="scan-med-frame"')
     && str_contains($html, 'id="scan-med-frame-sample"')
     && str_contains($app, 'function _medGuideRect(')
-    && (bool)preg_match('/const guide = _medGuideRect\(videoEl\);\s*const wide = guide \? _medGuideRect\(videoEl, 1\.5\) : null;/s', $app)
-    && (bool)preg_match('/passes\\.push\\(\\{\\s*region: guide, psm: /s', $app)
+    && (bool)preg_match('/const strips = _medLabelStrips\(videoEl\);/s', $app)
+    && (bool)preg_match('/rotation\\.push\\(\\{\\s*region: strips\[1\], psm: /s', $app)
     && (bool)preg_match('/const canvas = pass\.binarize[\s\S]{0,200}?_captureMedLabelFrame\(videoEl, pass\.region, true\)/s', $app)
-    && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,1600}?sample\.textContent = _medOcrSample\(\);/s', $app));
+    && (bool)preg_match('/function _setScanModeInner\(mode\)[\s\S]{0,2600}?sample\.textContent = _medOcrSample\(\);/s', $app));
 check('the barcode-hunting chrome is gone from the medicine panel',
     str_contains($css, '#page-scan.is-medical-scan .scanner-line')
     && str_contains($css, '#page-scan.is-medical-scan .scan-ai-cloud')
@@ -438,8 +461,8 @@ check('the hint tells the household WHICH code to frame, in six locales',
 check('the AIC read by the OCR is stored as the box prints it (A + 9 digits)',
     str_contains($app, 'const aic = String(det.aic || (local && local.aic)')
     && str_contains($app, "(aic ? ('A' + aic) :")
-    && (bool)preg_match("/_finalizeBarcode\('A' \+ code, 'OCR'\);/s", $app)
-    && (bool)preg_match('/_finalizeBarcode\(local\.code, method\);\s*return true;/s', $app));
+    && (bool)preg_match("/_finalizeBarcode\('A' \+ code, method\);/s", $app)
+    && (bool)preg_match('/_medConfirmRead\(local\.aic, method\);\s*return true;/s', $app));
 check('a medicine code is not pre-fetched from the food catalogues',
     // The handover happens before the food pipeline, so the prefetch only ever sees products.
     (bool)preg_match('/if \(_medOn\(\) && \(_medNationalCode\(rawCode\) \|\| _medCodeIgnored\(rawCode\)\)\) \{[\s\S]{0,300}?_medShowCrossHint\(\);/s', $app)
@@ -504,8 +527,11 @@ check('every box has its own "Segna aperto"', str_contains($app, 'function _medM
 check('the product form carries the medicine toggle, hidden until the module is on',
     str_contains($html, 'id="pf-medical-group"') && str_contains($html, 'id="pf-medical-group" hidden')
     && str_contains($html, 'id="pf-is-medical"'));
-check('the toggle shows the closed category chips and the PAO, never a free text tag',
-    str_contains($html, 'id="pf-med-cats"') && str_contains($html, 'id="pf-med-pao"')
+check('the toggle shows the closed category chips, never a free text tag',
+    str_contains($html, 'id="pf-med-cats"')
+    && str_contains($html, 'id="pf-med-ingredient"')
+    // "scade dopo l'apertura" is not a question a pantry should ask on that screen
+    && !str_contains($html, 'id="pf-med-pao"')
     && !preg_match('/id="pf-med-cats"[^>]*contenteditable/', $html));
 check('saving the form stores the medical fields through med_classify',
     (bool)preg_match("/const medPayload = _pfMedicalPayload\(\);[\s\S]{0,400}?api\('med_classify', \{ product_id: result\.id/s", $app));
@@ -513,7 +539,7 @@ check('the add step defaults to the medical location for a medicine',
     // The value is resolved to a pantry KEY (the stored marking may be the typed label) and
     // recorded as decided, so no history/AI hint can move a medicine out of its cabinet.
     (bool)preg_match('/const autoLoc = resolveLocationKey\(\(_isMedicalRow\(currentProduct\) && medLoc\) \? medLoc : guessLocation\(currentProduct\)\) \|\| \'dispensa\';/s', $app)
-    && (bool)preg_match('/function _medArmProductForm\(code = \'\', labelKey = \'\'\)[\s\S]{0,900}?addLoc\.value = resolveLocationKey\(loc\);[\s\S]{0,200}?addLoc\.dataset\.userPicked = \'1\';/s', $app));
+    && (bool)preg_match('/function _medArmProductForm\(code = \'\', labelKey = \'\'\)[\s\S]{0,1600}?addLoc\.value = resolveLocationKey\(loc\);[\s\S]{0,200}?addLoc\.dataset\.userPicked = \'1\';/s', $app));
 check('editing a product shows its own medical fields',
     (bool)preg_match("/t\('product\.title_edit'\);\n    _syncProductMedicalUi\(currentProduct\)/", $app));
 
@@ -523,7 +549,7 @@ check('editing a product shows its own medical fields',
 check('the panel follows the PLACE the pantry is showing',
     str_contains($html, 'id="scan-title"')
     && (bool)preg_match('/function _scanModeForLocation\(loc\)[\s\S]{0,600}?medical_locations/s', $app)
-    && (bool)preg_match("/case 'scan':[\s\S]{0,900}?_setScanMode\(_scanModeForLocation\(currentLocation\)\);/s", $app));
+    && (bool)preg_match("/case 'scan':[\s\S]{0,1600}?_setScanMode\(_scanModeForLocation\(currentLocation\)\);/s", $app));
 check('the medicine panel is a different screen, not a corner of the food one',
     str_contains($css, '#page-scan.is-medical-scan #scan-ai-manual-btn')
     && str_contains($css, '#page-scan.is-medical-scan .scan-quick-rail')
@@ -538,7 +564,7 @@ check('the medicine panel offers ONE field to type the code (no read/add buttons
     && !str_contains($app, 'function _medOcrFromScan(')
     && !str_contains($app, 'function _medManualFromScan(')
     && (bool)preg_match("/const codeRow = document\\.getElementById\\('scan-med-code-row'\\);/s", $app)
-    && (bool)preg_match('/function _medSubmitCode\\(\\)[\\s\\S]{0,900}?_medConfirmRead\\(/s', $app));
+    && (bool)preg_match('/function _medSubmitCode\\(\\)[\\s\\S]{0,1600}?_medConfirmRead\\(/s', $app));
 check('the medicine panel refuses an EAN instead of looking it up',
     // The scan loop never finalises an EAN there (it kicks the label OCR); the defensive branch
     // in onBarcodeDetected is what says it out loud.
@@ -563,10 +589,13 @@ check('a packaging code is never stored as the product barcode',
 // The report: "it says the code is recognised but fills neither name, brand nor category,
 // then the whole screen still talks about food, it asks me whether it is a medicine (of
 // course it is, you detected it!) and the family suggests Spaghetti".
-check('the medicine form has its own banner (code + no-catalogue note)',
+check('the medicine form has its own banner, and it says only the code',
+    // "Farmaco riconosciuto / il nome arriva dal catalogo…" was noise on a screen the household
+    // has already understood: the banner carries the code it read and nothing else.
     str_contains($html, 'id="pf-med-banner"')
     && str_contains($html, 'id="pf-med-banner-code"')
-    && str_contains($html, 'data-i18n="medical.form_no_catalogue"'));
+    && !str_contains($html, 'medical.form_no_catalogue')
+    && !str_contains($html, 'medical.form_detected'));
 check('the food-only fields are marked, and hidden in medicine mode',
     substr_count($html, 'pf-food-only') >= 6
     && str_contains((string)file_get_contents($root . '/assets/css/surfaces.css'),
@@ -611,7 +640,7 @@ check('the cabinet is never discovered by opening a second connection',
     // getDB() builds a NEW PDO and runs the migrations on it: a second connection left open
     // made the next UPDATE of the same request answer "database is locked".
     (bool)preg_match('/function inventoryOrphanCustomLocations\(\?PDO \$db = null\): array/s', $apiSrc2)
-    && !preg_match('/function inventoryOrphanCustomLocations\(\?PDO \$db = null\): array[\s\S]{0,900}?getDB\(\)/s', $apiSrc2));
+    && !preg_match('/function inventoryOrphanCustomLocations\(\?PDO \$db = null\): array[\s\S]{0,1600}?getDB\(\)/s', $apiSrc2));
 check('the add asks the allow-list with the request connection',
     (bool)preg_match('/function addToInventory\(PDO \$db\): void[\s\S]{0,6000}?\$validLocations = validInventoryLocations\(\$db\);/s', $apiSrc2));
 check('the client offers only the right places',
@@ -703,7 +732,8 @@ check('the three refusals are translated in six locales', array_reduce(['it','en
 check('the medical form copy exists in all six locales', array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
     $d = json_decode((string)file_get_contents($root . "/translations/{$l}.json"), true);
     $m = $d['medical'] ?? [];
-    foreach (['form_title','form_detected','form_no_catalogue','form_name_label','form_name_placeholder',
+    // the banner keeps only the code: `form_detected` / `form_no_catalogue` are gone with the noise
+    foreach (['form_title','form_name_label','form_name_placeholder',
               'form_brand_label','form_brand_placeholder','form_code_label','pick_category'] as $k) {
         if (trim((string)($m[$k] ?? '')) === '') { return false; }
     }
@@ -788,7 +818,8 @@ JS;
 check('each panel hides the other one (no silent cross-over)',
     str_contains($css, '#page-scan.is-medical-scan #scan-manual-btn')
     && str_contains($app, 'if (!medical) _medHideCrossHint();')
-    && (bool)preg_match("/function _setScanMode\(mode\)[\s\S]{0,3400}?actionBar\.classList\.toggle\('has-med'/s", $app));
+    && str_contains($app, 'if (codeRow) codeRow.hidden = !medical;')
+    && str_contains($app, "if (codeInput && !medical) codeInput.value = '';"));
 check('the module says it queries no catalogue (so no country is promised)',
     str_contains($html, 'data-i18n="medical.no_catalogue"')
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
@@ -819,7 +850,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 180 medical keys', $aligned && count($base) === 180);
+check('all six locales carry the same 190 medical keys', $aligned && count($base) === 190);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -892,7 +923,10 @@ check('a file without an AIC column is refused, not imported as garbage',
 // The client: the card, the button, and the OCR of the label.
 check('the catalogue FILLS the form: name, company, notes and the closed category',
     str_contains($html, 'id="pf-med-match"')
-    && (bool)preg_match('/function _medShowCatalogueMatch\(code\)[\s\S]{0,4200}?_medUseMatch\(\$\{i\}\)/s', $app)
+    && str_contains($app, 'async function _medShowCatalogueMatch(code)')
+    && (bool)preg_match('/function _medMatchCard\(aic, rows\)[\s\S]{0,2000}?_medUseMatch\(\$\{i\}\)/s', $app)
+    // A CONFIRMED read shows one line and a "not this?" link, never a list of alternatives.
+    && str_contains($app, 'function _medShowAlternatives()')
     && (bool)preg_match("/function _medFillFromCatalogue\(row, options = \{\}\)[\s\S]{0,1400}?set\('pf-name'/s", $app)
     && (bool)preg_match("/set\('pf-brand', String\\(row\\.company\\)/s", $app)
     && (bool)preg_match("/set\('pf-notes', details\\.join\\(/s", $app)
@@ -900,7 +934,38 @@ check('the catalogue FILLS the form: name, company, notes and the closed categor
     && (bool)preg_match('/function _medUseMatch\(index\)[\s\S]{0,500}?_medFillFromCatalogue\(row, \{ force: true \}\)/s', $app)
     // A typed value is never overwritten: only empty fields (or fields WE filled) are written.
     && (bool)preg_match('/if \(!options\.force && current && current !== mine\) return;/s', $app)
-    && (bool)preg_match('/_medFillFromCatalogue\(exactRow\);\s*host\.innerHTML = `/s', $app));
+    && str_contains($app, '_medFillFromCatalogue(exactRow);')
+    && str_contains($app, "t('medical.match_filled')")
+    && str_contains($app, "t('medical.not_this')")
+    && str_contains($css, '.med-alt-link'));
+check('a CONFIRMED read offers no alternatives, and the form is filled for the household', (function () use ($app, $css, $med) {
+    // "perché mi dà delle alternative se è già sicuro?" — the neighbours belong to a doubtful
+    // read. A confirmed AIC shows one line and a "not this?" link that REVEALS them on demand.
+    return (bool)preg_match('/if \(exactRow\) \{[\s\S]{0,1200}?_medNeighbourCodes = \[\];/s', $app)
+        && str_contains($app, 'function _medShowAlternatives()')
+        && str_contains($app, "t('medical.not_this')")
+    && str_contains($css, '.med-alt-link')
+        // the active ingredient has its own field, not only a line in the notes
+        && str_contains($app, "set('pf-med-ingredient'")
+        && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+            return $c && isset($med[$l]['not_this']) && $med[$l]['not_this'] !== '';
+        }, true);
+})());
+check('a date in the past is refused before anything is written', (function () use ($app) {
+    // A typo (or a mis-read) must not create a row that is already expired.
+    return (bool)preg_match("/if \(Number\.isFinite\(daysLeft\) && daysLeft < 0\) \{\s*showToast\(t\('add\.expiry_past'\)/s", $app)
+        && str_contains($app, "t('add.expiry_soon')");
+})());
+check('the "an opened pack counts from the opening" hint is gone', (function () use ($app, $med) {
+    $keys = 0;
+    foreach ($med as $block) { if (isset($block['state_opened_hint'])) { $keys++; } }
+    return !str_contains($app, 'state_opened_hint') && $keys === 0;
+})());
+check('the reader tries the pass that reads (binarized) first and remembers it', (function () use ($app) {
+    return str_contains($app, "label: 'strip-ink', binarize: true });") 
+        && (bool)preg_match('/if \(_medBestPass\) \{/', $app)
+        && str_contains($app, '_medBestPass = pass.label;');
+})());
 check('the NAME is read off the box when the catalogue cannot name it',
     // An empty catalogue used to mean an empty form. The label prints its own name above the
     // AIC, and the camera is still live at that moment: one extra pass, one plausible line.
@@ -918,44 +983,6 @@ check('the NAME is read off the box when the catalogue cannot name it',
     }, true));
 $medLib = (string)file_get_contents($root . '/api/lib/medicines.php');
 $italyMod = (string)file_get_contents($root . '/api/lib/med/italy.php');
-check('the catalogue downloads and refreshes itself (no ssh, no manual step)',
-    // The module being ON is the consent: the free source the country declares is fetched, and
-    // refreshed monthly. A failed download never empties what is already there (upsert).
-    (bool)preg_match("/'dataset_sync' => \[/s", $italyMod)
-    && str_contains($italyMod, "'urls' => ['https://drive.aifa.gov.it/farmaci/confezioni_fornitura.csv']")
-    && str_contains($italyMod, "'max_bytes'")
-    && str_contains($apiSrc2, "case 'med_catalog_sync':")
-    && (bool)preg_match('/function medCatalogSyncAction\(PDO \$db\)[\s\S]{0,2600}?medicinesSyncSources\(\$db, \$sync/s', $apiSrc2)
-    && str_contains($apiSrc2, "'event' => 'med_catalog_sync'")
-    && (bool)preg_match('/function medicinesSyncSources\(PDO \$db[\s\S]{0,4000}?medicinesDownloadToFile\(/s', $medLib)
-    && (bool)preg_match('/function medicinesDownloadToFile[\s\S]{0,1600}?CURLOPT_FILE/s', $medLib)
-    // The client: automatic (once a day, when the module is on) + the manual nudge.
-    && (bool)preg_match('/function _medMaybeAutoSyncCatalog\(\)[\s\S]{0,1400}?_MED_CATALOG_STALE_DAYS/s', $app)
-    && (bool)preg_match('/_applyMedUi\(\);\s*\/\/ A conditional credit source[\s\S]{0,400}?_medMaybeAutoSyncCatalog\(\)/s', $app)
-    && (bool)preg_match('/async function _medSyncCatalog\(options = \{\}\)[\s\S]{0,900}?med_catalog_sync/s', $app)
-    && str_contains($html, 'id="med-dataset-sync"')
-    // And the cron keeps it fresh even if nobody opens the settings.
-    && (bool)preg_match('/if \(medicalEnabled\(\$db\)\)[\s\S]{0,1200}?medicinesSyncSources/s', (string)file_get_contents($root . '/api/cron_smart_shopping.php')));
-check('a new medicine asks the catalogue as soon as the form opens',
-    (bool)preg_match('/function _medStartManualEntry\(barcode, medical = true, labelKey = \'\'\)[\s\S]{0,400}?_medShowCatalogueMatch\(barcode\);/s', $app));
-check('Settings shows how many medicines are loaded (or that none are)',
-    str_contains($html, 'id="med-dataset-block"') && str_contains($html, 'id="med-dataset-hint"')
-    && str_contains($app, 'function _renderMedDataset()')
-    && str_contains($app, 'medical.dataset_loaded') && str_contains($app, 'medical.dataset_empty'));
-check('the OCR of the label uses ONE engine in two modes (no second worker)',
-    (bool)preg_match('/async function _ensureTesseractWorker\(mode = \'digits\'\)/s', $app)
-    && str_contains($app, "tessedit_pageseg_mode: '6'")
-    && str_contains($app, "tessedit_pageseg_mode: '7'")
-    && substr_count($app, 'Tesseract.createWorker(') === 1);
-check('in the medicine panel the LABEL is the source, not the fallback',
-    str_contains($app, 'const _MED_OCR_FIRST_MS = 600;')
-    && str_contains($app, 'const _MED_OCR_INTERVAL_MS = 2000;')
-    && str_contains($app, 'const _MED_OCR_MAX_ATTEMPTS = 45;')
-    // The loop reads the label in the medicine panel only (the food panel never OCRs a box),
-    // it starts on the first frames, and a hit opens the medicine form with the AIC.
-    && (bool)preg_match('/if \(_scanModeIsMedical\(\) && _medOcrPatterns\(\)\.length[\s\S]{0,900}?_medReadLabelOcr\(\{ silent: true \}\)/s', $app)
-    && (bool)preg_match('/_medReadLabelOcr\(\{ silent: true \}\)[\s\S]{0,900}?_medConfirmRead\(reading\.aic\);/s', $app)
-    && str_contains($app, 'async function _medReadLabelOcr('));
 check('the medicine panel says what it is doing (it reads a label, not a barcode)',
     (bool)preg_match("/_setScanStatus\(_scanModeIsMedical\(\) \? t\('medical\.ocr_reading'\)/s", $app));
 check('no box is painted over the camera: the digits in the frame are the feedback',
@@ -974,9 +1001,9 @@ check('the reader makes the printed block readable (binarize, upscale, three pas
     (bool)preg_match('/function _binarizeScanCanvas\(canvas\)[\s\S]{0,1200}?putImageData/s', $app)
     && str_contains($app, 'if (binarize) _binarizeScanCanvas(canvas);')
     && (bool)preg_match("/if \(mode === 'aic'\)[\s\S]{0,300}?tessedit_char_whitelist: '0123456789A'/s", $app)
-    && str_contains($app, "passes.push({ region: guide, psm: '7', label: 'frame' });")
-    && str_contains($app, "passes.push({ region: guide, psm: '7', label: 'frame-ink', binarize: true });")
-    && str_contains($app, "label: 'wide', binarize: true"));
+    && str_contains($app, "rotation.push({ region: strips[1], psm: '6', label: 'strip-ink', binarize: true });")
+    && str_contains($app, "rotation.push({ region: strips[1], psm: '13', label: 'strip-raw' });")
+    && str_contains($app, "label: 'wide-strip'"));
 check('the typed code goes through the same verification as a read',
     (bool)preg_match('/function _medSubmitCode\\(\\)[\\s\\S]{0,1400}?_medLocalCode\\(/s', $app)
     && (bool)preg_match("/if \\(!code\\) \\{[\\s\\S]{0,200}?medical\\.code_invalid_shape/s", $app)
@@ -1039,15 +1066,17 @@ check('the contribution guide explains the per-country situation',
     && str_contains($md, 'How to add your country'));
 check('every country declares whether it can be scanned',
     array_reduce($ccs, fn($c, $b) => $c && array_key_exists('supported', (array)($b['scan'] ?? [])), true));
-check('Italy is the PRINTED case, France the BARCODE case',
-    ($ccs['IT']['scan']['national_code'] ?? '') === 'printed'
-    && ($ccs['IT']['scan']['ocr'] ?? false) === true
-    && ($ccs['FR']['scan']['national_code'] ?? '') === 'barcode'
-    && ($ccs['FR']['scan']['ocr'] ?? true) === false);
-check('Italy decodes NO barcode in the medicine panel; DE and US keep theirs',
-    ($ccs['IT']['scan']['barcodes'] ?? true) === false
-    && ($ccs['DE']['scan']['barcodes'] ?? false) === true
-    && ($ccs['US']['scan']['barcodes'] ?? false) === true);
+check('Italy reads BOTH carriers, France only the barcode', (function () use ($ccs) {
+    return ($ccs['IT']['scan']['national_code'] ?? '') === 'both'
+        && ($ccs['IT']['scan']['ocr'] ?? false) === true
+        && ($ccs['FR']['scan']['national_code'] ?? '') === 'barcode'
+        && ($ccs['FR']['scan']['ocr'] ?? true) === false;
+})());
+check('the medicine panel decodes barcodes again — and accepts only the drug number', (function () use ($ccs) {
+    return ($ccs['IT']['scan']['barcodes'] ?? false) === true
+        && ($ccs['DE']['scan']['barcodes'] ?? false) === true
+        && ($ccs['US']['scan']['barcodes'] ?? false) === true;
+})());
 check('Germany and the US print their number too, with their own sample',
     ($ccs['DE']['ocr']['sample'] ?? '') === 'PZN 00000000'
     && str_contains((string)($ccs['DE']['ocr']['patterns'][0] ?? ''), 'PZN')
@@ -1072,7 +1101,7 @@ check('a country with no schema is NOT scannable (the UI blocks it)',
 check('med_status hands the block decision and the guide to the client',
     str_contains($api, "'scan_supported' => medicalScanSupported(\$country)")
     && str_contains($api, "'contrib_doc' =>")
-    && (bool)preg_match('/function _medScanSupported\(\)[\s\S]{0,900}?_medStatus\.scanSupported/s', $app)
+    && (bool)preg_match('/function _medScanSupported\(\)[\s\S]{0,1600}?_medStatus\.scanSupported/s', $app)
     && (bool)preg_match('/function _scanModeIsMedical\(\)[\s\S]{0,400}?_medScanSupported\(\)/s', $app));
 check('the blocked dialog says it, offers the manual entry and the guide',
     (bool)preg_match('/function _medBlockedPopup\(\)[\s\S]{0,1800}?medical\.scan_unsupported_title/s', $app)
@@ -1085,9 +1114,9 @@ check('the blocked dialog says it, offers the manual entry and the guide',
             && mb_strlen((string)($d['medical']['scan_unsupported_contrib'] ?? '')) > 30;
     }, true));
 check('the hint above the camera follows the country',
-    (bool)preg_match('/function _medScanHintText\(\)[\s\S]{0,900}?medical\.scan_hint_pzn/s', $app)
+    (bool)preg_match('/function _medScanHintText\(\)[\s\S]{0,1600}?medical\.scan_hint_pzn/s', $app)
     && (bool)preg_match('/function _medScanHintText\(\)[\s\S]{0,1400}?medical\.scan_hint_ndc/s', $app)
-    && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,1800}?hint\.textContent = medical \? _medScanHintText\(\)/s', $app));
+    && (bool)preg_match('/function _setScanModeInner\(mode\)[\s\S]{0,2600}?hint\.textContent = medical \? _medScanHintText\(\)/s', $app));
 check('the panel hides the reader where it cannot read',
     (bool)preg_match('/const readable = medical && _medScanSupported\(\) && _medOcrPatterns\(\)\.length > 0;/s', $app)
     && (bool)preg_match('/if \(medical && !_medScanSupported\(\)\) _medBlockedPopup\(\);/s', $app));
@@ -1158,18 +1187,22 @@ check('a read is VERIFIED against the catalogue before anything opens',
     // `A040313076` read as `...72`: the formulary has no such medicine, so the scanner keeps
     // reading instead of handing the household the wrong box. With no catalogue loaded there is
     // nothing to verify against, and the read is taken (the label name fills the form).
-    str_contains($app, 'async function _medConfirmRead(read)')
+    str_contains($app, "async function _medConfirmRead(read, method = 'OCR')")
     && substr_count($app, '_medConfirmRead(reading.aic)') === 3
     && !str_contains($app, '_medAskAic(')
     && str_contains($app, 'const _medRejectedReads = new Set();')
-    && (bool)preg_match("/if \\(loaded && !exact\\) \\{[\\s\\S]{0,400}?_medRejectedReads\\.add\\(code\\);\\s*_medLastRejectedAt = Date\\.now\\(\\);/s", $app)
-    && (bool)preg_match("/function _medConfirmRead\\(read\\)[\\s\\S]{0,2600}?_finalizeBarcode\\('A' \\+ code, 'OCR'\\);/s", $app)
+    // The FIRST identical read that the catalogue has no row for only says so; a SECOND one
+    // (the digits are stable, the export is incomplete) opens the form WITH the code and a warning.
+    && (bool)preg_match("/const hits = \(_medRejectHits\\.code === code \? _medRejectHits\\.n : 0\) \\+ 1;/s", $app)
+    && (bool)preg_match("/if \(hits < 2\) \{[\s\S]{0,300}?medical\.scan_code_invalid/s", $app)
+    && (bool)preg_match("/medical\.read_unknown_hint/s", $app)
+    && (bool)preg_match("/function _medConfirmRead\\(read, method = 'OCR'\\)[\\s\\S]{0,2600}?_finalizeBarcode\\('A' \\+ code, method\\);/s", $app)
     && (bool)preg_match('/_medNeighbourCodes = loaded \\? _medChoiceCandidates\(code, rows, 4\)/s', $app)
     && (bool)preg_match('/_medNeighboursHtml\\(rows\\)/s', $app));
 check('a doubtful read is correctable where the name is (not over the camera)',
     // The read opens the form; the numbers one edit away are chips on the catalogue card, so a
     // wrong digit is one tap from the right box — and nothing covers the viewfinder.
-    (bool)preg_match("/function _medNeighboursHtml\(rows\)[\s\S]{0,900}?medical\\.choice_title_inline/s", $app)
+    (bool)preg_match("/function _medNeighboursHtml\(rows\)[\s\S]{0,1600}?medical\\.choice_title_inline/s", $app)
     && (bool)preg_match('/function _medRenderNeighbours\(\)[\s\S]{0,700}?med-neighbour-row/s', $app)
     && (bool)preg_match("/function _medUseCode\\(code\\)[\\s\\S]{0,500}?medical\\.choice_switched/s", $app)
     && (bool)preg_match('/if \\(!rows\\.length\\) \\{[\\s\\S]{0,600}?_medLabelNameFill\(\) \+\s*_medNeighboursHtml\(rows\)/s', $app)
@@ -1193,13 +1226,13 @@ check('the reader says WHY it cannot read (engine, geometry, frames)',
     str_contains($app, "t('medical.ocr_engine_error')")
     && str_contains($app, 'function _medOcrGeometryNote(videoEl, region)')
     && (bool)preg_match('/GEOM frame [^`]{0,12}crop/s', $app)
-    && str_contains($app, "label: 'whole-frame'")
+    && str_contains($app, 'function _medLabelStrips(videoEl, expand = 1)')
+    && !str_contains($app, "label: 'whole-frame'")
     // No `applyConstraints()` on a live medicine stream: re-negotiating the track restarted the
     // camera on some phones and left the reader with nothing (the frame stayed at 000000000).
     && !str_contains($app, '_medBoostResolution')
     // What the pass actually read is one line in the status chip that is already there.
     && str_contains($app, "t('medical.ocr_saw')")
-    && (bool)preg_match("/if \(now - _medFullPassAt > 6000\)/s", $app)
     // The geometry stays in the log: the household asked for no boxes on the camera.
     && !str_contains($css, '.scan-med-read-geom')
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
@@ -1210,11 +1243,13 @@ check('the guide frame fills with the digits already recognised',
     && (bool)preg_match("/el\\.textContent = digits\\.length >= 3/s", $app)
     && (bool)preg_match('/_medPreviewSample\\(page, aic\\);/s', $app)
     && str_contains($css, '.scan-med-frame-sample.is-read'));
-check('the catalogue card says where the name came from (and the rest of the row)',
-    str_contains($app, "t('medical.match_source')")
-    && str_contains($app, "row.atc ? t('medical.match_atc')")
+check('the catalogue card carries the row details, not a lecture',
+    str_contains($app, "row.atc ? t('medical.match_atc')")
     && str_contains($app, "row.fascia ? t('medical.match_fascia')")
-    && str_contains($app, 'med-match-source'));
+    && str_contains($app, "row.pack ? t('medical.match_pack')")
+    // the source paragraph was noise: the household asked what the box is, not where it comes from
+    && !str_contains($app, "t('medical.match_source')")
+    && !str_contains($app, 'med-match-source'));
 check('the free catalogue can be loaded from Settings (no SSH, no API call)',
     str_contains($apiSrc, "case 'med_catalog_import':")
     && (bool)preg_match('/function medCatalogImportAction\(PDO \$db\)[\s\S]{0,3000}?medicinesImportFile\(\$db, \$path/s', $apiSrc)
@@ -1234,6 +1269,189 @@ check('the candidates are ranked by distance, the read first',
 
 check('a catalogue export needs the country module to be mapped',
     medicinesImportFile($usDb, $root . '/scripts/fixtures/openfda_ndc_sample.json', [])['error'] === 'missing_columns');
+
+check('the catalogue downloads and refreshes itself (no ssh, no manual step)',
+    // The module being ON is the consent: the free source the country declares is fetched, and
+    // refreshed monthly. A failed download never empties what is already there (upsert).
+    (bool)preg_match("/'dataset_sync' => \[/s", $italyMod)
+    && str_contains($italyMod, "'urls' => ['https://drive.aifa.gov.it/farmaci/confezioni_fornitura.csv']")
+    && str_contains($italyMod, "'max_bytes'")
+    && str_contains($apiSrc2, "case 'med_catalog_sync':")
+    && (bool)preg_match('/function medCatalogSyncAction\(PDO \$db\)[\s\S]{0,2600}?medicinesSyncSources\(\$db, \$sync/s', $apiSrc2)
+    && str_contains($apiSrc2, "'event' => 'med_catalog_sync'")
+    && (bool)preg_match('/function medicinesSyncSources\(PDO \$db[\s\S]{0,4000}?medicinesDownloadToFile\(/s', $medLib)
+    && (bool)preg_match('/function medicinesDownloadToFile[\s\S]{0,1600}?CURLOPT_FILE/s', $medLib)
+    // The client: automatic (once a day, when the module is on) + the manual nudge.
+    && (bool)preg_match('/function _medMaybeAutoSyncCatalog\(\)[\s\S]{0,1400}?_MED_CATALOG_STALE_DAYS/s', $app)
+    && (bool)preg_match('/_applyMedUi\(\);\s*\/\/ A conditional credit source[\s\S]{0,400}?_medMaybeAutoSyncCatalog\(\)/s', $app)
+    && (bool)preg_match('/async function _medSyncCatalog\(options = \{\}\)[\s\S]{0,900}?med_catalog_sync/s', $app)
+    && str_contains($html, 'id="med-dataset-sync"')
+    // And the cron keeps it fresh even if nobody opens the settings.
+    && (bool)preg_match('/if \(medicalEnabled\(\$db\)\)[\s\S]{0,1200}?medicinesSyncSources/s', (string)file_get_contents($root . '/api/cron_smart_shopping.php')));
+
+check('a new medicine asks the catalogue as soon as the form opens',
+    (bool)preg_match('/function _medStartManualEntry\(barcode, medical = true, labelKey = \'\'\)[\s\S]{0,400}?_medShowCatalogueMatch\(barcode\);/s', $app));
+
+check('Settings shows how many medicines are loaded (or that none are)',
+    str_contains($html, 'id="med-dataset-block"') && str_contains($html, 'id="med-dataset-hint"')
+    && str_contains($app, 'function _renderMedDataset()')
+    && str_contains($app, 'medical.dataset_loaded') && str_contains($app, 'medical.dataset_empty'));
+
+check('the OCR of the label uses ONE engine in two modes (no second worker)',
+    (bool)preg_match('/async function _ensureTesseractWorker\(mode = \'digits\'\)/s', $app)
+    && str_contains($app, "tessedit_pageseg_mode: '6'")
+    && str_contains($app, "tessedit_pageseg_mode: '7'")
+    && substr_count($app, 'Tesseract.createWorker(') === 1);
+
+check('in the medicine panel the LABEL is the source, not the fallback',
+    str_contains($app, 'const _MED_OCR_FIRST_MS = 600;')
+    && str_contains($app, 'const _MED_OCR_INTERVAL_MS = 900;')
+    && str_contains($app, 'const _MED_OCR_MAX_ATTEMPTS = 45;')
+    // The loop reads the label in the medicine panel only (the food panel never OCRs a box),
+    // it starts on the first frames, and a hit opens the medicine form with the AIC.
+    && (bool)preg_match('/if \(_scanModeIsMedical\(\) && _medOcrPatterns\(\)\.length[\s\S]{0,1600}?_medReadLabelOcr\(\{ silent: true \}\)/s', $app)
+    && (bool)preg_match('/_medReadLabelOcr\(\{ silent: true \}\)[\s\S]{0,1600}?_medConfirmRead\(reading\.aic\);/s', $app)
+    && str_contains($app, 'async function _medReadLabelOcrInner('));
+
+check('a dropped leading zero is repaired as a CANDIDATE (the catalogue decides)', (function () use ($medCoreJs) {
+    // The household's own label: `A042386348` read as `A42386348` — the thin 0 after the A is
+    // the character OCR loses most. The repair is a candidate, verified against the AIFA rows.
+    if (!str_contains($medCoreJs, 'A([0-9lIO]{8})(?![0-9lIO])')) {
+        return false;
+    }
+    $root = dirname(__DIR__);
+    $schema = json_decode((string)file_get_contents($root . '/data/medical_code_schemas.json'), true);
+    $it = $schema['countries']['IT'] ?? [];
+    $tmp = sys_get_temp_dir() . '/med_zero_' . getmypid() . '.js';
+    $code = 'let _medStatus={schema:' . json_encode($it) . ',dataset:{loaded:true,count:1}};' . "\n"
+        . $medCoreJs . "\n" . (string)file_get_contents($root . '/assets/js/med/italy.js') . "\n"
+        . 'console.log(JSON.stringify([_medOcrDigitCandidates("A42386348",4), _medOcrDigitCandidates("A 42386348",4)]));';
+    file_put_contents($tmp, $code);
+    $raw = shell_exec('node ' . escapeshellarg($tmp) . ' 2>&1');
+    @unlink($tmp);
+    $out = json_decode(trim((string)$raw), true);
+    return is_array($out)
+        && in_array('042386348', $out[0] ?? [], true)
+        && in_array('042386348', $out[1] ?? [], true);
+})());
+check('one label attempt at a time (the loop and the barcode kick must not interleave)', (function () use ($app) {
+    return str_contains($app, 'let _medAttemptBusy = false;')
+        && (bool)preg_match('/if \(_medAttemptBusy\) return null;/s', $app)
+        && (bool)preg_match('/async function _medReadLabelOcrInner\(/s', $app);
+})());
+check('the medicine reader NEVER calls the AI (data, not a guess)', (function () use ($app, $api) {
+    // The module identifies a box with a printed code verified against the catalogue: no vision
+    // model, no third-party answer, ever. The shelf-life hint skips a medicine too.
+    return !str_contains($app, 'gemini_med_aic')
+        && !str_contains($app, '_medReadLabelAi')
+        && !str_contains($api, 'geminiMedAic')
+        && (bool)preg_match('/&& !medicalRow\) \{\s*_applyAIProductHint\(\);/s', $app);
+})());
+check('every `_med*` symbol the app uses is DECLARED', (function () use ($root, $app) {
+    // `_medOcrQueue` lost its `let` in a refactor: every OCR call threw `ReferenceError` and the
+    // loop swallowed it. `node -c` cannot see that; a declaration check can.
+    $sources = [$app];
+    foreach (array_merge(glob($root . '/assets/js/core/*.js') ?: [], glob($root . '/assets/js/med/*.js') ?: []) as $file) {
+        $sources[] = (string)file_get_contents($file);
+    }
+    $declared = [];
+    foreach ($sources as $src) {
+        preg_match_all('/function\s+(_med[A-Za-z0-9_]+)/', $src, $m1);
+        preg_match_all('/(?:let|const|var)\s+([^;\n]*)/', $src, $m2);
+        foreach ($m1[1] as $name) { $declared[$name] = true; }
+        foreach ($m2[1] as $line) {
+            preg_match_all('/_med[A-Za-z0-9_]+/', $line, $mm);
+            foreach ($mm[0] as $name) { $declared[$name] = true; }
+        }
+    }
+    $stripped = (string)preg_replace('/\.[_A-Za-z0-9]+/', '', $app);
+    preg_match_all('/\b_med[A-Za-z0-9_]+/', $stripped, $mu);
+    $missing = [];
+    foreach (array_unique($mu[0]) as $name) {
+        if (!isset($declared[$name])) { $missing[] = $name; }
+    }
+    sort($missing);
+    return $missing === [];
+})());
+check('a failed OCR attempt says why (never swallowed)', (function () use ($app) {
+    return str_contains($app, 'Medicine OCR attempt failed')
+        && str_contains($app, 'Medicine OCR kick failed');
+})());
+check('a lot barcode does not talk over the reader', (function () use ($app) {
+    return (bool)preg_match("/if \(nowIgnored - _medLastOcrStatusAt > 2500\) \{\s*_setScanStatus\(t\('medical\.scan_code_ignored'\)/s", $app)
+        && (bool)preg_match('/nowIgnored - _medIgnoredEcho\.at < 8000/s', $app)
+        && (bool)preg_match('/if \(!aic && seen\) \{[\s\S]{0,200}?_medLastOcrStatusAt = Date\.now\(\);/s', $app);
+})());
+check('an OCR attempt is ONE region, and a slow job cannot wedge the reader', (function () use ($app) {
+    return (bool)preg_match('/const rotation = \[\];[\s\S]{0,1600}?passes\.push\(rotation\[_medPassCursor % rotation\.length\]\);/s', $app)
+        && str_contains($app, 'const _MED_OCR_INTERVAL_MS = 900;')
+        && str_contains($app, 'const budget = _medOcrBudget;')
+        && str_contains($app, 'let _medOcrBudget = 180000;')
+        && str_contains($app, 'const _MED_OCR_JOB_TIMEOUT_MS = 20000;')
+        && str_contains($app, 'Medicine OCR: slow device detected')
+        && !str_contains($app, 'Medicine OCR worker restarted');
+})());
+check('the "not the drug number" line fits the status chip in all six locales',
+    array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+        $msg = (string)($med[$l]['scan_code_ignored'] ?? '');
+        return $c && $msg !== '' && str_contains($msg, '{code}') && mb_strlen($msg) <= 60;
+    }, true));
+check('the scan panel cannot die on a missing control (the camera must always start)', (function () use ($app) {
+    return !str_contains($app, 'ocrBtn')
+        && !str_contains($app, 'has-med')
+        && str_contains($app, 'function _setScanModeInner(mode)')
+        && (bool)preg_match('/function _setScanMode\(mode\) \{[\s\S]{0,700}?try \{\s*_setScanModeInner\(mode\);\s*\} catch/s', $app)
+        && (bool)preg_match('/_setScanMode\(_scanModeForLocation\(currentLocation\)\);[\s\S]{0,400}?initScanner\(\);/s', $app);
+})());
+
+check('the medicine panel tries the BARCODE on a magnified crop before the OCR', (function () use ($app) {
+    // The AIC is a Code 39 on the bollino — the number a pharmacist's laser reads. At 720p the
+    // full-frame decoder hallucinates (`18FJXD` in the household's log); a 2x crop of the guide
+    // reads it. Barcode first, OCR after: exact beats clever.
+    return str_contains($app, 'function _medBarcodeCrop(videoEl)')
+        && (bool)preg_match("/if \(_scanModeIsMedical\(\) && decodeBarcodes && frameCount % 2 === 1\)/s", $app)
+        && str_contains($app, "handleCodes(codes, 'ZBar×2')")        && (bool)preg_match('/_medBarcodeCrop\(videoEl\)[\s\S]{0,2000}?1\) Native BarcodeDetector/s', $app)
+        && (bool)preg_match('/width: \{ ideal: isFront \? 640 : 1920 \}/s', $app);
+})());
+
+check('after twenty seconds without a read the camera stops and the code is asked', (function () use ($app, $html, $css, $med) {
+    // The household's own device cannot finish an OCR pass (25 timeouts in one scan, empty text)
+    // and a toast over a live preview was not noticed: the stream STOPS, the row takes over, and
+    // a "Riprendi" button brings the camera back.
+    return str_contains($app, 'function _medAskCodeSoon()')
+        && str_contains($app, '}, 20000);')
+        && (bool)preg_match('/function _medAskCodeSoon\(\)[\s\S]{0,1400}?try \{ stopScanner\(\); \}/s', $app)
+        && str_contains($html, 'id="scan-med-resume"')
+        && str_contains($app, 'function _medResumeScan()')
+        && str_contains($app, "t('medical.read_unknown_hint')")
+        && (bool)preg_match('/_medAskCodeSoon\(\);\s*\n?/', $app)
+        && str_contains($app, "t('medical.type_code_now')")
+        // the local engine is not asked again after three timeouts
+        && str_contains($app, 'if (_medOcrTimeouts >= 3 && !_medOcrGaveUp)')
+        && str_contains($app, 'if (_medOcrGaveUp) return null;')
+        && str_contains($css, '.scan-med-code-row.is-wanted')
+        && (bool)preg_match('/prefers-reduced-motion[\s\S]{0,120}?scan-med-code-row\.is-wanted/s', $css)
+        && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+            return $c && mb_strlen((string)($med[$l]['type_code_now'] ?? '')) > 20;
+        }, true);
+})());
+
+check('a medicine asks for the date PRINTED on the box, and nothing is estimated', (function () use ($app, $med) {
+    // Food gets an estimate because nobody prints its shelf life; a medicine box prints
+    // "scadenza MM/AAAA", so the app asks for that date, refuses it when it is past, refuses to
+    // save without it, and never lets the history/AI hint invent one.
+    return str_contains($app, 'function _medAddExpiryHtml()')
+        && (bool)preg_match('/const estimatedDays = medicalRow \? 0 : estimateExpiryDays\(/s', $app)
+        && (bool)preg_match("/if \(expiryIso === '' && _isMedicalRow\(currentProduct\)\)/s", $app)
+        && str_contains($app, "t('add.expiry_required')")
+        && (bool)preg_match('/if \(currentProduct\?\.id && !medicalRow\)/s', $app)
+        && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+            $d = json_decode((string)file_get_contents(dirname(__DIR__) . "/translations/{$l}.json"), true);
+            $a = $d['add'] ?? [];
+            return $c && mb_strlen((string)($a['expiry_from_pack'] ?? '')) > 8
+                && mb_strlen((string)($a['expiry_required'] ?? '')) > 8;
+        }, true);
+})());
 
 echo "\n" . ($fail === 0 ? 'PASS' : 'FAIL') . " — {$checks} checks, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

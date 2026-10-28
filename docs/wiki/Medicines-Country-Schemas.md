@@ -35,7 +35,7 @@ that cannot be expressed as a pattern — Italy's three printed AIC forms plus A
 
 | Country | Identifies the drug with | Printed number read by OCR | Catalogue |
 |---|---|---|---|
-| 🇮🇹 IT | **AIC printed** (`A` + 9 digits; bare 9 in the old Code 32) and AI **710** of the FMD DataMatrix. **No barcode** identifies the drug: several Code 39s on the label look identical (the pack's progressive number too) | yes — the big `A040313076` block, inside the guide rectangle | **AIFA open data**, CSV/XML, `import-medicines.php --country=IT` |
+| 🇮🇹 IT | **AIC** — printed (`A` + 9 digits; bare 9 in the old Code 32) **and** carried by a Code 39 of the bollino, plus AI **710** of the FMD DataMatrix. The rest of the sticker is packaging: the lot (`16G87N`), the pack's progressive number with its check digit (`0140581421`), the DataMatrix that joins them | yes — the big `A040313076` block, inside the guide rectangle (and, when the letter is lost, the digit runs, proved against the catalogue) | **AIFA open data**, CSV/XML, `import-medicines.php --country=IT` |
 | 🇩🇪 DE | **PZN** (8 digits, printed in clear text *and* as Code 39) + AI **710** | yes — `PZN 00000000` | not open (IFA/ABDATA licence): the scan works, the name is typed |
 | 🇺🇸 US | **NDC** printed (`12345-678-90`) + UPC/EAN barcode | yes — `NDC …` | **openFDA NDC Directory**, JSON, public domain, `import-medicines.php ndc.json --country=US` |
 | 🇦🇹 AT | EAN-13 with the PZN embedded (`908888…`) + AI 710 | no (the EAN carries it) | — |
@@ -65,8 +65,9 @@ that cannot be expressed as a pattern — Italy's three printed AIC forms plus A
 6. `dataset` — only when the national catalogue is **open data**: `id`, `url`, `licence`,
    `importer` and `open: true`. If it needs a licence, use `"open": false` + `"note_key"` so the
    UI says why the names cannot be filled.
-7. `scan.barcodes` — `false` ONLY where the drug number is printed and the label's barcodes are
-   packaging (Italy). Everywhere else keep `true`: the barcode/Code 39 is the number.
+7. `scan.barcodes` — `true` wherever a barcode can carry the drug number (Italy: the AIC is a
+   Code 39 on the bollino; Germany, the US, France). Use `false` ONLY if the pack really has no
+   barcode form of the number: the scanner then reads the printed block and nothing else.
 8. If a regex is not enough (several printed forms, a national number inside an AI of the GS1
    DataMatrix, a catalogue with its own column names), add a module:
 
@@ -87,16 +88,17 @@ that cannot be expressed as a pattern — Italy's three printed AIC forms plus A
 
 ## The traps this file already knows about
 
-- **A barcode is not necessarily the drug.** Italy prints the AIC as text while the barcode is a
-  Pharmacode/Laetus plus a pack serial; two Code 39s of the SSN label are indistinguishable from
-  an AIC by shape (`A014058142` is a *serial*). Italy therefore sets **`scan.barcodes: false`**: the
-  medicine panel runs **no** barcode engine at all (no native detector, no ZBar, no Quagga, no
-  digits-under-the-bars) and reads only the printed block inside the guide rectangle. Germany and
-  the US keep `true`, because there the Code 39/EAN *is* the drug number.
-- **A bare digit run is dangerously generic.** Never accept `\d{9}` (or `\d{6,7}`) from OCR: the
-  label is full of numbers. Require the printed prefix/format of that country. Italy's own rule
-  is `^A\d{9}$` in **both** the barcode and the OCR path: the SSN label's second Code 39 carries
-  a bare 9-digit serial (`014058142`) and it must never become a drug code.
+- **A barcode can BE the drug, and only the catalogue can tell.** Italy prints the AIC as text
+  **and** carries it in a Code 39 of the bollino, next to the lot (`16G87N`) and the pack's
+  progressive number (`0140581421`) — codes that look identical in shape. So the rule is not
+  "read no barcode" but **"accept a read only when the national number resolves and the
+  catalogue contains it"** (`_medConfirmRead`): a serial that happens to start with an `A`
+  matches no row and is thrown away, exactly like a wrong OCR digit. Italy therefore keeps
+  `scan.barcodes: true`; the packaging patterns are listed under `ignored`.
+- **A bare digit run is dangerously generic.** Never accept `\d{9}` (or `\d{6,7}`) from OCR on
+  its own: the label is full of numbers. The reader may offer the digit runs of a page
+  (`_medOcrDigitCandidates`) **only when a catalogue is loaded**, and every candidate must be
+  proved by a row before anything opens — the pack's progressive number is in none of them.
 - **The DataMatrix is standard, the number inside it is national.** The core parses the GS1
   element string and exposes AI `71x`; the country module decides what it means.
 - **No catalogue is bundled.** The names come from a national open-data import, on the household's

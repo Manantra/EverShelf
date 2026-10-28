@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261028n">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028n">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028n">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261028zj">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zj">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zj">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028n">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028n">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zj">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zj">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261028n"></script>
-    <script src="assets/js/core/auth.js?v=20261028n"></script>
-    <script src="assets/js/core/med.js?v=20261028n"></script>
+    <script src="assets/js/core/dom.js?v=20261028zj"></script>
+    <script src="assets/js/core/auth.js?v=20261028zj"></script>
+    <script src="assets/js/core/med.js?v=20261028zj"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261028n"></script>
+    <script src="assets/js/med/italy.js?v=20261028zj"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261028n"></script>
+    <script src="assets/js/core/support.js?v=20261028zj"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zj';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028n';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zj';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261028n"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zj"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -120,7 +120,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.28.0</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.28.1</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -189,7 +189,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.28.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.28.1</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -560,9 +560,11 @@
                     <input type="text" class="scan-med-code-input" id="scan-med-code-input"
                            inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
                            maxlength="12" placeholder="A040313076"
-                           aria-label="AIC" data-i18n-placeholder="medical.code_placeholder"
+                           aria-label="AIC" data-i18n-aria="medical.code_aic" data-i18n-placeholder="medical.code_placeholder"
                            onkeydown="if(event.key==='Enter')_medSubmitCode()">
                     <button type="button" class="btn btn-primary btn-small" id="scan-med-code-btn" onclick="_medSubmitCode()" data-i18n="medical.code_confirm">Conferma</button>
+                    <!-- Ten seconds without a read: the camera stops and this row takes over. -->
+                    <button type="button" class="btn btn-outline btn-small" id="scan-med-resume" onclick="_medResumeScan()" hidden data-i18n="medical.resume_scan">Riprendi</button>
                 </div>
             </div>
 
@@ -676,6 +678,22 @@
                 </label>
                 <p class="form-hint" id="add-vacuum-hint" style="display:none" data-i18n="add.vacuum_hint">La scadenza verrà estesa automaticamente</p>
             </div>
+            <!-- EverShelf Med: a medicine is a BOX, and its stock is counted in pieces (buste,
+                 compresse, fiale). The two questions the pantry asks of food are not enough:
+                 is this pack still sealed or already opened (which starts its own clock), and
+                 how many pieces are left. Painted by _renderAddMedStock(), invisible for food. -->
+            <div class="form-group" id="add-med-stock" hidden>
+                <label data-i18n="medical.stock_state_label">💊 La confezione è nuova o già aperta?</label>
+                <div class="med-state-chips" id="add-med-state">
+                    <button type="button" class="med-state-chip is-on" data-state="new" onclick="_medAddStockState('new')" data-i18n="medical.state_new">Sigillata</button>
+                    <button type="button" class="med-state-chip" data-state="opened" onclick="_medAddStockState('opened')" data-i18n="medical.state_opened">Già aperta</button>
+                </div>
+                <div class="med-pieces-block" id="add-med-pieces-row" hidden>
+                    <label data-i18n="medical.pieces_label">Quante ne restano?</label>
+                    <div class="med-piece-chips" id="add-med-pieces"></div>
+                    <p class="form-hint" id="add-med-pieces-hint"></p>
+                </div>
+            </div>
             <div class="form-group" id="add-expiry-section">
                 <!-- Populated dynamically by showAddForm() -->
             </div>
@@ -757,9 +775,7 @@
         <div class="med-form-banner" id="pf-med-banner" hidden>
             <span class="med-form-banner-icon" aria-hidden="true">💊</span>
             <div class="med-form-banner-body">
-                <strong data-i18n="medical.form_detected">Farmaco riconosciuto</strong>
                 <span class="med-form-banner-code" id="pf-med-banner-code"></span>
-                <span class="med-form-banner-hint" data-i18n="medical.form_no_catalogue">Il nome arriva dal catalogo AIFA locale quando il codice è riconosciuto.</span>
             </div>
         </div>
         <!-- The AIFA catalogue's answer for the AIC just read (or OCR'd): name, active
@@ -951,10 +967,6 @@
                     <div class="med-classify-fields" style="margin-top:8px">
                         <input type="text" class="med-classify-ingredient" id="pf-med-ingredient" maxlength="80"
                                placeholder="principio attivo (es. ibuprofene)" data-i18n-placeholder="medical.ingredient_placeholder">
-                        <label class="med-pao-field">
-                            <span data-i18n="medical.pao_label">Scade dopo l'apertura (giorni)</span>
-                            <input type="number" id="pf-med-pao" min="0" max="365" step="1" value="0">
-                        </label>
                     </div>
                 </div>
             </div>
@@ -3326,15 +3338,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261028n"></script>
-<script src="assets/js/food_facts.generated.js?v=20261028n"></script>
-<script src="assets/js/free_apis.generated.js?v=20261028n"></script>
-<script src="assets/js/core/vocab.js?v=20261028n"></script>
-<script src="assets/js/app.js?v=20261028n"></script>
-<script src="assets/js/audit.js?v=20261028n"></script>
-<script src="assets/js/receipt.js?v=20261028n"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261028n"></script>
-<script src="assets/js/settings_search.js?v=20261028n"></script>
+<script src="assets/js/vocab.generated.js?v=20261028zj"></script>
+<script src="assets/js/food_facts.generated.js?v=20261028zj"></script>
+<script src="assets/js/free_apis.generated.js?v=20261028zj"></script>
+<script src="assets/js/core/vocab.js?v=20261028zj"></script>
+<script src="assets/js/app.js?v=20261028zj"></script>
+<script src="assets/js/audit.js?v=20261028zj"></script>
+<script src="assets/js/receipt.js?v=20261028zj"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261028zj"></script>
+<script src="assets/js/settings_search.js?v=20261028zj"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

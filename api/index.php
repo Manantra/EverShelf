@@ -1252,6 +1252,14 @@ try {
         case 'med_catalog_sync':
             medCatalogSyncAction($db);
             break;
+        // POST med_debug — TEMPORARY diagnostic sink for the medicine reader (MED_DEBUG=true).
+        // It records what each OCR pass read, the geometry of the crop and, bounded, the crop
+        // itself as a JPEG under data/med_debug/, so the household's own phone can show what the
+        // engine really sees. Nothing leaves this server, and the whole action goes quiet (403)
+        // the moment the flag is off.
+        case 'med_debug':
+            medDebugAction();
+            break;
 
         case 'ai_test':
             aiTestConnection();
@@ -9645,6 +9653,84 @@ function dbCleanup(?PDO $db = null): void {
  * GET med_status — is the opt-in module on, did the household accept the notice, and what
  * may a box be classified as? (The taxonomy is CLOSED: 8 household categories.)
  */
+/**
+ * POST med_debug — TEMPORARY diagnostic sink for the medicine reader (opt-in, `MED_DEBUG=true`).
+ *
+ * The reader on a phone is a black box: "it reads nothing" can be a crop on the wrong pixels, a
+ * canvas too big for the device, or a `recognize()` that never returns. This action lets the
+ * household's own device report, per OCR pass, the geometry, the text it got and — bounded to a
+ * dozen small JPEGs per session — the picture it read it from, so the problem can be SEEN.
+ *
+ * Safety rails: off unless the flag says so (403), token + CSRF like every POST, nothing leaves
+ * this server, at most 20 events per request, 700 kB per image, and the folder is pruned to the
+ * last 400 events and 40 pictures. Delete the folder or turn the flag off and it is inert.
+ */
+function medDebugAction(): void {
+    if (!medicalDebugEnabled()) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error_key' => 'error.med_debug_off'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $input = json_decode((string)file_get_contents('php://input'), true) ?: [];
+    $events = $input['events'] ?? [];
+    if (!is_array($events)) {
+        $events = [];
+    }
+    $dir = __DIR__ . '/../data/med_debug';
+    $framesDir = $dir . '/frames';
+    foreach ([$dir, $framesDir] as $d) {
+        if (!is_dir($d)) {
+            @mkdir($d, 0775, true);
+        }
+    }
+    $written = 0;
+    $frames = 0;
+    foreach (array_slice($events, 0, 20) as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        $image = (string)($event['image'] ?? '');
+        unset($event['image']);
+        $event['at'] = date('c');
+        if ($image !== '' && preg_match('#^data:image/jpeg;base64,([A-Za-z0-9+/=]+)$#', $image, $m)) {
+            $bin = base64_decode($m[1], true);
+            if ($bin !== false && $bin !== '' && strlen($bin) <= 700000) {
+                $label = preg_replace('/[^a-z0-9_-]+/i', '', (string)($event['label'] ?? $event['kind'] ?? 'frame'));
+                $name = date('Ymd_His') . '_' . ($label !== '' ? $label : 'frame') . '_' . substr(sha1($bin), 0, 6) . '.jpg';
+                if (@file_put_contents($framesDir . '/' . $name, $bin) !== false) {
+                    $event['frame'] = 'frames/' . $name;
+                    $frames++;
+                }
+            }
+        }
+        if (@file_put_contents($dir . '/events.jsonl', json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND) !== false) {
+            $written++;
+        }
+    }
+    // Bounded on disk: the last 400 events and 40 pictures, nothing accumulates.
+    $log = $dir . '/events.jsonl';
+    if (is_readable($log)) {
+        $lines = file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        if (count($lines) > 400) {
+            @file_put_contents($log, implode("\n", array_slice($lines, -400)) . "\n");
+        }
+    }
+    $shots = glob($framesDir . '/*.jpg') ?: [];
+    if (count($shots) > 40) {
+        sort($shots);
+        foreach (array_slice($shots, 0, count($shots) - 40) as $old) {
+            @unlink($old);
+        }
+    }
+    EverLog::info('Medicine read diagnostic received', [
+        'event' => 'med_debug_received',
+        'events' => $written,
+        'frames' => $frames,
+    ]);
+    echo json_encode(['success' => true, 'events' => $written, 'frames' => $frames], JSON_UNESCAPED_UNICODE);
+}
+
+
 function medStatusAction(): void {
     $db = getDB();
     $accepted = false;
@@ -9683,6 +9769,8 @@ function medStatusAction(): void {
     echo json_encode([
         'success' => true,
         'enabled' => medicalEnabled($db),
+        // TEMPORARY: the reader reports what it sees only when the server asks (MED_DEBUG).
+        'debug' => medicalDebugEnabled(),
         'disclaimer_accepted' => $accepted,
         'setup_done' => $setupDone,
         'disclaimer_key' => 'medical.disclaimer',

@@ -110,6 +110,7 @@ php scripts/test-seasonal-match.php
 php scripts/test-medical.php          # opt-in medicines: disclaimer, domain separation, offline ATC matcher, no dosage
 php scripts/test-location-rename.php   # renaming a custom location moves stock, history and the medicine marking
 php scripts/test-location-order.php    # Dispensa → 💊 medicine cabinet → fridges → other places, one icon set
+php scripts/test-location-expiry.php   # the expiry follows the KIND of place: "Dispensa cucina" is dated like "Dispensa"
 php scripts/test-js-structure.php      # no top-level function swallowed by a missing brace; inline handlers exist
 # full list: ls scripts/test-*.php
 

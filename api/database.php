@@ -770,13 +770,35 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
 }
 
 /**
+ * The STORAGE KIND of a place — pantry, fridge, freezer — from its key or the words in its name.
+ *
+ * Two ports, one rule: the browser does the same in `storageKindOfLocation()` (app.js), and both
+ * read the same short list of words the CSV import already recognises
+ * (`inventoryImportNormalizeLocation()`). Shelf life depends on the KIND, never on the name: two
+ * pantries are the same pantry, and a place called "Frigo cantina" is a fridge.
+ */
+function storageKindOfLocationPHP(string $location): string {
+    $v = mb_strtolower(trim($location));
+    if ($v === '') {
+        return 'dispensa';
+    }
+    if ($v === 'freezer' || preg_match('/freez|congelatore|frost/', $v)) {
+        return 'freezer';
+    }
+    if ($v === 'frigo' || preg_match('/frigo|fridge|refrigerator|frigorifero/', $v)) {
+        return 'frigo';
+    }
+    return 'dispensa';
+}
+
+/**
  * Estimate sealed shelf life in days, with fridge/freezer extensions.
  * Mirrors the JS estimateExpiryDays() function.
  */
 function estimateSealedExpiryDaysPHP(string $name, string $category, string $location): int {
     $n = mb_strtolower($name);
     $cat = mb_strtolower($category);
-    $loc = mb_strtolower($location);
+    $loc = storageKindOfLocationPHP($location);
 
     $days = null;
 

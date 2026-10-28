@@ -105,3 +105,6 @@ TODO.md
 
 # ── Internal working docs (never pushed to GitHub) ────────────────────────
 todo/
+
+# TEMPORARY medicine-read diagnostic (frames + events of the OCR reader)
+data/med_debug/

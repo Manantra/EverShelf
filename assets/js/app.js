@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028n'; // bump when translations change
+const _I18N_VERSION = '20261028zj'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2196,6 +2196,34 @@ function resolveLocationKey(value) {
     if (byLabel) return byLabel[0];
     // A custom place this client has not received yet: its slug is derived from the name.
     return slugifyCustomLocation(raw);
+}
+
+/**
+ * The STORAGE KIND of a place — `dispensa`, `frigo` or `freezer` — whatever the place is called.
+ *
+ * The household names its own places ("Dispensa cucina", "Frigo cantina", "Freezer garage") and
+ * the shelf life depends on the KIND, never on the name: two pantries are the same pantry, and a
+ * custom freezer is a freezer. The kind comes from the built-in key, from the label the built-ins
+ * carry in the ACTIVE language ("Kühlschrank", "Nevera", "冰箱") and from the words the CSV import
+ * already knows (`inventoryImportNormalizeLocation()` on the server) — no new vocabulary.
+ *
+ * Used by every estimate: a place change that does not change the kind must not move a date.
+ *
+ * @param {string} value a location slug or the label the household typed
+ * @returns {'dispensa'|'frigo'|'freezer'}
+ */
+function storageKindOfLocation(value) {
+    const key = resolveLocationKey(value);
+    if (key === 'frigo' || key === 'freezer') return key;
+    // The label as the household reads it, keyed through the legacy aliases like every other
+    // place lookup in this file.
+    const labelOf = (slug) => String((LOCATIONS[normalizeLocationKey(slug)] || {}).label || '').toLowerCase();
+    const probe = (key + ' ' + labelOf(key) + ' ' + String(value || '')).toLowerCase();
+    const freezerWord = labelOf('freezer');
+    const fridgeWord = labelOf('frigo');
+    if ((freezerWord && probe.includes(freezerWord)) || /freez|congelatore|frost/.test(probe)) return 'freezer';
+    if ((fridgeWord && probe.includes(fridgeWord)) || /frigo|fridge|refrigerator|frigorifero/.test(probe)) return 'frigo';
+    return 'dispensa';
 }
 
 /**
@@ -2866,7 +2894,8 @@ async function classifyCategoryByEmbedding(productName) {
 function getExpiredSafety(item, daysExpired) {
     const cat = mapToLocalCategory(item.category || '', item.name || '');
     const loc = (item.location || '').toLowerCase();
-    const inFreezer = loc === 'freezer';
+    // A place the household called 'Freezer garage' is a freezer for the verdict too.
+    const inFreezer = storageKindOfLocation(item.location) === 'freezer';
 
     // === FREEZER: il congelamento allunga molto la vita ===
     // Carne/pesce in freezer: +3 mesi. Verdura/frutta: +6 mesi. Pane: +2 mesi.
@@ -3098,7 +3127,9 @@ const EXPIRY_DAYS = {
 function estimateExpiryDays(product, location) {
     const name = (product.name || '').toLowerCase();
     const cat = (product.category || '').toLowerCase();
-    const loc = (location || '').toLowerCase();
+    // The KIND of place, not its name: "Dispensa cucina" is a pantry exactly like "Dispensa",
+    // and a place the household called "Frigo cantina" is a fridge for the maths too.
+    const kind = storageKindOfLocation(location);
     
     let days;
     
@@ -3150,7 +3181,7 @@ function estimateExpiryDays(product, location) {
     }
     
     // Fridge extends shelf life for produce and short-lived items (sealed only)
-    if (loc === 'frigo') {
+    if (kind === 'frigo') {
         // Specific fridge-friendly produce overrides
         if (/mela|mele/.test(name)) days = Math.max(days, 28);
         else if (/arancia|arance|agrumi|mandarini|limone|limoni/.test(name)) days = Math.max(days, 21);
@@ -3172,7 +3203,7 @@ function estimateExpiryDays(product, location) {
     }
     
     // Freezer extends shelf life significantly
-    if (loc === 'freezer' && days < 180) {
+    if (kind === 'freezer' && days < 180) {
         // Fresh meat/fish: 3-6 months in freezer
         if (days <= 4) days = 120;
         // Short-lived (cheese, dairy, bread): 2-3 months
@@ -3206,7 +3237,8 @@ function formatEstimatedExpiry(days) {
 function estimateOpenedExpiryDays(product, location) {
     const name = (product.name || '').toLowerCase();
     const cat = (product.category || '').toLowerCase();
-    const loc = (location || '').toLowerCase();
+    // Same rule as the sealed estimate: the KIND of place decides, never its name.
+    const kind = storageKindOfLocation(location);
 
     // ── A: Non-perishables — check BEFORE location ──────────────────────
     if (/\bsale\b|\bsel\s+mar|\bsalt\b/.test(name) && !/\b(salmone|salame|salsa)\b/.test(name)) return 9999;
@@ -3226,17 +3258,17 @@ function estimateOpenedExpiryDays(product, location) {
     if (/salsa\s+di\s+soia|soy\s*sauce/.test(name)) return 90; // soy sauce fine opened anywhere
     // Dry bread products (grated, breadcrumbs) — not fresh bread
     if (/grattugiat|pangratt|panko|bread\s*crumb|briciole\s+di\s+pane/.test(name)) return 90;
-    if (loc !== 'frigo') {
+    if (kind !== 'frigo') {
         if (/\b(pasta|spaghetti|penne|rigatoni|fusilli|farfalle|tagliatelle|linguine|bucatini|lasagn|tortiglioni)\b/.test(name)) return 365;
         if (/\b(riso|risotto|orzo|farro|quinoa|couscous)\b/.test(name) && !/\b(pronto|cotto)\b/.test(name)) return 365;
         if (/\b(polenta|semola|maizena|amido|farina)\b/.test(name)) return 180;
     }
 
     // ── D: Freezer ───────────────────────────────────────────────────────
-    if (loc === 'freezer') return 90;
+    if (kind === 'freezer') return 90;
 
     // ── E: Pantry fallbacks ───────────────────────────────────────────────
-    if (loc !== 'frigo') {
+    if (kind !== 'frigo') {
         if (/\b(biscott[io]|cookies|wafer|tarall[io]|crackers?)\b/.test(name)) return 60;
         if (/\b(muesli|cereali|corn\s*flakes|granola|fiocchi)\b/.test(name)) return 60;
         if (/\b(confettura|marmellata)\b/.test(name)) return 90;
@@ -3430,10 +3462,10 @@ const _LOCAL_OCR_DELAY_NATIVE_MS = 3500;    // defer heavy OCR when Native Barco
 // barcode (the AIC is printed), so the OCR starts almost at once and keeps going while the
 // panel is open — bounded so a forgotten tablet does not burn the battery for ever.
 const _MED_OCR_FIRST_MS = 600;
-const _MED_OCR_INTERVAL_MS = 2000;
+const _MED_OCR_INTERVAL_MS = 900;
 const _MED_OCR_MAX_ATTEMPTS = 45;
 /** After that many passes the loop keeps reading, just slower (never stops on a live camera). */
-const _MED_OCR_IDLE_MS = 4000;
+const _MED_OCR_IDLE_MS = 2500;
 const _ZBAR_FALLBACK_DELAY_MS = 350;        // skip ZBar until native had a few frames
 const _BARCODE_PERSIST_KEY = 'evershelf_barcode_resolve_v1';
 const _BARCODE_PERSIST_MAX = 500;
@@ -4706,8 +4738,8 @@ function getCameraConstraints(extraVideo = {}) {
     // Front cameras on older devices often have lower resolution — don't over-request
     const isFront = (mode === 'user');
     const videoConstraints = {
-        width: { ideal: isFront ? 640 : 1280 },
-        height: { ideal: isFront ? 480 : 720 },
+        width: { ideal: isFront ? 640 : 1920 },
+        height: { ideal: isFront ? 480 : 1080 },
         ...extraVideo
     };
     // Prefer continuous AF when the UA understands the ideal (ignored if unsupported)
@@ -13516,7 +13548,10 @@ function _topOverlay() {
 // The symptom search is deterministic and offline: the ATC map is `data/medical_atc.json`,
 // the server matches it against this household's inventory and returns NO dosage. The app
 // lists boxes; the doctor and the leaflet treat people.
-let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, dataset: { loaded: false, count: 0, updated_at: '' }, scanSupported: true, contribDoc: '', unsupportedNoteKey: 'medical.country_none_hint' };
+let _medStatus = { enabled: false, accepted: false, setupDone: false, categories: [], country: '', countries: [], schema: null, dataset: { loaded: false, count: 0, updated_at: '' }, scanSupported: true, contribDoc: '', unsupportedNoteKey: 'medical.country_none_hint', debug: false };
+
+/** Is the server collecting the temporary read diagnostics? (MED_DEBUG=true) */
+function _medDebugOn() { return !!(_medStatus && _medStatus.debug); }
 
 /**
  * Load the national catalogue from a file picked in Settings (the free dataset, once).
@@ -13582,6 +13617,8 @@ async function _medRefreshStatus() {
                 scanSupported: r.scan_supported !== false,
                 contribDoc: String(r.contrib_doc || ''),
                 unsupportedNoteKey: String(r.unsupported_note_key || 'medical.country_none_hint'),
+                // The SERVER decides whether the reader reports what it sees (MED_DEBUG).
+                debug: !!r.debug,
             };
             // The cabinet is painted with its own pill and sits right after Dispensa on EVERY
             // boot, on every device: the server owns the list, and the client used to learn it
@@ -13793,9 +13830,28 @@ function _scanModeForLocation(loc) {
  * shopping session. Also used when a mode needs to be re-asserted after the module is toggled.
  */
 function _setScanMode(mode) {
+    // `showPage('scan')` calls this and then `initScanner()`: one undefined element here used to
+    // throw and leave the household with a dead camera and no feedback at all — a reference to
+    // a button removed in v1.28.0 did exactly that. A cosmetic detail may never cost the scanner.
+    try {
+        _setScanModeInner(mode);
+    } catch (e) {
+        scanLog(`Scan panel setup failed: ${e.message}`);
+    }
+}
+
+function _setScanModeInner(mode) {
     const want = mode === 'medicine' && _medOn() ? 'medicine' : 'food';
     _scanMode = want;
     const medical = want === 'medicine';
+    // Which panel is running, in one line: the reader's whole behaviour hangs off this.
+    scanLog(`Scan panel: ${want} (place ${resolveLocationKey(currentLocation) || '?'}, medical on ${_medOn() ? 'yes' : 'no'}, ocr ${_medOcrPatterns().length} pattern(s))`);
+    // Temporary diagnostic: one event with the geometry and a picture of the frame.
+    if (medical) _medDebugPanel();
+    // Ten seconds are enough for a barcode or three OCR passes: then the household types it.
+    const resumeBtn = document.getElementById('scan-med-resume');
+    if (resumeBtn) resumeBtn.hidden = true;
+    if (medical) _medAskCodeSoon();
     const page = document.getElementById('page-scan');
     if (page) page.classList.toggle('is-medical-scan', medical);
     const title = document.getElementById('scan-title');
@@ -13822,6 +13878,19 @@ function _setScanMode(mode) {
     _medNeighbourCodes = [];
     _medNeighbourRead = '';
     _medRejectedReads.clear();
+    // A new session starts from zero: the same box scanned again must be confirmable again.
+    _medConfirmingCode = '';
+    _medIgnoredEcho = { code: '', at: 0 };
+    _medLooseTried.clear();
+    _medLooseAt = 0;
+    // A new scan session starts with the full-size pictures (and re-learns the device).
+    _medOcrTimeouts = 0;
+    _medOcrTimeoutsSinceOk = 0;
+    _medOcrGaveUp = false;
+    _medRejectHits = { code: '', n: 0 };
+    _medOcrSlow = false;
+    _medOcrMaxSide = 900;
+    _medOcrBudget = 180000;
     const sampleEl = document.getElementById('scan-med-frame-sample');
     if (sampleEl) sampleEl.classList.remove('is-read');
     if (medical) _medOcrSelfTest().catch(() => {});
@@ -13833,8 +13902,6 @@ function _setScanMode(mode) {
     const codeInput = document.getElementById('scan-med-code-input');
     if (codeInput && !medical) codeInput.value = '';
     if (medical && !_medScanSupported()) _medBlockedPopup();
-    const actionBar = document.getElementById('scan-action-bar');
-    if (actionBar) actionBar.classList.toggle('has-med', !!(ocrBtn && !ocrBtn.hidden));
     if (!medical) _medHideCrossHint();
 }
 
@@ -14226,8 +14293,6 @@ function _syncProductMedicalUi(product) {
     _pfRenderMedCats(selected);
     const ing = document.getElementById('pf-med-ingredient');
     if (ing) ing.value = isMed ? (product.med_ingredient || '') : '';
-    const pao = document.getElementById('pf-med-pao');
-    if (pao) pao.value = isMed ? (Number(product.med_pao_days) || 0) : 0;
 }
 
 /** The closed categories, as chips (the only values a box may carry). */
@@ -14269,7 +14334,8 @@ function _pfMedicalPayload() {
     return {
         tags,
         ingredient: document.getElementById('pf-med-ingredient')?.value || '',
-        pao_days: Number(document.getElementById('pf-med-pao')?.value || 0) || 0,
+        // The form no longer asks for it (it was noise); a value set in Settings is preserved.
+    pao_days: Number((currentProduct && currentProduct.med_pao_days) || 0) || 0,
     };
 }
 
@@ -15062,11 +15128,27 @@ function _expiryUserSetPayload(inputId) {
     return _isExpiryManuallySet(inputId) ? 1 : 0;
 }
 
-function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId) {
+/**
+ * Recompute the expiry of an EDIT form when its place or vacuum changes.
+ *
+ * Same rule as the add form: the estimate follows the KIND of place. Picking another pantry —
+ * "Dispensa" → "Dispensa cucina" — keeps the date the row already has (a row whose expiry was
+ * kept as suggested, not typed, used to be silently re-dated by a harmless move). A different
+ * kind, or the vacuum toggle, recomputes.
+ *
+ * @param {string} locInputId
+ * @param {string} vacuumInputId
+ * @param {string} expiryInputId
+ * @param {boolean} [force]
+ */
+function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId, force = false) {
     if (_isExpiryManuallySet(expiryInputId)) return;
     const product = window._editingProduct;
     if (!product) return;
     const loc = document.getElementById(locInputId)?.value || '';
+    const kind = storageKindOfLocation(loc);
+    if (!force && _editExpiryKind.has(expiryInputId) && _editExpiryKind.get(expiryInputId) === kind) return;
+    _editExpiryKind.set(expiryInputId, kind);
     const isVacuum = document.getElementById(vacuumInputId)?.checked;
     // Use opened shelf life if item is already opened
     let days = product._isOpened
@@ -15178,7 +15260,7 @@ function editInventoryItem(id, _retried) {
                 <label class="toggle-row">
                     ${t('add.vacuum_label')}
                     <span class="toggle-switch">
-                        <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry')">
+                        <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry', true)">
                         <span class="toggle-slider"></span>
                     </span>
                 </label>
@@ -15191,6 +15273,8 @@ function editInventoryItem(id, _retried) {
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
     _initExpiryManualTracking('edit-expiry', item);
+    // The kind this row's place belongs to: picking another pantry keeps the date it has.
+    _editExpiryKind.set('edit-expiry', storageKindOfLocation(item.location));
     setQtyInputUnitLabel('edit-qty', item.unit || 'pz');
     const titleInput = document.getElementById('edit-product-name');
     if (titleInput) {
@@ -15611,7 +15695,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zj';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15621,7 +15705,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zj';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15746,28 +15830,37 @@ function _tryConfirmBarcode(code, format, method, geo = null) {
     let digits = raw.replace(/\D/g, '');
     if (!digits) return false;
 
-    // MEDICINE PANEL. A barcode is NOT the drug number here: the SSN label carries several
-    // Code 39s (the AIC on top, the pack's progressive number at the bottom) that are
-    // INDISTINGUISHABLE by shape — `A014058142` is a serial, not the medicine — and taking one
-    // of them was exactly the bug. Only the EU FMD DataMatrix, whose AI 710 is the national
-    // number by standard, is accepted; everything else sends the scanner to the PRINTED block
-    // the guide frame shows (OCR), which is what the household asked for.
+    // MEDICINE PANEL. Only TWO reads identify the drug: the national number carried by the EU
+    // FMD DataMatrix (AI 710, a standard) and the national number itself printed as a barcode
+    // (`A040313076` in Code 39 — it IS on the bollino of many packs). Everything else on that
+    // sticker has the same shape and is PACKAGING: the lot (`16G87N`), the pack's progressive
+    // number (`0140581421`), the DataMatrix that joins the two, the Laetus/Pharmacode. Those
+    // open no catalogue — they send the reader to the printed block the guide frame shows.
+    // A read is confirmed only after the catalogue proves it (`_medConfirmRead`), so a serial
+    // that happens to start with an A is thrown away like any other wrong number.
     if (_scanModeIsMedical()) {
         const gs1 = _medGs1Parse(raw);
         const fmdNational = (gs1 && gs1.ais) ? String(gs1.ais['71'] || '') : '';
-        if (fmdNational) {
-            const local = _medLocalCode(raw);
-            if (local) {
-                scanLog(`Medicine panel: FMD DataMatrix, AI 710 = ${local.code}`);
-                _finalizeBarcode(local.code, method);
-                return true;
-            }
+        const local = _medLocalCode(raw);
+        const printedForm = /^A\d{9}$/.test(_medCompactCode(raw));
+        if (local && local.aic && (fmdNational || printedForm)) {
+            scanLog(`Medicine panel: ${fmdNational ? 'FMD DataMatrix AI 710' : 'AIC barcode'} = ${local.code}`);
+            _setScanHudState('idle');
+            _medConfirmRead(local.aic, method);
+            return true;
         }
-        // Not the DataMatrix: this barcode is not the drug number (it is the pack's progressive
-        // number or another Code 39 of the SSN label). Say it out loud — the household must see
-        // that the code was read and DISCARDED — and read the printed block instead.
+        // Not the drug number: say it out loud — the household must see that the code was read
+        // and DISCARDED — and read the printed block instead.
+        // The same packaging code comes back on every frame: say it once, not sixty times.
+        const nowIgnored = Date.now();
+        if (raw === _medIgnoredEcho.code && nowIgnored - _medIgnoredEcho.at < 8000) return false;
+        _medIgnoredEcho = { code: raw, at: nowIgnored };
         scanLog(`Medicine panel: barcode ${raw} (${method}) is not the drug number -> label OCR`);
-        _setScanStatus(t('medical.scan_code_ignored').replace('{code}', raw), 'partial', method);
+        // The chip belongs to the READER: a lot barcode is decoded on every frame, and letting it
+        // rewrite the line every second is what made the household believe nothing was read.
+        if (nowIgnored - _medLastOcrStatusAt > 2500) {
+            _setScanStatus(t('medical.scan_code_ignored').replace('{code}', raw), 'partial', method);
+        }
         _scanLastCode = '';
         _scanConsecCount = 0;
         _medOcrKick();
@@ -15900,6 +15993,30 @@ function _buildScanCropFrame(videoEl, frameCount) {
     if (v.enhance || _offlineMode || !navigator.onLine || isFrontCamera()) {
         enhanceCanvasForBarcode(ctx, canvas.width, canvas.height);
     }
+    return canvas;
+}
+
+/**
+ * The guide rectangle, magnified, for the BARCODE readers.
+ *
+ * The box carries the AIC as a Code 39 — the number a pharmacist's laser reads in 200 ms. On a
+ * 720p phone with the sticker filling a third of the frame each module is about 2 px and the
+ * full-frame decoder hallucinates (`18FJXD`, `1836XD` in the household's log). A 2x crop of the
+ * rectangle gives it 4-5 px per module, which is the difference between nonsense and `A042386348`.
+ */
+function _medBarcodeCrop(videoEl) {
+    if (!videoEl || !videoEl.videoWidth) return null;
+    const region = _medGuideRect(videoEl, 1.15);
+    if (!region) return null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const want = Math.min(1600, Math.round(region.sw * 2));
+    const scale = want / Math.max(1, region.sw);
+    const sized = _capScanCanvasSize(Math.round(region.sw * scale), Math.round(region.sh * scale), 1600);
+    canvas.width = sized.width;
+    canvas.height = sized.height;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(videoEl, region.sx, region.sy, region.sw, region.sh, 0, 0, canvas.width, canvas.height);
     return canvas;
 }
 
@@ -16070,14 +16187,17 @@ function _medGuideRect(videoEl, expand = 1) {
     const scale = Math.max(v.width / videoEl.videoWidth, v.height / videoEl.videoHeight);
     const ox = (videoEl.videoWidth * scale - v.width) / 2;
     const oy = (videoEl.videoHeight * scale - v.height) / 2;
-    // A phone never frames perfectly: read a little beyond the rectangle (and more when a
-    // wider band is asked for: the AIC line of a real box is wider than the drawn frame).
-    const padX = b.width * (0.12 - 0.10 * (grow - 1));
-    const padY = b.height * (0.35 - 0.25 * (grow - 1));
-    const left = (b.left - v.left + padX + ox) / scale;
-    const top = (b.top - v.top + padY + oy) / scale;
-    const w = (b.width - 2 * padX) / scale;
-    const h = (b.height - 2 * padY) / scale;
+    // A phone never frames perfectly: read BEYOND the rectangle, never inside it. The old signs
+    // shrank the crop (w = b.width - 2*padX), so a printed AIC line wider than the drawn frame
+    // lost a character at each end — and, with 18% of height, the vertical window was a letterbox
+    // that a wobble emptied. Now the crop grows by 12% per side (more for the 1.5× "wide" read)
+    // and the bands below cover the rest of the picture.
+    const padX = b.width * (0.12 + 0.10 * (grow - 1));
+    const padY = b.height * (0.12 + 0.10 * (grow - 1));
+    const left = (b.left - v.left - padX + ox) / scale;
+    const top = (b.top - v.top - padY + oy) / scale;
+    const w = (b.width + 2 * padX) / scale;
+    const h = (b.height + 2 * padY) / scale;
     if (w < 16 || h < 8) return null;
     const sx = Math.max(0, Math.min(videoEl.videoWidth - 2, left));
     const sy = Math.max(0, Math.min(videoEl.videoHeight - 2, top));
@@ -16085,6 +16205,46 @@ function _medGuideRect(videoEl, expand = 1) {
     const sh = Math.max(8, Math.min(videoEl.videoHeight - sy, h));
     return { sx: sx, sy: sy, sw: sw, sh: sh };
 }
+
+/**
+ * Three horizontal bands of the whole frame, half the height each and overlapping by 50%.
+ *
+ * The companion of the guide rectangle: aiming is a skill, and a box held slightly out of the
+ * drawn band is not a wrong box. Every attempt reads one of these (they rotate), so the printed
+ * block is found wherever it sits in the picture instead of only where the rectangle is.
+ *
+ * @returns {Array<{sx:number,sy:number,sw:number,sh:number}>}
+ */
+/**
+ * Three thin strips of the guide rectangle (and of its 1.5x twin).
+ *
+ * The AIC line is WIDE and short: a full-height crop of the rectangle needs ~200k pixels to keep
+ * the characters big enough, and the household's phone needs more than 7 s for that (measured by
+ * the read diagnostic). Three overlapping strips of ~46% of the height keep the same 900 px width
+ * on half the pixels, and the printed line always falls inside one of them.
+ *
+ * @param {HTMLVideoElement} videoEl
+ * @param {number} [expand] 1 = the guide rectangle, 1.5 = the wider read
+ * @returns {Array<{sx:number,sy:number,sw:number,sh:number}>}
+ */
+function _medLabelStrips(videoEl, expand = 1) {
+    if (!videoEl || !videoEl.videoWidth) return [];
+    const guide = _medGuideRect(videoEl, expand);
+    if (!guide) return [];
+    const h = Math.max(24, Math.round(guide.sh / 2.9));
+    const span = Math.max(0, guide.sh - h);
+    const offsets = [0, Math.round(span / 2), span];
+    const out = [];
+    for (const dy of offsets) {
+        const sy = guide.sy + dy;
+        const sh = Math.min(h, videoEl.videoHeight - sy);
+        if (sh >= 12) out.push({ sx: guide.sx, sy: sy, sw: guide.sw, sh: sh });
+    }
+    return out;
+}
+
+/** Which region the next attempt reads: the passes rotate so none of them is hammered. */
+let _medPassCursor = 0;
 
 /**
  * Crop the frame for a label read.
@@ -16128,9 +16288,19 @@ function _captureMedLabelFrame(videoEl, region = null, binarize = false) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (region) {
-        // A small crop blown up: the printed AIC is 10 characters, so it reads best big.
-        const up = Math.min(3.5, 900 / Math.max(region.sw, 1));
-        const sized = _capScanCanvasSize(region.sw * up, region.sh * up);
+        // A small crop blown up: the printed AIC is 10 characters, so it reads best big — but not
+        // huge. Measured on the household's phone (video 720x1280) a 1400-px canvas is up to
+        // 1.7 Mpx, which tesseract.js can take tens of seconds over: the job then holds
+        // `medOcrBusy` and NOTHING happens for minutes. 900 px keeps a band ~0.3 Mpx.
+        const up = Math.min(3.0, _medOcrMaxSide / Math.max(region.sw, 1));
+        let sized = _capScanCanvasSize(region.sw * up, region.sh * up, _medOcrMaxSide);
+        // A pixel BUDGET on top of the side cap: a portrait 720x1280 phone made the band pass
+        // 900x800 (0.7 Mpx), which tesseract.js can chew on for tens of seconds.
+        const budget = _medOcrBudget;
+        if (sized.width * sized.height > budget) {
+            const k = Math.sqrt(budget / (sized.width * sized.height));
+            sized = { width: Math.max(64, Math.round(sized.width * k)), height: Math.max(32, Math.round(sized.height * k)) };
+        }
         canvas.width = sized.width;
         canvas.height = sized.height;
         ctx.imageSmoothingEnabled = true;
@@ -16157,10 +16327,27 @@ function _captureMedLabelFrame(videoEl, region = null, binarize = false) {
  *
  * @returns {Promise<{aic:string|null, text:string}|null>}
  */
+/** Only ONE label attempt at a time: the scan loop and the barcode kick used to overlap, the
+ *  jobs interleaved in the worker and every one of them timed out (the 20 s storm in the log). */
+let _medAttemptBusy = false;
+/** The pass that read the last box: it goes first next time. */
+let _medBestPass = '';
+
 async function _medReadLabelOcr(options = {}) {
-    if (!_medOn()) return null;
+    if (_medAttemptBusy) return null;
+    _medAttemptBusy = true;
+    try {
+        return await _medReadLabelOcrInner(options);
+    } finally {
+        _medAttemptBusy = false;
+    }
+}
+
+async function _medReadLabelOcrInner(options = {}) {
+    if (!_medOn()) { scanLog('Medicine OCR skipped: the module is off'); return null; }
+    if (_medOcrGaveUp) return null;
     const patterns = _medOcrPatterns();
-    if (!patterns.length) return null;
+    if (!patterns.length) { scanLog('Medicine OCR skipped: the country schema declares no printed pattern'); return null; }
     const videoEl = document.getElementById('scanner-video');
     const worker = await _ensureTesseractWorker('aic');
     if (!worker) {
@@ -16173,37 +16360,62 @@ async function _medReadLabelOcr(options = {}) {
     if (!options.silent) {
         _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
     }
-    // Passes, cheapest first. A real AIC line is WIDE and its character spacing is huge (OCR-B),
-    // so the tight rectangle clips it more often than not: the band is widened to 1.5×, and every
-    // few seconds ONE pass reads the whole frame as sparse text — that is what rescues a hand
-    // that is not inside the rectangle at all.
-    const guide = _medGuideRect(videoEl);
-    const wide = guide ? _medGuideRect(videoEl, 1.5) : null;
+    // ONE region per attempt, rotating.
+    //
+    // Six OCR jobs in a row made an "attempt" 3-5 s long on a phone, and the household read that
+    // delay as "it does not read" — while the chip kept being overwritten by the lot barcode. One
+    // job per attempt answers in a few hundred milliseconds and covers the guide rectangle AND
+    // the whole frame within four attempts.
+    //
+    // The order is the measured one: psm 13 on the rectangle is the cleanest read of a printed
+    // OCR-B line, a half-frame BAND is what catches a box held away from the rectangle (psm 6,
+    // never 7 — a band holds several lines and the single-line mode answers ""), and the 1.5×
+    // "wide" rectangle carries the binarized copy for a low-contrast lamp.
+    // The unit of work is a thin STRIP of the rectangle: same width (characters big), half the
+    // pixels (a phone can finish it). The strips rotate so every line of the sticker is read.
+    const strips = _medLabelStrips(videoEl);
+    const wideStrips = _medLabelStrips(videoEl, 1.5);
+    const rotation = [];
+    // The BINARIZED strip is the pass that read the household's own label (a phone photo is dark
+    // and low-contrast): it goes first, then the plain ones. Five regions, not eight — every pass
+    // costs 0.5-2 s and the household counts them.
+    if (strips[1]) rotation.push({ region: strips[1], psm: '6', label: 'strip-ink', binarize: true });
+    if (strips[1]) rotation.push({ region: strips[1], psm: '6', label: 'strip-mid' });
+    if (strips[1]) rotation.push({ region: strips[1], psm: '13', label: 'strip-raw' });
+    if (strips[2]) rotation.push({ region: strips[2], psm: '6', label: 'strip-low' });
+    if (strips[0]) rotation.push({ region: strips[0], psm: '6', label: 'strip-top' });
+    if (wideStrips[1]) rotation.push({ region: wideStrips[1], psm: '6', label: 'wide-strip' });
+    // The region that worked last time goes first: the box is held the same way twice in a row.
+    if (_medBestPass) {
+        const best = rotation.findIndex(r => r.label === _medBestPass);
+        if (best > 0) rotation.unshift(rotation.splice(best, 1)[0]);
+    }
+    // No whole-frame pass: 0.9 Mpx is 10+ seconds on a phone and the sticker is a third of it.
+    // The guide rectangle and the three bands already cover the picture.
     const passes = [];
-    if (guide) {
-        passes.push({ region: guide, psm: '7', label: 'frame' });
-        passes.push({ region: guide, psm: '7', label: 'frame-ink', binarize: true });
-        passes.push({ region: guide, psm: '6', label: 'frame-block' });
+    if (rotation.length) {
+        passes.push(rotation[_medPassCursor % rotation.length]);
+        _medPassCursor++;
+    } else {
+        passes.push({ region: null, psm: '6', label: 'full' });
     }
-    if (wide) passes.push({ region: wide, psm: '6', label: 'wide', binarize: true });
-    const now = Date.now();
-    if (now - _medFullPassAt > 6000) {
-        _medFullPassAt = now;
-        passes.push({ region: null, psm: '11', label: 'whole-frame' });
-    }
-    if (!passes.length) passes.push({ region: null, psm: '6', label: 'full' });
 
     let text = '';
     let preview = '';
     for (const pass of passes) {
         const raw = _captureMedLabelFrame(videoEl, pass.region, false);
         const canvas = pass.binarize && raw ? _captureMedLabelFrame(videoEl, pass.region, true) : raw;
-        if (!canvas) continue;
+        if (!canvas) {
+            scanLog(`Medicine OCR (${pass.label}): no frame (video ${videoEl ? videoEl.videoWidth + 'x' + videoEl.videoHeight : 'absent'})`);
+            continue;
+        }
         if (!preview && raw && raw.toDataURL && _bootDebug) {
             // The preview is the picture the household framed, not the black-and-white copy.
             try { preview = raw.toDataURL('image/jpeg', 0.6); } catch (e) { preview = ''; }
         }
         try {
+            _medOcrJobSize = canvas ? { w: canvas.width, h: canvas.height } : null;
+            const passStartedAt = performance.now();
             const page = await _medOcrRun(async () => {
                 await worker.setParameters({ tessedit_pageseg_mode: pass.psm });
                 const { data } = await worker.recognize(canvas);
@@ -16211,24 +16423,39 @@ async function _medReadLabelOcr(options = {}) {
             });
             text += (text ? ' ' : '') + page;
             const aic = _medOcrFindAic(page, patterns);
-            scanLog(`Medicine OCR (${pass.label}, psm ${pass.psm}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
+            const took = Math.round(performance.now() - passStartedAt);
+            _medOcrTimeoutsSinceOk = 0;
+            if (took > 6000 && !_medOcrSlow) {
+                _medOcrSlow = true;
+                _medOcrMaxSide = 640;
+                _medOcrBudget = 60000;
+                scanLog(`Medicine OCR: slow device detected — ${took} ms for ${canvas.width}x${canvas.height}, smaller pictures from now on`);
+            }
+            scanLog(`Medicine OCR (${pass.label}, psm ${pass.psm}) in ${took} ms on ${canvas.width}x${canvas.height}: ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
+            _medDebugPass(pass, raw, page, aic, videoEl);
             // The frame is the only feedback on screen: the digits fill in as they are read.
             _medPreviewSample(page, aic);
             // The one line of feedback: what this pass actually read (tiny, in the status
             // chip that is already there — never a box over the label being aimed at).
             const seen = page.trim().replace(/\s+/g, ' ').slice(0, 24);
-            if (!aic && seen) _setScanStatus(t('medical.ocr_saw').replace('{text}', seen), 'partial', '');
+            if (!aic && seen) {
+                _setScanStatus(t('medical.ocr_saw').replace('{text}', seen), 'partial', '');
+                _medLastOcrStatusAt = Date.now();
+            }
             if (_bootDebug) scanLog(_medOcrGeometryNote(videoEl, pass.region));
             if (aic) {
                 // The name is printed above this very text: keep the picture for it.
                 _medLastLabelFrame = raw || canvas;
-                return { aic: aic, text: page, preview: preview };
+                _medBestPass = pass.label;
+                return { aic: aic, text: page, preview: preview, candidates: [] };
             }
         } catch (e) {
             scanLog(`Medicine OCR error (${pass.label}): ${e.message}`);
         }
     }
-    return { aic: null, text: text, preview: preview };
+    // Nothing carried the letter: hand over the digit runs so the CATALOGUE can say which one is
+    // a medicine (a bare 9-digit run is otherwise exactly the pack's serial).
+    return { aic: null, text: text, preview: preview, candidates: _medOcrDigitCandidates(text) };
 }
 
 let _medSelfTestDone = false;
@@ -16324,6 +16551,18 @@ function _medPreviewSample(raw, aic) {
  */
 /** When the last read was rejected (not a medicine): the status must stay readable. */
 let _medLastRejectedAt = 0;
+/** The last PACKAGING code the medicine panel threw away, and when: the same one is decoded on
+ *  every video frame, and the household only needs to be told once. */
+let _medIgnoredEcho = { code: '', at: 0 };
+/** The drug code already on its way to the form (one confirmation per read, not one per frame). */
+let _medConfirmingCode = '';
+/** The last read the catalogue refused, and how many times it came back identical. */
+let _medRejectHits = { code: '', n: 0 };
+/** Digit runs already offered to the catalogue in this session, and when the last batch ran. */
+let _medLooseTried = new Set();
+let _medLooseAt = 0;
+/** When the OCR last wrote the status chip: the lot barcode must not talk over it. */
+let _medLastOcrStatusAt = 0;
 /** Reads the catalogue proved wrong in this scan session: never asked again, never accepted. */
 const _medRejectedReads = new Set();
 let _medNeighbourCodes = [];
@@ -16336,13 +16575,20 @@ let _medNeighbourRead = '';
  * which paints them in the form as "non è questo?" chips.
  *
  * @param {string} read the OCR reading (a canonical national code, with or without the letter)
+ * @param {string} [method] how the number was read (a barcode strip, the label OCR), for the HUD
+ * @returns {Promise<boolean>} true when the medicine form was opened on a verified read
  */
-async function _medConfirmRead(read) {
+async function _medConfirmRead(read, method = 'OCR') {
     const raw = String(read || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
     const local = _medLocalCode(raw);
     const code = local ? String(local.aic || local.code || raw) : raw;
-    if (!code) return;
-    if (_medRejectedReads.has(code)) return;
+    if (!code) return false;
+    if (_medRejectedReads.has(code)) return false;
+    // The scan loop decodes the same barcode on every frame (and the OCR returns the same digits
+    // again): a read is confirmed ONCE. Without this, two `_finalizeBarcode()` calls raced and the
+    // form could be opened twice for the same box.
+    if (code === _medConfirmingCode) return false;
+    _medConfirmingCode = code;
     // A read is verified against the catalogue BEFORE anything opens: a wrong last digit is
     // exactly a number the formulary does not contain (`A040313072` is not a medicine), so the
     // scanner keeps reading instead of handing the household the wrong box.
@@ -16353,14 +16599,27 @@ async function _medConfirmRead(read) {
     const loaded = !!(res && res.dataset && res.dataset.loaded);
     const exact = !!(res && res.exact);
     if (loaded && !exact) {
-        _medRejectedReads.add(code);
+        // The same read comes back on every pass. One rejection keeps the scanner going (a wrong
+        // digit must not open a box), but a SECOND identical read means the digits are stable and
+        // the catalogue simply does not have that pack (stale or incomplete export): a dead end is
+        // worse than an honest warning, so the form opens WITH the code and says it is unknown.
+        const hits = (_medRejectHits.code === code ? _medRejectHits.n : 0) + 1;
+        _medRejectHits = { code: code, n: hits };
         _medLastRejectedAt = Date.now();
-        _setScanStatus(t('medical.scan_code_invalid'), 'invalid', '');
-        scanLog(`Medicine read rejected, not in the catalogue: ${code}`);
-        return;
+        _medConfirmingCode = '';
+        if (hits < 2) {
+            _setScanStatus(t('medical.scan_code_invalid'), 'invalid', '');
+            scanLog(`Medicine read rejected, not in the catalogue: ${code}`);
+            return false;
+        }
+        scanLog(`Medicine read stable but unknown to the catalogue, opening the form: ${code}`);
+        _setScanStatus(t('medical.read_unknown'), 'partial', '');
+        showToast(t('medical.read_unknown_hint').replace('{code}', 'A' + code), 'warning', 7000);
+        _finalizeBarcode('A' + code, method);
+        return true;
     }
     showToast(t('medical.ocr_found').replace('{code}', 'A' + code), 'success');
-    _finalizeBarcode('A' + code, 'OCR');
+    _finalizeBarcode('A' + code, method);
     // The form is open and the camera is closed: the name is read from the frame we kept, a
     // moment later, and written into an empty field. Nothing waits for it.
     _medPendingLabelName = '';
@@ -16373,6 +16632,39 @@ async function _medConfirmRead(read) {
     _medNeighbourRead = code;
     const rows = (res && Array.isArray(res.results)) ? res.results : [];
     _medNeighbourCodes = loaded ? _medChoiceCandidates(code, rows, 4) : [];
+    return true;
+}
+
+/**
+ * Try the digit runs of a page when the printed letter did not survive the frame.
+ *
+ * Each candidate is put through the SAME verification as a normal read, so the pack's progressive
+ * number (`014058142`) simply fails: the catalogue has no such medicine and the reader keeps
+ * going. Only the paths that need a proof reach this function (`_medOcrDigitCandidates` answers
+ * nothing without a catalogue), and at most four numbers are asked — not a brute force.
+ *
+ * @param {string[]} candidates nine-digit runs, in reading order
+ */
+async function _medTryLooseReads(candidates) {
+    // A page of a leaflet is full of numbers: asking about every one of them on every frame would
+    // hammer our own server for nothing. One batch every 2.5 s, and a number is asked only once.
+    const now = Date.now();
+    if (now - _medLooseAt < 2500) return false;
+    _medLooseAt = now;
+    const list = (candidates || [])
+        .map(String)
+        .filter(c => c && !_medLooseTried.has(c))
+        .slice(0, 4);
+    if (!list.length) return false;
+    const gen = _scannerGen;
+    for (const cand of list) {
+        _medLooseTried.add(cand);
+        if (gen !== _scannerGen) return false;
+        if (_medRejectedReads.has(cand)) continue;
+        scanLog(`Medicine loose read: verifying ${cand} against the catalogue`);
+        if (await _medConfirmRead(cand)) return true;
+    }
+    return false;
 }
 
 /**
@@ -16432,7 +16724,7 @@ function _medOcrKick() {
     const now = Date.now();
     if (now - _medOcrKickAt < 1200) return;
     _medOcrKickAt = now;
-    _medOcrFallback('', { silent: true }).catch(() => {});
+    _medOcrFallback('', { silent: true }).catch((e) => scanLog(`Medicine OCR kick failed: ${(e && e.message) || e}`));
 }
 
 /**
@@ -16441,6 +16733,43 @@ function _medOcrKick() {
  * Same path as a scan — validated by the country module, verified against the catalogue, then the
  * form — so a box whose label is creased, glossy or simply not being read is never a dead end.
  */
+/** The ten-second nudge: this box carries its number, so it can always be typed. */
+let _medAskCodeTimer = null;
+function _medAskCodeSoon() {
+    if (_medAskCodeTimer) clearTimeout(_medAskCodeTimer);
+    _medAskCodeTimer = setTimeout(() => {
+        if (!_scanModeIsMedical() || !scannerStream) return;
+        if (_medConfirmingCode || _medFormIsMedicine()) return;   // a read is on its way / the form is open
+        const row = document.getElementById('scan-med-code-row');
+        const input = document.getElementById('scan-med-code-input');
+        const resume = document.getElementById('scan-med-resume');
+        // The camera STOPS: a toast nobody notices left the household staring at a live preview
+        // that was not reading anything. With the stream off, the row is the only thing to use.
+        try { stopScanner(); } catch (e) { /* already stopped */ }
+        _setScanHudState('idle');
+        if (resume) resume.hidden = false;
+        if (row) row.classList.add('is-wanted');
+        if (input && !input.value) {
+            try { input.focus({ preventScroll: true }); } catch (e) { /* desktop without a keyboard */ }
+        }
+        _setScanStatus(t('medical.type_code_now'), 'partial', '');
+        showToast(t('medical.type_code_now'), 'info', 8000);
+        scanLog('Medicine: twenty seconds without a read, the camera stopped and the code is asked by hand');
+    }, 20000);
+}
+
+/** Back to the camera after the code prompt stopped it. */
+function _medResumeScan() {
+    const row = document.getElementById('scan-med-code-row');
+    const resume = document.getElementById('scan-med-resume');
+    if (row) row.classList.remove('is-wanted');
+    if (resume) resume.hidden = true;
+    _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+    scanLog('Medicine: reader resumed by the household');
+    initScanner();
+    _medAskCodeSoon();
+}
+
 function _medSubmitCode() {
     const input = document.getElementById('scan-med-code-input');
     const raw = String(input && input.value || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
@@ -16475,11 +16804,145 @@ let _medPendingLabelName = '';
  * flight (or a `setParameters()` slipping between them) make the worker answer the wrong job and
  * silently return nothing, which is exactly what "it reads nothing any more" looked like.
  */
+/** How long one OCR job may take before it is abandoned (a phone is slow, not infinite). */
+const _MED_OCR_JOB_TIMEOUT_MS = 20000;
+let _medOcrTimeouts = 0;
+/** Timeouts since the last successful pass (two in a row = a wedged worker). */
+let _medOcrTimeoutsSinceOk = 0;
+/** The local engine could not finish a single pass: stop asking it (the code can be typed). */
+let _medOcrGaveUp = false;
+/** Size of the image the current job is chewing on (the timeout line reports it). */
+let _medOcrJobSize = null;
+/** Adaptive: a device that times out gets smaller pictures (set once per scan session). */
+let _medOcrSlow = false;
+let _medOcrMaxSide = 900;
+let _medOcrBudget = 180000;
+
+
+/**
+ * TEMPORARY diagnostic (`MED_DEBUG=true` on the server): what each pass read, plus — bounded —
+ * the crop itself as a JPEG, so the household's own phone can show what the engine really sees.
+ *
+ * Nothing here runs unless the SERVER asked for it (`med_status.debug`), the upload is
+ * fire-and-forget, and only `_MED_DEBUG_FRAMES` pictures are sent per scan session: a diagnostic
+ * must not turn a phone's camera into a data hose. Turn it off with the env flag and the whole
+ * path goes quiet.
+ */
+let _medDebugFramesLeft = 12;
+
+/** A crop as a small JPEG (≤480 px wide, quality 0.5): readable by a human, small on the wire. */
+function _medDebugFrameJpeg(source) {
+    try {
+        const w = Math.min(480, source.width || 0);
+        if (!w) return '';
+        const h = Math.round((source.height || 0) * (w / Math.max(1, source.width)));
+        const small = document.createElement('canvas');
+        small.width = Math.max(1, w);
+        small.height = Math.max(1, h);
+        small.getContext('2d').drawImage(source, 0, 0, small.width, small.height);
+        return small.toDataURL('image/jpeg', 0.5);
+    } catch (e) {
+        return '';
+    }
+}
+
+/** One event per OCR pass: geometry, what it read, and (bounded) the picture it read it from. */
+function _medDebugPass(pass, raw, page, aic, videoEl) {
+    if (!_medStatus || !_medStatus.debug) return;
+    const wantImage = !!raw && _medDebugFramesLeft > 0;
+    if (wantImage) _medDebugFramesLeft--;
+    const region = pass.region
+        ? { x: Math.round(pass.region.sx), y: Math.round(pass.region.sy), w: Math.round(pass.region.sw), h: Math.round(pass.region.sh) }
+        : null;
+    try {
+        api('med_debug', {}, 'POST', {
+            events: [{
+                kind: 'pass',
+                label: pass.label,
+                psm: pass.psm,
+                binarize: !!pass.binarize,
+                region: region,
+                canvas: raw ? { w: raw.width, h: raw.height } : null,
+                video: videoEl ? { w: videoEl.videoWidth, h: videoEl.videoHeight } : null,
+                text: String(page || '').slice(0, 300),
+                aic: aic || '',
+                image: wantImage ? _medDebugFrameJpeg(raw) : '',
+            }],
+        }).catch(() => {});
+    } catch (e) { /* a diagnostic never breaks the reader */ }
+}
+
+/** One event when the medicine panel opens: the geometry the reader works with + the frame. */
+function _medDebugPanel() {
+    if (!_medStatus || !_medStatus.debug) return;
+    setTimeout(() => {
+        const v = document.getElementById('scanner-video');
+        const guide = v && v.videoWidth ? _medGuideRect(v) : null;
+        const rect = (r) => (r ? { x: Math.round(r.sx), y: Math.round(r.sy), w: Math.round(r.sw), h: Math.round(r.sh) } : null);
+        let image = '';
+        if (v && v.videoWidth && _medDebugFramesLeft > 0) {
+            image = _medDebugFrameJpeg(v);
+            if (image) _medDebugFramesLeft--;
+        }
+        try {
+            api('med_debug', {}, 'POST', {
+                events: [{
+                    kind: 'panel',
+                    video: v ? { w: v.videoWidth, h: v.videoHeight } : null,
+                    guide: rect(guide),
+                    strip0: rect((_medLabelStrips(v || {})[0]) || null),
+                    strip1: rect((_medLabelStrips(v || {})[1]) || null),
+                    strip2: rect((_medLabelStrips(v || {})[2]) || null),
+                    container: (() => {
+                        const vp = document.getElementById('scanner-viewport');
+                        const b = vp ? vp.getBoundingClientRect() : null;
+                        return b ? { w: Math.round(b.width), h: Math.round(b.height) } : null;
+                    })(),
+                    image: image,
+                }],
+            }).catch(() => {});
+        } catch (e) { /* a diagnostic never breaks the panel */ }
+    }, 1200);
+}
+
+/** The OCR worker runs ONE job at a time: the queue is this chain. */
 let _medOcrQueue = Promise.resolve();
+
 function _medOcrRun(job) {
     const next = _medOcrQueue.then(job, job);
     _medOcrQueue = next.catch(() => {});
-    return next;
+    // A `recognize()` that never settles used to hold the queue (and `medOcrBusy`) FOREVER: the
+    // household watched a camera that never read and never said why. Every job now has a deadline.
+    return Promise.race([
+        next,
+        new Promise((resolve) => setTimeout(() => {
+            _medOcrTimeouts++;
+            _medOcrTimeoutsSinceOk++;
+            if (_medOcrTimeouts >= 3 && !_medOcrGaveUp) {
+                _medOcrGaveUp = true;
+                scanLog('Medicine OCR: this device cannot finish a pass - the code can be typed');
+            }
+            const size = _medOcrJobSize ? ` on ${_medOcrJobSize.w}x${_medOcrJobSize.h} (${Math.round(_medOcrJobSize.w * _medOcrJobSize.h / 1000)}k px)` : '';
+            scanLog(`Medicine OCR job timed out (${_MED_OCR_JOB_TIMEOUT_MS} ms, total ${_medOcrTimeouts})${size}`);
+            // A job that never settles must not swallow the next ones: the queue is released, and
+            // after two timeouts the worker is replaced (a wedged WASM instance never recovers).
+            _medOcrQueue = Promise.resolve();
+            // NOT a restart: terminating the worker makes the next job reload the 3 MB model, so
+            // every attempt paid the load again and NOTHING ever finished. A slow device is
+            // handled by giving it smaller pictures instead.
+            // A job that never settles leaves the worker answering nothing: replace it. The reload
+            // costs 2-4 s, but a wedged engine costs every attempt.
+            if (_medOcrTimeoutsSinceOk >= 2 && _tesseractWorker) {
+                try { _tesseractWorker.terminate(); } catch (e) { /* already gone */ }
+                _tesseractWorker = null;
+                _tesseractWorkerMode = '';
+                _tesseractInitPromise = null;
+                _medOcrTimeoutsSinceOk = 0;
+                scanLog('Medicine OCR: the engine stopped answering, worker replaced');
+            }
+            resolve('');
+        }, _MED_OCR_JOB_TIMEOUT_MS)),
+    ]);
 }
 
 /** The frame that produced the accepted AIC: the name is read from it, after the form opens. */
@@ -16567,6 +17030,8 @@ function _medFillFromCatalogue(row, options = {}) {
     };
     set('pf-name', String(row.name), 'name');
     if (row.company) set('pf-brand', String(row.company), 'brand');
+    // The active ingredient has its own field: it used to live only inside the notes.
+    if (row.ingredient) set('pf-med-ingredient', String(row.ingredient), 'ingredient');
     const details = [
         row.ingredient ? t('medical.match_ingredient').replace('{value}', row.ingredient) : '',
         [row.form, row.dosage].filter(Boolean).join(' '),
@@ -16721,23 +17186,35 @@ async function _medShowCatalogueMatch(code) {
             _medNeighboursHtml(rows);
         return;
     }
-    // The source travels with the name: a household must know whether it is reading the official
-    // AIFA list (imported once, offline) or its own typing. No third-party call is behind it.
-    const dataset = (res && res.dataset) || {};
-    const source = dataset.loaded
-        ? t('medical.match_source')
-            .replace('{source}', t(String((res && res.dataset_key) || 'medical.dataset_aifa')))
-            .replace('{count}', String(Number(dataset.count || 0)))
-        : '';
     // An exact AIC names the box: fill the fields the household would otherwise retype (empty
-    // ones only) and keep the card as the confirmation + the correction.
+    // ones only), say so in ONE line and STOP. The alternatives belong to a doubtful read, not to
+    // a certain one: offering the neighbours of a code the catalogue confirms only makes the
+    // household wonder whether the app knows what it read.
     const exactRow = rows.find(r => String(r.aic || '') === aic);
     if (exactRow) {
         _medFillFromCatalogue(exactRow);
-        host.innerHTML = `<p class="settings-hint med-match-filled">${escapeHtml(t('medical.match_filled').replace('{code}', 'A' + aic))}</p>`;
-    } else {
-        host.innerHTML = '';
+        _medMatchResults = rows;
+        _medNeighbourRead = aic;
+        _medNeighbourCodes = [];
+        host.innerHTML = `<p class="settings-hint med-match-filled">${escapeHtml(t('medical.match_filled').replace('{code}', 'A' + aic))}</p>`
+            + `<div class="med-match-foot"><button type="button" class="med-alt-link" onclick="_medShowAlternatives()">${escapeHtml(t('medical.not_this'))}</button></div>`;
+        return;
     }
+    _medMatchCard(aic, rows);
+}
+
+/** "Non è questo?": the list of neighbours, on demand (never in front of a confirmed read). */
+function _medShowAlternatives() {
+    const host = document.getElementById('pf-med-match');
+    if (!host) return;
+    host.innerHTML = '';
+    _medMatchCard(_medNeighbourRead || '', _medMatchResults || []);
+}
+
+/** The correction card: the real codes around a doubtful read, each with the name on its box. */
+function _medMatchCard(aic, rows) {
+    const host = document.getElementById('pf-med-match');
+    if (!host) return;
     host.innerHTML += `<h5 class="med-match-title">${escapeHtml(t('medical.match_title'))}</h5>` +
         rows.map((row, i) => {
             const meta = [
@@ -16758,7 +17235,6 @@ async function _medShowCatalogueMatch(code) {
             </div>`;
         }).join('') +
         `<p class="settings-hint">${escapeHtml(t('medical.match_advice'))}</p>` +
-        (source ? `<p class="settings-hint med-match-source">${escapeHtml(source)}</p>` : '') +
         _medNeighboursHtml(rows);
 }
 
@@ -16894,6 +17370,33 @@ function startUnifiedScanner(videoEl) {
         // label OCR below runs (step 5) — the barcode path is what confused the boxes.
         const decodeBarcodes = !_scanModeIsMedical() || _medScanBarcodes();
 
+        // 0) MEDICINE PANEL: the print's own BARCODE, on a magnified crop of the guide. This is
+        //    the path a pharmacist takes (the AIC is a Code 39 on the bollino), and it is exact:
+        //    the number that comes back IS the catalogue key, no OCR guesswork.
+        if (_scanModeIsMedical() && decodeBarcodes && frameCount % 2 === 1) {
+            const barcodeCrop = _medBarcodeCrop(videoEl);
+            if (barcodeCrop) {
+                if (_detectorNative) {
+                    try {
+                        const codes = await _detectorNative.detect(barcodeCrop);
+                        if (codes && codes.length > 0) {
+                            foundThisFrame = true;
+                            if (handleCodes(codes, 'Native×2')) return;
+                        }
+                    } catch (e) { /* the engine refuses a canvas sometimes: ZBar below */ }
+                }
+                if (_detectorZbar) {
+                    try {
+                        const codes = await _detectorZbar.detect(barcodeCrop);
+                        if (codes && codes.length > 0) {
+                            foundThisFrame = true;
+                            if (handleCodes(codes, 'ZBar×2')) return;
+                        }
+                    } catch (e) { /* nothing to read in this crop */ }
+                }
+            }
+        }
+
         // 1) Native BarcodeDetector — every frame (fastest when available)
         if (decodeBarcodes && _detectorNative) {
             try {
@@ -16980,16 +17483,26 @@ function startUnifiedScanner(videoEl) {
             }
             _medReadLabelOcr({ silent: true }).then(reading => {
                 if (gen !== _scannerGen || !scannerStream) return;
-                if (!reading || !reading.aic) {
+                if (!reading || (!reading.aic && !(reading.candidates || []).length)) {
                     // Never a silent stop: the line under the camera already shows what was read,
                     // and the status says the reader is still trying (the button is the shortcut).
                     if (medOcrAttempts >= 8) _setScanStatus(t('medical.ocr_not_found'), 'partial', '');
                     return;
                 }
+                // The letter was lost, the digits were not: the catalogue decides which run is a
+                // medicine (the pack's progressive number is in none of its rows).
+                if (!reading.aic) {
+                    _medTryLooseReads(reading.candidates || []);
+                    return;
+                }
                 // Not accepted from a single read: the household confirms among the closest real
                 // codes (a wrong last digit is invisible to the reader, never to the box).
                 _medConfirmRead(reading.aic);
-            }).catch(() => {}).finally(() => { medOcrBusy = false; });
+            }).catch((e) => {
+                // Never silent: a `ReferenceError` in here (a missing declaration) used to be
+                // swallowed and looked exactly like "the engine reads nothing".
+                scanLog(`Medicine OCR attempt failed: ${(e && e.message) || e}`);
+            }).finally(() => { medOcrBusy = false; });
         }
 
         if (!foundThisFrame) {
@@ -18787,7 +19300,7 @@ function editActionInventoryItem(inventoryId) {
                 <label class="toggle-row">
                     ${t('add.vacuum_label')}
                     <span class="toggle-switch">
-                        <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry')">
+                        <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry', true)">
                         <span class="toggle-slider"></span>
                     </span>
                 </label>
@@ -18803,6 +19316,8 @@ function editActionInventoryItem(inventoryId) {
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
     _initExpiryManualTracking('action-edit-expiry', item);
+    // The kind this row's place belongs to: picking another pantry keeps the date it has.
+    _editExpiryKind.set('action-edit-expiry', storageKindOfLocation(item.location));
     setQtyInputUnitLabel('action-edit-qty', item.unit || 'pz');
 }
 
@@ -19346,6 +19861,107 @@ function finishEditScanAiBrand(cancel = false) {
 }
 
 // ===== ADD TO INVENTORY =====
+/**
+ * EverShelf Med — the two questions a medicine box asks and food does not.
+ *
+ * `#add-med-stock` is invisible for food. For a medicine it offers:
+ *   * the state of the pack — sealed, or already opened, which starts the PAO clock and lets the
+ *     server move the expiry to "today + giorni di conservazione dopo l'apertura";
+ *   * how many pieces are left, as fractions of the pack the CATALOGUE describes ("10 buste" →
+ *     tutta / ¾ / ½ / ¼), so "quanto ne è rimasto" is one tap and not arithmetic.
+ * The pack size is not invented here: `_medPackCount()` reads the official description the
+ * catalogue row put into the notes.
+ */
+let _medAddStockStateValue = 'new';
+
+function _renderAddMedStock() {
+    const box = document.getElementById('add-med-stock');
+    if (!box) return;
+    const medical = _isMedicalRow(currentProduct);
+    box.hidden = !medical;
+    if (!medical) return;
+    _medAddStockStateValue = 'new';
+    box.querySelectorAll('.med-state-chip').forEach(b => {
+        b.classList.toggle('is-on', b.dataset.state === 'new');
+    });
+    const pack = _medPackCount([
+        currentProduct && currentProduct.med_pack,
+        currentProduct && currentProduct.notes,
+        currentProduct && currentProduct.name,
+    ].filter(Boolean).join(' '));
+    const row = document.getElementById('add-med-pieces-row');
+    const piecesHint = document.getElementById('add-med-pieces-hint');
+    if (row) row.hidden = pack.pieces < 2;
+    if (piecesHint) {
+        piecesHint.textContent = pack.pieces >= 2
+            ? t('medical.pieces_hint').replace('{n}', String(pack.pieces)).replace('{unit}', pack.unit)
+            : '';
+    }
+    const chips = document.getElementById('add-med-pieces');
+    if (!chips) return;
+    chips.innerHTML = '';
+    if (pack.pieces < 2) return;
+    [[1, t('medical.pieces_all')], [0.75, '¾'], [0.5, '½'], [0.25, '¼']].forEach(pair => {
+        const frac = pair[0];
+        const n = Math.max(1, Math.round(pack.pieces * frac));
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'med-piece-chip' + (frac === 1 ? ' is-on' : '');
+        btn.dataset.pieces = String(n);
+        btn.textContent = `${pair[1]} (${n})`;
+        btn.onclick = () => _medAddStockPieces(n);
+        chips.appendChild(btn);
+    });
+}
+
+/** Sealed or already opened: the value `submitAdd()` reads when the row is written. */
+function _medAddStockState(state) {
+    _medAddStockStateValue = state === 'opened' ? 'opened' : 'new';
+    document.querySelectorAll('#add-med-state .med-state-chip').forEach(b => {
+        b.classList.toggle('is-on', b.dataset.state === _medAddStockStateValue);
+    });
+}
+
+/** A fraction of the pack, written into the quantity field the form already owns. */
+function _medAddStockPieces(n) {
+    const input = document.getElementById('add-quantity');
+    if (input) {
+        input.value = String(n);
+        input.dataset.manuallySet = 'true';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    document.querySelectorAll('#add-med-pieces .med-piece-chip').forEach(b => {
+        b.classList.toggle('is-on', Number(b.dataset.pieces) === Number(n));
+    });
+}
+
+/**
+ * The expiry block of a MEDICINE box: the date PRINTED on the pack, and nothing else.
+ *
+ * Food gets an estimate (a shelf life nobody prints); a medicine prints "scadenza MM/AAAA" on the
+ * box, so the app asks for that date, refuses a past one and warns when it is nearly over. The
+ * camera button stays food-only: the medicines module never calls a model.
+ */
+function _medAddExpiryHtml() {
+    return `
+        <label>${t('add.purchase_type_label')}</label>
+        <div class="purchase-type-selector">
+            <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new')">
+                ${t('add.new_btn')}
+            </button>
+            <button type="button" class="purchase-type-btn" onclick="selectPurchaseType(this, 'existing')">
+                ${t('add.existing_btn')}
+            </button>
+        </div>
+        <div id="expiry-detail" class="expiry-detail">
+            <div class="expiry-input-row">
+                <input type="date" id="add-expiry" class="form-input" value="">
+            </div>
+            <p class="form-hint">${t('add.expiry_from_pack')}</p>
+        </div>
+        <div id="multi-batch-section" style="display:none"><div id="multi-batch-container"></div></div>`;
+}
+
 function showAddForm() {
     _snapshotCatalogTitle();
     _renderAddProductPreview();
@@ -19431,12 +20047,19 @@ function showAddForm() {
     // A medicine box is not vacuum-sealed: the food-only option goes away.
     const vacuumGroup = document.getElementById('add-vacuum-group');
     if (vacuumGroup) vacuumGroup.style.display = _isMedicalRow(currentProduct) ? 'none' : '';
-    
-    // Show the purchase-type selector  
+    // …and it asks its own two questions instead (sealed/opened, pieces left).
+    _renderAddMedStock();
+
+    // Show the purchase-type selector
     const expirySection = document.getElementById('add-expiry-section');
-    const estimatedDays = estimateExpiryDays(currentProduct, autoLoc);
-    const estimatedDate = addDays(estimatedDays);
-    const estimateLabel = formatEstimatedExpiry(estimatedDays);
+    // The kind this first date belongs to: a later place pick of the SAME kind keeps it.
+    _addExpiryKind = storageKindOfLocation(autoLoc);
+    // A medicine box carries its own date. Nothing is estimated for it (an invented "6 mesi" is
+    // worse than an empty field): the household reads the pack.
+    const medicalRow = _isMedicalRow(currentProduct);
+    const estimatedDays = medicalRow ? 0 : estimateExpiryDays(currentProduct, autoLoc);
+    const estimatedDate = medicalRow ? '' : addDays(estimatedDays);
+    const estimateLabel = medicalRow ? '' : formatEstimatedExpiry(estimatedDays);
     
     let expirySuffix = autoLoc === 'freezer' ? ' (freezer)' : '';
     
@@ -19454,7 +20077,7 @@ function showAddForm() {
     // Store base expiry for vacuum recalculation
     window._addBaseExpiryDays = estimatedDays;
     
-    expirySection.innerHTML = `
+    expirySection.innerHTML = medicalRow ? _medAddExpiryHtml() : `
         <label>${t('add.purchase_type_label')}</label>
         <div class="purchase-type-selector">
             <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new')">
@@ -19490,10 +20113,13 @@ function showAddForm() {
     // History first (≥3 samples → average of last 3); AI only if history is insufficient
     (async () => {
         let hasHistory = false;
-        if (currentProduct?.id) {
+        if (currentProduct?.id && !medicalRow) {
             hasHistory = await _fetchExpiryHistoryAndUpdate(currentProduct.id);
         }
-        if (_geminiAvailable && currentProduct && !currentProduct._aiHintFetched && !hasHistory) {
+        // …and never on a medicine: the module identifies and dates a box with DATA (the printed
+        // code, the catalogue, the PAO table), not with a language model.
+        if (_geminiAvailable && currentProduct && !currentProduct._aiHintFetched && !hasHistory
+            && !medicalRow) {
             _applyAIProductHint();
         }
     })();
@@ -19508,13 +20134,33 @@ function toggleVacuumSealed() {
 function onVacuumSealedChange() {
     const hint = document.getElementById('add-vacuum-hint');
     if (hint) hint.style.display = document.getElementById('add-vacuum-sealed')?.checked ? 'block' : 'none';
-    recalculateAddExpiry();
+    // Forced: the place did not change, the storage did (sotto vuoto).
+    recalculateAddExpiry(true);
 }
 
-function recalculateAddExpiry() {
+/** The kind of place (pantry/fridge/freezer) the date now on the add form was computed for. */
+let _addExpiryKind = '';
+/** Same, per EDIT form: keyed by the id of its expiry input. */
+const _editExpiryKind = new Map();
+
+/**
+ * Recompute the expiry of the add form.
+ *
+ * The estimate follows the KIND of place, not its name. Moving the box between two places of the
+ * same kind ("Dispensa" → "Dispensa cucina") must NOT move the date — that is the household's own
+ * complaint, and it was also silently replacing an estimate that came from history or from the AI
+ * with a rule-of-thumb one. A different kind (fridge, freezer) does recompute, because that is
+ * exactly what the estimate is for.
+ *
+ * @param {boolean} [force] recompute even within the same kind (vacuum toggle, fresh purchase)
+ */
+function recalculateAddExpiry(force = false) {
     if (_isExpiryManuallySet('add-expiry')) return;
     if (!currentProduct) return;
     const loc = document.getElementById('add-location')?.value || '';
+    const kind = storageKindOfLocation(loc);
+    if (!force && _addExpiryKind && kind === _addExpiryKind) return;
+    _addExpiryKind = kind;
     const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
     
     const baseDays = window._historyExpiryDays ?? estimateExpiryDays(currentProduct, loc);
@@ -19527,8 +20173,8 @@ function recalculateAddExpiry() {
     
     let suffix = '';
     if (window._historyExpiryDays) suffix = t('product.from_history');
-    else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
-    else if (loc === 'freezer') suffix = ' ' + t('add.suffix_freezer');
+    else if (kind === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
+    else if (kind === 'freezer') suffix = ' ' + t('add.suffix_freezer');
     else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
     
     const expiryInput = document.getElementById('add-expiry');
@@ -19569,6 +20215,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
                     locEl.value = resolveLocationKey(data.preferred_location);
                     markLocationButton('#page-add .loc-btn', locEl.value);
                 }
+                _addExpiryKind = storageKindOfLocation(document.getElementById('add-location')?.value);
                 const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
                 let days = isVacuum ? getVacuumExpiryDays(data.avg_days) : data.avg_days;
                 const newDate = addDays(days);
@@ -19591,6 +20238,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
         // No shelf samples yet, but waste penalty → shorten rule-based estimate
         if (window._learnedAlertSooner > 0 && currentProduct && !_isExpiryManuallySet('add-expiry')) {
             const loc = document.getElementById('add-location')?.value || '';
+            _addExpiryKind = storageKindOfLocation(loc);
             const days = estimateExpiryDays(currentProduct, loc);
             const expiryInput = document.getElementById('add-expiry');
             const estimateEl = document.querySelector('.expiry-estimate-label');
@@ -19652,8 +20300,14 @@ async function _applyAIProductHint() {
             markLocationButton('#page-add .loc-btn', suggested);
         }
 
-        // Update expiry only if we have no historical data (history takes priority)
-        if (!window._historyExpiryDays && !_isExpiryManuallySet('add-expiry')) {
+        // Update expiry only if we have no historical data (history takes priority) AND the
+        // place in use is the one the AI was talking about: its days belong to ITS storage, and
+        // applying them to another kind of place is how "I only moved the box" re-dated it.
+        const aiKind = suggested ? storageKindOfLocation(suggested) : '';
+        const hereKind = storageKindOfLocation(document.getElementById('add-location')?.value);
+        const sameKind = !aiKind || aiKind === hereKind;
+        if (!window._historyExpiryDays && !_isExpiryManuallySet('add-expiry') && sameKind) {
+            _addExpiryKind = hereKind;
             window._addBaseExpiryDays = data.expiry_days;
             const newDate  = addDays(data.expiry_days);
             const newLabel = formatEstimatedExpiry(data.expiry_days);
@@ -19813,8 +20467,21 @@ function selectPurchaseType(btn, type) {
     const currentQty = document.getElementById('add-quantity').value;
     
     if (type === 'new') {
+        // A medicine box keeps the date the household typed: there is no shelf life to estimate.
+        if (_isMedicalRow(currentProduct)) {
+            const typed = document.getElementById('add-expiry')?.value || '';
+            const section = document.getElementById('add-expiry-section');
+            if (section) section.innerHTML = _medAddExpiryHtml();
+            const field = document.getElementById('add-expiry');
+            if (field && typed) field.value = typed;
+            _initExpiryManualTracking('add-expiry');
+            document.getElementById('add-quantity').value = currentQty;
+            return;
+        }
         // Recalculate fresh expiry based on current location/vacuum
         const loc = document.getElementById('add-location')?.value || '';
+        const kind = storageKindOfLocation(loc);
+        _addExpiryKind = kind;
         const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
         const baseDays = window._historyExpiryDays ?? estimateExpiryDays(currentProduct, loc);
         let days = isVacuum ? getVacuumExpiryDays(baseDays) : baseDays;
@@ -19822,8 +20489,8 @@ function selectPurchaseType(btn, type) {
         const estimateLabel = formatEstimatedExpiry(days);
         let suffix = '';
         if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', window._historyExpiryCount)}">${t('product.history_badge')}</span>`;
-        else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
-        else if (loc === 'freezer') suffix = ' ' + t('add.suffix_freezer');
+        else if (kind === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
+        else if (kind === 'freezer') suffix = ' ' + t('add.suffix_freezer');
         else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
         
         detailDiv.innerHTML = `
@@ -20137,6 +20804,32 @@ async function submitAdd(e) {
         showLoading(false);
     }
 
+    // A date in the past (or hours away) is a typo or a mis-read, not a shelf life: it is refused,
+    // and a date that is nearly over is flagged. Nothing is written until this passes.
+    const expiryField = document.getElementById('add-expiry');
+    const expiryIso = expiryField ? String(expiryField.value || '') : '';
+    if (expiryIso === '' && _isMedicalRow(currentProduct)) {
+        showToast(t('add.expiry_required'), 'error', 6000);
+        expiryField?.focus();
+        startAddFormIdleCountdown();
+        return;
+    }
+    if (expiryIso) {
+        const midnight = new Date();
+        midnight.setHours(0, 0, 0, 0);
+        const when = new Date(expiryIso + 'T00:00:00');
+        const daysLeft = Math.round((when.getTime() - midnight.getTime()) / 86400000);
+        if (Number.isFinite(daysLeft) && daysLeft < 0) {
+            showToast(t('add.expiry_past'), 'error', 6000);
+            expiryField.focus();
+            startAddFormIdleCountdown();
+            return;
+        }
+        if (Number.isFinite(daysLeft) && daysLeft <= 3) {
+            showToast(t('add.expiry_soon').replace('{days}', String(daysLeft)), 'warning', 5000);
+        }
+    }
+
     const recent = _findRecentInventoryAdd(currentProduct.id, location);
     if (recent) {
         const ok = _confirmRecentDuplicateAdd(
@@ -20174,6 +20867,15 @@ async function submitAdd(e) {
         if (result.success) {
             _clearAddFormGuard();
             _pendingBarcodeSave = null;
+            // A box the household says is ALREADY OPEN starts its own clock (PAO): the server
+            // moves the expiry to today + the storage life after opening. Said out loud, because
+            // the date the household just saw on the form changes with it.
+            if (_isMedicalRow(currentProduct) && _medAddStockStateValue === 'opened' && result.inventory_id) {
+                const opened = await api('med_open', { inventory_id: result.inventory_id }, 'POST').catch(() => null);
+                if (opened && opened.success) {
+                    showToast(t('medical.opened_saved').replace('{date}', opened.expiry_date ? formatDate(opened.expiry_date) : '—'), 'info');
+                }
+            }
             if (result.canonical_product_id && result.canonical_product_id !== currentProduct.id) {
                 currentProduct.id = result.canonical_product_id;
             }

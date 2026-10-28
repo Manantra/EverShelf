@@ -2212,6 +2212,48 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: var(--text-muted);
 }
 .med-pao-field input { width: 64px; }
+/* ── A medicine box is counted in pieces, and it has a STATE ─────────────────
+   The add form asks food "quanto?"; a box also asks "sigillata o già aperta?" (an opened pack
+   starts its own clock) and "quante ne restano?" as fractions of the pack the catalogue
+   describes ("10 buste" → tutta / ¾ / ½ / ¼). Neutral chips with the medicine accent for the
+   selected one — they only move a number the form already owns, and the submit keeps the
+   emerald of the action that writes the outcome. */
+.med-state-chips,
+.med-piece-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.med-state-chip,
+.med-piece-chip {
+    padding: 6px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    background: var(--surface-bg);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.med-state-chip.is-on,
+.med-piece-chip.is-on {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.14);
+    font-weight: 600;
+}
+.med-pieces-block { margin-top: 10px; }
+/* A confirmed read: the correction is a footnote, not a choice to make. */
+.med-match-foot { margin-top: 2px; text-align: right; }
+.med-alt-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.med-alt-link:hover { color: var(--text-main); }
+
 /* ── Adding a medicine is not adding food ────────────────────────────────────
    A recognised code switches #page-product-form into `is-medicine-form`: the food-only
    fields (AI photo fill, food category, unit/package, tags, family) disappear, the medical
@@ -2296,10 +2338,6 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* `display: flex` would defeat the [hidden] attribute on the scan action bar (the medical
    button only exists when the module is on and the country prints a code to OCR). */
 .scan-action-btn[hidden] { display: none; }
-/* Four visible buttons (the medicine AIC reader) get four columns: the bar's own rule fixes
-   three, so a fourth would wrap alone onto a second row. */
-#scan-action-bar.has-med { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
 /* ── Two scan panels, never mixed ─────────────────────────────────────────────
    `#page-scan.is-medical-scan` is the medicine panel: it keeps the camera, the AIC reader and
    a hand entry, and hides every food-only control (AI vision, food search, shopping session,
@@ -2328,7 +2366,9 @@ a.free-api:hover { border-color: var(--brand-primary); }
     top: 52%;
     transform: translate(-50%, -50%);
     width: 78%;
-    height: 18%;
+    /* The WHOLE label, not a letterbox: the household aimed at the thin band and the printed
+       line kept falling out of it. The reader cuts this into three strips anyway. */
+    height: 26%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2371,6 +2411,22 @@ a.free-api:hover { border-color: var(--brand-primary); }
     margin: 0 0 8px;
 }
 .scan-med-code-row[hidden] { display: none; }
+/* Ten seconds without a read: the row asks for the code by itself (the box always carries it).
+   A brand outline that pulses three times, and nothing at all with reduced motion. */
+.scan-med-code-row.is-wanted {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 3px;
+    border-radius: 12px;
+    animation: med-ask-pulse 1.6s ease-in-out 3;
+}
+@keyframes med-ask-pulse {
+    0%, 100% { outline-color: var(--brand-primary); }
+    50% { outline-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .scan-med-code-row.is-wanted { animation: none; }
+}
+
 .scan-med-code-input {
     flex: 1 1 auto;
     min-width: 0;

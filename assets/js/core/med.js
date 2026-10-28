@@ -232,6 +232,19 @@ function _medOcrPatterns() {
 }
 
 /**
+ * Is a national catalogue loaded on this instance?
+ *
+ * The READER needs to know, because the forgiving paths below (a prefix letter that did not
+ * survive the camera, and a bare run of nine digits) are only ever allowed when something can
+ * PROVE the number: the catalogue rows. With no catalogue an unproven read would be stored as a
+ * medicine, which is exactly the mistake the strict path exists to avoid. Same flag the client
+ * already shows in Settings (`med_status.dataset.loaded`).
+ */
+function _medCatalogueLoaded() {
+    return !!(_medStatus && _medStatus.dataset && _medStatus.dataset.loaded);
+}
+
+/**
  * The drug code inside a page of OCR text.
  *
  * The patterns are DATA (`schema.ocr.patterns`): a country that prints a different number only
@@ -251,24 +264,117 @@ function _medOcrFindAic(text, patterns) {
     const compact = source.replace(/[\s.\-_:|/]+/g, '').replace(/^a/i, 'A');
     const confusable = compact
         .replace(/A[0-9lIO]{9}/gi, (run) => run.charAt(0) + run.slice(1).replace(/[lI]/g, '1').replace(/O/g, '0'));
+    // A camera loses the open `A` of the printed block far more often than a digit: in OCR-B the
+    // A is one thin stroke pair, and a reflection turns it into `4`, `@` or nothing at all. The
+    // letter is therefore RECOVERED (never invented: the nine digits must be there) — and only
+    // when a catalogue can confirm the digits, so a serial cannot ride the same repair.
+    const repairedPrefix = _medCatalogueLoaded()
+        ? compact.replace(/[4@&$#][0-9lIO]{9}/g, (run) => 'A' + run.slice(1).replace(/[lI]/g, '1').replace(/O/g, '0'))
+        : '';
+    const haystacks = [source, compact, confusable];
+    if (repairedPrefix) haystacks.push(repairedPrefix);
     const hits = [];
     for (const pattern of (patterns || [])) {
         let re = null;
         try { re = new RegExp(pattern, 'i'); } catch (e) { re = null; }
         if (!re) continue;
-        for (const haystack of [source, compact, confusable]) {
-            const m = re.exec(haystack);
-            if (!m) continue;
-            const local = _medLocalCode(m[0]);
-            if (local && local.aic) return local.aic;
-            if (local) hits.push(local.code);
+        for (const haystack of haystacks) {
+            // Every match, and the prefix letter must START a token: in `AAA014058142` (the tail of
+            // another word printed above the pack's progressive number) the A merely ENDS a word —
+            // taking it promoted a serial to a drug code, which is the bug this reader was born
+            // from. A boundary check, not a looser pattern.
+            const scan = new RegExp(re.source, re.flags.indexOf('g') === -1 ? re.flags + 'g' : re.flags);
+            let m = null;
+            while ((m = scan.exec(haystack)) !== null) {
+                const before = m.index > 0 ? haystack.charAt(m.index - 1) : '';
+                // Only a LETTER A in front is the trap (`AAA014058142` = the tail of another word
+                // glued to the progressive number). Any other letter is just the previous word of
+                // the line after the separators were compacted (`…compresseA040313076`).
+                if (/[Aa]/.test(before)) {
+                    scan.lastIndex = m.index + 1;
+                    continue;
+                }
+                const local = _medLocalCode(m[0]);
+                if (local && local.aic) return local.aic;
+                if (local) hits.push(local.code);
+            }
         }
     }
     // A module without an `aic` still answers with a canonical code: return the first hit's key.
     if (hits.length) return hits[0];
-    // NO loose fallback: a bare 9-digit run is exactly the pack serial printed under the SSN
-    // barcode, and taking it as the drug number is what loaded somebody else's box.
+    // NO unproven fallback: a bare 9-digit run is exactly the pack serial printed under the SSN
+    // barcode, and taking it as the drug number is what loaded somebody else's box. The
+    // catalogue-gated path below (`_medOcrDigitCandidates`) is the only exception, and every
+    // candidate must be proved against the rows before anything opens.
     return null;
+}
+
+/**
+ * The nine-digit candidates of a page when the printed prefix letter was NOT read at all.
+ *
+ * The reader cannot choose between them — the catalogue can: `A040313076` is a row, the pack's
+ * progressive number `014058142` is not. So the page hands over its digit runs and the caller
+ * asks the rows (`_medTryLooseReads`); a candidate that matches nothing is dropped like any
+ * other wrong read. Without a catalogue this returns NOTHING, because there is no proof.
+ *
+ * A ten-digit run is offered as both of its nine-digit windows: the bollino prints the pack's
+ * progressive number with a check digit (`0140581421`) next to the drug number, and that check digit is
+ * not part of the number anybody stores.
+ *
+ * @param {string} text the page (or the pages) of OCR text
+ * @param {number} [limit] how many candidates the caller is willing to verify (default 4)
+ * @returns {string[]} nine-digit candidates, in reading order
+ */
+function _medOcrDigitCandidates(text, limit = 4) {
+    if (!_medCatalogueLoaded()) return [];
+    // The letters are NOT stripped away first: a `1`/`l`/`I` repair applied to the whole page
+    // glues a word to the number next to it ("lotto 0140581421" became one long run and the real
+    // one disappeared). The runs are matched first, and repaired inside only.
+    const compact = String(text || '').replace(/[^0-9A-Za-z]/g, '');
+    const out = [];
+    // A thin printed `0` right after the A is the character OCR drops most often: the household's
+    // own label reads `A42386348` for `A042386348`. The repaired number is only ever a CANDIDATE —
+    // the catalogue has the last word (`_medTryLooseReads`).
+    for (const m of compact.matchAll(/A([0-9lIO]{8})(?![0-9lIO])/g)) {
+        const digits = m[1].replace(/[lI]/g, '1').replace(/O/g, '0');
+        const fixed = '0' + digits;
+        if (out.indexOf(fixed) === -1) out.push(fixed);
+    }
+    const re = /[0-9lIO]{9,10}/g;
+    let m = null;
+    while ((m = re.exec(compact)) !== null) {
+        const run = m[0].replace(/[lI]/g, '1').replace(/O/g, '0');
+        const windows = run.length > 9 ? [run.slice(0, 9), run.slice(-9)] : [run];
+        for (const w of windows) {
+            if (out.indexOf(w) === -1) out.push(w);
+            if (out.length >= limit) return out.slice(0, limit);
+        }
+    }
+    return out.slice(0, limit);
+}
+
+/**
+ * How many pieces a pack description names ("10 buste", "20 compresse", "30 cpr").
+ *
+ * Country-neutral on purpose: a leading count followed by a word that is not a unit of measure.
+ * A liquid ("1 flacone 200 ml") has no pieces, and a count of one is a single object, so both
+ * answer zero — the caller then simply asks for a quantity instead of drawing fractions.
+ *
+ * @param {string} pack the catalogue's pack description (or any text that carries it)
+ * @returns {{pieces:number, unit:string}}
+ */
+function _medPackCount(pack) {
+    const measures = ['ml', 'l', 'cl', 'dl', 'cc', 'g', 'gr', 'mg', 'kg', 'mcg', 'ui', 'iu', 'dose', 'gocce'];
+    const re = /(\d{1,3})\s*([A-Za-zÀ-ÿ]{2,})/g;
+    let m = null;
+    while ((m = re.exec(String(pack || ''))) !== null) {
+        const pieces = Number(m[1]);
+        const unit = String(m[2]).toLowerCase();
+        if (measures.indexOf(unit) !== -1) continue;
+        if (!(pieces >= 2 && pieces <= 200)) continue;
+        return { pieces: pieces, unit: String(m[2]) };
+    }
+    return { pieces: 0, unit: '' };
 }
 
 

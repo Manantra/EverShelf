@@ -415,6 +415,18 @@ function medicalIgnoredLabelKey(string $code, string $country): string
 }
 
 /** The OCR patterns of the country block: what the label prints, written down as data. */
+/**
+ * Is the TEMPORARY medicine-reader diagnostic on? (`MED_DEBUG=true` in the environment.)
+ *
+ * The client asks the server (`med_status.debug`) and only then reports what each OCR pass saw,
+ * with a bounded number of small frames, into `data/med_debug/`. Off by default: a pantry does
+ * not need to ship pictures anywhere.
+ */
+function medicalDebugEnabled(): bool
+{
+    return strtolower(trim((string)env('MED_DEBUG', 'false'))) === 'true';
+}
+
 function medicalOcrPatterns(string $country): array
 {
     $schema = medicalCountrySchema($country);
