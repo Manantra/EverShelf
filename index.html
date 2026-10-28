@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261028zx">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zx">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zx">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261028zy">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zy">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zy">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zx">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zx">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zy">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zy">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261028zx"></script>
-    <script src="assets/js/core/auth.js?v=20261028zx"></script>
-    <script src="assets/js/core/med.js?v=20261028zx"></script>
+    <script src="assets/js/core/dom.js?v=20261028zy"></script>
+    <script src="assets/js/core/auth.js?v=20261028zy"></script>
+    <script src="assets/js/core/med.js?v=20261028zy"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261028zx"></script>
+    <script src="assets/js/med/italy.js?v=20261028zy"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261028zx"></script>
+    <script src="assets/js/core/support.js?v=20261028zy"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zx';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zy';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zx';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zy';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zx"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zy"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -1000,29 +1000,14 @@
                                  reads: the LAST day of the chosen month. Both controls are painted
                                  by _medExpiryFillPickers() wherever the medical block appears. -->
                             <div class="med-expiry-pickers">
-                                <!-- The twelve months are IN THE MARKUP, translated by `data-i18n`
-                                     (`months.*`): an empty `<select>` has nothing to choose, and
-                                     that was the bug — a list painted only by JS left the control
-                                     dead whenever that painter did not run. -->
-                                <select id="pf-med-expiry-month" class="form-input med-expiry-month" onchange="_medExpiryPick('pf')">
-                                    <option value="" selected data-i18n="medical.expiry_month_placeholder">Mese</option>
-                                    <option value="01" data-i18n="months.january">Gennaio</option>
-                                    <option value="02" data-i18n="months.february">Febbraio</option>
-                                    <option value="03" data-i18n="months.march">Marzo</option>
-                                    <option value="04" data-i18n="months.april">Aprile</option>
-                                    <option value="05" data-i18n="months.may">Maggio</option>
-                                    <option value="06" data-i18n="months.june">Giugno</option>
-                                    <option value="07" data-i18n="months.july">Luglio</option>
-                                    <option value="08" data-i18n="months.august">Agosto</option>
-                                    <option value="09" data-i18n="months.september">Settembre</option>
-                                    <option value="10" data-i18n="months.october">Ottobre</option>
-                                    <option value="11" data-i18n="months.november">Novembre</option>
-                                    <option value="12" data-i18n="months.december">Dicembre</option>
-                                </select>
+                                <!-- NO month name in this markup: the twelve options are painted from
+                                     the language file (`months.*` in translations/*.json) by
+                                     _medExpiryPaintMonthOptions(), which runs as soon as the strings
+                                     are loaded, and again by _medExpiryFillPickers() when a form
+                                     opens. One source of names, six languages. -->
+                                <select id="pf-med-expiry-month" class="form-input med-expiry-month" onchange="_medExpiryPick('pf')"></select>
                                 <input type="number" id="pf-med-expiry-year" class="form-input med-expiry-year"
-                                       inputmode="numeric" step="1" placeholder="AAAA"
-                                       data-i18n-placeholder="medical.expiry_year_placeholder"
-                                       aria-label="Anno" data-i18n-aria="medical.expiry_year_placeholder"
+                                       inputmode="numeric" step="1"
                                        oninput="_medExpiryPick('pf')">
                             </div>
                             <input type="hidden" id="pf-med-expiry">
@@ -3406,15 +3391,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261028zx"></script>
-<script src="assets/js/food_facts.generated.js?v=20261028zx"></script>
-<script src="assets/js/free_apis.generated.js?v=20261028zx"></script>
-<script src="assets/js/core/vocab.js?v=20261028zx"></script>
-<script src="assets/js/app.js?v=20261028zx"></script>
-<script src="assets/js/audit.js?v=20261028zx"></script>
-<script src="assets/js/receipt.js?v=20261028zx"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261028zx"></script>
-<script src="assets/js/settings_search.js?v=20261028zx"></script>
+<script src="assets/js/vocab.generated.js?v=20261028zy"></script>
+<script src="assets/js/food_facts.generated.js?v=20261028zy"></script>
+<script src="assets/js/free_apis.generated.js?v=20261028zy"></script>
+<script src="assets/js/core/vocab.js?v=20261028zy"></script>
+<script src="assets/js/app.js?v=20261028zy"></script>
+<script src="assets/js/audit.js?v=20261028zy"></script>
+<script src="assets/js/receipt.js?v=20261028zy"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261028zy"></script>
+<script src="assets/js/settings_search.js?v=20261028zy"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

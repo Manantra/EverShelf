@@ -226,16 +226,16 @@ titled *Aggiungi all'armadietto* and hides the place picker, and a medical row's
 answer already filled in.
 
 The expiry of a box is a **month and a year**, because that is what the pack prints
-(“scadenza 10/2026”): the month is a picker with its **name in the UI language** — the twelve
-options are in the markup, translated by `data-i18n` (`months.january` … `months.december`), so the
-control is populated before any script runs — the year is a **typed field**
-(`inputmode="numeric"`, so a phone opens the keypad), and the stored date is the **last day of
-that month** (`_medExpiryIso()`) — “good until the end of October”. `_medExpiryFillPickers()` only
-decides *what is selected* (and fills the list if it is somehow empty), it never depends on being
-called to have options: a list painted only by JS was empty — and, in a flex row with
-`min-width: 0`, invisible — which is exactly the “I cannot choose the month” report. `keep`
-protects a month/year already chosen when the block is repainted. No rule, hint or AI estimate can
-write a date on a medicine.
+(“scadenza 10/2026”): the month is a picker whose **twelve names live in the language file**
+(`months.january` … `months.december`, all six locales — nothing hardcoded in the markup or in the
+code), painted by `_medExpiryPaintMonthOptions()` from `translatePage()`, i.e. as soon as the
+strings are loaded and before any form can open; the year is a **typed field**
+(`inputmode="numeric"`, so a phone opens the keypad); the stored date is the **last day of that
+month** (`_medExpiryIso()`) — “good until the end of October”. `_medExpiryFillPickers()` only
+decides *what is selected* (and fills an empty list as a last line of defence): a list painted only
+when one particular code path ran was empty — and, in a flex row with `min-width: 0`, invisible —
+which is exactly the “I cannot choose the month” report. `keep` protects a month/year already
+chosen when the block is repainted. No rule, hint or AI estimate can write a date on a medicine.
 
 ### A medicine is not a category of food (its icon)
 

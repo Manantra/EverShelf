@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zx'; // bump when translations change
+const _I18N_VERSION = '20261028zy'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1855,6 +1855,9 @@ function translatePage() {
     // The add form's unit badge is owned by JS (it follows the selected unit);
     // data-i18n only paints the default before the form is opened.
     if (typeof syncAddQtyUnitBadge === 'function') syncAddQtyUnitBadge();
+    // The month names of a medicine's printed expiry come from the language file (`months.*`),
+    // never from the markup: this is the one place that runs right after the strings are loaded.
+    if (typeof _medExpiryPaintMonthOptions === 'function') _medExpiryPaintMonthOptions();
 }
 
 // Populate the language selector dropdown
@@ -15783,7 +15786,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zx';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zy';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15793,7 +15796,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zx';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zy';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18498,14 +18501,35 @@ function _medExpiryMonthOptionsHtml() {
 }
 
 /**
+ * Paint the month options of every printed-expiry control, from the language file.
+ *
+ * `months.january` … `months.december` (translations/*.json) are the ONLY source of those names:
+ * no month name is written in this file and none in the markup. `translatePage()` runs as soon as
+ * the strings are loaded and calls this, so both `<select>` controls are populated **before** any
+ * form is opened — the failure that made the control dead was a list painted only when the
+ * medicine form happened to go through one particular code path.
+ *
+ * Idempotent: a control already painted in the current language is left alone (repainting would
+ * reset its selection), an empty one is filled, and a language change repaints it.
+ */
+function _medExpiryPaintMonthOptions() {
+    for (const prefix of ['pf', 'add']) {
+        const sel = document.getElementById(`${prefix}-expiry-month`);
+        if (!sel || sel.tagName !== 'SELECT') continue;
+        const painted = !!sel.options && sel.options.length > 0 && sel.dataset.i18nMonths === _currentLang;
+        if (painted) continue;
+        const keep = String(sel.value || '');
+        sel.innerHTML = _medExpiryMonthOptionsHtml();
+        if (keep) sel.value = keep;
+        sel.dataset.i18nMonths = String(_currentLang || '');
+    }
+}
+
+/**
  * Paint (or repaint) a month + year pair, keeping `iso` when it carries one.
  *
- * The options are NOT rebuilt here: the markup owns them (or `_medExpiryMonthOptionsHtml()` does,
- * for the block born at runtime), so a repaint can only decide **what is selected**. That is the
- * fix for "the month cannot be chosen": a list painted only by JS was empty — and invisible, a
- * flex `<select>` with no options has no width — whenever that painter did not run.
- * If the control is somehow still empty, it is filled here as the last line of defence.
- *
+ * The options come from `_medExpiryMonthOptionsHtml()` (i.e. from the language file) and are not
+ * rebuilt here unless the control is still empty: this function decides **what is selected**.
  * With `keep` a repaint never wipes what the household already picked.
  *
  * @param {string} prefix 'pf' | 'add'
@@ -18527,6 +18551,9 @@ function _medExpiryFillPickers(prefix, iso = '', keep = false) {
         // The year is typed. The bounds are only what a native stepper walks through.
         yearEl.min = String(thisYear);
         yearEl.max = String(thisYear + _MED_EXPIRY_YEARS_AHEAD);
+        // The hint is data as well: the language file, never a string in the markup.
+        yearEl.placeholder = t('medical.expiry_year_placeholder');
+        yearEl.setAttribute('aria-label', t('medical.expiry_year_placeholder'));
     }
     const match = /^(\d{4})-(\d{2})/.exec(String(iso || ''));
     const pickYear = match ? Number(match[1]) : 0;
@@ -20512,8 +20539,7 @@ function _medAddExpiryHtml() {
             <div class="med-expiry-pickers">
                 <select id="add-expiry-month" class="form-input med-expiry-month" onchange="_medExpiryPick('add')">${_medExpiryMonthOptionsHtml()}</select>
                 <input type="number" id="add-expiry-year" class="form-input med-expiry-year"
-                       inputmode="numeric" step="1" placeholder="AAAA"
-                       aria-label="${escapeAttr(t('medical.expiry_year_placeholder'))}"
+                       inputmode="numeric" step="1"
                        oninput="_medExpiryPick('add')">
             </div>
             <input type="hidden" id="add-expiry" value="">
