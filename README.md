@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.2-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.3-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,9 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.28.3** — **una scatola di farmaci risponde alle domande che una scatola ha davvero: quanto, fino a quando, aperta o no.** Sul form del farmaco, dentro il blocco medicale, ci sono ora la **quantità nell'unità del prodotto** («10 compresse» → 10 pz, «1 flacone 200 ml» → 200 ml, «tubo 30 g» → 30 g; una quantità che scrivi tu non viene mai sovrascritta), la **data stampata sulla scatola** (obbligatoria, una data passata rifiutata, una entro 3 giorni segnalata) e lo stato **sigillata / già aperta**. Le risposte viaggiano con il prodotto: nell'aggiunta in dispensa la scadenza e lo stato sono già compilati, quindi resta un tocco. Modificare la scheda del catalogo non richiede più la data (la scadenza è della riga di magazzino). E un farmaco sotto il minimo della dispensa — un collirio da 10 ml — non viene più rifiutato: il minimo di 20 g/ml esiste per il «2 g scritto per sbaglio».
+
 
 **v1.28.2** — **il form del farmaco ha smesso di parlare di numeri.** Una lettura confermata apriva con «AIC · A042386348» sopra un nome che il catalogo aveva già scritto: il banner non c'è più (né il markup, né il codice, né il CSS), la riga «Riconosciuto…» nemmeno — ripeteva il campo sopra — e resta **un solo link**, «Non è questo?», **senza riquadro intorno**: le alternative sono ancora a un tocco quando una cifra è stata letta male, ma non occupano più mezza schermata su un telefono. Un codice di confezione (lotto, progressivo) si annuncia con un toast, mai sul form. In dispensa un farmaco ha ora la **sua** scadenza: non una stima, ma **la data stampata sulla scatola**, obbligatoria, con una data passata rifiutata e una in scadenza fra tre giorni segnalata.
 

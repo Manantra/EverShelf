@@ -2241,6 +2241,29 @@ a.free-api:hover { border-color: var(--brand-primary); }
     font-weight: 600;
 }
 .med-pieces-block { margin-top: 10px; }
+/* The stock questions on the MEDICINE FORM: quantity in the unit the box is measured in, the
+   date printed on it, and whether it is still sealed. They sit inside the medical block, so the
+   pantry step opens with the answers already given. */
+.med-stock-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+}
+.med-stock-fields > div > label,
+.med-qty-row > label {
+    display: block;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+.med-qty-inputs { display: flex; gap: 8px; align-items: center; }
+.med-qty-inputs input { flex: 1 1 auto; min-width: 0; max-width: 140px; }
+.med-qty-inputs select { flex: 0 0 auto; width: 86px; }
+.med-stock-fields .form-hint { margin: 4px 0 0; }
 /* A confirmed read: the correction is a footnote, not a choice to make. */
 .med-alt-link {
     background: none;

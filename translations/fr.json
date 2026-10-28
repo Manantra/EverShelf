@@ -3024,6 +3024,8 @@
     "type_code_now": "Je n'arrive pas à lire le code : saisissez-le ci-dessous (ex. A042386348).",
     "read_unknown": "Code absent du catalogue",
     "read_unknown_hint": "A{code} n'est pas dans le catalogue AIFA : vérifiez le code sur la boîte ou corrigez-le ici.",
-    "resume_scan": "Reprendre"
+    "resume_scan": "Reprendre",
+    "form_qty_label": "Combien en avez-vous",
+    "form_expiry_label": "📅 Date de péremption imprimée *"
   }
 }

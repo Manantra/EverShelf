@@ -3024,6 +3024,8 @@
     "type_code_now": "无法读取编码：请在下方手动输入（例如 A042386348）。",
     "read_unknown": "编码不在目录中",
     "read_unknown_hint": "A{code} 不在 AIFA 目录中：请核对包装上的编码或在此修改。",
-    "resume_scan": "继续"
+    "resume_scan": "继续",
+    "form_qty_label": "你有多少",
+    "form_expiry_label": "📅 包装上印刷的有效期 *"
   }
 }

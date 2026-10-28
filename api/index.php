@@ -5317,7 +5317,9 @@ function addToInventory(PDO $db): void {
     $productUnit = (string)($prodUnitStmt->fetchColumn() ?: 'pz');
     $effectiveUnit = $unit !== null && $unit !== '' ? (string)$unit : $productUnit;
     $minAdd = inventoryMinAddQuantity($effectiveUnit);
-    if ($quantity < $minAdd) {
+    // A medicine is measured by what its box HOLDS: 10 ml of eye drops or 5 ml of drops is real
+    // stock, not the "2 g typed by mistake" the floor exists for.
+    if (!$isMedicalProduct && $quantity < $minAdd) {
         EverLog::warn('addToInventory: quantity below the minimum (400)', [
             'event'      => 'api_inventory_add_below_minimum',
             'product_id' => $productId,

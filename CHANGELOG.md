@@ -5,6 +5,24 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.3] - 2026-10-28
+
+### Added
+- **A medicine box is now asked what a box is: how much, until when, sealed or opened** — on the
+  medicine form itself, in the medical block. Quantity is counted in the unit the pack is
+  measured in (`_medFormStockPrefill()`: "10 compresse" → **10 pz**, "1 flacone 200 ml" →
+  **200 ml**, "tubo 30 g" → **30 g**, a typed value is never overwritten), the date is the one
+  **printed on the box** (mandatory, a past one refused, ≤ 3 days warned) and the pack is
+  **sealed or already opened** (which lets the server start its own clock). The answers travel
+  into the pantry row — `unit`/`default_quantity` on the product, the date and the opened state
+  pre-filled in the add step — so stocking a box is one tap and not a second interrogation.
+  Editing the catalogue entry never asks the date again (the stock row owns its expiry).
+
+### Fixed
+- **A medicine smaller than the pantry floor is no longer refused.** The 20 g/ml floor exists for
+  "2 g typed by mistake"; it made a 10 ml eye-drop bottle unfillable. Both the client and
+  `addToInventory()` skip it for a medical row.
+
 ## [1.28.2] - 2026-10-28
 
 ### Changed

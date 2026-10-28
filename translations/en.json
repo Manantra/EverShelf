@@ -3024,6 +3024,8 @@
     "type_code_now": "I can't read the code: type it below (e.g. A042386348).",
     "read_unknown": "Code not in the catalogue",
     "read_unknown_hint": "A{code} is not in the AIFA catalogue: check the code on the box or correct it here.",
-    "resume_scan": "Resume"
+    "resume_scan": "Resume",
+    "form_qty_label": "How much do you have",
+    "form_expiry_label": "📅 Expiry date printed on the box *"
   }
 }

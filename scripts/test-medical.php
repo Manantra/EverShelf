@@ -611,9 +611,13 @@ check('the wording becomes medical (name, maker, box code), not food',
     (bool)preg_match('/function _medFormSetMode\(on\)[\s\S]{0,2600}?nameLabel\.textContent = on \? t\(\'medical\.form_name_label\'\)/s', $app)
     && (bool)preg_match('/function _medFormSetMode\(on\)[\s\S]{0,3200}?t\(\'medical\.form_brand_label\'\)/s', $app)
     && (bool)preg_match('/function _medFormSetMode\(on\)[\s\S]{0,3600}?t\(\'medical\.form_code_label\'\)/s', $app));
-check('a medicine is stored as a box in "altro", never in a food category',
-    (bool)preg_match('/const isMedicine = _medFormIsMedicine\(\);[\s\S]{0,500}?category: isMedicine \? \'altro\' :/s', $app)
-    && (bool)preg_match('/unit: isMedicine \? \'pz\' : pfUnit,/s', $app));
+check('a medicine is stored as a box in "altro", never in a food category', (function () use ($app) {
+    // The unit and the quantity are the ones the FORM asked (ml for a syrup, pz for tablets),
+    // never a hardcoded "1 pz": a box is stock, and the household already said what is inside.
+    return (bool)preg_match('/const isMedicine = _medFormIsMedicine\(\);[\s\S]{0,2200}?category: isMedicine \? \'altro\' :/s', $app)
+        && (bool)preg_match("/unit: medStock \? medStock\.unit : \(isMedicine \? 'pz' : pfUnit\)/s", $app)
+        && (bool)preg_match('/default_quantity: medStock \? medStock\.qty : \(isMedicine \? 1 :/s', $app);
+})());
 check('the closed medical category is required (it is the category here)',
     (bool)preg_match("/if \(isMedicine && !document\.querySelector\('#pf-med-cats input:checked'\)\) \{[\s\S]{0,200}?t\('medical\.pick_category'\)/s", $app));
 check('the food form comes back for a normal product and when editing',
@@ -763,8 +767,12 @@ function mk(id) {
  'pf-name-label','pf-brand-label','pf-barcode-label','pf-name','pf-brand','pf-notes','product-form-title'].forEach(mk);
 const document = { getElementById: (id) => els[id] || null };
 const t = (k) => k;
+const currentProduct = null;
 const _medOn = () => true;
 const _pfRenderMedCats = () => {};
+const _medFormStockReset = () => {};
+const _medFormStockPrefill = () => {};
+const _medFormStockFieldsVisible = () => {};
 JS;
     $modeHarness .= "\n" . $setModeFn . "\n" . $isMedFn . <<<'JS'
 
@@ -847,7 +855,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 189 medical keys', $aligned && count($base) === 189);
+check('all six locales carry the same 191 medical keys', $aligned && count($base) === 191);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -1449,6 +1457,89 @@ check('a medicine asks for the date PRINTED on the box, and nothing is estimated
             return $c && mb_strlen((string)($a['expiry_from_pack'] ?? '')) > 8
                 && mb_strlen((string)($a['expiry_required'] ?? '')) > 8;
         }, true);
+})());
+
+// ── The box as STOCK: quantity, the printed date, sealed or opened ───────────
+check('the medicine form asks quantity, the printed date and the sealed/opened state', (function () use ($html, $app, $css) {
+    // "manca ancora la data di scadenza e la quantita ... e se e aperto oppure no?": the three
+    // answers a box has (and a food entry does not) live in the medical block of the FORM, so the
+    // pantry step opens already answered instead of asking a second time.
+    return str_contains($html, 'id="pf-med-qty"')
+        && str_contains($html, 'id="pf-med-unit"')
+        && str_contains($html, 'id="pf-med-expiry"')
+        && str_contains($html, 'id="pf-med-state"')
+        && (bool)preg_match('/id="pf-medical-box"[\s\S]{0,1800}?id="pf-med-qty"/s', $html)
+        && str_contains($css, '.med-stock-fields')
+        && str_contains($app, 'function _medFormStockPrefill(')
+        && str_contains($app, 'function _medFormStockState(')
+        && str_contains($app, 'function _medFormStockReset(');
+})());
+check('a medicine cannot be saved without the date printed on the box', (function () use ($app) {
+    return (bool)preg_match("/if \\(!expiry\\) \\{[\\s\\S]{0,160}?t\\('add\\.expiry_required'\\)/s", $app)
+        && (bool)preg_match("/const daysLeft = _expiryDaysLeft\\(expiry\\);\\s*if \\(Number\\.isFinite\\(daysLeft\\) && daysLeft < 0\\) \\{[\\s\\S]{0,160}?t\\('add\\.expiry_past'\\)/s", $app)
+        && (bool)preg_match("/daysLeft <= 3\\) \\{\\s*showToast\\(t\\('add\\.expiry_soon'\\)/s", $app)
+        // one rule for both forms that ask a date
+        && (bool)preg_match("/function submitAdd[\\s\\S]{0,6000}?const daysLeft = _expiryDaysLeft\\(expiryIso\\);/s", $app);
+})());
+check('what the form answered reaches the pantry row without asking again', (function () use ($app) {
+    return str_contains($app, '_medFormStock = medStock;')
+        && (bool)preg_match('/if \\(medicalRow && _medFormStock\\) \\{[\\s\\S]{0,400}?addExpiry\\.value = _medFormStock\\.expiry;/s', $app)
+        && (bool)preg_match("/if \\(_medFormStock\\.state === 'opened'\\) _medAddStockState\\('opened'\\);/", $app)
+        && (bool)preg_match('/A box has been stocked: the answers of the product form are spent\\.[\\s\\S]{0,80}?_medFormStock = null;/s', $app);
+})());
+
+// The prefill really reads the pack: run the shipped function in node against a fake form.
+$packFn = '';
+if (preg_match('/function _medPackCount\(pack\) \{.*?\n\}/s', $medCoreJs, $m5)) { $packFn = $m5[0]; }
+$prefillFn = '';
+if (preg_match('/function _medFormStockPrefill\(text\) \{.*?\n\}/s', $app, $m6)) { $prefillFn = $m6[0]; }
+check('the pack prefill is extractable', $packFn !== '' && $prefillFn !== '');
+if ($packFn !== '' && $prefillFn !== '') {
+    $h = <<<'JS'
+const els = {};
+function el(id) { return els[id] || (els[id] = { value: '', dataset: {}, textContent: '' }); }
+const document = { getElementById: (id) => el(id) };
+const t = () => 'hint {n} {unit}';
+JS;
+    $h .= "\n" . $packFn . "\n" . $prefillFn . <<<'JS'
+const out = {};
+function ask(key, text) {
+    el('pf-med-qty').value = '';
+    el('pf-med-qty').dataset.userSet = '';
+    el('pf-med-unit').value = 'pz';
+    _medFormStockPrefill(text);
+    out[key] = [el('pf-med-qty').value, el('pf-med-unit').value];
+}
+ask('tablets', '10 compresse');
+ask('syrup', '1 flacone 200 ml');
+ask('cream', 'tubo 30 g');
+ask('unknown', 'collirio');
+el('pf-med-qty').value = '7';
+el('pf-med-qty').dataset.userSet = '1';
+_medFormStockPrefill('10 compresse');
+out.typed = [el('pf-med-qty').value, el('pf-med-unit').value];
+console.log(JSON.stringify(out));
+JS;
+    $tmp = sys_get_temp_dir() . '/med_prefill_' . getmypid() . '.js';
+    file_put_contents($tmp, $h);
+    $raw = shell_exec('node ' . escapeshellarg($tmp) . ' 2>&1');
+    @unlink($tmp);
+    $pre = json_decode(trim((string)$raw), true);
+    check('the prefill harness runs in node', is_array($pre), (string)$raw);
+    if (is_array($pre)) {
+        check('tablets: 10 compresse -> 10 pz', ($pre['tablets'] ?? []) === ['10', 'pz'], json_encode($pre['tablets'] ?? null));
+        check('a syrup is counted in ml, not in pieces', ($pre['syrup'] ?? []) === ['200', 'ml'], json_encode($pre['syrup'] ?? null));
+        check('a cream is counted in g', ($pre['cream'] ?? []) === ['30', 'g'], json_encode($pre['cream'] ?? null));
+        check('an unknown pack leaves one piece', ($pre['unknown'] ?? []) === ['1', 'pz'], json_encode($pre['unknown'] ?? null));
+        check('a quantity the household typed is never overwritten', ($pre['typed'] ?? []) === ['7', 'pz'], json_encode($pre['typed'] ?? null));
+    }
+}
+
+check('a box smaller than the pantry floor is still stock (10 ml of eye drops)', (function () use ($app, $api) {
+    // The floor exists for "2 g typed by mistake". A medicine is measured by what its box HOLDS,
+    // so both sides skip it for a medical row — otherwise half the pharmacy is unfillable.
+    return str_contains($app, '!_isMedicalRow(currentProduct) && addQty < minAdd')
+        && str_contains($api, 'if (!$isMedicalProduct && $quantity < $minAdd)');
 })());
 
 echo "\n" . ($fail === 0 ? 'PASS' : 'FAIL') . " — {$checks} checks, {$fail} failed\n";

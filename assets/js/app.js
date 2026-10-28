@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zk'; // bump when translations change
+const _I18N_VERSION = '20261028zl'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14314,6 +14314,8 @@ function onProductMedicalToggle() {
     if (box) box.hidden = !on;
     if (on) {
         _pfRenderMedCats([]);
+        // A flagged box asks its own stock questions; an EDIT of an existing product does not.
+        _medFormStockFieldsVisible();
         // The add step must default to the medical location, not to the pantry.
         const loc = (getSettings().medical_locations || [])[0];
         const el = document.getElementById('add-location');
@@ -15695,7 +15697,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zk';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zl';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15705,7 +15707,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zk';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zl';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -17037,6 +17039,8 @@ function _medFillFromCatalogue(row, options = {}) {
         `AIC ${row.aic}`,
     ].filter(Boolean);
     if (details.length) set('pf-notes', details.join(' · '), 'notes');
+    // "10 compresse" / "200 ml": the quantity the form asks is already the pack's own.
+    _medFormStockPrefill([row.pack, row.form, row.dosage].filter(Boolean).join(' '));
     // The closed category list accepts an ATC prefix: the box is classified, not guessed.
     const cat = _medCategoryFromAtc(row.atc);
     const chips = document.getElementById('pf-med-cats');
@@ -18193,6 +18197,16 @@ function _medFormSetMode(on) {
     const group = document.getElementById('pf-medical-group');
     if (group) group.hidden = on ? false : !_medOn();
     if (on) _pfRenderMedCats([]);
+    if (on) {
+        // A box is stock: the three answers start clean, then the catalogue fills what it knows.
+        _medFormStockReset();
+        _medFormStockFieldsVisible();
+        _medFormStockPrefill([
+            currentProduct && currentProduct.med_pack,
+            currentProduct && currentProduct.notes,
+            currentProduct && currentProduct.name,
+        ].filter(Boolean).join(' '));
+    }
 
     // The food wording is wrong on a medicine box: name, maker and code say what they are.
     // The `data-i18n` attribute follows, so a later translation pass cannot put the food
@@ -18229,6 +18243,101 @@ function _medFormSetMode(on) {
 function _medFormIsMedicine() {
     const page = document.getElementById('page-product-form');
     return !!(page && page.classList.contains('is-medicine-form'));
+}
+
+/**
+ * The stock questions a medicine box answers ON THE PRODUCT FORM (EverShelf Med).
+ *
+ * Food is a catalogue entry that is then stocked; a box IS a stock: what is inside, until when,
+ * and whether it is still sealed. Asking them here means the pantry step is one tap — and the
+ * quantity unit follows the box (`_medPackCount()` reads "10 compresse" → 10 pz, "200 ml" → ml),
+ * so a syrup is not counted as "1 pz".
+ */
+let _medFormStockStateValue = 'new';
+/** Carried from the form to the add step: {qty, unit, expiry, state} or null. */
+let _medFormStock = null;
+
+/** Sealed or already opened: read by `submitProduct()` and applied to the pantry row. */
+function _medFormStockState(state) {
+    _medFormStockStateValue = state === 'opened' ? 'opened' : 'new';
+    document.querySelectorAll('#pf-med-state .med-state-chip').forEach(b => {
+        b.classList.toggle('is-on', b.dataset.state === _medFormStockStateValue);
+    });
+}
+
+/** A new box, a new answer: the form starts sealed, one piece, no date. */
+function _medFormStockReset() {
+    _medFormStockStateValue = 'new';
+    const qty = document.getElementById('pf-med-qty');
+    if (qty) {
+        qty.value = '1';
+        qty.dataset.userSet = '';
+    }
+    const unit = document.getElementById('pf-med-unit');
+    if (unit) unit.value = 'pz';
+    const expiry = document.getElementById('pf-med-expiry');
+    if (expiry) expiry.value = '';
+    const hint = document.getElementById('pf-med-qty-hint');
+    if (hint) hint.textContent = '';
+    document.querySelectorAll('#pf-med-state .med-state-chip').forEach(b => {
+        b.classList.toggle('is-on', b.dataset.state === 'new');
+    });
+}
+
+/**
+ * Fill quantity and unit from what the catalogue says is in the pack.
+ *
+ * "10 compresse" → 10 pz (with the hint naming the pieces), "1 flacone 200 ml" → 200 ml. A field
+ * the household already typed is never touched; an unknown pack leaves 1 pz.
+ *
+ * @param {string} text the pack description (catalogue `pack`, or the notes already filled)
+ */
+function _medFormStockPrefill(text) {
+    const qty = document.getElementById('pf-med-qty');
+    const unit = document.getElementById('pf-med-unit');
+    if (!qty || !unit) return;
+    if (qty.dataset.userSet === '1') return;
+    const hint = document.getElementById('pf-med-qty-hint');
+    const pack = _medPackCount(text);
+    if (pack.pieces >= 2) {
+        qty.value = String(pack.pieces);
+        unit.value = 'pz';
+        if (hint) hint.textContent = t('medical.pieces_hint').replace('{n}', String(pack.pieces)).replace('{unit}', pack.unit);
+        return;
+    }
+    const measure = /(\d{1,4})\s*(ml|cl|g|mg)\b/i.exec(String(text || ''));
+    if (measure) {
+        const amount = Number(measure[1]);
+        const symbol = String(measure[2]).toLowerCase();
+        const isLiquid = symbol === 'ml' || symbol === 'cl';
+        const value = symbol === 'cl' ? amount * 10 : (symbol === 'mg' ? amount / 1000 : amount);
+        if (value > 0) {
+            qty.value = String(value);
+            unit.value = isLiquid ? 'ml' : 'g';
+            if (hint) hint.textContent = `${measure[1]} ${symbol}`;
+            return;
+        }
+    }
+    // Nothing readable in the pack: one box, counted in pieces.
+    qty.value = '1';
+    unit.value = 'pz';
+    if (hint) hint.textContent = '';
+}
+
+/** Keep a typed quantity: a catalogue that arrives late must not overwrite the household. */
+function _medFormStockTyped() {
+    const qty = document.getElementById('pf-med-qty');
+    if (qty) qty.dataset.userSet = '1';
+}
+
+/**
+ * The stock questions belong to a NEW box only. Editing the catalogue entry must not ask the
+ * date again: the stock row owns its expiry (the product sheet's "Estendi scadenza" writes it).
+ */
+function _medFormStockFieldsVisible() {
+    const box = document.getElementById('pf-med-stock-fields');
+    if (!box) return;
+    box.hidden = !!String(document.getElementById('pf-id')?.value || '');
 }
 
 /** Turn the product form's medical switch on (and paint the closed categories). */
@@ -18725,6 +18834,23 @@ async function scanBarcodeForForm() {
     }
 }
 
+/**
+ * How many days until a typed date, counted from midnight today (negative = in the past).
+ * One rule for every form that asks a date: the pantry step and the medicine form.
+ *
+ * @param {string} iso the `input[type=date]` value (YYYY-MM-DD)
+ * @returns {number} days left, or NaN when the value is empty/unreadable
+ */
+function _expiryDaysLeft(iso) {
+    const value = String(iso || '');
+    if (!value) return NaN;
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const when = new Date(value + 'T00:00:00');
+    if (Number.isNaN(when.getTime())) return NaN;
+    return Math.round((when.getTime() - midnight.getTime()) / 86400000);
+}
+
 async function submitProduct(e) {
     e.preventDefault();
 
@@ -18736,6 +18862,41 @@ async function submitProduct(e) {
         showToast(t('medical.pick_category'), 'error', 5000);
         return;
     }
+    // A box is STOCK: quantity (in the unit the box is measured in), the date PRINTED on it and
+    // the state of the pack are answered here, so the pantry step is one tap. The date is
+    // mandatory for a NEW medicine — scanned or flagged by hand — because it is the whole reason
+    // the reminder exists; editing the catalogue entry never asks it again (the stock row owns
+    // its expiry, and the sheet edits it there).
+    const medOn = isMedicine || !!document.getElementById('pf-is-medical')?.checked;
+    const pfId = String(document.getElementById('pf-id')?.value || '');
+    let medStock = null;
+    if (medOn && !pfId) {
+        const qtyEl = document.getElementById('pf-med-qty');
+        const unitEl = document.getElementById('pf-med-unit');
+        const expiryEl = document.getElementById('pf-med-expiry');
+        const expiry = String(expiryEl?.value || '');
+        if (!expiry) {
+            showToast(t('add.expiry_required'), 'error', 6000);
+            expiryEl?.focus();
+            return;
+        }
+        const daysLeft = _expiryDaysLeft(expiry);
+        if (Number.isFinite(daysLeft) && daysLeft < 0) {
+            showToast(t('add.expiry_past'), 'error', 6000);
+            expiryEl.focus();
+            return;
+        }
+        if (Number.isFinite(daysLeft) && daysLeft <= 3) {
+            showToast(t('add.expiry_soon').replace('{days}', String(daysLeft)), 'warning', 5000);
+        }
+        const qty = parseFloat(qtyEl?.value || '');
+        medStock = {
+            qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+            unit: unitEl?.value || 'pz',
+            expiry: expiry,
+            state: _medFormStockStateValue === 'opened' ? 'opened' : 'new',
+        };
+    }
     showLoading(true);
     
     const pfUnit = document.getElementById('pf-unit').value;
@@ -18744,8 +18905,8 @@ async function submitProduct(e) {
         name: document.getElementById('pf-name').value,
         brand: document.getElementById('pf-brand').value,
         category: isMedicine ? 'altro' : document.getElementById('pf-category').value,
-        unit: isMedicine ? 'pz' : pfUnit,
-        default_quantity: isMedicine ? 1 : (pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1)),
+        unit: medStock ? medStock.unit : (isMedicine ? 'pz' : pfUnit),
+        default_quantity: medStock ? medStock.qty : (isMedicine ? 1 : (pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1))),
         package_unit: isMedicine ? '' : (pfUnit === 'conf' ? (document.getElementById('pf-conf-unit')?.value || '') : ''),
         notes: document.getElementById('pf-notes').value,
         barcode: document.getElementById('pf-barcode').value || null,
@@ -18770,6 +18931,8 @@ async function submitProduct(e) {
                 productData.med_pao_days = medPayload.pao_days;
             }
             currentProduct = { ...productData, id: result.id };
+            // The add step gets these already answered (see showAddForm): one tap, not three.
+            _medFormStock = medStock;
             showLoading(false);
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
             showProductAction();
@@ -20098,6 +20261,13 @@ function showAddForm() {
     showPage('add');
     updateScaleReadButtons();
     _initExpiryManualTracking('add-expiry');
+    // The medicine form already asked the date of the box and whether it is sealed: do not ask
+    // twice. The quantity travelled as `unit`/`default_quantity` on the product itself.
+    if (medicalRow && _medFormStock) {
+        const addExpiry = document.getElementById('add-expiry');
+        if (addExpiry && _medFormStock.expiry) addExpiry.value = _medFormStock.expiry;
+        if (_medFormStock.state === 'opened') _medAddStockState('opened');
+    }
     startAddFormIdleCountdown();
     // History first (≥3 samples → average of last 3); AI only if history is insufficient
     (async () => {
@@ -20778,7 +20948,9 @@ async function submitAdd(e) {
     // it just added disappear (the reported "2 g instead of 2 pieces" tomatoes). Refused
     // here for an immediate, translated message; the API refuses it too.
     const minAdd = _addMinQtyForUnit(unitForAdd);
-    if (addQty < minAdd) {
+    // A box is measured by what it holds: 10 ml of eye drops is stock, not a typo (the API skips
+    // the floor for a medicine too).
+    if (!_isMedicalRow(currentProduct) && addQty < minAdd) {
         showToast(t('error.quantity_below_min', { min: minAdd, unit: _addUnitLabel(unitForAdd) }), 'error');
         document.getElementById('add-quantity')?.focus();
         startAddFormIdleCountdown();
@@ -20804,10 +20976,7 @@ async function submitAdd(e) {
         return;
     }
     if (expiryIso) {
-        const midnight = new Date();
-        midnight.setHours(0, 0, 0, 0);
-        const when = new Date(expiryIso + 'T00:00:00');
-        const daysLeft = Math.round((when.getTime() - midnight.getTime()) / 86400000);
+        const daysLeft = _expiryDaysLeft(expiryIso);
         if (Number.isFinite(daysLeft) && daysLeft < 0) {
             showToast(t('add.expiry_past'), 'error', 6000);
             expiryField.focus();
@@ -20868,6 +21037,8 @@ async function submitAdd(e) {
             if (result.canonical_product_id && result.canonical_product_id !== currentProduct.id) {
                 currentProduct.id = result.canonical_product_id;
             }
+            // A box has been stocked: the answers of the product form are spent.
+            _medFormStock = null;
             _recordRecentInventoryAdd({
                 productId: currentProduct.id,
                 location,
