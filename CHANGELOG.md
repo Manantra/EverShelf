@@ -15,12 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   step, with its "📍 Dove lo metti?", is gone from the medicine flow; it survives only as the
   fallback of a refused write (no cabinet configured, a server answer), with every answer already
   filled in.
-- **A box's expiry is a month and a year.** `#pf-med-expiry` is no longer a `type=date`: two
-  pickers ask exactly what the pack prints ("scadenza 10/2026", `_medExpiryFillPickers()` /
-  `_medExpiryPick()`), and the stored value is the **last day of that month**
-  (`_medExpiryIso()`) — which is what the print means. The same pair replaces the date field of a
-  medicine on the pantry step (`_medAddExpiryHtml()`), where the "nuovo acquisto / già in
-  dispensa" question — a pantry concept — is gone as well.
+- **A box's expiry is a month and a year.** `#pf-med-expiry` is no longer a `type=date`: the month
+  is a picker with its **name in the UI language** (`_medExpiryMonthName()`), the year is a
+  **typed field** (`inputmode="numeric"`, so a phone opens the keypad and a desktop types it), and
+  the stored value is the **last day of that month** (`_medExpiryIso()`) — which is what the print
+  means. The same pair replaces the date field of a medicine on the pantry step
+  (`_medAddExpiryHtml()`), where the "nuovo acquisto / già in dispensa" question — a pantry
+  concept — is gone as well.
 - **No food or pantry wording left in the medicine flow**: the submit button says what the tap
   does (`medical.form_save`, "Salva nell'armadietto"), the pantry step of a medicine is titled
   "Aggiungi all'armadietto" and **hides the place picker** (`#add-location-group`: a medicine has
@@ -30,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`recalculateAddExpiry()` returns early for a medical row).
 
 ### Fixed
+- **The printed expiry of a medicine had nothing to choose.** The month list was painted only by
+  the scanner's path (`_medFormStockReset()`), so a box added **by hand** — the "è un farmaco?"
+  switch on a product form the scanner never touched — showed two empty controls: no month to
+  pick, no year to type. The pair is now painted by `_medFormStockFieldsVisible()` (the choke
+  point every path goes through) and by `_syncProductMedicalUi()`, the month is a picker with its
+  translated name, the year is a **typed field**, and `_medExpiryFillPickers(.., .., keep)` never
+  throws away what the household already chose. A year that has already gone now answers *data
+  nel passato* (`_medExpiryErrorKey()`) instead of "inserisci la scadenza".
 - **A medicine no longer wears the food icon.** Every row fell back to its food **category**
   emoji when the URL had no picture — and a medicine is stored as `altro`, so a box of tablets was
   drawn as 📦, the same mark a custom place and an unidentified product use (a mis-saved category

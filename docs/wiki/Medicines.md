@@ -226,9 +226,13 @@ titled *Aggiungi all'armadietto* and hides the place picker, and a medical row's
 answer already filled in.
 
 The expiry of a box is a **month and a year**, because that is what the pack prints
-(“scadenza 10/2026”): two pickers ask it (`_medExpiryFillPickers()`, `_medExpiryPick()`) and the
-stored date is the **last day of that month** (`_medExpiryIso()`) — “good until the end of
-October”. No rule, hint or AI estimate can write a date on a medicine.
+(“scadenza 10/2026”): the month is a picker with its **name in the UI language**
+(`_medExpiryMonthName()`), the year is a **typed field** (`inputmode="numeric"`, so a phone opens
+the keypad), and the stored date is the **last day of that month** (`_medExpiryIso()`) — “good
+until the end of October”. The pair is painted by `_medFormStockFieldsVisible()` (the choke point
+every path into the medical block goes through) and by `_syncProductMedicalUi()`, so a medicine
+added **by hand** finds the same controls the scanner does; `keep` protects a month/year already
+chosen when the block is repainted. No rule, hint or AI estimate can write a date on a medicine.
 
 ### A medicine is not a category of food (its icon)
 
