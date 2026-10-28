@@ -2983,11 +2983,7 @@
     "ocr_read_ok": "Letto: AIC {code}",
     "ocr_read_none": "Letto «{text}» — nessun codice A qui. Inquadra solo la riga con la A.",
     "ocr_read_empty": "Nessun testo leggibile nel riquadro: avvicinati e metti a fuoco la riga con la A.",
-    "choice_status": "Non sono sicuro di tutte le cifre: scegli il codice che leggi sulla scatola.",
     "choice_title": "Ho letto {code}. Qual è il codice stampato sulla scatola?",
-    "choice_nocatalog": "Ho letto {code}: il catalogo non è caricato, controlla le cifre nella scheda.",
-    "choice_unknown": "non è nel catalogo",
-    "choice_none": "Nessuno di questi — aggiungi a mano",
     "match_atc": "ATC {value}",
     "match_fascia": "Fascia {value}",
     "match_source": "Fonte: {source} · {count} farmaci",
@@ -2999,6 +2995,9 @@
     "import_too_big": "File troppo grande (max 96 MB).",
     "import_no_country": "Nessun modulo per questo paese: il catalogo non si può leggere.",
     "import_no_columns": "Il file non ha le colonne del catalogo: controlla che sia l’export ufficiale.",
-    "import_failed": "Import non riuscito: il file non è stato letto."
+    "import_failed": "Import non riuscito: il file non è stato letto.",
+    "choice_title_inline": "Non è questo? Scegli il codice che leggi sulla scatola:",
+    "choice_switched": "Codice impostato: {code}",
+    "ocr_engine_error": "Il lettore OCR non è disponibile su questo dispositivo: scrivi il codice a mano."
   }
 }

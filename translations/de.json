@@ -2983,11 +2983,7 @@
     "ocr_read_ok": "Gelesen: AIC {code}",
     "ocr_read_none": "Gelesen „{text}“ — kein A-Code darin. Nur die Zeile mit dem A erfassen.",
     "ocr_read_empty": "Kein lesbarer Text im Rahmen: näher heran und auf die Zeile mit dem A scharf stellen.",
-    "choice_status": "Ich bin bei allen Ziffern nicht sicher: wähle den Code, der auf der Schachtel steht.",
     "choice_title": "Ich habe {code} gelesen. Welcher Code steht auf der Schachtel?",
-    "choice_nocatalog": "Ich habe {code} gelesen: kein Katalog geladen, prüfe die Ziffern im Formular.",
-    "choice_unknown": "nicht im Katalog",
-    "choice_none": "Keiner davon – von Hand hinzufügen",
     "match_atc": "ATC {value}",
     "match_fascia": "Klasse {value}",
     "match_source": "Quelle: {source} · {count} Medikamente",
@@ -2999,6 +2995,9 @@
     "import_too_big": "Datei zu groß (max. 96 MB).",
     "import_no_country": "Kein Modul für dieses Land: der Katalog ist nicht lesbar.",
     "import_no_columns": "Die Datei hat keine Katalogspalten: ist es der offizielle Export?",
-    "import_failed": "Import fehlgeschlagen: die Datei konnte nicht gelesen werden."
+    "import_failed": "Import fehlgeschlagen: die Datei konnte nicht gelesen werden.",
+    "choice_title_inline": "Nicht dieser? Wähle den Code, der auf der Schachtel steht:",
+    "choice_switched": "Code gesetzt: {code}",
+    "ocr_engine_error": "Der OCR-Leser ist auf diesem Gerät nicht verfügbar: Code von Hand eingeben."
   }
 }

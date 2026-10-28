@@ -72,20 +72,28 @@ two different problems. The reader binarizes and blows up the crop, restricts th
 `0-9A` and retries the block with a wider segmentation and a 1.6× wider band before giving
 up, and the loop keeps trying (2 s, then 4 s) instead of stopping after a minute.
 
-### A read is never accepted silently: four codes, one tap
+### A doubtful read is corrected in the form, never in a panel over the camera
 
 `A040313076` read as `A040313072` is **one digit** — perfectly plausible to the reader,
-completely wrong for the household. So a medicine is **never** finalised from a single OCR
-read: `_medAskAic()` asks the local catalogue for the real rows closest to it
-(`med_lookup?near=1` → `medicineFindNeighbours()`, ranked by edit distance) and paints up to
-**four** candidates on the scan page, each with the name, the dosage and the pack printed on
-its box. The read itself stays first (distance 0), so an easy scan is still one tap; a wrong
-digit is visible at a glance because the name of the neighbour does not match the box in
-hand. "Nessuno di questi" opens the hand entry. Without a loaded catalogue there are no
-real neighbours to offer, and the card says so instead of inventing them.
+completely wrong for the household. The camera therefore answers **one** question (“did it
+read?”): a read opens the medicine form as it always did. The correction lives where the name
+it would change already is — the catalogue card carries a **“Non è questo?”** row with the
+**real codes one edit away** (`med_lookup?near=1` → `medicineFindNeighbours()`, ranked by
+distance), each with the name, the dosage and the pack printed on its box. One tap rewrites the
+code and asks the catalogue again (`_medUseCode()`).
+
+Why not a card on the scanner: a white panel glued over the viewfinder hides the label the
+household is aiming at, and asking two questions at once is how a scan becomes a chore. The
+scanner keeps a single line of text (below), the form does the choosing.
 
 The guide frame fills in with the **digits already recognised** (`_medPreviewSample()`,
-`A0403130···`), so "it is reading" and "it is stuck" no longer look the same.
+`A0403130···`, emerald when complete), so “it is reading” and “it is stuck” never look the same.
+When it *is* stuck, the reader says why (`?debug=1`, `_medOcrGeometryNote()`): the frame size and
+the exact crop rectangle — a 40 px tall crop, or a portrait stream, is a geometry answer. With no
+OCR engine at all the line says so (`medical.ocr_engine_error`) instead of staying empty.
+
+Every few seconds one pass reads the **whole frame** as sparse text (`psm 11`), which is what
+rescues a box that is not inside the rectangle at all.
 
 **Italy decodes no barcode there at all** (`scan.barcodes: false`): the native detector, ZBar,
 Quagga and the digit OCR are skipped, so the only input is the printed block inside the

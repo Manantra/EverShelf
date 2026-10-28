@@ -2983,11 +2983,7 @@
     "ocr_read_ok": "识别到：AIC {code}",
     "ocr_read_none": "识别到“{text}”——其中没有 A 码。只对准带 A 的那一行。",
     "ocr_read_empty": "框内没有可读文字：请靠近并对准带 A 的那一行。",
-    "choice_status": "我对每位数字不完全确定：请选择包装上印的代码。",
     "choice_title": "我读到 {code}。包装上印的是哪个代码？",
-    "choice_nocatalog": "我读到 {code}：未加载目录，请在表单中核对数字。",
-    "choice_unknown": "目录中没有",
-    "choice_none": "都不是——手动添加",
     "match_atc": "ATC {value}",
     "match_fascia": "类别 {value}",
     "match_source": "来源：{source} · {count} 种药品",
@@ -2999,6 +2995,9 @@
     "import_too_big": "文件过大（最大 96 MB）。",
     "import_no_country": "此国家没有模块：无法读取目录。",
     "import_no_columns": "文件缺少目录列：请确认是官方导出文件。",
-    "import_failed": "导入失败：无法读取文件。"
+    "import_failed": "导入失败：无法读取文件。",
+    "choice_title_inline": "不是这个？请选择包装上印的代码：",
+    "choice_switched": "已设为代码：{code}",
+    "ocr_engine_error": "此设备不支持 OCR 识别：请手动输入代码。"
   }
 }

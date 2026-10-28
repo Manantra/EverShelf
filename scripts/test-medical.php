@@ -417,7 +417,7 @@ check('the guide rectangle is the OCR field of view (and says what to frame)',
     str_contains($html, 'id="scan-med-frame"')
     && str_contains($html, 'id="scan-med-frame-sample"')
     && str_contains($app, 'function _medGuideRect(')
-    && (bool)preg_match('/const guide = _medGuideRect\(videoEl\);\s*const wide = guide \? _medGuideRect\(videoEl, 1\.6\) : null;/s', $app)
+    && (bool)preg_match('/const guide = _medGuideRect\(videoEl\);\s*const wide = guide \? _medGuideRect\(videoEl, 1\.5\) : null;/s', $app)
     && (bool)preg_match('/passes\\.push\\(\\{\\s*region: guide, psm: /s', $app)
     && (bool)preg_match('/const canvas = pass\.binarize[\s\S]{0,200}?_captureMedLabelFrame\(videoEl, pass\.region, true\)/s', $app)
     && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,1600}?sample\.textContent = _medOcrSample\(\);/s', $app));
@@ -435,7 +435,7 @@ check('the hint tells the household WHICH code to frame, in six locales',
 check('the AIC read by the OCR is stored as the box prints it (A + 9 digits)',
     str_contains($app, 'const aic = String(det.aic || (local && local.aic)')
     && str_contains($app, "(aic ? ('A' + aic) :")
-    && (bool)preg_match("/_finalizeBarcode\('A' \+ choice\.aic, 'OCR'\);/s", $app)
+    && (bool)preg_match("/_finalizeBarcode\('A' \+ code, 'OCR'\);/s", $app)
     && (bool)preg_match('/_finalizeBarcode\(local\.code, method\);\s*return true;/s', $app));
 check('a medicine code is not pre-fetched from the food catalogues',
     // The handover happens before the food pipeline, so the prefetch only ever sees products.
@@ -781,7 +781,7 @@ JS;
 check('each panel hides the other one (no silent cross-over)',
     str_contains($css, '#page-scan.is-medical-scan #scan-manual-btn')
     && str_contains($app, 'if (!medical) _medHideCrossHint();')
-    && (bool)preg_match("/function _setScanMode\(mode\)[\s\S]{0,2200}?actionBar\.classList\.toggle\('has-med'/s", $app));
+    && (bool)preg_match("/function _setScanMode\(mode\)[\s\S]{0,3400}?actionBar\.classList\.toggle\('has-med'/s", $app));
 check('the module says it queries no catalogue (so no country is promised)',
     str_contains($html, 'data-i18n="medical.no_catalogue"')
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($root) {
@@ -812,7 +812,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 168 medical keys', $aligned && count($base) === 168);
+check('all six locales carry the same 167 medical keys', $aligned && count($base) === 167);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -910,14 +910,14 @@ check('in the medicine panel the LABEL is the source, not the fallback',
     // The loop reads the label in the medicine panel only (the food panel never OCRs a box),
     // it starts on the first frames, and a hit opens the medicine form with the AIC.
     && (bool)preg_match('/if \(_scanModeIsMedical\(\) && _medOcrPatterns\(\)\.length[\s\S]{0,900}?_medReadLabelOcr\(\{ silent: true \}\)/s', $app)
-    && (bool)preg_match('/_medReadLabelOcr\(\{ silent: true \}\)[\s\S]{0,900}?_medAskAic\(reading\.aic\);/s', $app)
+    && (bool)preg_match('/_medReadLabelOcr\(\{ silent: true \}\)[\s\S]{0,900}?_medConfirmRead\(reading\.aic\);/s', $app)
     && str_contains($app, 'async function _medReadLabelOcr('));
 check('the medicine panel says what it is doing (it reads a label, not a barcode)',
     (bool)preg_match("/_setScanStatus\(_scanModeIsMedical\(\) \? t\('medical\.ocr_reading'\)/s", $app));
 check('the label reader shows WHAT it read (a silent failure is not debuggable)',
     str_contains($html, 'id="scan-med-read"')
     && str_contains($app, 'function _medOcrFeedback(')
-    && (bool)preg_match('/_medOcrFeedback\(page, aic, preview\);\s*if \(aic\) return/s', $app)
+    && (bool)preg_match('/_medOcrFeedback\(page, aic, preview, _medOcrGeometryNote\(videoEl, pass\.region\)\);\s*if \(aic\) return/s', $app)
     && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,2000}?readEl\.hidden = !medical; readEl\.innerHTML = /s', $app)
     && str_contains($css, '.scan-med-read {')
     // Absolutely placed like every other child of the viewport: in the flow it would sit
@@ -1102,20 +1102,49 @@ check('med_lookup can answer with the neighbours (`near=1`) and says whether the
     (bool)preg_match('/function medLookupAction\\(PDO \\$db\\)[\\s\\S]{0,3000}?if \\(\\$near && \\$aic !== \\x27\\x27\\)/s', $apiSrc)
     && str_contains($apiSrc, "'exact' => \$exact,")
     && str_contains($apiSrc, "medicineLevenshtein(\$code, \$rowAic)"));
-check('the scan page offers FOUR codes, one tap each',
-    str_contains($html, 'id="scan-med-choices"')
-    && str_contains($app, 'function _medAskAic(')
-    && str_contains($app, 'function _medRenderChoices(')
-    && str_contains($app, 'function _medChooseAic(')
-    && str_contains($app, 'function _medChoiceNone()')
-    && (bool)preg_match('/_medChoiceRows = loaded \? _medChoiceCandidates\(code, rows, 4\)/s', $app)
-    && str_contains($css, '.scan-med-choices-row'));
-check('a medicine is NEVER accepted from a single OCR read',
-    // Every path that used to finalise an OCR AIC on its own now asks.
-    substr_count($app, '_medAskAic(reading.aic)') === 3
-    && !str_contains($app, "_finalizeBarcode('A' + reading.aic")
-    && !str_contains($app, "_medStartManualEntry('A' + reading.aic")
-    && (bool)preg_match('/function _medChooseAic\\(index\\)[\\s\\S]{0,400}?_finalizeBarcode\\(\\x27A\\x27 \\+ choice\\.aic, \\x27OCR\\x27\\);/s', $app));
+check('no card is glued over the camera: the correction lives in the form',
+    // The camera answers "did it read?". A panel over the viewfinder asking a second question
+    // gets in the way of the first, so the codes near the read are offered in the medicine form,
+    // next to the name they would change.
+    !str_contains($html, 'scan-med-choices')
+    && !str_contains($app, 'function _medRenderChoices(')
+    && !str_contains($app, 'scan-med-choices')
+    && !str_contains($css, '.scan-med-choices')
+    && str_contains($html, 'id="pf-med-match"')
+    && str_contains($app, 'function _medNeighboursHtml(rows)')
+    && str_contains($app, 'function _medUseCode(code)')
+    && (bool)preg_match('/function _medUseCode\(code\)[\s\S]{0,600}?_medShowCatalogueMatch\(value\)/s', $app)
+    && str_contains($css, '.med-neighbour-row'));
+check('the read opens the form and the neighbours come with it',
+    str_contains($app, 'async function _medConfirmRead(read)')
+    && substr_count($app, '_medConfirmRead(reading.aic)') === 3
+    && !str_contains($app, '_medAskAic(')
+    && (bool)preg_match("/function _medConfirmRead\\(read\\)[\\s\\S]{0,900}?_finalizeBarcode\\('A' \\+ code, 'OCR'\\);\\s*\\/\\/ Painted by the form/s", $app)
+    && (bool)preg_match('/_medNeighbourCodes = loaded \\? _medChoiceCandidates\(code, rows, 4\)/s', $app)
+    && (bool)preg_match('/_medNeighboursHtml\(rows\)/s', $app));
+check('a doubtful read is correctable where the name is (not over the camera)',
+    // The read opens the form; the numbers one edit away are chips on the catalogue card, so a
+    // wrong digit is one tap from the right box — and nothing covers the viewfinder.
+    (bool)preg_match("/function _medNeighboursHtml\(rows\)[\s\S]{0,900}?medical\\.choice_title_inline/s", $app)
+    && (bool)preg_match('/function _medRenderNeighbours\(\)[\s\S]{0,700}?med-neighbour-row/s', $app)
+    && (bool)preg_match("/function _medUseCode\\(code\\)[\\s\\S]{0,500}?medical\\.choice_switched/s", $app)
+    && (bool)preg_match('/if \\(!rows\\.length\\) \\{[\\s\\S]{0,300}?_medNeighboursHtml\(rows\)/s', $app)
+    && (bool)preg_match('/_medMatchResults = \\[\\];\\s*_medShowCatalogueMatch\\(value\\);/s', $app)
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+        return $c && isset($med[$l]['choice_title_inline'], $med[$l]['choice_switched']);
+    }, true));
+check('the reader says WHY it cannot read (engine, geometry, frames)',
+    // "It does not read" had three indistinguishable causes: no engine, a crop of 30 px, or a
+    // box outside the rectangle. Each one is now reported where the household and I can see it.
+    str_contains($app, "t('medical.ocr_engine_error')")
+    && str_contains($app, 'function _medOcrGeometryNote(videoEl, region)')
+    && (bool)preg_match('/GEOM frame [^`]{0,12}crop/s', $app)
+    && str_contains($app, "label: 'whole-frame'")
+    && (bool)preg_match("/if \(now - _medFullPassAt > 6000\)/s", $app)
+    && str_contains($css, '.scan-med-read-geom')
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+        return $c && mb_strlen((string)($med[$l]['ocr_engine_error'] ?? '')) > 20;
+    }, true));
 check('the guide frame fills with the digits already recognised',
     str_contains($app, 'function _medPreviewSample(raw, aic)')
     && (bool)preg_match("/el\.textContent = digits\.length >= 3/s", $app)

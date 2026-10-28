@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028h'; // bump when translations change
+const _I18N_VERSION = '20261028i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13691,8 +13691,9 @@ function _setScanMode(mode) {
     // A leftover read line from the previous product would look like a result of this one.
     const readEl = document.getElementById('scan-med-read');
     if (readEl) { readEl.hidden = !medical; readEl.innerHTML = ''; }
-    // The choices of the previous box must never be tapped for this one.
-    _medHideChoices();
+    // The previous box's neighbours must never be shown for this one.
+    _medNeighbourCodes = [];
+    _medNeighbourRead = '';
     const sampleEl = document.getElementById('scan-med-frame-sample');
     if (sampleEl) sampleEl.classList.remove('is-read');
     const medManual = document.getElementById('scan-med-manual-btn');
@@ -15483,7 +15484,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15493,7 +15494,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16035,15 +16036,22 @@ async function _medReadLabelOcr(options = {}) {
     if (!patterns.length) return null;
     const videoEl = document.getElementById('scanner-video');
     const worker = await _ensureTesseractWorker('aic');
-    if (!worker) return null;
+    if (!worker) {
+        // No engine, no reading — and saying it is the only honest answer: an empty read line
+        // looked exactly like "the box is not in the frame".
+        if (!options.silent) _setScanStatus(t('medical.ocr_engine_error'), '', '');
+        _medOcrFeedback('', null, '', t('medical.ocr_engine_error'));
+        return null;
+    }
     if (!options.silent) {
         _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
     }
-    // Three passes, cheapest first. A real AIC line is WIDE and the character spacing is huge
-    // (OCR-B), so a single narrow strip often clips it: pass 2 opens the page segmentation
-    // (single block) and pass 3 widens the band by 1.6×. A hit on any of them is the answer.
+    // Passes, cheapest first. A real AIC line is WIDE and its character spacing is huge (OCR-B),
+    // so the tight rectangle clips it more often than not: the band is widened to 1.5×, and every
+    // few seconds ONE pass reads the whole frame as sparse text — that is what rescues a hand
+    // that is not inside the rectangle at all.
     const guide = _medGuideRect(videoEl);
-    const wide = guide ? _medGuideRect(videoEl, 1.6) : null;
+    const wide = guide ? _medGuideRect(videoEl, 1.5) : null;
     const passes = [];
     if (guide) {
         passes.push({ region: guide, psm: '7', label: 'frame' });
@@ -16051,6 +16059,11 @@ async function _medReadLabelOcr(options = {}) {
         passes.push({ region: guide, psm: '6', label: 'frame-block' });
     }
     if (wide) passes.push({ region: wide, psm: '6', label: 'wide', binarize: true });
+    const now = Date.now();
+    if (now - _medFullPassAt > 6000) {
+        _medFullPassAt = now;
+        passes.push({ region: null, psm: '11', label: 'whole-frame' });
+    }
     if (!passes.length) passes.push({ region: null, psm: '6', label: 'full' });
 
     let text = '';
@@ -16059,7 +16072,7 @@ async function _medReadLabelOcr(options = {}) {
         const raw = _captureMedLabelFrame(videoEl, pass.region, false);
         const canvas = pass.binarize && raw ? _captureMedLabelFrame(videoEl, pass.region, true) : raw;
         if (!canvas) continue;
-        if (!preview && raw && raw.toDataURL) {
+        if (!preview && raw && raw.toDataURL && _bootDebug) {
             // The preview is the picture the household framed, not the black-and-white copy.
             try { preview = raw.toDataURL('image/jpeg', 0.6); } catch (e) { preview = ''; }
         }
@@ -16070,14 +16083,26 @@ async function _medReadLabelOcr(options = {}) {
             text += (text ? ' ' : '') + page;
             const aic = _medOcrFindAic(page, patterns);
             scanLog(`Medicine OCR (${pass.label}, psm ${pass.psm}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
-            _medOcrFeedback(page, aic, preview);
+            _medOcrFeedback(page, aic, preview, _medOcrGeometryNote(videoEl, pass.region));
             if (aic) return { aic: aic, text: page, preview: preview };
         } catch (e) {
             scanLog(`Medicine OCR error (${pass.label}): ${e.message}`);
         }
     }
-    _medOcrFeedback(text, null, preview);
+    _medOcrFeedback(text, null, preview, '');
     return { aic: null, text: text, preview: preview };
+}
+
+/**
+ * What the camera actually gave us, for `?debug=1`: frame size and the cropped rectangle.
+ * "It does not read" is usually a geometry answer (the crop is 40 px tall, or the video is
+ * portrait while the frame expects landscape), and this line says which one it is.
+ */
+function _medOcrGeometryNote(videoEl, region) {
+    if (!_bootDebug || !videoEl) return '';
+    const frame = `${videoEl.videoWidth}x${videoEl.videoHeight}`;
+    if (!region) return `GEOM frame ${frame} · whole`;
+    return `GEOM frame ${frame} · crop ${Math.round(region.sw)}x${Math.round(region.sh)} @ ${Math.round(region.sx)},${Math.round(region.sy)}`;
 }
 
 /**
@@ -16104,19 +16129,21 @@ function _medPreviewSample(raw, aic) {
 
 /** Last line painted under the medicine camera, so the 2 s loop does not repaint it. */
 let _medOcrLastFeedback = '';
+/** When the full-frame rescue pass last ran (it is the dearest, so not on every pass). */
+let _medFullPassAt = 0;
 
 /**
  * What the reader saw, on screen. Without this the household has no way to tell "it did not
  * find the block" from "it read the block and I typed it wrong", and neither have we.
  * In debug mode (`?debug=1`) the crop itself is shown too.
  */
-function _medOcrFeedback(page, aic, preview) {
+function _medOcrFeedback(page, aic, preview, note = '') {
     const el = document.getElementById('scan-med-read');
     if (!el) return;
     const raw = String(page || '').replace(/\s+/g, ' ').trim();
     _medPreviewSample(raw, aic);
     // The loop runs every 2 s: repaint only when the reading really changed, or the line blinks.
-    const stamp = `${aic || ''}|${raw.slice(0, 60)}`;
+    const stamp = `${aic || ''}|${raw.slice(0, 60)}|${note}`;
     if (_medOcrLastFeedback === stamp && el.innerHTML) return;
     _medOcrLastFeedback = stamp;
     el.hidden = false;
@@ -16129,93 +16156,49 @@ function _medOcrFeedback(page, aic, preview) {
         ? `<span class="scan-med-read-ok">${escapeHtml(t('medical.ocr_read_ok').replace('{code}', 'A' + aic))}</span>`
         : `<span>${escapeHtml(raw
             ? t('medical.ocr_read_none').replace('{text}', raw.slice(0, 40))
-            : t('medical.ocr_read_empty'))}</span>${shot}`;
+            : t('medical.ocr_read_empty'))}</span>${shot}`
+        // `?debug=1` only: frame size and crop rectangle, the answer to "why does it not read".
+        + (note && _bootDebug ? `<span class="scan-med-read-geom">${escapeHtml(note)}</span>` : '');
 }
 
 /**
- * The four codes the read could be, on the scan page, one tap away.
+ * The read is confirmed here, and the CORRECTION lives in the form — not in a panel over the
+ * camera.
  *
- * Why not auto-accept: an OCR read of `A040313076` that came back as `...72` is ONE digit —
- * perfectly plausible, completely wrong, and the app had no way to notice. So a medicine is never
- * accepted from a single read: the household sees the codes that are one edit away (real rows of
- * the local catalogue, each with the name printed on the box) and confirms with one tap. The
- * read itself stays first, so an easy scan is still one tap.
+ * The camera answers one question ("did it read?") and a card glued over the viewfinder to ask
+ * a second one gets in the way of the first. So a read opens the medicine form as it always did,
+ * with the number printed on the box in an editable field, and the codes nearest to it
+ * (`med_lookup?near=1`) are offered THERE, next to the name they would change.
  */
-let _medChoicesKey = '';
-let _medChoiceRows = [];
+let _medNeighbourCodes = [];
+let _medNeighbourRead = '';
 
 /**
- * Ask the local catalogue which codes are next to this read, then paint the choices.
+ * Ask the catalogue for the codes around this read, then continue to the form.
  *
- * @param {string} read the OCR reading (a canonical AIC, with or without the printed `A`)
- * @param {{force?: boolean}} [options]
+ * The neighbours are not a question on the camera: they are kept for `_medShowCatalogueMatch()`,
+ * which paints them in the form as "non è questo?" chips.
+ *
+ * @param {string} read the OCR reading (a canonical national code, with or without the letter)
  */
-async function _medAskAic(read, options = {}) {
-    // The country module canonicalises the read (Italy: `A040313076` → `040313076`); this
-    // function knows no national shape.
+async function _medConfirmRead(read) {
     const raw = String(read || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
     const local = _medLocalCode(raw);
     const code = local ? String(local.aic || local.code || raw) : raw;
     if (!code) return;
-    // The loop reads every 2 s: one card per reading, not one card per frame.
-    if (_medChoicesKey === code && !options.force) return;
-    _medChoicesKey = code;
-    let res = null;
+    showToast(t('medical.ocr_found').replace('{code}', 'A' + code), 'success');
+    _finalizeBarcode('A' + code, 'OCR');
+    // Painted by the form, so a slow answer must not hold the camera.
+    _medNeighbourRead = code;
+    _medNeighbourCodes = [];
     try {
-        res = await api('med_lookup', { aic: 'A' + code, near: 1, lang: _currentLang || '' });
-    } catch (e) { res = null; }
-    const rows = (res && Array.isArray(res.results)) ? res.results : [];
-    const loaded = !!(res && res.dataset && res.dataset.loaded);
-    // Without a catalogue there are no real "neighbours" to offer: the read is the only code we
-    // know, and the household checks its digits in the form.
-    _medChoiceRows = loaded ? _medChoiceCandidates(code, rows, 4) : [{ aic: code, distance: 0, row: null }];
-    _medRenderChoices(_medChoiceRows, code, loaded);
-    _setScanStatus(t('medical.choice_status'), 'retry', '');
-}
-
-/** Paint the choices under the camera (or the single reading when there is no catalogue). */
-function _medRenderChoices(list, code, loaded) {
-    const host = document.getElementById('scan-med-choices');
-    if (!host || !Array.isArray(list) || !list.length) return;
-    host.hidden = false;
-    const title = (loaded ? t('medical.choice_title') : t('medical.choice_nocatalog')).replace('{code}', 'A' + code);
-    host.innerHTML = `<p class="scan-med-choices-title">${escapeHtml(title)}</p>
-        <div class="scan-med-choices-row">` +
-        list.map((c, i) => {
-            const row = c.row || null;
-            const name = row && row.name ? String(row.name) : (loaded ? t('medical.choice_unknown') : '');
-            const extra = row ? [row.dosage, row.pack].filter(Boolean).join(' · ') : '';
-            return `<button type="button" class="scan-med-choice${i === 0 ? ' is-lead' : ''}${row ? '' : ' is-unknown'}" onclick="_medChooseAic(${i})">
-                    <span class="scan-med-choice-code">A${escapeHtml(c.aic)}</span>
-                    ${name ? `<span class="scan-med-choice-name">${escapeHtml(name)}</span>` : ''}
-                    ${extra ? `<span class="scan-med-choice-meta">${escapeHtml(extra)}</span>` : ''}
-                </button>`;
-        }).join('') +
-        `</div>
-        <button type="button" class="scan-med-choice-none" onclick="_medChoiceNone()">${escapeHtml(t('medical.choice_none'))}</button>`;
-}
-
-/** One of the candidates is the box in hand: open the medicine form on it. */
-function _medChooseAic(index) {
-    const choice = _medChoiceRows[Number(index) || 0];
-    if (!choice) return;
-    _medHideChoices();
-    showToast(t('medical.ocr_found').replace('{code}', 'A' + choice.aic), 'success');
-    _finalizeBarcode('A' + choice.aic, 'OCR');
-}
-
-/** None of the four: the household adds the box by hand (the code stays editable). */
-function _medChoiceNone() {
-    _medHideChoices();
-    _medStartManualEntry('', true, '');
-}
-
-/** The card belongs to ONE reading: a new scan, another place or a match clears it. */
-function _medHideChoices() {
-    const host = document.getElementById('scan-med-choices');
-    if (host) { host.hidden = true; host.innerHTML = ''; }
-    _medChoiceRows = [];
-    _medChoicesKey = '';
+        const res = await api('med_lookup', { aic: 'A' + code, near: 1, lang: _currentLang || '' });
+        if (_medNeighbourRead !== code) { return; }
+        const rows = (res && Array.isArray(res.results)) ? res.results : [];
+        const loaded = !!(res && res.dataset && res.dataset.loaded);
+        _medNeighbourCodes = loaded ? _medChoiceCandidates(code, rows, 4) : [];
+        if (typeof _medRenderNeighbours === 'function') { _medRenderNeighbours(); }
+    } catch (e) { /* no catalogue: the form still opens on the read */ }
 }
 
 /**
@@ -16236,7 +16219,7 @@ async function _medOcrFallback(code, options = {}) {
     const reading = await _medReadLabelOcr({ silent: !!options.silent });
     if (reading && reading.aic) {
         _setScanHudState('idle');
-        _medAskAic(reading.aic);
+        _medConfirmRead(reading.aic);
         return true;
     }
     if (medicalPack) {
@@ -16291,6 +16274,64 @@ async function _medOcrFromScan() {
 let _medMatchResults = [];
 
 /**
+ * The codes one digit away, in the form, where the name they would change is.
+ *
+ * This is the answer to "it read the wrong last digit": an OCR read is one tap from the four
+ * real numbers around it (`med_lookup?near=1`), each with the name printed on its box, so a
+ * wrong read is visible next to the right one instead of being silently stored. It stays inside
+ * the card the household already has in front of them — nothing pops up over the camera.
+ *
+ * @param {Array<object>} rows the rows already shown (their codes are not repeated)
+ */
+function _medNeighboursHtml(rows) {
+    const shown = {};
+    for (const row of (Array.isArray(rows) ? rows : [])) { shown[String(row.aic || '')] = true; }
+    const list = (_medNeighbourCodes || []).filter(c => c && c.row && !shown[String(c.aic)]);
+    if (!list.length) return '';
+    return `<p class="settings-hint med-neighbours-title">${escapeHtml(t('medical.choice_title_inline'))}</p>` +
+        `<div class="med-neighbour-row">` +
+        list.map(c => `<button type="button" class="med-neighbour" onclick="_medUseCode('A${escapeAttr(c.aic)}')">
+                <span class="med-neighbour-code">A${escapeHtml(c.aic)}</span>
+                <span class="med-neighbour-name">${escapeHtml(String(c.row.name || ''))}</span>
+            </button>`).join('') +
+        `</div>`;
+}
+
+/**
+ * Repaint the neighbour chips after the async answer arrives (the card is already on screen).
+ */
+function _medRenderNeighbours() {
+    const host = document.getElementById('pf-med-match');
+    if (!host || host.hidden) return;
+    const previous = host.querySelector('.med-neighbour-row');
+    const title = host.querySelector('.med-neighbours-title');
+    if (!_medNeighbourCodes.length) {
+        if (previous) previous.remove();
+        if (title) title.remove();
+        return;
+    }
+    const html = _medNeighboursHtml(_medMatchResults || []);
+    if (!html) return;
+    if (previous) previous.remove();
+    if (title) title.remove();
+    host.insertAdjacentHTML('beforeend', html);
+}
+
+/**
+ * Take one of the neighbouring codes: the field is the truth, so it is rewritten and the
+ * catalogue is asked again.
+ */
+function _medUseCode(code) {
+    const value = String(code || '');
+    const field = document.getElementById('pf-barcode');
+    if (field) field.value = value;
+    _medFormSetMode(true, { code: value, label_key: 'medical.code_aic' });
+    _medMatchResults = [];
+    _medShowCatalogueMatch(value);
+    showToast(t('medical.choice_switched').replace('{code}', value), 'success');
+}
+
+/**
  * Ask the local catalogue about the code and paint the card in the medicine form.
  *
  * The dataset is a local table (imported by `scripts/import-medicines.php --country=IT`): one
@@ -16319,7 +16360,10 @@ async function _medShowCatalogueMatch(code) {
     // scan reads like a requirement, and it is not — the catalogue is optional.
     if (!loaded) { host.hidden = true; host.innerHTML = ''; return; }
     if (!rows.length) {
-        host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_none'))}</p>`;
+        // Not in the catalogue: the read is exactly the case where the neighbours matter, so the
+        // card says "unknown" and still offers the codes around it.
+        host.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_none'))}</p>` +
+            _medNeighboursHtml(rows);
         return;
     }
     // The source travels with the name: a household must know whether it is reading the official
@@ -16350,7 +16394,8 @@ async function _medShowCatalogueMatch(code) {
             </div>`;
         }).join('') +
         `<p class="settings-hint">${escapeHtml(t('medical.match_advice'))}</p>` +
-        (source ? `<p class="settings-hint med-match-source">${escapeHtml(source)}</p>` : '');
+        (source ? `<p class="settings-hint med-match-source">${escapeHtml(source)}</p>` : '') +
+        _medNeighboursHtml(rows);
 }
 
 /** Fill the form with the chosen catalogue row (the user's click, never automatic). */
@@ -16578,7 +16623,7 @@ function startUnifiedScanner(videoEl) {
                 }
                 // Not accepted from a single read: the household confirms among the closest real
                 // codes (a wrong last digit is invisible to the reader, never to the box).
-                _medAskAic(reading.aic);
+                _medConfirmRead(reading.aic);
             }).catch(() => {}).finally(() => { medOcrBusy = false; });
         }
 
@@ -17164,7 +17209,7 @@ async function onBarcodeDetected(barcode) {
             _medReadLabelOcr({ silent: true }).then(reading => {
                 _setScanStatus(t('scan.status_scanning'), '', '');
                 if (reading && reading.aic) {
-                    _medAskAic(reading.aic);
+                    _medConfirmRead(reading.aic);
                     return;
                 }
                 _medStartManualEntry('', true, '');
