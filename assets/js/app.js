@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zy'; // bump when translations change
+const _I18N_VERSION = '20261028zza'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15786,7 +15786,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zy';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zza';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15796,7 +15796,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zy';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zza';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18405,9 +18405,11 @@ function _medFormSetMode(on) {
     // the box in the cabinet — so "Salva prodotto" would hide half of what the tap does.
     const submitBtn = document.getElementById('pf-submit-btn');
     if (submitBtn) {
+        // Bare `t( ... )` calls on purpose: the i18n audit cannot see a key held in a variable, and
+        // a missing translation must fail the build, not print `medical.form_save` on a phone.
         const submitKey = on ? 'medical.form_save' : 'btn.save_product';
         submitBtn.setAttribute('data-i18n', submitKey);
-        submitBtn.textContent = t(submitKey);
+        submitBtn.textContent = on ? t('medical.form_save') : t('btn.save_product');
     }
 }
 
@@ -18585,19 +18587,21 @@ function _medExpiryIso(prefix) {
 }
 
 /**
- * Why a printed date is not usable yet, as an i18n key.
+ * The message for a printed date that cannot be used yet.
  *
  * `add.expiry_required` when a control is still empty, `add.expiry_past` when the household did
  * type a year that has already gone — the difference matters, because the second one is an answer
- * and the first one is a missing step.
+ * and the first one is a missing step. It returns the TRANSLATED sentence (bare `t( ... )` calls),
+ * not a key: a key returned through a helper is invisible to `scripts/i18n-audit.py`, and a
+ * missing translation would then reach a phone as `add.expiry_required`.
  *
  * @param {string} prefix 'pf' | 'add'
- * @returns {string} an i18n key
+ * @returns {string} the message to show
  */
-function _medExpiryErrorKey(prefix) {
+function _medExpiryErrorText(prefix) {
     const year = String(document.getElementById(`${prefix}-expiry-year`)?.value || '').trim();
-    if (/^\d{4}$/.test(year) && Number(year) < new Date().getFullYear()) return 'add.expiry_past';
-    return 'add.expiry_required';
+    if (/^\d{4}$/.test(year) && Number(year) < new Date().getFullYear()) return t('add.expiry_past');
+    return t('add.expiry_required');
 }
 
 /** A pick just moved: hand the ISO value to the hidden field the form submits. */
@@ -19287,7 +19291,7 @@ async function submitProduct(e) {
         if (!expiry) {
             // "Inserisci la scadenza" when a control is empty, "data nel passato" when the year
             // typed has already gone: the second one is an answer, not a missing step.
-            showToast(t(_medExpiryErrorKey('pf')), 'error', 6000);
+            showToast(_medExpiryErrorText('pf'), 'error', 6000);
             monthEl?.focus();
             return;
         }
@@ -20633,7 +20637,8 @@ function showAddForm() {
     if (addTitle) {
         const titleKey = addIsMedical ? 'medical.add_title' : 'add.title';
         addTitle.setAttribute('data-i18n', titleKey);
-        addTitle.textContent = t(titleKey);
+        // Bare calls: see the note in `_medFormSetMode()` — the audit must be able to see them.
+        addTitle.textContent = addIsMedical ? t('medical.add_title') : t('add.title');
     }
     _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', autoLoc, addIsMedical ? 'medical' : 'food');
     document.getElementById('add-location').value = autoLoc;
@@ -21431,7 +21436,7 @@ async function submitAdd(e) {
     const expiryField = document.getElementById('add-expiry');
     const expiryIso = expiryField ? String(expiryField.value || '') : '';
     if (expiryIso === '' && _isMedicalRow(currentProduct)) {
-        showToast(t(_medExpiryErrorKey('add')), 'error', 6000);
+        showToast(_medExpiryErrorText('add'), 'error', 6000);
         document.getElementById('add-expiry-month')?.focus();
         startAddFormIdleCountdown();
         return;
