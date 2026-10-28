@@ -58,7 +58,13 @@
     "summary_title": "Inventur fertig",
     "summary_line": "{there} bestätigt · {almost} fast leer · {finished} aufgebraucht · {spoiled} verdorben · {skipped} übersprungen",
     "summary_errors": "{n} Änderungen nicht gespeichert",
-    "done": "Fertig"
+    "done": "Fertig",
+    "banner_title": "Bestandsprüfung",
+    "banner_sub_place": "Schnellcheck {place} ({n} Produkte prüfen)",
+    "banner_sub_all": "Schnellcheck Vorrat ({n} Produkte prüfen)",
+    "banner_cta": "Prüfung starten",
+    "confirm_yes_qty": "Ja, {qty} bestätigen",
+    "verify_place": "Prüfe {place}"
   },
   "product_tags": {
     "form_label": "Tags",
@@ -354,7 +360,9 @@
     "location_filter": "Nach Ort filtern",
     "detail_extend_short": "Verlängern",
     "item_detail_recipe_short": "Rezept",
-    "item_detail_throw_short": "Weg"
+    "item_detail_throw_short": "Weg",
+    "quick_access_toggle": "⚡ Schnellzugriff",
+    "stock_low": "Niedriger Bestand"
   },
   "scan": {
     "title": "Scannen",
@@ -671,7 +679,7 @@
     "from_where_label": "Von wo?",
     "amount_label": "Wie viel",
     "use_amount_btn": "Diese Menge verwenden",
-    "use_all_btn": "ALLES verwenden / Aufgebraucht",
+    "use_all_btn": "Alles verbrauchen / Fertig",
     "packs_label": "Packungen",
     "quantity_in_total": "Menge in {unit} (gesamt: {total})",
     "packs_of_have": "Packungen à {size} (du hast {count} Pack.)",
@@ -702,7 +710,7 @@
     "storage_immediately": "Am besten sofort verzehren",
     "ing_stock_line": "Du hast {have} · {remain} bleiben nach Gebrauch",
     "ing_use_all_note": "alles verwenden (<5% der Vollpackung)",
-    "opt_fuel": "🔥 Mein Rhythmus",
+    "opt_fuel": "🔥 Portionen nach meinem Bedarf",
     "fuel_loading": "Gesundheitsdaten werden geladen…",
     "fuel_burned": "Verbrauchte Kalorien",
     "fuel_steps": "Schritte",
@@ -715,7 +723,7 @@
     "fuel_match": "des Ziels",
     "fuel_badge_target": "Ziel {kcal} kcal / ≥{protein} g Protein",
     "fuel_why_title": "Warum diese Zutaten",
-    "generate_fuel_btn": "🔥 Rezept im Fuel-Modus erzeugen",
+    "generate_fuel_btn": "🔥 Nach meinem Bedarf erzeugen",
     "shopping_suggestions_intro": "Für eine Alternative bräuchtest du (nicht im Vorrat — optional):",
     "shopping_suggestions_add": "Zur Einkaufsliste hinzufügen",
     "shopping_suggestions_added": "Zur Einkaufsliste hinzugefügt",
@@ -762,7 +770,16 @@
     "weather_bucket_rainy": "regnerisch",
     "weather_bucket_snowy": "schneereich",
     "weather_bucket_foggy": "neblig",
-    "weather_bucket_stormy": "gewittrig"
+    "weather_bucket_stormy": "gewittrig",
+    "tab_book": "📖 Rezeptbuch & Ideen",
+    "tab_history": "🗓️ Mahlzeiten-Verlauf",
+    "favorites_section": "Favoriten",
+    "cook_deduct_all": "✓ Gekocht (Zutaten abziehen)",
+    "cook_include": "Beim Abziehen einbeziehen",
+    "cook_none_selected": "Mindestens eine Zutat auswählen.",
+    "cook_deduct_done": "{n} Zutaten abgezogen",
+    "cook_deduct_partial": "{n} Zutaten nicht abgezogen",
+    "save_favorite": "⭐ Zu Favoriten"
   },
   "shopping": {
     "spesa_done_title": "Einkauf abgeschlossen!",
@@ -2105,7 +2122,10 @@
     "offline_queue_full": "Offline-Warteschlange voll: {n} der ältesten Vorgänge wurden verworfen.",
     "food_in_cabinet": "Lebensmittel dürfen nicht in den Medikamentenschrank: wähle einen anderen Ort.",
     "medicine_needs_cabinet": "Ein Medikament gehört nur in den Medikamentenschrank.",
-    "medicine_location_missing": "Lege zuerst den Medikamentenschrank fest (Einstellungen → Medikamente)."
+    "medicine_location_missing": "Lege zuerst den Medikamentenschrank fest (Einstellungen → Medikamente).",
+    "offline_banner_work": "Offline: du kannst weiter nachschauen und Bestände erfassen — Sync, sobald die Verbindung zurück ist.",
+    "offline_synced_short": "Synchronisiert!",
+    "offline_restored_detail": "Synchronisierung erfolgreich abgeschlossen."
   },
   "confirm": {
     "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",

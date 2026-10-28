@@ -58,7 +58,13 @@
     "summary_title": "Inventario fatto",
     "summary_line": "{there} confermati · {almost} quasi finiti · {finished} esauriti · {spoiled} deperiti · {skipped} saltati",
     "summary_errors": "{n} modifiche non salvate",
-    "done": "Fatto"
+    "done": "Fatto",
+    "banner_title": "Revisione scorte",
+    "banner_sub_place": "Controllo rapido di {place} ({n} prodotti da verificare)",
+    "banner_sub_all": "Controllo rapido della dispensa ({n} prodotti da verificare)",
+    "banner_cta": "Avvia controllo",
+    "confirm_yes_qty": "Sì, confermo {qty}",
+    "verify_place": "Verifica {place}"
   },
   "product_tags": {
     "form_label": "Tag",
@@ -354,7 +360,9 @@
     "location_filter": "Filtra per luogo",
     "detail_extend_short": "Estendi",
     "item_detail_recipe_short": "Ricetta",
-    "item_detail_throw_short": "Butta"
+    "item_detail_throw_short": "Butta",
+    "quick_access_toggle": "⚡ Accesso rapido",
+    "stock_low": "Scorta bassa"
   },
   "scan": {
     "title": "Scansiona",
@@ -645,7 +653,7 @@
     "opt_healthy": "💚 Extra Salutare",
     "opt_opened": "📦 Priorità Cose Aperte",
     "opt_zero_waste": "♻️ Zero Sprechi",
-    "opt_fuel": "🔥 A ritmo mio",
+    "opt_fuel": "🔥 Porzioni sul mio fabbisogno",
     "fuel_loading": "Carico dati salute…",
     "fuel_burned": "Kcal bruciate",
     "fuel_steps": "Passi",
@@ -658,7 +666,7 @@
     "fuel_match": "del target",
     "fuel_badge_target": "obiettivo {kcal} kcal / ≥{protein} g proteine",
     "fuel_why_title": "Perché questi ingredienti",
-    "generate_fuel_btn": "🔥 Genera a ritmo mio",
+    "generate_fuel_btn": "🔥 Genera porzioni sul mio fabbisogno",
     "generate_btn": "✨ Genera Ricetta",
     "loading_msg": "Sto preparando la ricetta...",
     "start_cooking": "👨‍🍳 Modalità Cucina",
@@ -703,7 +711,7 @@
     "from_where_label": "Da dove?",
     "amount_label": "Quanto",
     "use_amount_btn": "Usa questa quantità",
-    "use_all_btn": "Usa TUTTO / Finito",
+    "use_all_btn": "Usa tutto / Finito",
     "packs_label": "Confezioni",
     "quantity_in_total": "Quantità in {unit} (totale: {total})",
     "packs_of_have": "Confezioni da {size} (hai {count} conf)",
@@ -762,7 +770,16 @@
     "weather_bucket_rainy": "piovoso",
     "weather_bucket_snowy": "nevoso",
     "weather_bucket_foggy": "nebbioso",
-    "weather_bucket_stormy": "temporalesco"
+    "weather_bucket_stormy": "temporalesco",
+    "tab_book": "📖 Ricettario & Idee",
+    "tab_history": "🗓️ Storico pasti",
+    "favorites_section": "Preferite",
+    "cook_deduct_all": "✓ Ho cucinato questo piatto (scala gli ingredienti)",
+    "cook_include": "Includi nello scalare",
+    "cook_none_selected": "Seleziona almeno un ingrediente da scalare.",
+    "cook_deduct_done": "Scalati {n} ingredienti",
+    "cook_deduct_partial": "{n} ingredienti non scalati — riprova da Usa",
+    "save_favorite": "⭐ Salva nei preferiti"
   },
   "shopping": {
     "spesa_done_title": "Spesa completata!",
@@ -2105,7 +2122,10 @@
     "offline_queue_full": "Memoria offline piena: {n} operazione(i) più vecchie sono state scartate.",
     "food_in_cabinet": "Gli alimenti non possono andare nell’armadietto dei farmaci: scegli un altro luogo.",
     "medicine_needs_cabinet": "Un farmaco può stare solo nell’armadietto dei farmaci.",
-    "medicine_location_missing": "Segna prima l’armadietto dei farmaci (Configurazione → Farmaci)."
+    "medicine_location_missing": "Segna prima l’armadietto dei farmaci (Configurazione → Farmaci).",
+    "offline_banner_work": "Sei offline: puoi continuare a consultare e registrare scorte; sincronizziamo appena torna la linea.",
+    "offline_synced_short": "Sincronizzato!",
+    "offline_restored_detail": "Sincronizzazione completata con successo."
   },
   "confirm": {
     "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",

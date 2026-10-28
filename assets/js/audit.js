@@ -270,26 +270,43 @@ function _auditRender() {
     const total = _audit.items.length;
     const done = _audit.index;
     el.hidden = false;
+    const qtyPlain = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
+        ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
+        : `${it.quantity || ''} ${it.unit || ''}`.trim();
+    const confirmLabel = t('audit.confirm_yes_qty').replace('{qty}', qtyPlain || String(it.quantity || ''));
+    const locMeta = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
+        || { icon: '📦', label: it.location || '' };
+    const placeTitle = t('audit.verify_place').replace('{place}', locMeta.label || t('audit.title'));
+    const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('audit.title'))}">
         <div class="audit-progress"><span style="width:${Math.round((done / total) * 100)}%"></span></div>
         <div class="audit-head">
             <div class="audit-head-text">
-                <p class="audit-eyebrow">${escapeHtml(t('audit.title'))}</p>
+                <p class="audit-eyebrow">${escapeHtml(placeTitle)}</p>
                 <p class="audit-question"><span>${escapeHtml(t('audit.question'))}</span><b>${done + 1}/${total}</b></p>
             </div>
             <button type="button" class="audit-close" onclick="_auditStop()" aria-label="${escapeHtml(t('audit.close'))}">✕</button>
         </div>
+        <div class="audit-product-row">
+            <div class="audit-product-thumb">${thumb}</div>
+            <div class="audit-product-main">
+                <p class="audit-product-name">${escapeHtml(it.display_name || it.name || '')}${it.brand ? ` <span class="audit-product-brand">${escapeHtml(it.brand)}</span>` : ''}</p>
+                <p class="audit-product-qty">${escapeHtml(t('audit.question'))}: <strong>${escapeHtml(qtyPlain)}</strong></p>
+            </div>
+        </div>
         <p class="audit-sentence" aria-live="polite">${_auditSentence(it)}</p>
         <div class="audit-answers">
-            <button type="button" class="audit-answer audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> ${escapeHtml(t('audit.confirm_yes'))}</button>
+            <button type="button" class="audit-answer audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> ${escapeHtml(confirmLabel)}</button>
             <div class="audit-edit-row">
+                <button type="button" class="audit-answer audit-almost" onclick="_auditAnswer('almost')"><span aria-hidden="true">⚠️</span> ${escapeHtml(t('audit.almost_out'))}</button>
                 <button type="button" class="audit-answer audit-edit" onclick="_auditEdit('quantity')"><span aria-hidden="true">✏️</span> ${escapeHtml(t('audit.change_qty'))}</button>
-                <button type="button" class="audit-answer audit-edit" onclick="_auditEdit('location')"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.change_location'))}</button>
             </div>
             ${_auditScaleReady(it) ? `<button type="button" class="audit-answer audit-scale" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}
-            <button type="button" class="audit-answer audit-almost" onclick="_auditAnswer('almost')"><span aria-hidden="true">◐</span> ${escapeHtml(t('audit.almost_out'))}</button>
-            <button type="button" class="audit-answer audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">✗</span> ${escapeHtml(t('audit.exhausted'))}</button>
-            <button type="button" class="audit-answer audit-spoiled" onclick="_auditAnswer('spoiled')"><span aria-hidden="true">🗑️</span> ${escapeHtml(t('audit.spoiled'))}</button>
+            <div class="audit-edit-row">
+                <button type="button" class="audit-answer audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">✕</span> ${escapeHtml(t('audit.exhausted'))}</button>
+                <button type="button" class="audit-answer audit-spoiled" onclick="_auditAnswer('spoiled')"><span aria-hidden="true">🗑️</span> ${escapeHtml(t('audit.spoiled'))}</button>
+            </div>
+            <button type="button" class="audit-answer audit-edit" onclick="_auditEdit('location')"><span aria-hidden="true">📍</span> ${escapeHtml(t('audit.change_location'))}</button>
         </div>
         <div class="audit-foot">
             ${_audit.history.length ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>` : ''}

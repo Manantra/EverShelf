@@ -12757,9 +12757,26 @@ async function loadInventory() {
             renderInventory(currentInventory);
         }
         _syncLocationFilterUi();
+        _syncInventoryAuditBanner();
         loadQuickAccess();
     } catch (err) {
         console.error('Inventory load error:', err);
+    }
+}
+
+/** Action banner for Inventario veloce: place + how many rows to check. */
+function _syncInventoryAuditBanner() {
+    const sub = document.getElementById('inventory-audit-banner-sub');
+    if (!sub) return;
+    const n = (_inventoryVisibleItems(currentInventory) || []).length;
+    const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
+    const meta = key ? LOCATIONS[key] : null;
+    if (meta) {
+        sub.textContent = t('audit.banner_sub_place')
+            .replace('{place}', `${meta.icon} ${meta.label}`)
+            .replace('{n}', String(n));
+    } else {
+        sub.textContent = t('audit.banner_sub_all').replace('{n}', String(n));
     }
 }
 
@@ -12803,6 +12820,7 @@ function renderInventoryItem(item, opts = {}) {
     const isExpiring = !isExpired && days <= 7;
     const parts = formatQuantityParts(item.quantity, item.unit, item.default_quantity, item.package_unit);
     const openedClass = _inventoryOpenedRowClass(item);
+    const qtyTone = _inventoryQtyTone(item);
     
     let expiryBadge = '';
     if (item.expiry_date) {
@@ -12847,6 +12865,8 @@ function renderInventoryItem(item, opts = {}) {
         : (opts.hideCatIcon
             ? (_validProductImageUrl(item.image_url) ? _invImageHtml(item.image_url, '') : '')
             : _invImageHtml(item.image_url, catIcon));
+    const useKey = t('inventory.item_detail_use');
+    const locJs = String(item.location || 'dispensa').replace(/'/g, "\\'");
     
     return `
     <div class="inventory-item${medRow ? ' is-medical-row' : ''}${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
@@ -12867,13 +12887,29 @@ function renderInventoryItem(item, opts = {}) {
                 </div>
             </div>
             <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
-            <div class="inv-qty-col">
-                <span class="inv-qty-number">${parts.mainQty}</span>
-                <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
-                ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
+            <div class="inv-qty-actions">
+                <button type="button" class="inv-quick-use" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}"
+                    onclick="event.stopPropagation(); quickUse(${item.product_id}, '${locJs}')">✓</button>
+                <div class="inv-qty-col inv-qty-col--${qtyTone}">
+                    <span class="inv-qty-number">${parts.mainQty}</span>
+                    <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
+                    ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
+                    ${qtyTone === 'low' ? `<span class="inv-qty-low-label">${escapeHtml(t('inventory.stock_low'))}</span>` : ''}
+                </div>
             </div>
         </div>
     </div>`;
+}
+
+/** Quantity pill tone: low when stock is ≤ ¼ of a usual pack (colour alone is not enough). */
+function _inventoryQtyTone(item) {
+    const qty = parseFloat(item && item.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) return 'ok';
+    const pack = parseFloat(item.default_quantity);
+    if (Number.isFinite(pack) && pack > 0 && qty / pack <= 0.25) return 'low';
+    const unit = String(item.unit || '');
+    if ((unit === 'pz' || unit === 'conf') && qty <= 1 && Number.isFinite(pack) && pack > 1) return 'low';
+    return 'ok';
 }
 
 /** Hold duration before opening a product row (touch). Short enough to feel responsive, long enough to scroll. */
@@ -13461,7 +13497,7 @@ async function loadQuickAccess() {
         const recentGrid = document.getElementById('quick-recent-grid');
         const popularGrid = document.getElementById('quick-popular-grid');
 
-        // Render recent (max 4)
+        // Compact rail (collapsed behind <details>): fewer tiles so the inventory list wins.
         if (recent.length > 0) {
             recentGrid.innerHTML = recent.slice(0, 4).map(p => renderQuickAccessBtn(p)).join('');
             recentGroup.style.display = '';
@@ -13469,10 +13505,9 @@ async function loadQuickAccess() {
             recentGroup.style.display = 'none';
         }
 
-        // Render popular (max 8), excluding products already in recent
         const filteredPopular = popular.filter(p => !recentIds.includes(parseInt(p.product_id)));
         if (filteredPopular.length > 0) {
-            popularGrid.innerHTML = filteredPopular.slice(0, 8).map(p => renderQuickAccessBtn(p)).join('');
+            popularGrid.innerHTML = filteredPopular.slice(0, 4).map(p => renderQuickAccessBtn(p)).join('');
             popularGroup.style.display = '';
         } else {
             popularGroup.style.display = 'none';
@@ -28409,6 +28444,43 @@ async function getTodayRecipeTitles() {
 }
 
 let _recipeArchiveEntries = [];
+/** 'book' = ricettario (favourites first); 'history' = chronological meal log. */
+let _recipeArchiveView = 'book';
+
+function _setRecipeArchiveView(view) {
+    _recipeArchiveView = (view === 'history') ? 'history' : 'book';
+    document.querySelectorAll('.recipe-view-tab').forEach(btn => {
+        const on = btn.dataset.recipeView === _recipeArchiveView;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    loadRecipeArchive();
+}
+
+function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
+    const r = entry.recipe || {};
+    const entryMeal = _normalizeMealId(r.meal || entry.meal || '');
+    const mealIcon = (entryMeal && entryMeal !== 'libero') ? _mealLabel(entryMeal) : '🍳';
+    const tags = (r.tags || []).slice(0, 3).join(', ');
+    const favBadge = entry.is_favorite ? `<span class="recipe-fav-badge" title="${t('recipes.favorite')}">★</span>` : '';
+    const appliance = Array.isArray(r.steps)
+        ? (r.steps.map(s => (typeof _stepAppliance === 'function' ? _stepAppliance(s) : null)).find(Boolean) || '')
+        : '';
+    let html = `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}" onclick="viewArchivedRecipe(${archiveIdx})">`;
+    html += `<div class="recipe-archive-card-header">`;
+    html += `<span class="recipe-archive-meal recipe-archive-meal-lg" aria-hidden="true">${mealIcon}</span>`;
+    html += `<span class="recipe-archive-title">${escapeHtml(r.title || '')}</span>`;
+    html += favBadge;
+    html += `</div>`;
+    html += `<div class="recipe-archive-card-meta">`;
+    if (r.prep_time) html += `<span class="recipe-archive-badge">⏱️ ${escapeHtml(String(r.prep_time))}</span>`;
+    if (r.cook_time) html += `<span class="recipe-archive-badge">🔥 ${escapeHtml(String(r.cook_time))}</span>`;
+    html += `<span class="recipe-archive-badge">👥 ${escapeHtml(String(r.persons || 1))}</span>`;
+    if (appliance) html += `<span class="recipe-archive-badge">🔌 ${escapeHtml(appliance)}</span>`;
+    if (tags) html += `<span>${escapeHtml(tags)}</span>`;
+    html += `</div></div>`;
+    return html;
+}
 
 async function loadRecipeArchive() {
     // Sempre refetch: altrimenti altri device non vedono ricette create altrove
@@ -28423,8 +28495,28 @@ async function loadRecipeArchive() {
         container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>${t('recipes.archive_empty')}</p></div>`;
         return;
     }
+
+    if (_recipeArchiveView === 'book') {
+        const favs = archive.filter(e => e.is_favorite);
+        const rest = archive.filter(e => !e.is_favorite);
+        let html = '';
+        if (favs.length) {
+            html += `<div class="recipe-archive-day"><div class="recipe-archive-date">★ ${escapeHtml(t('recipes.favorites_section') || t('recipes.favorite'))}</div>`;
+            for (const entry of favs) {
+                html += _recipeArchiveCardHtml(entry, archive, archive.indexOf(entry));
+            }
+            html += `</div>`;
+        }
+        html += `<div class="recipe-archive-day"><div class="recipe-archive-date">${escapeHtml(t('recipes.tab_book'))}</div>`;
+        for (const entry of rest) {
+            html += _recipeArchiveCardHtml(entry, archive, archive.indexOf(entry));
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+        return;
+    }
     
-    // Group by date
+    // History: group by date (previous behaviour)
     const byDate = {};
     for (const entry of archive) {
         if (!byDate[entry.date]) byDate[entry.date] = [];
@@ -28432,7 +28524,6 @@ async function loadRecipeArchive() {
     }
     
     let html = '';
-    let flatIdx = 0;
     const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     
@@ -28446,26 +28537,7 @@ async function loadRecipeArchive() {
         html += `<div class="recipe-archive-date">${escapeHtml(dateLabel)}</div>`;
         
         for (const entry of entries) {
-            const r = entry.recipe;
-            const entryMeal = _normalizeMealId(r.meal || entry.meal || '');
-            const mealIcon = (entryMeal && entryMeal !== 'libero') ? _mealLabel(entryMeal) : '';
-            const tags = (r.tags || []).slice(0, 3).join(', ');
-            // Find this entry's index in the flat archive array
-            const archiveIdx = archive.indexOf(entry);
-            const favBadge = entry.is_favorite ? `<span class="recipe-fav-badge" title="${t('recipes.favorite')}">★</span>` : '';
-            html += `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}" onclick="viewArchivedRecipe(${archiveIdx})">`;
-            html += `<div class="recipe-archive-card-header">`;
-            html += `<span class="recipe-archive-meal">${mealIcon}</span>`;
-            html += `<span class="recipe-archive-title">${escapeHtml(r.title)}</span>`;
-            html += favBadge;
-            html += `</div>`;
-            html += `<div class="recipe-archive-card-meta">`;
-            if (r.prep_time) html += `<span>🔪 ${r.prep_time}</span>`;
-            if (r.cook_time) html += `<span>🔥 ${r.cook_time}</span>`;
-            html += `<span>👥 ${r.persons}</span>`;
-            if (tags) html += `<span>${tags}</span>`;
-            html += `</div></div>`;
-            flatIdx++;
+            html += _recipeArchiveCardHtml(entry, archive, archive.indexOf(entry));
         }
         html += `</div>`;
     }
@@ -29757,16 +29829,34 @@ let _recipeBasePersons = 1;
 let _recipeCurrentPersons = 1;
 
 /**
- * Toggle favorite status for the currently displayed archived recipe (#124).
+ * Toggle favorite status for the currently displayed recipe (#124).
+ * New (unsaved) recipes are archived first so the star never silently no-ops.
  */
 async function toggleRecipeFavorite(btn) {
-    if (!_cachedRecipe || !_cachedRecipe.id) return;
+    if (!_cachedRecipe || !_cachedRecipe.recipe) return;
+    if (!_cachedRecipe.id) {
+        const id = await saveRecipeToArchive(_cachedRecipe.recipe, null);
+        if (!id) {
+            showToast(t('recipes.load_error'), 'error');
+            return;
+        }
+        _cachedRecipe.id = id;
+    }
     const res = await api('recipes_toggle_favorite', {}, 'POST', { id: _cachedRecipe.id });
     if (!res.success) return;
     _cachedRecipe.is_favorite = res.is_favorite;
-    btn.classList.toggle('active', res.is_favorite);
-    btn.textContent = res.is_favorite ? '★' : '☆';
-    btn.title = res.is_favorite ? t('recipes.unfavorite') : t('recipes.favorite');
+    if (btn) {
+        btn.classList.toggle('active', res.is_favorite);
+        btn.textContent = res.is_favorite ? '★' : '☆';
+        btn.title = res.is_favorite ? t('recipes.unfavorite') : t('recipes.favorite');
+    }
+    const foot = document.getElementById('recipe-fav-footer-btn');
+    if (foot) {
+        foot.textContent = res.is_favorite
+            ? ('★ ' + t('recipes.favorite'))
+            : t('recipes.save_favorite');
+        foot.classList.toggle('active', res.is_favorite);
+    }
     // Invalidate archive cache so the star shows on next open
     _recipeArchiveCache = null;
 }
@@ -30162,9 +30252,9 @@ async function renderRecipe(r) {
     if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
     if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
     if (r.tags) r.tags.forEach(tag => { html += `<span class="recipe-tag">${escapeHtml(tag)}</span>`; });
-    // Favorite star button (#124) — visible only for archived recipes (have an id)
-    if (_cachedRecipe && _cachedRecipe.id) {
-        html += `<button class="btn-recipe-fav${isFav ? ' active' : ''}" onclick="toggleRecipeFavorite(this)" title="${isFav ? t('recipes.unfavorite') : t('recipes.favorite')}">${isFav ? '★' : '☆'}</button>`;
+    // Favorite star — archives on first tap when the recipe is still new
+    if (_cachedRecipe) {
+        html += `<button class="btn-recipe-fav${isFav ? ' active' : ''}" onclick="toggleRecipeFavorite(this)" title="${isFav ? t('recipes.unfavorite') : t('recipes.save_favorite')}">${isFav ? '★' : '☆'}</button>`;
     }
     html += '</div>';
 
@@ -30207,6 +30297,11 @@ async function renderRecipe(r) {
             const alreadyUsed = ing.used === true;
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
             html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-product-id="${ing.product_id}" data-location="${escapeHtml(loc)}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
+            if (!alreadyUsed) {
+                html += `<label class="recipe-ing-include" title="${escapeHtml(t('recipes.cook_include'))}">`
+                    + `<input type="checkbox" class="recipe-ing-check" checked data-ing-idx="${idx}">`
+                    + `</label>`;
+            }
             html += `<span class="recipe-ing-text recipe-ing-open-use" title="${escapeHtml(t('cooking.ingredient_open_use'))}" role="button" tabindex="0">`;
             html += `<strong class="recipe-ing-name">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
             // Detail line: location + expiry
@@ -30253,9 +30348,11 @@ async function renderRecipe(r) {
         html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-plan" hidden></div>`;
     }
 
-    // Cooking mode between ingredients and steps
+    // Cooking mode + one-tap deduct for every ticked pantry ingredient (per-row Usa stays).
     html += `<div class="recipe-primary-actions mt-2">
         <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
+        <button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>
+        <button type="button" class="btn btn-large btn-secondary${isFav ? ' active' : ''}" id="recipe-fav-footer-btn" onclick="toggleRecipeFavorite(this)">${isFav ? ('★ ' + t('recipes.favorite')) : t('recipes.save_favorite')}</button>
     </div>`;
 
     // Steps
@@ -30342,6 +30439,70 @@ async function renderRecipe(r) {
 
     // Pantry deduction runs after the paint so the modal opens instantly.
     if (shopMode !== 'off') loadRecipeShoppingPlan(shopMode === 'auto');
+}
+
+/**
+ * One-tap "I cooked this": deduct every ticked pantry ingredient at the recipe qty.
+ * Per-row Usa stays for exceptions; this only skips the modal when the qty is known.
+ */
+async function cookRecipeDeductSelected() {
+    const r = _cachedRecipe && _cachedRecipe.recipe;
+    if (!r || !Array.isArray(r.ingredients)) return;
+    const checks = Array.from(document.querySelectorAll('#recipe-content .recipe-ing-check:checked'));
+    if (!checks.length) {
+        showToast(t('recipes.cook_none_selected'), 'info');
+        return;
+    }
+    const recipeTitle = r.title || '';
+    let ok = 0;
+    let fail = 0;
+    showLoading(true);
+    try {
+        for (const cb of checks) {
+            const idx = parseInt(cb.dataset.ingIdx, 10);
+            const ing = r.ingredients[idx];
+            if (!ing || !ing.product_id || ing.used) continue;
+            const qty = Math.round((ing.qty_number || 0) * 10) / 10;
+            if (!(qty > 0)) continue;
+            const loc = ing.location || 'dispensa';
+            try {
+                const result = await api('inventory_use', {}, 'POST', {
+                    product_id: ing.product_id,
+                    quantity: qty,
+                    location: loc,
+                    notes: recipeTitle ? `Recipe: ${recipeTitle}` : '',
+                });
+                if (result && result.success) {
+                    ok++;
+                    ing.used = true;
+                    const li = document.getElementById(`recipe-ing-${idx}`);
+                    if (li) {
+                        li.classList.add('recipe-ing-used');
+                        const btn = li.querySelector('.btn-use-ingredient');
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.textContent = t('cooking.ingredient_used');
+                            btn.classList.add('btn-used');
+                        }
+                        const lab = li.querySelector('.recipe-ing-include');
+                        if (lab) lab.remove();
+                    }
+                } else {
+                    fail++;
+                }
+            } catch (_) {
+                fail++;
+            }
+        }
+        if (ok > 0 && _cachedRecipe) {
+            saveRecipeToArchive(_cachedRecipe.recipe, _cachedRecipe.id || null);
+            maybeAutoLogRecipeMeal();
+        }
+        if (ok > 0) showToast(t('recipes.cook_deduct_done').replace('{n}', String(ok)), 'success');
+        if (fail > 0) showToast(t('recipes.cook_deduct_partial').replace('{n}', String(fail)), 'info');
+    } finally {
+        showLoading(false);
+    }
 }
 
 /** Bind pantry ingredient rows → Use panel (chat + generated recipes). */
@@ -30496,12 +30657,14 @@ function startCookingMode() {
     if (wheelEl) setTimeout(() => wheelEl.focus(), 20);
     try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
+    _cookingVoiceStart();
     if (_cookingTTS) {
         const text = _stepStr((_cookingRecipe.steps || [])[_cookingStep]);
         speakCookingStep(text);
     }
 }
 function closeCookingMode() {
+    _cookingVoiceStop();
     document.getElementById('cooking-overlay').style.display = 'none';
     document.body.classList.remove('cooking-mode-active');
     // Restore kiosk overlay
@@ -32203,6 +32366,62 @@ function addCookingTimer(seconds, label) {
     toggleCookingTimerById(id); // auto-start
 }
 
+/** Hands-free cooking: "Shelfy, avanti / avvia timer / rileggi". Opt-in while overlay is open; taps still work. */
+let _cookingVoice = null;
+let _cookingVoiceBusy = false;
+
+function _cookingVoiceStop() {
+    const v = _cookingVoice;
+    _cookingVoice = null;
+    if (!v) return;
+    try { v.onresult = null; v.onend = null; v.onerror = null; v.stop(); } catch (_) { /* ignore */ }
+}
+
+function _cookingVoiceStart() {
+    _cookingVoiceStop();
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    // Don't fight the capture sheet mic
+    if (document.getElementById('capture-sheet')?.classList.contains('is-open')) return;
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = (typeof _captureSpeechLang === 'function') ? _captureSpeechLang() : (navigator.language || 'it-IT');
+    rec.onresult = (ev) => {
+        if (_cookingVoiceBusy) return;
+        if (!document.body.classList.contains('cooking-mode-active')) return;
+        let text = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            text += ' ' + (ev.results[i][0]?.transcript || '');
+        }
+        const said = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (!/\bshelfy\b/.test(said) && !/\bshelfie\b/.test(said) && !/\bselfy\b/.test(said)) return;
+        let cmd = null;
+        if (/\b(avanti|successivo|next|weiter|suivant|siguiente|xiayibu|xia yi bu)\b/.test(said)) cmd = 'next';
+        else if (/\b(timer|avvia\s+timer|start\s+timer|compte\s+a\s+rebours)\b/.test(said)) cmd = 'timer';
+        else if (/\b(rileggi|ripeti|reread|repeat|nochmal|relis|repite)\b/.test(said)) cmd = 'reread';
+        if (!cmd) return;
+        _cookingVoiceBusy = true;
+        setTimeout(() => { _cookingVoiceBusy = false; }, 1800);
+        if (cmd === 'next') navigateCookingStep(1);
+        else if (cmd === 'timer') {
+            if (_cookingSuggestedSeconds > 0) addSuggestedCookingTimer();
+            else showToast(t('cooking.timer'), 'info');
+        } else if (cmd === 'reread') {
+            const steps = _cookingRecipe?.steps || [];
+            speakCookingStep(_stepStr(steps[_cookingStep]));
+        }
+    };
+    rec.onend = () => {
+        if (_cookingVoice !== rec) return;
+        if (!document.body.classList.contains('cooking-mode-active')) return;
+        try { rec.start(); } catch (_) { /* already started */ }
+    };
+    rec.onerror = () => { /* keep listening via onend restart */ };
+    _cookingVoice = rec;
+    try { rec.start(); } catch (_) { _cookingVoice = null; }
+}
+
 function removeCookingTimer(id) {
     const timer = _cookingTimers.find(ti => ti.id === id);
     if (timer && timer.interval) clearInterval(timer.interval);
@@ -32266,6 +32485,11 @@ function _cookingTimerDoneById(id) {
     setTimeout(() => removeCookingTimer(id), 3000);
 }
 
+function _cookingTimerRingPct(timer) {
+    if (!timer || !(timer.total > 0)) return 100;
+    return Math.max(0, Math.min(100, Math.round((timer.seconds / timer.total) * 100)));
+}
+
 function _updateTimerCard(id) {
     const t = _cookingTimers.find(t => t.id === id);
     if (!t) return;
@@ -32274,13 +32498,18 @@ function _updateTimerCard(id) {
     const sec = t.seconds;
     const dispEl = card.querySelector('.ctimer-display');
     const toggleBtn = card.querySelector('.ctimer-toggle');
+    const ring = card.querySelector('.ctimer-ring');
     dispEl.textContent = _formatTimerDisplay(sec);
+    if (ring) ring.style.setProperty('--ctimer-pct', String(_cookingTimerRingPct(t)));
     if (sec <= 0) {
         dispEl.className = 'ctimer-display ctimer-done';
+        card.classList.add('is-done');
     } else if (sec <= 30) {
         dispEl.className = 'ctimer-display ctimer-warning';
+        card.classList.toggle('is-done', false);
     } else {
         dispEl.className = 'ctimer-display';
+        card.classList.toggle('is-done', false);
     }
     toggleBtn.textContent = t.running ? '⏸' : '▶';
     toggleBtn.classList.toggle('running', t.running);
@@ -32318,7 +32547,9 @@ function renderTimersBar() {
         const sec = t.seconds;
         const doneClass = sec <= 0 ? ' ctimer-done' : sec <= 30 ? ' ctimer-warning' : '';
         const runClass = t.running ? ' running' : '';
-        return `<div class="cooking-timer-card" id="ctimer-${t.id}">
+        const pct = _cookingTimerRingPct(t);
+        return `<div class="cooking-timer-card${sec <= 0 ? ' is-done' : ''}" id="ctimer-${t.id}">
+            <span class="ctimer-ring" style="--ctimer-pct:${pct}" aria-hidden="true"><span class="ctimer-ring-inner"></span></span>
             <span class="ctimer-label">${escapeHtml(t.label)}</span>
             <span class="ctimer-display${doneClass}">${_formatTimerDisplay(sec)}</span>
             <div class="ctimer-btns">
@@ -32393,6 +32624,9 @@ function updateRecipeMealTitle() {
     const meal = getSelectedMealType();
     const mealLabels = getMealLabels();
     document.getElementById('recipe-meal-title').textContent = mealLabels[meal] || t('recipes.dialog_title');
+    // Meal already shown in the dialog title → keep the picker, but compact (default highlighted).
+    const mealGroup = document.getElementById('recipe-meal-grid')?.closest('.form-group');
+    if (mealGroup) mealGroup.classList.toggle('recipe-meal-compact', !!meal && meal !== 'libero');
     _renderMealPlanHint(meal);
     _renderMealSubTypes(meal);
 }
@@ -33583,12 +33817,16 @@ function _enterOfflineMode() {
     _offlineMode = true;
     clearTimeout(_offlineBannerTimer);
     clearTimeout(_continueBtnTimer);
-    // Hide the full overlay (no "restored" animation)
-    _hideNetworkOverlay(false);
-    // Unblock the UI and show a subtle offline indicator
+    // Never leave the full-screen overlay up — the thin strip is the only UI.
+    const el = document.getElementById('network-error-overlay');
+    if (el) {
+        el.classList.remove('visible', 'restored', 'checking');
+        el.style.display = 'none';
+    }
     document.body.classList.add('offline-mode');
-    _renderOfflineBanner(true); // loading state
-    // Load page content from the local cache, then update banner to "ready"
+    document.body.classList.remove('server-offline'); // keep the page interactive
+    _paintOfflineStrip('down');
+    _renderOfflineBanner(true);
     const p = refreshCurrentPage();
     const afterLoad = () => _renderOfflineBanner(false);
     if (p && typeof p.then === 'function') p.then(afterLoad).catch(afterLoad);
@@ -33606,26 +33844,24 @@ async function _exitOfflineMode() {
             refreshCurrentPage();
         }
     }
-    const banner = document.getElementById('offline-banner');
-    if (banner) banner.style.display = 'none';
+    _paintOfflineStrip('synced');
 }
 
 function _renderOfflineBanner(loading = false) {
     const banner = document.getElementById('offline-banner');
     const textEl = banner ? banner.querySelector('.offline-banner-text') : null;
     if (!banner || !textEl) return;
+    // Pending ops / cache-read still refine the strip; the default copy is the
+    // non-blocking "you can keep working" line from _paintOfflineStrip('down').
     const q = _offlineQueueGet();
+    banner.classList.remove('is-synced', 'is-fading');
     if (q.length > 0) {
-        textEl.innerHTML = t('error.offline_ops_pending').replace('{n}', q.length);
+        textEl.textContent = t('error.offline_ops_pending').replace('{n}', q.length);
     } else if (loading) {
         textEl.innerHTML = `<span class="offline-banner-dot"></span>${t('error.offline_reading_cache')}`;
     } else {
-        const n = (_offlineCacheGet() || []).filter(i => parseFloat(i.quantity) > 0).length;
-        const msg = t('error.offline_cache_ready').replace('{n}', n);
-        textEl.innerHTML = msg;
+        textEl.textContent = t('error.offline_banner_work');
     }
-    // "No network" and "stale data" are different problems for a kiosk: the tooltip
-    // says when the server last answered, so the data on screen has a date (audit H3).
     try {
         const when = new Date(_lastServerOkTs).toLocaleTimeString(_collationLocale(), { hour: '2-digit', minute: '2-digit' });
         banner.title = t('error.offline_last_sync', { time: when });
@@ -33659,70 +33895,84 @@ async function _syncOfflineQueue() {
     return synced;
 }
 
-// ─── Overlay show / hide ────────────────────────────────────────────────────
+// ─── Network loss: thin top banner (never a blocking black screen) ───────────
+// The full-screen #network-error-overlay stays in the DOM for rare forced use,
+// but everyday Wi-Fi blips in the pantry/cellar only raise the sticky strip.
 function _showNetworkOverlay() {
     if (_networkDown) return;
-    if (_offlineMode) return; // Already in offline mode — don't interrupt the user
-    _networkDown      = true;
+    if (_offlineMode) {
+        _paintOfflineStrip('down');
+        return;
+    }
+    _networkDown = true;
     _networkFailCount = 0;
-    const el = document.getElementById('network-error-overlay');
-    if (!el) return;
-    el.classList.remove('restored', 'checking');
-    const titleEl    = document.getElementById('net-error-title');
-    const subtitleEl = document.getElementById('net-error-subtitle');
-    const iconEl     = document.getElementById('net-error-icon');
-    const statusEl   = document.getElementById('net-error-status');
-    const contBtn    = document.getElementById('net-error-continue-btn');
-    if (titleEl)    titleEl.textContent    = t('error.offline_title');
-    if (subtitleEl) subtitleEl.textContent = t('error.offline_subtitle');
-    if (iconEl)     iconEl.textContent     = '📡';
-    if (statusEl)   statusEl.textContent   = '';
-    if (contBtn)  { contBtn.style.display = 'none'; contBtn.classList.remove('visible'); }
-    el.style.display = 'flex';
-    requestAnimationFrame(() => el.classList.add('visible'));
-    // Show "Continue offline" button after 3 s
     clearTimeout(_continueBtnTimer);
-    _continueBtnTimer = setTimeout(() => {
-        if (!_networkDown) return;
-        if (contBtn) {
-            contBtn.textContent = t('error.offline_continue');
-            contBtn.style.display = '';
-            requestAnimationFrame(() => contBtn.classList.add('visible'));
-        }
-    }, 3000);
-    // Auto-enter offline mode after 8 s if user hasn't acted
     clearTimeout(_offlineBannerTimer);
-    _offlineBannerTimer = setTimeout(() => {
-        if (_networkDown && !_offlineMode) _enterOfflineMode();
-    }, _OFFLINE_MODE_DELAY_MS);
+    // Enter offline mode immediately so browse/log keep working — no "Continua…" gate.
+    _enterOfflineMode();
 }
 
 function _hideNetworkOverlay(showRestoredMsg) {
     clearTimeout(_continueBtnTimer);
     clearTimeout(_offlineBannerTimer);
-    _networkDown      = false;
+    _networkDown = false;
     _networkFailCount = 0;
-    const el      = document.getElementById('network-error-overlay');
+    const el = document.getElementById('network-error-overlay');
     const contBtn = document.getElementById('net-error-continue-btn');
     if (contBtn) { contBtn.style.display = 'none'; contBtn.classList.remove('visible'); }
-    if (!el) return;
-    if (showRestoredMsg) {
-        el.classList.add('restored');
-        el.classList.remove('checking');
-        const titleEl  = document.getElementById('net-error-title');
-        const iconEl   = document.getElementById('net-error-icon');
-        const statusEl = document.getElementById('net-error-status');
-        if (titleEl)  titleEl.textContent  = t('error.offline_restored');
-        if (iconEl)   iconEl.textContent   = '✅';
-        if (statusEl) statusEl.textContent = '';
-        setTimeout(() => {
+    if (el && el.style.display !== 'none') {
+        // Legacy path: if the overlay was somehow visible, heal title AND subtitle
+        // (the old bug left "server unreachable" under the green check).
+        if (showRestoredMsg) {
+            el.classList.add('restored');
+            el.classList.remove('checking');
+            const titleEl = document.getElementById('net-error-title');
+            const subtitleEl = document.getElementById('net-error-subtitle');
+            const iconEl = document.getElementById('net-error-icon');
+            const statusEl = document.getElementById('net-error-status');
+            if (titleEl) titleEl.textContent = t('error.offline_restored');
+            if (subtitleEl) subtitleEl.textContent = t('error.offline_restored_detail');
+            if (iconEl) iconEl.textContent = '✅';
+            if (statusEl) statusEl.textContent = '';
+            setTimeout(() => {
+                el.classList.remove('visible');
+                setTimeout(() => { el.style.display = 'none'; el.classList.remove('restored', 'checking'); }, 450);
+            }, 1800);
+        } else {
             el.classList.remove('visible');
             setTimeout(() => { el.style.display = 'none'; el.classList.remove('restored', 'checking'); }, 450);
-        }, 1800);
-    } else {
-        el.classList.remove('visible');
-        setTimeout(() => { el.style.display = 'none'; el.classList.remove('restored', 'checking'); }, 450);
+        }
     }
+    if (showRestoredMsg) _paintOfflineStrip('synced');
+}
+
+/** Sticky top strip: orange while offline, green briefly after sync, then fade. */
+function _paintOfflineStrip(state) {
+    const banner = document.getElementById('offline-banner');
+    const textEl = banner ? banner.querySelector('.offline-banner-text') : null;
+    const iconEl = banner ? banner.querySelector('.offline-banner-icon') : null;
+    if (!banner || !textEl) return;
+    banner.classList.remove('is-synced', 'is-fading');
+    if (state === 'synced') {
+        if (iconEl) iconEl.textContent = '✅';
+        textEl.textContent = t('error.offline_synced_short');
+        banner.classList.add('is-synced');
+        banner.style.display = '';
+        clearTimeout(_paintOfflineStrip._fadeTimer);
+        _paintOfflineStrip._fadeTimer = setTimeout(() => {
+            banner.classList.add('is-fading');
+            setTimeout(() => {
+                if (banner.classList.contains('is-synced')) {
+                    banner.style.display = 'none';
+                    banner.classList.remove('is-synced', 'is-fading');
+                }
+            }, 400);
+        }, 3000);
+        return;
+    }
+    if (iconEl) iconEl.textContent = '📡';
+    textEl.textContent = t('error.offline_banner_work');
+    banner.style.display = '';
 }
 
 // Ping the server; if reachable call _handleServerRestored() via heartbeat
@@ -36173,15 +36423,15 @@ async function _flushOfflineReports() {
 /** Async handler called when the server comes back online. */
 async function _handleServerRestored() {
     if (_offlineMode) {
-        await _exitOfflineMode();
-    }
-    // Now hide the overlay with the "restored" message (if still visible)
-    if (_networkDown) {
+        await _exitOfflineMode(); // paints green strip + syncs queue
+    } else if (_networkDown) {
         _hideNetworkOverlay(true);
+    } else {
+        _paintOfflineStrip('synced');
     }
+    _networkDown = false;
     // Flush all logs and error reports buffered while offline → GitHub issues when applicable
     _flushOfflineReports().catch(() => {});
-    showToast(t('error.server_restored'), 'success');
     refreshCurrentPage();
 }
 

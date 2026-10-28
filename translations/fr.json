@@ -58,7 +58,13 @@
     "summary_title": "Inventaire terminé",
     "summary_line": "{there} confirmés · {almost} presque finis · {finished} épuisés · {spoiled} gâtés · {skipped} passés",
     "summary_errors": "{n} modifications non enregistrées",
-    "done": "Terminé"
+    "done": "Terminé",
+    "banner_title": "Revue des stocks",
+    "banner_sub_place": "Contrôle rapide de {place} ({n} produits)",
+    "banner_sub_all": "Contrôle rapide du garde-manger ({n} produits)",
+    "banner_cta": "Lancer le contrôle",
+    "confirm_yes_qty": "Oui, je confirme {qty}",
+    "verify_place": "Vérifier {place}"
   },
   "product_tags": {
     "form_label": "Étiquettes",
@@ -354,7 +360,9 @@
     "location_filter": "Filtrer par emplacement",
     "detail_extend_short": "Prolonger",
     "item_detail_recipe_short": "Recette",
-    "item_detail_throw_short": "Jeter"
+    "item_detail_throw_short": "Jeter",
+    "quick_access_toggle": "⚡ Accès rapide",
+    "stock_low": "Stock bas"
   },
   "scan": {
     "title": "Scanner",
@@ -693,7 +701,7 @@
     "stream_interrupted": "Génération interrompue (réponse serveur incomplète). Vérifiez les logs ou réessayez.",
     "ing_stock_line": "Vous avez {have} · il reste {remain} après usage",
     "ing_use_all_note": "tout utiliser (<5% du conditionnement entier)",
-    "opt_fuel": "🔥 À mon rythme",
+    "opt_fuel": "🔥 Portions selon mon besoin",
     "fuel_loading": "Chargement des données santé…",
     "fuel_burned": "Calories brûlées",
     "fuel_steps": "Pas",
@@ -706,7 +714,7 @@
     "fuel_match": "de l’objectif",
     "fuel_badge_target": "objectif {kcal} kcal / ≥{protein} g de protéines",
     "fuel_why_title": "Pourquoi ces ingrédients",
-    "generate_fuel_btn": "🔥 Générer une recette Fuel",
+    "generate_fuel_btn": "🔥 Générer selon mon besoin",
     "shopping_suggestions_intro": "Pour une version alternative il vous faudrait (pas en stock — optionnel) :",
     "shopping_suggestions_add": "Ajouter à la liste de courses",
     "shopping_suggestions_added": "Ajouté à la liste de courses",
@@ -762,7 +770,16 @@
     "weather_bucket_rainy": "pluvieux",
     "weather_bucket_snowy": "neigeux",
     "weather_bucket_foggy": "brumeux",
-    "weather_bucket_stormy": "orageux"
+    "weather_bucket_stormy": "orageux",
+    "tab_book": "📖 Recettes & idées",
+    "tab_history": "🗓️ Historique des repas",
+    "favorites_section": "Favoris",
+    "cook_deduct_all": "✓ J’ai cuisiné (déduire les ingrédients)",
+    "cook_include": "Inclure dans la déduction",
+    "cook_none_selected": "Sélectionnez au moins un ingrédient.",
+    "cook_deduct_done": "{n} ingrédients déduits",
+    "cook_deduct_partial": "{n} non déduits — réessayez via Utiliser",
+    "save_favorite": "⭐ Enregistrer en favori"
   },
   "shopping": {
     "spesa_done_title": "Courses terminées !",
@@ -2105,7 +2122,10 @@
     "offline_queue_full": "File hors ligne pleine : {n} opération(s) les plus anciennes ont été perdues.",
     "food_in_cabinet": "Les aliments ne vont pas dans l’armoire à pharmacie : choisissez un autre endroit.",
     "medicine_needs_cabinet": "Un médicament ne va que dans l’armoire à pharmacie.",
-    "medicine_location_missing": "Définissez d’abord l’armoire à pharmacie (Réglages → Médicaments)."
+    "medicine_location_missing": "Définissez d’abord l’armoire à pharmacie (Réglages → Médicaments).",
+    "offline_banner_work": "Hors ligne : vous pouvez consulter et enregistrer les stocks ; sync dès le retour du réseau.",
+    "offline_synced_short": "Synchronisé !",
+    "offline_restored_detail": "Synchronisation terminée avec succès."
   },
   "confirm": {
     "remove_item": "Voulez-vous vraiment supprimer ce produit de l'inventaire ?",

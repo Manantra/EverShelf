@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261028zzo">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zzo">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zzo">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261028zzp">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zzp">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zzp">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zzo">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zzo">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zzp">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zzp">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261028zzo"></script>
-    <script src="assets/js/core/auth.js?v=20261028zzo"></script>
-    <script src="assets/js/core/med.js?v=20261028zzo"></script>
+    <script src="assets/js/core/dom.js?v=20261028zzp"></script>
+    <script src="assets/js/core/auth.js?v=20261028zzp"></script>
+    <script src="assets/js/core/med.js?v=20261028zzp"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261028zzo"></script>
+    <script src="assets/js/med/italy.js?v=20261028zzp"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261028zzo"></script>
+    <script src="assets/js/core/support.js?v=20261028zzp"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzo';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzp';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzo';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzp';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zzo"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zzp"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -378,7 +378,8 @@
     <!-- ===== INVENTORY LIST ===== -->
     <section class="page" id="page-inventory">
         <div class="page-header">
-            <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
+            <!-- Root nav tab: no back (Home / Lista / …). Sub-pages keep theirs. -->
+            <button class="back-btn root-tab-no-back" hidden onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 id="inventory-title" data-i18n="inventory.title">Dispensa</h2>
             <div class="page-header-actions">
                 <button class="page-header-action-btn" onclick="_showImportModal()" title="Import" data-i18n-title="import.btn_title">📥</button>
@@ -395,21 +396,27 @@
         <!-- Medicine symptom chips: visible whenever the pharmacy macro is open (also empty). -->
         <div class="inv-med-chips" id="inventory-med-chips" hidden></div>
         <div class="inv-tag-filter" id="inventory-tag-filter" hidden></div>
-        <div class="inv-quick-actions">
-            <button type="button" class="btn btn-secondary" id="inventory-stocktake-btn"
-                    onclick="_auditStart()"><span aria-hidden="true">📋</span> <span data-i18n="audit.start">Inventario veloce</span></button>
-        </div>
-        <!-- Quick access: recent & popular products -->
-        <div id="quick-access-section" style="display:none">
-            <div class="quick-access-group" id="quick-recent-group" style="display:none">
-                <h4 class="quick-access-label" data-i18n="inventory.recent_title">🕐 Ultimi usati</h4>
-                <div class="quick-access-grid" id="quick-recent-grid"></div>
+        <div class="inv-audit-banner" id="inventory-stocktake-btn" role="region">
+            <div class="inv-audit-banner-copy">
+                <strong class="inv-audit-banner-title" data-i18n="audit.banner_title">Revisione scorte</strong>
+                <span class="inv-audit-banner-sub" id="inventory-audit-banner-sub" data-i18n="audit.banner_sub_all">Controllo rapido della dispensa</span>
             </div>
-            <div class="quick-access-group" id="quick-popular-group" style="display:none">
-                <h4 class="quick-access-label" data-i18n="inventory.popular_title">⭐ Più usati</h4>
-                <div class="quick-access-grid quick-access-grid-8" id="quick-popular-grid"></div>
-            </div>
+            <button type="button" class="btn btn-primary inv-audit-banner-cta" onclick="_auditStart()" data-i18n="audit.banner_cta">Avvia controllo</button>
         </div>
+        <!-- Quick access: collapsed by default so the full inventory owns the first screen. -->
+        <details id="quick-access-section" class="quick-access-details" style="display:none">
+            <summary class="quick-access-summary" data-i18n="inventory.quick_access_toggle">⚡ Accesso rapido</summary>
+            <div class="quick-access-body">
+                <div class="quick-access-group" id="quick-recent-group" style="display:none">
+                    <h4 class="quick-access-label" data-i18n="inventory.recent_title">🕐 Ultimi usati</h4>
+                    <div class="quick-access-grid" id="quick-recent-grid"></div>
+                </div>
+                <div class="quick-access-group" id="quick-popular-group" style="display:none">
+                    <h4 class="quick-access-label" data-i18n="inventory.popular_title">⭐ Più usati</h4>
+                    <div class="quick-access-grid quick-access-grid-8" id="quick-popular-grid"></div>
+                </div>
+            </div>
+        </details>
         <div class="inventory-list" id="inventory-list"></div>
     </section>
 
@@ -1075,13 +1082,19 @@
     <!-- ===== RECIPE PAGE ===== -->
     <section class="page" id="page-recipe">
         <div class="page-header">
-            <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
+            <button class="back-btn root-tab-no-back" hidden onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="recipes.title">🍳 Ricette</h2>
         </div>
         <div class="recipe-page-container">
             <button class="btn btn-large btn-success full-width recipe-generate-btn" onclick="openRecipeDialog()" data-i18n="recipes.generate">
                 ✨ Genera nuova ricetta
             </button>
+            <div class="recipe-view-tabs" role="tablist" data-i18n-aria-label="recipes.title" aria-label="Ricette">
+                <button type="button" class="recipe-view-tab is-active" role="tab" data-recipe-view="book"
+                        onclick="_setRecipeArchiveView('book')" data-i18n="recipes.tab_book">📖 Ricettario &amp; Idee</button>
+                <button type="button" class="recipe-view-tab" role="tab" data-recipe-view="history"
+                        onclick="_setRecipeArchiveView('history')" data-i18n="recipes.tab_history">🗓️ Storico pasti</button>
+            </div>
             <div id="recipe-archive" class="recipe-archive"></div>
         </div>
     </section>
@@ -1089,7 +1102,7 @@
     <!-- ===== SHOPPING LIST (BRING!) PAGE ===== -->
     <section class="page" id="page-shopping">
         <div class="page-header">
-            <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
+            <button class="back-btn root-tab-no-back" hidden onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="shopping.title">🛒 Lista della Spesa</h2>
         </div>
         <div class="shopping-container">
@@ -1276,7 +1289,7 @@
     <!-- ===== SETTINGS PAGE ===== -->
     <section class="page" id="page-settings">
         <div class="page-header">
-            <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
+            <button class="back-btn root-tab-no-back" hidden onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
         </div>
         <!-- Setup checklist: what is already configured, what still needs a decision,
@@ -3395,15 +3408,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261028zzo"></script>
-<script src="assets/js/food_facts.generated.js?v=20261028zzo"></script>
-<script src="assets/js/free_apis.generated.js?v=20261028zzo"></script>
-<script src="assets/js/core/vocab.js?v=20261028zzo"></script>
-<script src="assets/js/app.js?v=20261028zzo"></script>
-<script src="assets/js/audit.js?v=20261028zzo"></script>
-<script src="assets/js/receipt.js?v=20261028zzo"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261028zzo"></script>
-<script src="assets/js/settings_search.js?v=20261028zzo"></script>
+<script src="assets/js/vocab.generated.js?v=20261028zzp"></script>
+<script src="assets/js/food_facts.generated.js?v=20261028zzp"></script>
+<script src="assets/js/free_apis.generated.js?v=20261028zzp"></script>
+<script src="assets/js/core/vocab.js?v=20261028zzp"></script>
+<script src="assets/js/app.js?v=20261028zzp"></script>
+<script src="assets/js/audit.js?v=20261028zzp"></script>
+<script src="assets/js/receipt.js?v=20261028zzp"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261028zzp"></script>
+<script src="assets/js/settings_search.js?v=20261028zzp"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

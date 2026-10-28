@@ -58,7 +58,13 @@
     "summary_title": "盘点完成",
     "summary_line": "{there} 已确认 · {almost} 快没了 · {finished} 已用完 · {spoiled} 已变质 · {skipped} 跳过",
     "summary_errors": "{n} 项修改未保存",
-    "done": "完成"
+    "done": "完成",
+    "banner_title": "库存核对",
+    "banner_sub_place": "快速检查 {place}（{n} 件待核对）",
+    "banner_sub_all": "快速检查库存（{n} 件待核对）",
+    "banner_cta": "开始核对",
+    "confirm_yes_qty": "确认 {qty}",
+    "verify_place": "核对 {place}"
   },
   "product_tags": {
     "form_label": "标签",
@@ -354,7 +360,9 @@
     "location_filter": "按位置筛选",
     "detail_extend_short": "延期",
     "item_detail_recipe_short": "食谱",
-    "item_detail_throw_short": "丢弃"
+    "item_detail_throw_short": "丢弃",
+    "quick_access_toggle": "⚡ 快捷入口",
+    "stock_low": "库存偏低"
   },
   "scan": {
     "title": "扫描",
@@ -645,7 +653,7 @@
     "opt_healthy": "💚 更健康",
     "opt_opened": "📦 优先使用已开封食材",
     "opt_zero_waste": "♻️ 零浪费",
-    "opt_fuel": "🔥 能量补给模式",
+    "opt_fuel": "🔥 按我的每日需求配量",
     "fuel_loading": "正在加载健康数据…",
     "fuel_burned": "已消耗热量",
     "fuel_steps": "步数",
@@ -658,7 +666,7 @@
     "fuel_match": "目标完成度",
     "fuel_badge_target": "目标 {kcal} 千卡 / ≥{protein} 克蛋白质",
     "fuel_why_title": "选择这些食材的原因",
-    "generate_fuel_btn": "🔥 生成能量补给食谱",
+    "generate_fuel_btn": "🔥 按我的需求生成",
     "generate_btn": "✨ 生成食谱",
     "loading_msg": "正在准备食谱…",
     "start_cooking": "👨‍🍳 烹饪模式",
@@ -702,7 +710,7 @@
     "from_where_label": "从哪里取用？",
     "amount_label": "取用数量",
     "use_amount_btn": "取用此数量",
-    "use_all_btn": "全部用完",
+    "use_all_btn": "全部用完 / 已完成",
     "packs_label": "包数",
     "quantity_in_total": "以 {unit} 计的数量（总计：{total}）",
     "packs_of_have": "每包 {size}（现有 {count} 包）",
@@ -762,7 +770,16 @@
     "weather_bucket_rainy": "下雨",
     "weather_bucket_snowy": "下雪",
     "weather_bucket_foggy": "有雾",
-    "weather_bucket_stormy": "有暴风雨"
+    "weather_bucket_stormy": "有暴风雨",
+    "tab_book": "📖 食谱与灵感",
+    "tab_history": "🗓️ 用餐历史",
+    "favorites_section": "收藏",
+    "cook_deduct_all": "✓ 已做完（扣减食材）",
+    "cook_include": "扣减时包含",
+    "cook_none_selected": "请至少选择一种食材。",
+    "cook_deduct_done": "已扣减 {n} 种食材",
+    "cook_deduct_partial": "{n} 种未扣减 — 请用「使用」重试",
+    "save_favorite": "⭐ 收藏食谱"
   },
   "shopping": {
     "spesa_done_title": "购物完成！",
@@ -2105,7 +2122,10 @@
     "offline_queue_full": "离线队列已满：已丢弃 {n} 个最早的操作。",
     "food_in_cabinet": "食品不能放进药品柜：请选择其他位置。",
     "medicine_needs_cabinet": "药品只能放在药品柜。",
-    "medicine_location_missing": "请先在设置 → 药品中标记药品柜。"
+    "medicine_location_missing": "请先在设置 → 药品中标记药品柜。",
+    "offline_banner_work": "已离线：仍可查看并登记库存，网络恢复后会自动同步。",
+    "offline_synced_short": "已同步！",
+    "offline_restored_detail": "同步已成功完成。"
   },
   "confirm": {
     "remove_item": "确定要从库存中移除该商品吗？",

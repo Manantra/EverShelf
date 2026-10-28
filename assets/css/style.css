@@ -904,23 +904,30 @@ body {
 
 /* (scan active is defined above in .header-scan-btn:active) */
 
-/* ── Offline / server-unreachable banner ──────────────────────────────── */
+/* ── Offline / server-unreachable banner (non-blocking strip) ─────────── */
 .offline-banner {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: #dc2626;
+    background: #d97706;
     color: #fff;
-    padding: 9px 16px;
-    font-size: 0.88rem;
+    padding: 8px 14px;
+    font-size: 0.82rem;
     font-weight: 600;
+    line-height: 1.35;
     position: sticky;
     top: 0;
     z-index: 950;
-    box-shadow: 0 2px 8px rgba(220,38,38,0.35);
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.28);
+    transition: opacity 0.4s, background 0.25s;
 }
-.offline-banner-icon { font-size: 1rem; line-height: 1; }
+.offline-banner.is-synced {
+    background: #059669;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.28);
+}
+.offline-banner.is-fading { opacity: 0; }
+.offline-banner-icon { font-size: 1rem; line-height: 1; flex: 0 0 auto; }
 .offline-banner-text { flex: 1; text-align: center; }
 .offline-banner-retry {
     background: rgba(255,255,255,0.22);
@@ -942,7 +949,7 @@ body {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #f87171;
+    background: #fde68a;
     margin-right: 6px;
     vertical-align: middle;
     animation: offline-dot-pulse 1.1s ease-in-out infinite;
@@ -952,25 +959,19 @@ body {
     50%       { opacity: 1;   transform: scale(1.15); }
 }
 
-/* When server is offline, block interactions with the main content */
-body.server-offline:not(.offline-mode) .app-content {
-    opacity: 0.4;
-    pointer-events: none;
-    user-select: none;
-    transition: opacity 0.3s;
+/* Never grey-out / lock the pantry on a Wi-Fi blip — the strip is enough. */
+body.server-offline .app-content,
+body.server-offline .bottom-nav {
+    opacity: 1;
+    pointer-events: auto;
+    user-select: auto;
 }
-/* In offline-mode the app is usable; just a subtle left-border indicator */
+/* In offline-mode the app is usable; a soft left rail marks the mode. */
 body.offline-mode .app-content {
-    border-left: 3px solid rgba(239, 68, 68, 0.45);
+    border-left: 3px solid rgba(217, 119, 6, 0.55);
 }
-/* Hide the "Retry" button in the banner when in offline mode — use the Continue button instead */
 body.offline-mode .offline-banner-retry {
     display: none;
-}
-body.server-offline .bottom-nav {
-    opacity: 0.4;
-    pointer-events: none;
-    transition: opacity 0.3s;
 }
 
 /* Spesa mode banner */
@@ -7418,6 +7419,29 @@ body.cooking-mode-active .app-header {
     white-space: nowrap;
 }
 
+.ctimer-ring {
+    --ctimer-pct: 100;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(
+        #22c55e calc(var(--ctimer-pct) * 1%),
+        rgba(255,255,255,0.12) 0
+    );
+    display: grid;
+    place-items: center;
+}
+.cooking-timer-card.is-done .ctimer-ring {
+    background: conic-gradient(#ef4444 100%, rgba(255,255,255,0.12) 0);
+}
+.ctimer-ring-inner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #0f172a;
+}
+
 .ctimer-label {
     font-size: 0.78rem;
     font-weight: 600;
@@ -7621,6 +7645,12 @@ body.cooking-mode-active .app-header {
     cursor: pointer;
     transition: background 0.2s;
     text-align: center;
+}
+
+.cooking-prev-btn {
+    border: 1px solid #475569;
+    color: #E2E8F0;
+    background: rgba(71, 85, 105, 0.35);
 }
 
 .cooking-nav-btn:disabled {
@@ -8370,29 +8400,105 @@ body.cooking-mode-active .app-header {
 
 /* ===== RECIPE OPTIONS GRID ===== */
 .recipe-options-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 4px;
 }
 
 .recipe-option-chip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 12px;
+    padding: 10px 14px;
     background: var(--bg);
-    border-radius: var(--radius-sm);
+    border-radius: 999px;
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
-    border: 2px solid transparent;
+    border: 2px solid var(--surface-border, rgba(0,0,0,0.08));
+    flex: 0 1 auto;
 }
 
 .recipe-option-chip:has(input:checked) {
     background: rgba(45, 80, 22, 0.08);
     border-color: var(--primary);
+}
+
+.recipe-meal-compact .recipe-meal-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.recipe-meal-compact > label {
+    font-size: 0.78rem;
+    opacity: 0.75;
+}
+.recipe-meal-compact .recipe-meal-chip {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+}
+
+.recipe-view-tabs {
+    display: flex;
+    gap: 6px;
+    margin: 10px 0 8px;
+    padding: 4px;
+    background: var(--bg-muted, rgba(0,0,0,0.04));
+    border-radius: 12px;
+}
+.recipe-view-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    padding: 10px 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.recipe-view-tab.is-active {
+    background: var(--bg-card, #fff);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.recipe-archive-meal-lg { font-size: 1.55rem; }
+.recipe-archive-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.05);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.recipe-ing-include {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+.recipe-ing-include input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--brand-primary, #16a34a);
+}
+.recipe-ingredients .recipe-ingredient {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+}
+.recipe-ingredients .recipe-ing-text { flex: 1; min-width: 0; }
+.recipe-ingredients .btn-use-ingredient {
+    flex-shrink: 0;
+    opacity: 0.85;
+    font-size: 0.78rem;
+    padding: 6px 10px;
 }
 
 .recipe-fuel-panel {
@@ -8828,6 +8934,26 @@ body.cooking-mode-active .app-header {
 }
 
 /* ===== STRUCTURED QUANTITY IN INVENTORY ===== */
+.inv-qty-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.inv-quick-use {
+    width: 32px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg-card));
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    line-height: 1;
+}
+.inv-quick-use:active { transform: scale(0.96); }
 .inv-qty-col {
     display: flex;
     flex-direction: column;
@@ -8837,6 +8963,21 @@ body.cooking-mode-active .app-header {
     background: #ecfdf5;
     border-radius: 14px;
     padding: 6px 12px;
+}
+.inv-qty-col--low {
+    background: #fffbeb;
+}
+.inv-qty-col--low .inv-qty-number {
+    color: #b45309;
+}
+.inv-qty-low-label {
+    margin-top: 2px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #b45309;
+    text-align: center;
+    line-height: 1.15;
+    max-width: 4.8rem;
 }
 
 .inv-qty-number {
@@ -10541,6 +10682,22 @@ body.cooking-mode-active .app-header {
 #quick-access-section {
     margin-bottom: 12px;
 }
+.quick-access-details {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+    padding: 0 10px;
+}
+.quick-access-summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    padding: 10px 2px;
+}
+.quick-access-summary::-webkit-details-marker { display: none; }
+.quick-access-body { padding-bottom: 10px; }
 .quick-access-group {
     margin-bottom: 10px;
 }
@@ -12141,10 +12298,55 @@ body.offline-mode #smart-shopping {
     text-align: left;
 }
 .audit-scope:hover, .audit-answer:hover, .audit-done:hover { border-color: var(--accent-color, #2e7d32); }
-.audit-there { border-color: #2e7d32; }
-.audit-almost { border-color: #f9a825; }
-.audit-finished { border-color: #c62828; }
-.audit-answer span { margin-right: 8px; }
+.audit-there {
+    border-color: transparent;
+    background: #059669;
+    color: #fff;
+    text-align: center;
+    justify-content: center;
+    min-height: 52px;
+    font-size: 1.15rem;
+}
+.audit-there:hover { border-color: transparent; background: #047857; }
+.audit-almost { border-color: #f9a825; background: #fffbeb; }
+.audit-finished { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.audit-spoiled { border-color: #e9d5ff; background: #faf5ff; }
+.audit-answer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+}
+.audit-answer span { margin-right: 0; flex: 0 0 auto; }
+.audit-product-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 4px;
+    padding: 10px;
+    border-radius: 12px;
+    background: var(--bg-subtle, #f6f6f6);
+}
+.audit-product-thumb { flex: 0 0 48px; }
+.audit-product-name { margin: 0; font-weight: 700; font-size: 1.02rem; }
+.audit-product-brand { font-weight: 500; color: var(--text-muted, #666); font-size: 0.9rem; }
+.audit-product-qty { margin: 4px 0 0; font-size: 0.9rem; color: var(--text-muted, #666); }
+
+.inv-audit-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+}
+.inv-audit-banner[hidden] { display: none !important; }
+.inv-audit-banner-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.inv-audit-banner-title { font-size: 0.95rem; }
+.inv-audit-banner-sub { font-size: 0.8rem; color: var(--text-light); line-height: 1.35; }
+.inv-audit-banner-cta { flex: 0 0 auto; white-space: nowrap; min-height: 42px; }
 .audit-skip {
     margin-top: 10px;
     background: none;

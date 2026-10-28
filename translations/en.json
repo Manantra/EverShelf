@@ -58,7 +58,13 @@
     "summary_title": "Stocktake done",
     "summary_line": "{there} confirmed · {almost} almost out · {finished} used up · {spoiled} spoiled · {skipped} skipped",
     "summary_errors": "{n} changes not saved",
-    "done": "Done"
+    "done": "Done",
+    "banner_title": "Stock review",
+    "banner_sub_place": "Quick check of {place} ({n} products to verify)",
+    "banner_sub_all": "Quick pantry check ({n} products to verify)",
+    "banner_cta": "Start check",
+    "confirm_yes_qty": "Yes, confirm {qty}",
+    "verify_place": "Check {place}"
   },
   "product_tags": {
     "form_label": "Tags",
@@ -354,7 +360,9 @@
     "location_filter": "Filter by location",
     "detail_extend_short": "Extend",
     "item_detail_recipe_short": "Recipe",
-    "item_detail_throw_short": "Bin"
+    "item_detail_throw_short": "Bin",
+    "quick_access_toggle": "⚡ Quick access",
+    "stock_low": "Low stock"
   },
   "scan": {
     "title": "Scan",
@@ -645,7 +653,7 @@
     "opt_healthy": "💚 Extra healthy",
     "opt_opened": "📦 Prioritize opened items",
     "opt_zero_waste": "♻️ Zero waste",
-    "opt_fuel": "🔥 Fuel mode",
+    "opt_fuel": "🔥 Sized to my daily fuel needs",
     "fuel_loading": "Loading health data…",
     "fuel_burned": "Calories burned",
     "fuel_steps": "Steps",
@@ -658,7 +666,7 @@
     "fuel_match": "of target",
     "fuel_badge_target": "target {kcal} kcal / ≥{protein} g protein",
     "fuel_why_title": "Why these ingredients",
-    "generate_fuel_btn": "🔥 Generate Fuel-mode recipe",
+    "generate_fuel_btn": "🔥 Generate sized to my fuel needs",
     "generate_btn": "✨ Generate Recipe",
     "loading_msg": "Preparing your recipe...",
     "start_cooking": "👨‍🍳 Cooking Mode",
@@ -702,7 +710,7 @@
     "from_where_label": "From where?",
     "amount_label": "How much",
     "use_amount_btn": "Use this amount",
-    "use_all_btn": "Use ALL / Finished",
+    "use_all_btn": "Use all / Finished",
     "packs_label": "Packs",
     "quantity_in_total": "Quantity in {unit} (total: {total})",
     "packs_of_have": "Packs of {size} (you have {count} packs)",
@@ -762,7 +770,16 @@
     "weather_bucket_rainy": "rainy",
     "weather_bucket_snowy": "snowy",
     "weather_bucket_foggy": "foggy",
-    "weather_bucket_stormy": "stormy"
+    "weather_bucket_stormy": "stormy",
+    "tab_book": "📖 Recipe book & ideas",
+    "tab_history": "🗓️ Meal history",
+    "favorites_section": "Favourites",
+    "cook_deduct_all": "✓ I cooked this (deduct ingredients)",
+    "cook_include": "Include when deducting",
+    "cook_none_selected": "Select at least one ingredient to deduct.",
+    "cook_deduct_done": "Deducted {n} ingredients",
+    "cook_deduct_partial": "{n} ingredients not deducted — try Use",
+    "save_favorite": "⭐ Save to favourites"
   },
   "shopping": {
     "spesa_done_title": "Shopping done!",
@@ -2105,7 +2122,10 @@
     "offline_queue_full": "Offline queue full: {n} of the oldest operation(s) were dropped.",
     "food_in_cabinet": "Food cannot go into the medicine cabinet: pick another place.",
     "medicine_needs_cabinet": "A medicine can only live in the medicine cabinet.",
-    "medicine_location_missing": "Mark the medicine cabinet first (Settings → Medicines)."
+    "medicine_location_missing": "Mark the medicine cabinet first (Settings → Medicines).",
+    "offline_banner_work": "You're offline: you can keep browsing and logging stock — we'll sync when you're back online.",
+    "offline_synced_short": "Synced!",
+    "offline_restored_detail": "Sync completed successfully."
   },
   "confirm": {
     "remove_item": "Do you really want to remove this product from inventory?",

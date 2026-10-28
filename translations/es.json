@@ -58,7 +58,13 @@
     "summary_title": "Recuento hecho",
     "summary_line": "{there} confirmados · {almost} casi acabados · {finished} agotados · {spoiled} estropeados · {skipped} saltados",
     "summary_errors": "{n} cambios no guardados",
-    "done": "Hecho"
+    "done": "Hecho",
+    "banner_title": "Revisión de stock",
+    "banner_sub_place": "Control rápido de {place} ({n} productos)",
+    "banner_sub_all": "Control rápido de la despensa ({n} productos)",
+    "banner_cta": "Iniciar control",
+    "confirm_yes_qty": "Sí, confirmo {qty}",
+    "verify_place": "Verificar {place}"
   },
   "product_tags": {
     "form_label": "Etiquetas",
@@ -354,7 +360,9 @@
     "location_filter": "Filtrar por lugar",
     "detail_extend_short": "Ampliar",
     "item_detail_recipe_short": "Receta",
-    "item_detail_throw_short": "Tirar"
+    "item_detail_throw_short": "Tirar",
+    "quick_access_toggle": "⚡ Acceso rápido",
+    "stock_low": "Stock bajo"
   },
   "scan": {
     "title": "Escáner",
@@ -669,7 +677,7 @@
     "from_where_label": "¿De dónde?",
     "amount_label": "Cuánto",
     "use_amount_btn": "Usar esta cantidad",
-    "use_all_btn": "Usar TODO / Terminado",
+    "use_all_btn": "Usar todo / Terminado",
     "packs_label": "Paquetes",
     "quantity_in_total": "Cantidad en {unit} (total: {total})",
     "packs_of_have": "Paquetes de {size} (tienes {count} paquetes)",
@@ -693,7 +701,7 @@
     "stream_interrupted": "Generación interrumpida (respuesta del servidor incompleta). Revisa los logs o inténtalo de nuevo.",
     "ing_stock_line": "Tienes {have} · quedan {remain} después del uso",
     "ing_use_all_note": "usar todo (<5% del envase completo)",
-    "opt_fuel": "🔥 A mi ritmo",
+    "opt_fuel": "🔥 Raciones según mi necesidad",
     "fuel_loading": "Cargando datos de salud…",
     "fuel_burned": "Calorías quemadas",
     "fuel_steps": "Pasos",
@@ -706,7 +714,7 @@
     "fuel_match": "del objetivo",
     "fuel_badge_target": "objetivo {kcal} kcal / ≥{protein} g de proteína",
     "fuel_why_title": "Por qué estos ingredientes",
-    "generate_fuel_btn": "🔥 Generar receta Fuel",
+    "generate_fuel_btn": "🔥 Generar según mi necesidad",
     "shopping_suggestions_intro": "Para una versión alternativa necesitarías (no en despensa — opcional):",
     "shopping_suggestions_add": "Añadir a la lista de la compra",
     "shopping_suggestions_added": "Añadido a la lista de la compra",
@@ -762,7 +770,16 @@
     "weather_bucket_rainy": "lluvioso",
     "weather_bucket_snowy": "nevado",
     "weather_bucket_foggy": "neblinoso",
-    "weather_bucket_stormy": "tormentoso"
+    "weather_bucket_stormy": "tormentoso",
+    "tab_book": "📖 Recetario e ideas",
+    "tab_history": "🗓️ Historial de comidas",
+    "favorites_section": "Favoritas",
+    "cook_deduct_all": "✓ He cocinado (descontar ingredientes)",
+    "cook_include": "Incluir al descontar",
+    "cook_none_selected": "Selecciona al menos un ingrediente.",
+    "cook_deduct_done": "Descontados {n} ingredientes",
+    "cook_deduct_partial": "{n} no descontados — prueba Usar",
+    "save_favorite": "⭐ Guardar en favoritos"
   },
   "shopping": {
     "spesa_done_title": "¡Compra completada!",
@@ -2105,7 +2122,10 @@
     "offline_queue_full": "Cola sin conexión llena: se han descartado {n} de las operaciones más antiguas.",
     "food_in_cabinet": "Los alimentos no van en el botiquín: elige otro lugar.",
     "medicine_needs_cabinet": "Un medicamento solo puede estar en el botiquín.",
-    "medicine_location_missing": "Marca primero el botiquín (Ajustes → Medicamentos)."
+    "medicine_location_missing": "Marca primero el botiquín (Ajustes → Medicamentos).",
+    "offline_banner_work": "Sin conexión: puedes consultar y registrar existencias; sincronizaremos al volver la red.",
+    "offline_synced_short": "¡Sincronizado!",
+    "offline_restored_detail": "Sincronización completada con éxito."
   },
   "confirm": {
     "remove_item": "¿Realmente quieres eliminar este producto del inventario?",
