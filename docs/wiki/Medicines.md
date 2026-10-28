@@ -84,7 +84,7 @@ code and asks the catalogue again (`_medUseCode()`).
 
 **The form fills itself from the catalogue.** An exact AIC writes the **name, the company (titolare), the notes** (active ingredient, form, pack, ATC, class) and ticks the closed category the ATC belongs to (`_medFillFromCatalogue()`, `_medCategoryFromAtc()`). Empty fields only: what the household typed always wins, and what we wrote is remembered so switching to another neighbour code rewrites ours and nothing else.
 
-**With no catalogue, the name is read off the box.** The catalogue is optional, but an empty form looked broken, so `_medReadLabelName()` makes one extra pass on the commercial-name block **before** the form closes the camera, and `_medPickNameLine()` keeps a single plausible line (mostly letters, 4–45 characters, None of `A.I.C.`/`TITOLARE`/`Lotto`/`Scadenza`). It lands in an editable field with a notice saying where it came from — a guess never reaches the database silently. When the catalogue is empty the card says so (`medical.match_needs_catalog`) and points at the import, instead of staying silent.
+**A medicine the catalogue cannot name is not added.** The catalogue is not optional any more: `_medStartManualEntry()` asks it **before** any form opens (`_medLookupCatalogue()`), and a code it does not know keeps the scanner running (`medical.only_catalogue`, or `medical.scan_needs_catalog` when no dataset is imported, which points at the import in Settings → Medicines). There is no typed title and no name read off the label: the form's name field is **read-only** in medicine mode (`#pf-med-name-hint`, `medical.name_from_catalogue`) and `submitProduct()` refuses a medical row without `_medConfirmedAic` — the flag `_medFillFromCatalogue()` sets when a real `medicines` row names the box. The only two ways in are that catalogue row and a product that already exists (`pf-id`, opened for editing). Even the blocked-country dialog has lost its “Aggiungi a mano”.
 
 Why not a card on the scanner: a white panel glued over the viewfinder hides the label the
 household is aiming at, and asking two questions at once is how a scan becomes a chore. The
@@ -117,7 +117,7 @@ printed block (OCR). It never invents a result: no drug code in the text, no med
 
 | Where you are | Panel | What it has |
 |---|---|---|
-| the medicine cabinet | **Scansiona farmaci** (`is-medical-scan`) | camera, 💊 Leggi AIC, Aggiungi a mano |
+| the medicine cabinet | **Scansiona farmaci** (`is-medical-scan`) | camera, 💊 Leggi AIC, the printed code field |
 | any food place (`Dispensa`, frigo, freezer, custom) | **Scansiona** (food) | AI vision, name search, manual entry, continuous shopping |
 
 `_scanModeForLocation()` reads the place, `_setScanMode()` paints the mode (title, hint, which

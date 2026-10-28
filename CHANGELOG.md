@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-10-28
 
 ### Changed
+- **No “new medicine”: a box is added only when the catalogue knows it.** The medicine form no
+  longer carries the word at all (`medical.form_title` is “💊 Farmaco”, not “Nuovo farmaco”), and
+  nothing can be invented: `_medStartManualEntry()` asks the local catalogue **before** any form
+  opens (`_medLookupCatalogue()`), a code it cannot name keeps the scanner running
+  (`medical.only_catalogue`, or `medical.scan_needs_catalog` when no dataset is imported), the
+  name field is **read-only** in medicine mode with `#pf-med-name-hint`
+  (`medical.name_from_catalogue`), `submitProduct()` refuses a medical row without
+  `_medConfirmedAic` (set only by `_medFillFromCatalogue()`), the manual switch on a product that
+  does not exist yet is refused, and the blocked-country dialog lost its “Aggiungi a mano”.
+  **Gone with it**: the name read off the label (`_medReadLabelName()` / `_medPickNameLine()` /
+  `_medLabelNameFill()`), the “stable but unknown → open an editable form” branch in
+  `_medConfirmRead()` (it now says `medical.only_catalogue`) and the three keys that fed them
+  (`medical.match_needs_catalog`, `medical.read_unknown_hint`, `medical.scan_unsupported_manual`).
+  The two ways in are a `medicines` row the app recognised (or a neighbour the household picked on
+  the “Non è questo?” card) and a product that already exists.
 - **Scanning a medicine no longer asks where to put it — nor the quantity twice.** A recognised
   box is stocked from the medicine form itself (`_medStockAddDirect()`): the answers on that one
   screen — how many, the printed expiry, sealed/opened — write the pantry row **straight into the

@@ -2261,6 +2261,13 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: var(--text-muted);
 }
 .med-pao-field input { width: 64px; }
+/* A field the app owns (the medicine name, which comes from the catalogue): visible,
+   selectable, and unmistakably not editable by hand. */
+.form-input.is-readonly {
+    background: var(--bg-app);
+    color: var(--text-muted);
+    cursor: default;
+}
 /* ── A medicine box is counted in pieces, and it has a STATE ─────────────────
    The add form asks food "quanto?"; a box also asks "sigillata o già aperta?" (an opened pack
    starts its own clock) and "quante ne restano?" as fractions of the pack the catalogue
