@@ -855,7 +855,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 191 medical keys', $aligned && count($base) === 191);
+check('all six locales carry the same 192 medical keys', $aligned && count($base) === 192);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -1420,25 +1420,33 @@ check('the medicine panel tries the BARCODE on a magnified crop before the OCR',
         && (bool)preg_match('/width: \{ ideal: isFront \? 640 : 1920 \}/s', $app);
 })());
 
-check('after twenty seconds without a read the camera stops and the code is asked', (function () use ($app, $html, $css, $med) {
-    // The household's own device cannot finish an OCR pass (25 timeouts in one scan, empty text)
-    // and a toast over a live preview was not noticed: the stream STOPS, the row takes over, and
-    // a "Riprendi" button brings the camera back.
+check('after twenty seconds the camera stops and the app ASKS in words that fit', (function () use ($app, $html, $css, $med) {
+    // The household's own device cannot finish an OCR pass (25 timeouts in one scan, empty text).
+    // A toast over a live preview was not noticed, and the replacement — a status CHIP with a
+    // 60-character sentence — arrived truncated and illegible. So: the stream and the
+    // attempts stop (`_scannerGen` discards what the worker still holds), the viewport is covered
+    // by a card that says it in a sentence that WRAPS, and the input + "Riprova" are the answer.
     return str_contains($app, 'function _medAskCodeSoon()')
         && str_contains($app, '}, 20000);')
         && (bool)preg_match('/function _medAskCodeSoon\(\)[\s\S]{0,1400}?try \{ stopScanner\(\); \}/s', $app)
+        && str_contains($app, '_scannerGen++')
+        && str_contains($app, "_setScanStatus('', 'idle', '')")
+        && str_contains($app, 'function _medShowAsk(on)')
+        && str_contains($html, 'id="scan-med-ask"')
         && str_contains($html, 'id="scan-med-resume"')
         && str_contains($app, 'function _medResumeScan()')
         && str_contains($app, "t('medical.read_unknown_hint')")
         && (bool)preg_match('/_medAskCodeSoon\(\);\s*\n?/', $app)
-        && str_contains($app, "t('medical.type_code_now')")
+        // the card wraps: a chip is nowrap+ellipsis, which is exactly what was unreadable
+        && (bool)preg_match('/\.scan-med-ask-body \{[^}]*white-space: normal/s', $css)
+        && str_contains($css, '#scanner-viewport.is-asking')
+        && (bool)preg_match('/\.scan-med-code-row\.is-wanted \.scan-med-code-input \{[^}]*flex: 1 1 100%/s', $css)
         // the local engine is not asked again after three timeouts
         && str_contains($app, 'if (_medOcrTimeouts >= 3 && !_medOcrGaveUp)')
         && str_contains($app, 'if (_medOcrGaveUp) return null;')
-        && str_contains($css, '.scan-med-code-row.is-wanted')
-        && (bool)preg_match('/prefers-reduced-motion[\s\S]{0,120}?scan-med-code-row\.is-wanted/s', $css)
         && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
-            return $c && mb_strlen((string)($med[$l]['type_code_now'] ?? '')) > 20;
+            return $c && mb_strlen((string)($med[$l]['ask_title'] ?? '')) > 5
+                && mb_strlen((string)($med[$l]['ask_body'] ?? '')) > 30;
         }, true);
 })());
 

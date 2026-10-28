@@ -5,6 +5,19 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.4] - 2026-10-28
+
+### Fixed
+- **After twenty seconds the reader now ASKS, in words that fit.** The card that stops the camera
+  said it in the status chip — a `nowrap` + ellipsis line — so what the household saw over a
+  black frame was a truncated, illegible string. The frozen viewport is now covered by a real
+  card (`#scan-med-ask`: an icon, “Non riesco a leggere il codice” and a sentence that WRAPS,
+  “Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la
+  scansione”) in six locales, and the chip is left empty. The camera chrome (guide, HUD, torch)
+  disappears, the input takes the full width and the two answers sit under it:
+  **Conferma** and **Riprova la scansione**. The attempts stop as well as the stream: `_scannerGen`
+  is bumped, so a pass the worker was still chewing on can no longer open a form behind the card.
+
 ## [1.28.3] - 2026-10-28
 
 ### Added

@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zl'; // bump when translations change
+const _I18N_VERSION = '20261028zm'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15697,7 +15697,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zl';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zm';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15707,7 +15707,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zl';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zm';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16733,6 +16733,23 @@ function _medOcrKick() {
  */
 /** The ten-second nudge: this box carries its number, so it can always be typed. */
 let _medAskCodeTimer = null;
+
+/**
+ * Show or hide the "type the code" card that replaces the frozen viewport.
+ *
+ * The prompt used to be a status chip, and a chip is `nowrap` + ellipsis: the household read a
+ * cut-off line over a black frame and had no idea what to do. The card says it in a sentence that
+ * wraps, hides the camera chrome it no longer needs, and leaves the input + "Riprova" in place.
+ *
+ * @param {boolean} on
+ */
+function _medShowAsk(on) {
+    const ask = document.getElementById('scan-med-ask');
+    if (ask) ask.hidden = !on;
+    const vp = document.getElementById('scanner-viewport');
+    if (vp) vp.classList.toggle('is-asking', !!on);
+}
+
 function _medAskCodeSoon() {
     if (_medAskCodeTimer) clearTimeout(_medAskCodeTimer);
     _medAskCodeTimer = setTimeout(() => {
@@ -16741,17 +16758,18 @@ function _medAskCodeSoon() {
         const row = document.getElementById('scan-med-code-row');
         const input = document.getElementById('scan-med-code-input');
         const resume = document.getElementById('scan-med-resume');
-        // The camera STOPS: a toast nobody notices left the household staring at a live preview
-        // that was not reading anything. With the stream off, the row is the only thing to use.
+        // The camera STOPS — stream and attempts: `_scannerGen` also discards whatever the worker
+        // is still chewing on, so no late read can open a form behind this card.
         try { stopScanner(); } catch (e) { /* already stopped */ }
+        _scannerGen++;
         _setScanHudState('idle');
+        _setScanStatus('', 'idle', '');          // no chip: the card IS the message
+        _medShowAsk(true);
         if (resume) resume.hidden = false;
         if (row) row.classList.add('is-wanted');
         if (input && !input.value) {
             try { input.focus({ preventScroll: true }); } catch (e) { /* desktop without a keyboard */ }
         }
-        _setScanStatus(t('medical.type_code_now'), 'partial', '');
-        showToast(t('medical.type_code_now'), 'info', 8000);
         scanLog('Medicine: twenty seconds without a read, the camera stopped and the code is asked by hand');
     }, 20000);
 }
@@ -16762,6 +16780,7 @@ function _medResumeScan() {
     const resume = document.getElementById('scan-med-resume');
     if (row) row.classList.remove('is-wanted');
     if (resume) resume.hidden = true;
+    _medShowAsk(false);
     _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
     scanLog('Medicine: reader resumed by the household');
     initScanner();
@@ -16780,6 +16799,8 @@ function _medSubmitCode() {
         return;
     }
     if (input) input.value = '';
+    // The card did its job: a typed code is a read like any other.
+    _medShowAsk(false);
     _medConfirmRead(/^A/.test(raw) ? raw.toUpperCase() : 'A' + raw.toUpperCase());
 }
 
@@ -17764,6 +17785,8 @@ function stopScanner() {
     _stopScanCloud();
     _clearAiMatchPanel();
     _setScanHudState('idle');
+    // Leaving the camera also dismisses the "type the code" card: it belongs to a live reader.
+    if (typeof _medShowAsk === 'function') _medShowAsk(false);
     _updateScanAiButton();
     // Also stop AI camera
     if (aiStream) {

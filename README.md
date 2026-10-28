@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.3-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.28.4-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,9 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.28.4** — **dopo 20 secondi il lettore te lo CHIEDE, con parole che ci stanno.** Il fermo della camera lo diceva il chip di stato — una riga `nowrap` con i puntini — quindi sul fermo immagine si leggeva una scritta tagliata e incomprensibile. Ora l'inquadratura si copre con una card vera: icona, «Non riesco a leggere il codice» e la frase intera «Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione», in sei lingue; il chip resta vuoto, guide/HUD/torcia spariscono, il campo prende tutta la larghezza e sotto ci sono **Conferma** e **Riprova la scansione**. E si fermano anche i tentativi, non solo lo stream: `_scannerGen` viene incrementato, così una passata rimasta nel worker non può più aprire un form dietro la card.
+
 
 **v1.28.3** — **una scatola di farmaci risponde alle domande che una scatola ha davvero: quanto, fino a quando, aperta o no.** Sul form del farmaco, dentro il blocco medicale, ci sono ora la **quantità nell'unità del prodotto** («10 compresse» → 10 pz, «1 flacone 200 ml» → 200 ml, «tubo 30 g» → 30 g; una quantità che scrivi tu non viene mai sovrascritta), la **data stampata sulla scatola** (obbligatoria, una data passata rifiutata, una entro 3 giorni segnalata) e lo stato **sigillata / già aperta**. Le risposte viaggiano con il prodotto: nell'aggiunta in dispensa la scadenza e lo stato sono già compilati, quindi resta un tocco. Modificare la scheda del catalogo non richiede più la data (la scadenza è della riga di magazzino). E un farmaco sotto il minimo della dispensa — un collirio da 10 ml — non viene più rifiutato: il minimo di 20 g/ml esiste per il «2 g scritto per sbaglio».
 

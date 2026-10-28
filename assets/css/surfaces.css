@@ -2425,18 +2425,56 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* Ten seconds without a read: the row asks for the code by itself (the box always carries it).
    A brand outline that pulses three times, and nothing at all with reduced motion. */
 .scan-med-code-row.is-wanted {
-    outline: 2px solid var(--brand-primary);
-    outline-offset: 3px;
-    border-radius: 12px;
-    animation: med-ask-pulse 1.6s ease-in-out 3;
+    /* The stream is off and this row IS the answer: input full width, the two answers under it. */
+    flex-wrap: wrap;
+    outline: none;
+    animation: none;
+    gap: 8px;
 }
-@keyframes med-ask-pulse {
-    0%, 100% { outline-color: var(--brand-primary); }
-    50% { outline-color: transparent; }
+.scan-med-code-row.is-wanted .scan-med-code-input {
+    flex: 1 1 100%;
+    min-height: 46px;
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+    border-color: var(--brand-primary);
 }
-@media (prefers-reduced-motion: reduce) {
-    .scan-med-code-row.is-wanted { animation: none; }
+.scan-med-code-row.is-wanted #scan-med-code-btn,
+.scan-med-code-row.is-wanted #scan-med-resume { flex: 1 1 0; }
+/* Twenty seconds without a read: the frozen frame is replaced by a sentence that fits. */
+.scan-med-ask {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 22px 18px;
+    text-align: center;
+    background: var(--bg-app, #0b1220);
 }
+.scan-med-ask[hidden] { display: none; }
+.scan-med-ask-icon { font-size: 1.9rem; line-height: 1; }
+.scan-med-ask-title { font-size: 1.02rem; font-weight: 800; color: var(--text-main); }
+.scan-med-ask-body {
+    margin: 0;
+    max-width: 34ch;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+    /* the whole sentence: never an ellipsis, never a cut-off line */
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+/* While the app is asking, the camera chrome has nothing to offer. */
+#scanner-viewport.is-asking .scan-viewport-controls,
+#scanner-viewport.is-asking .scan-guide-frame,
+#scanner-viewport.is-asking .scanner-overlay,
+#scanner-viewport.is-asking .scan-med-frame,
+#scanner-viewport.is-asking .scan-tracking-layer,
+#scanner-viewport.is-asking .scan-status-bar,
+#scanner-viewport.is-asking .scan-live-code { display: none !important; }
 
 .scan-med-code-input {
     flex: 1 1 auto;

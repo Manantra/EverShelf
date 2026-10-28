@@ -3021,11 +3021,12 @@
     "ocr_selftest_ok": "Lector OCR listo: encuadra el código y leeré los dígitos.",
     "ocr_selftest_failed": "El lector OCR no funciona en este dispositivo: escribe el código abajo.",
     "not_this": "¿No es este?",
-    "type_code_now": "No consigo leer el código: escríbelo abajo (ej. A042386348).",
     "read_unknown": "Código no está en el catálogo",
     "read_unknown_hint": "A{code} no está en el catálogo AIFA: revisa el código en la caja o corrígelo aquí.",
-    "resume_scan": "Reanudar",
+    "resume_scan": "Escanear de nuevo",
     "form_qty_label": "Cuánto tienes",
-    "form_expiry_label": "📅 Caducidad impresa en la caja *"
+    "form_expiry_label": "📅 Caducidad impresa en la caja *",
+    "ask_title": "No consigo leer el código",
+    "ask_body": "Escríbelo abajo tal como está impreso en la caja (p. ej. A040313076), o vuelve a escanear."
   }
 }

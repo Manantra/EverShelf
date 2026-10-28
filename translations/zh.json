@@ -3021,11 +3021,12 @@
     "ocr_selftest_ok": "OCR 已就绪：对准代码，我来读取数字。",
     "ocr_selftest_failed": "此设备的 OCR 无法工作：请在下方输入代码。",
     "not_this": "不是这个？",
-    "type_code_now": "无法读取编码：请在下方手动输入（例如 A042386348）。",
     "read_unknown": "编码不在目录中",
     "read_unknown_hint": "A{code} 不在 AIFA 目录中：请核对包装上的编码或在此修改。",
-    "resume_scan": "继续",
+    "resume_scan": "重新扫描",
     "form_qty_label": "你有多少",
-    "form_expiry_label": "📅 包装上印刷的有效期 *"
+    "form_expiry_label": "📅 包装上印刷的有效期 *",
+    "ask_title": "我无法读取编码",
+    "ask_body": "请在下方按包装上印刷的样子输入（例如 A040313076），或重新扫描。"
   }
 }
