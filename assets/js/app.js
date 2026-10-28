@@ -2355,45 +2355,24 @@ function mergeCustomLocations(names) {
 }
 
 /**
- * Paint the location filter of the pantry: the medicine cabinet keeps its own pill, every
- * other place lives in one native dropdown (a row of tabs stops working at the fourth place).
- * Called whenever the list or the active place changes.
+ * Paint the pantry place strip: two macro tabs (Food & Kitchen | Pharmacy) and, on the
+ * food side, a compact popover menu for the active kitchen place — never a bare <select>
+ * and never "Vai a un luogo…".
  */
 function _syncLocationFilterUi() {
     const tabs = document.getElementById('location-tabs');
     if (!tabs) return;
-    // A stale client cache can still carry the removed "altro" key (an old payload), so every
-    // lookup in this function goes through one normalised value.
     const locKey = currentLocation ? normalizeLocationKey(currentLocation) : '';
-    tabs.querySelectorAll('.tab').forEach(btn => {
-        btn.classList.toggle('active', !!locKey && btn.dataset.loc === locKey);
-        // The strip shows the place you just opened. The cabinet pill sits BEFORE the
-        // dropdown, so opening the fridge made "Armadietto farmaci" the first thing on screen
-        // while the place you asked for was written on the control next to it. The pill stays
-        // where it is the way in: when the cabinet is the open place, or when nothing is
-        // filtered (it is still one tap from "Tutti" — never buried in a menu).
-        if (btn.classList.contains('tab-medical')) {
-            btn.hidden = !!locKey && !isMedicalLocation(locKey);
-        }
+    if (locKey && isMedicalLocation(locKey)) _locationDomain = 'medical';
+    else if (locKey) _locationDomain = 'food';
+    _locRefreshCountsFromCache();
+    tabs.innerHTML = _locMacroBarHtml({
+        surface: 'inventory',
+        activeFoodKey: _locationDomain === 'medical' ? '' : locKey,
+        medicalActive: _locationDomain === 'medical',
     });
     _syncInventoryTitle(locKey);
-    const sel = document.getElementById('location-select');
-    if (!sel) return;
-    sel.querySelectorAll('option[data-med-shortcut]').forEach(o => o.remove());
-    if (locKey && isMedicalLocation(locKey)) {
-        // The cabinet is not in the list: while it is the active place the dropdown shows a
-        // disabled entry with its name, so it never claims "Tutti" over the cabinet's stock.
-        const meta = LOCATIONS[locKey] || { icon: MEDICAL_LOCATION_ICON, label: locKey };
-        const opt = document.createElement('option');
-        opt.value = locKey;
-        opt.disabled = true;
-        opt.selected = true;
-        opt.dataset.medShortcut = '1';
-        opt.textContent = `${meta.icon} ${meta.label}`;
-        sel.insertBefore(opt, sel.firstChild);
-    } else {
-        sel.value = LOCATIONS[locKey] ? locKey : '';
-    }
+    _syncInventoryMedChips();
 }
 
 /**
@@ -2487,20 +2466,7 @@ function _renderLocationSelector(sel, hiddenId, clickFn, currentVal, kind = 'any
 }
 
 function rebuildLocationPickers() {
-    const tabs = document.getElementById('location-tabs');
-    if (tabs) {
-        const entries = Object.entries(LOCATIONS);
-        const medical = entries.filter(([key]) => isMedicalLocation(key));
-        const rest = entries.filter(([key]) => !isMedicalLocation(key));
-        const options = [`<option value="">${escapeHtml(t('inventory.filter_all'))}</option>`]
-            .concat(rest.map(([key, meta]) =>
-                `<option value="${escapeAttr(key)}">${escapeHtml(`${meta.icon} ${meta.label}`)}</option>`));
-        tabs.innerHTML = medical.map(([key, meta]) =>
-                `<button type="button" class="tab tab-medical" data-loc="${escapeAttr(key)}" onclick="filterLocation('${escapeAttr(key)}')">${_medIconMarkup()} <span>${escapeHtml(meta.label)}</span></button>`).join('')
-            + `<select class="location-select" id="location-select" aria-label="${escapeAttr(t('inventory.location_filter'))}"`
-            + ` onchange="filterLocation(this.value)">${options.join('')}</select>`;
-        _syncLocationFilterUi();
-    }
+    _syncLocationFilterUi();
     // The add form follows the product: a medicine can only go to the cabinet, food never
     // into it (Rebuild runs on settings changes too, so it reads `currentProduct` live). The
     // "where do I take it from" picker follows the same domain, so a food never shows the
@@ -2510,6 +2476,190 @@ function rebuildLocationPickers() {
     _renderLocationSelector('#page-add .location-selector', 'add-location', 'selectLocation', document.getElementById('add-location')?.value, addKind);
     _renderLocationSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value, useKind);
 }
+
+/** Food place keys (everything that is not the medicine cabinet). */
+function _locFoodKeys() {
+    return Object.keys(LOCATIONS).filter(key => !isMedicalLocation(key, (LOCATIONS[key] || {}).label));
+}
+
+/** First marked medicine-cabinet key, or ''. */
+function _locCabinetKey() {
+    return Object.keys(LOCATIONS).find(key => isMedicalLocation(key, (LOCATIONS[key] || {}).label)) || '';
+}
+
+function _locRefreshCountsFromCache() {
+    const pool = (_allInventoryCache && _allInventoryCache.length)
+        ? _allInventoryCache
+        : (currentInventory || []);
+    if (!pool.length) return;
+    const counts = {};
+    for (const item of pool) {
+        const key = normalizeLocationKey(item.location);
+        if (!key) continue;
+        counts[key] = (counts[key] || 0) + 1;
+    }
+    _locCounts = Object.assign({}, _locCounts, counts);
+}
+
+/**
+ * Shared markup for the macro place bar (dashboard rail + pantry strip).
+ * `surface`: 'dashboard' navigates into inventory; 'inventory' only filters.
+ */
+function _locMacroBarHtml({ surface, activeFoodKey = '', medicalActive = false }) {
+    const foodKeys = _locFoodKeys();
+    const cabinetKey = _locCabinetKey();
+    const foodTotal = foodKeys.reduce((n, k) => n + (_locCounts[k] || 0), 0);
+    const foodAlerts = foodKeys.reduce((n, k) => n + (_locAlerts[k] || 0), 0);
+    const medTotal = cabinetKey ? (_locCounts[cabinetKey] || 0) : 0;
+    const medAlerts = cabinetKey ? (_locAlerts[cabinetKey] || 0) : 0;
+    const foodActive = !medicalActive;
+    const activeMeta = activeFoodKey && LOCATIONS[activeFoodKey]
+        ? LOCATIONS[activeFoodKey]
+        : { icon: '🏠', label: t('locations.food_all') };
+    const activeCount = activeFoodKey
+        ? (_locCounts[activeFoodKey] || 0)
+        : foodTotal;
+    const activeAlert = activeFoodKey ? (_locAlerts[activeFoodKey] || 0) : foodAlerts;
+    const menuId = surface === 'dashboard' ? 'loc-food-menu-dash' : 'loc-food-menu-inv';
+    const triggerId = surface === 'dashboard' ? 'loc-food-trigger-dash' : 'loc-food-trigger-inv';
+
+    const menuRows = [
+        {
+            key: '',
+            icon: '🏠',
+            label: t('locations.food_all'),
+            count: foodTotal,
+            alerts: foodAlerts,
+        },
+        ...foodKeys.map(key => {
+            const meta = LOCATIONS[key];
+            return {
+                key,
+                icon: meta.icon,
+                label: meta.label,
+                count: _locCounts[key] || 0,
+                alerts: _locAlerts[key] || 0,
+            };
+        }),
+    ];
+    const menuHtml = menuRows.map(row => {
+        const on = (row.key || '') === (activeFoodKey || '');
+        return `<button type="button" role="menuitem" class="loc-food-item${on ? ' is-active' : ''}"`
+            + ` data-loc="${escapeAttr(row.key)}"`
+            + ` onclick="_locFoodPick('${escapeAttr(row.key)}', '${escapeAttr(surface)}')">`
+            + `<span class="loc-food-item-icon" aria-hidden="true">${row.icon}</span>`
+            + `<span class="loc-food-item-label">${escapeHtml(row.label)}</span>`
+            + `<span class="loc-food-item-count">${row.count}</span>`
+            + (row.alerts ? `<span class="loc-food-item-dot" title="${escapeAttr(t('dashboard.location_alerts', { n: row.alerts }))}"></span>` : '')
+            + `</button>`;
+    }).join('')
+        + `<button type="button" role="menuitem" class="loc-food-item loc-food-item-create"`
+        + ` onclick="_locFoodMenuClose();_openLocationsSettings()">`
+        + `<span class="loc-food-item-icon" aria-hidden="true">➕</span>`
+        + `<span class="loc-food-item-label">${escapeHtml(t('locations.create_new'))}</span>`
+        + `</button>`;
+
+    return `<div class="loc-macro" role="group" aria-label="${escapeAttr(t('locations.macro_aria'))}">`
+        + `<div class="loc-macro-food${foodActive ? ' is-active' : ''}">`
+        + `<button type="button" class="loc-macro-tab${foodActive ? ' is-active' : ''}"`
+        + ` onclick="_locMacroGoFood('${escapeAttr(surface)}')">`
+        + `<span class="loc-macro-icon" aria-hidden="true">🥫</span>`
+        + `<span class="loc-macro-label">${escapeHtml(t('locations.food_kitchen'))}</span>`
+        + `<span class="loc-macro-count">${foodTotal}</span>`
+        + (foodAlerts ? `<span class="loc-macro-dot" aria-hidden="true"></span>` : '')
+        + `</button>`
+        + `<button type="button" class="loc-food-trigger" id="${triggerId}"`
+        + ` aria-haspopup="menu" aria-expanded="false" aria-controls="${menuId}"`
+        + ` aria-label="${escapeAttr(t('locations.food_menu_aria'))}"`
+        + ` onclick="_locFoodMenuToggle(event, '${escapeAttr(surface)}')">`
+        + `<span class="loc-food-trigger-icon" aria-hidden="true">${activeMeta.icon}</span>`
+        + `<span class="loc-food-trigger-label">${escapeHtml(activeMeta.label)}</span>`
+        + `<span class="loc-food-trigger-count">${activeCount}</span>`
+        + (activeAlert ? `<span class="loc-food-trigger-dot" aria-hidden="true"></span>` : '')
+        + `<span class="loc-food-trigger-caret" aria-hidden="true">▾</span>`
+        + `</button>`
+        + `<div class="loc-food-menu" id="${menuId}" role="menu" hidden>${menuHtml}</div>`
+        + `</div>`
+        + `<button type="button" class="loc-macro-tab loc-macro-med${medicalActive ? ' is-active' : ''}${!cabinetKey ? ' is-disabled' : ''}"`
+        + ` ${cabinetKey ? `onclick="_locMacroGoMed('${escapeAttr(cabinetKey)}', '${escapeAttr(surface)}')"` : 'disabled'}>`
+        + `<span class="loc-macro-icon" aria-hidden="true">${_medIconMarkup()}</span>`
+        + `<span class="loc-macro-label">${escapeHtml(t('locations.pharmacy'))}</span>`
+        + `<span class="loc-macro-count">${medTotal}</span>`
+        + (medAlerts ? `<span class="loc-macro-dot" aria-hidden="true"></span>` : '')
+        + `</button>`
+        + `</div>`;
+}
+
+function _locFoodMenuClose() {
+    document.querySelectorAll('.loc-food-menu').forEach(menu => {
+        menu.hidden = true;
+    });
+    document.querySelectorAll('.loc-food-trigger').forEach(btn => {
+        btn.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function _locFoodMenuToggle(ev, surface) {
+    if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+    }
+    const menuId = surface === 'dashboard' ? 'loc-food-menu-dash' : 'loc-food-menu-inv';
+    const triggerId = surface === 'dashboard' ? 'loc-food-trigger-dash' : 'loc-food-trigger-inv';
+    const menu = document.getElementById(menuId);
+    const trigger = document.getElementById(triggerId);
+    if (!menu || !trigger) return;
+    const open = menu.hidden;
+    _locFoodMenuClose();
+    if (open) {
+        menu.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function _locFoodPick(key, surface) {
+    _locFoodMenuClose();
+    _locationDomain = 'food';
+    const loc = key || '';
+    if (surface === 'dashboard') {
+        showPage('inventory', loc);
+        return;
+    }
+    filterLocation(loc);
+}
+
+function _locMacroGoFood(surface) {
+    _locationDomain = 'food';
+    if (surface === 'inventory' && !isMedicalLocation(currentLocation || '')) {
+        _locFoodMenuToggle(null, 'inventory');
+        return;
+    }
+    if (surface === 'dashboard') {
+        showPage('inventory', '');
+        return;
+    }
+    filterLocation('');
+}
+
+function _locMacroGoMed(cabinetKey, surface) {
+    if (!cabinetKey) return;
+    _locationDomain = 'medical';
+    _locFoodMenuClose();
+    if (surface === 'dashboard') {
+        showPage('inventory', cabinetKey);
+        return;
+    }
+    filterLocation(cabinetKey);
+}
+
+// Close the food place menu on outside tap / Escape (one listener for both surfaces).
+document.addEventListener('click', (ev) => {
+    if (ev.target.closest && ev.target.closest('.loc-macro-food')) return;
+    _locFoodMenuClose();
+});
+document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') _locFoodMenuClose();
+});
 
 /**
  * Persist the custom-location list on the server (`CUSTOM_LOCATIONS`).
@@ -3509,6 +3659,11 @@ function clearProductsSearch() {
 }
 let _actionInventoryItems = [];
 let currentLocation = '';
+/** Macro context for the place selector: food kitchen vs pharmacy cabinet. */
+let _locationDomain = 'food';
+/** Counts / alert flags per location key (dashboard summary + inventory cache). */
+let _locCounts = {};
+let _locAlerts = {};
 let scannerStream = null;
 let quaggaRunning = false;
 let aiStream = null;
@@ -9070,83 +9225,32 @@ function renderLocationRail(summary, stats) {
     const urgent = {};
     const flag = (items) => {
         for (const item of (items || [])) {
-            const key = String(item.location || '');
+            const key = normalizeLocationKey(item.location);
             if (key) urgent[key] = (urgent[key] || 0) + 1;
         }
     };
     flag(stats && stats.expired);
     flag(stats && stats.expiring_soon);
+    _locCounts = counts;
+    _locAlerts = urgent;
 
-    const isCabinet = (key) => isMedicalLocation(key, (LOCATIONS[key] || {}).label);
-    const keys = Object.keys(LOCATIONS);
-    const cabinetKeys = keys.filter(isCabinet);
-    const placeKeys = keys.filter(key => !isCabinet(key));
-
-    // One option per place: icon, name, how many products, and a ⚠ when there is food to
-    // save there. `is-empty` cannot be styled inside a native list, the count says it.
-    const options = placeKeys.map(key => {
-        const meta = LOCATIONS[key];
-        const count = counts[key] || 0;
-        const alerts = urgent[key] || 0;
-        const label = `${meta.icon} ${meta.label} · ${count}${alerts ? ' ⚠' : ''}`;
-        return `<option value="${escapeAttr(key)}">${escapeHtml(label)}</option>`;
+    // Macro bar: Food & Kitchen (with place popover) | Pharmacy. No empty "Vai a un luogo…".
+    bar.innerHTML = _locMacroBarHtml({
+        surface: 'dashboard',
+        activeFoodKey: '',
+        medicalActive: false,
     });
-
-    // The cabinet, when the household marked one, keeps its own pill outside the list.
-    const cabinet = cabinetKeys.map(key => {
-        const meta = LOCATIONS[key] || { icon: MEDICAL_LOCATION_ICON, label: key };
-        const count = counts[key] || 0;
-        const alerts = urgent[key] || 0;
-        const dot = alerts
-            ? `<span class="loc-dot" title="${escapeAttr(t('dashboard.location_alerts', { n: alerts }))}"></span>`
-            : '';
-        return `<button type="button" class="location-pill location-pill-medical${count === 0 ? ' is-empty' : ''}"`
-            + ` data-loc="${escapeAttr(key)}" onclick="showPage('inventory', '${escapeAttr(key)}')">`
-            + `<span class="loc-icon" aria-hidden="true">${_medIconMarkup()}</span>`
-            + `<span class="loc-label">${escapeHtml(meta.label)}</span>`
-            + `<span class="loc-count">${count}</span>${dot}</button>`;
-    }).join('');
-
-    bar.innerHTML = `<select class="location-select" id="dashboard-location-select"`
-        + ` aria-label="${escapeAttr(t('dashboard.locations_aria'))}" data-i18n-aria="dashboard.locations_aria"`
-        + ` onchange="_dashboardLocationGo(this)">`
-        + `<option value="">${escapeHtml(t('dashboard.locations_pick'))}</option>${options.join('')}`
-        + `</select>`
-        + cabinet
-        + `<button type="button" class="location-pill location-pill-add"`
-        + ` aria-label="${escapeAttr(t('dashboard.add_location'))}" data-i18n-aria="dashboard.add_location"`
-        + ` title="${escapeAttr(t('dashboard.add_location'))}" data-i18n-title="dashboard.add_location"`
-        + ` onclick="_openLocationsSettings()">`
-        + `<span class="loc-icon" aria-hidden="true">＋</span></button>`;
 }
 
-/**
- * The dashboard's place dropdown is a WAY IN, not a filter: it opens the pantry on the
- * place and immediately resets, so the same place can be picked again next time (a
- * selected option never fires `change` a second time).
- */
-function _dashboardLocationGo(sel) {
-    const key = String((sel && sel.value) || '');
-    if (!key) return;
-    sel.value = '';
-    showPage('inventory', key);
-}
-
-/** First paint: the same two controls, with no invented numbers. */
+/** First paint: the macro bar with zeros, so layout does not jump when counts arrive. */
 function _paintLocationRailSkeleton() {
     const bar = document.getElementById('location-rail');
     if (!bar) return;
-    const places = Object.entries(LOCATIONS)
-        .filter(([key, meta]) => !isMedicalLocation(key, meta.label))
-        .slice(0, 4);
-    bar.innerHTML = `<select class="location-select" id="dashboard-location-select" disabled`
-        + ` aria-label="${escapeAttr(t('dashboard.locations_aria'))}" data-i18n-aria="dashboard.locations_aria">`
-        + `<option value="">${escapeHtml(t('dashboard.locations_pick'))}</option>`
-        + places.map(([key, meta]) =>
-            `<option value="${escapeAttr(key)}">${escapeHtml(`${meta.icon} ${meta.label} · –`)}</option>`
-        ).join('')
-        + `</select><span class="location-pill location-pill-add is-empty" aria-hidden="true">`
-        + `<span class="loc-icon">＋</span></span>`;
+    bar.innerHTML = _locMacroBarHtml({
+        surface: 'dashboard',
+        activeFoodKey: '',
+        medicalActive: false,
+    });
 }
 
 /** "+" pill: the existing, tested place where locations are added. */
@@ -10389,7 +10493,11 @@ async function loadDashboard() {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 const daysText = _relativeDaysAgo(days);
                 const safety = getExpiredSafety(item, days);
-                // Short badge only (Controlla / Va bene / Buttalo / Non mangiare) — tip on hover.
+                // "👀 Controlla" repeats what the red "N gg fa" badge already says — keep only
+                // the verdicts that change the decision (Non mangiare / Non bere / Buttalo).
+                const verdictHtml = (safety.level === 'warning')
+                    ? ''
+                    : `<span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>`;
                 return `
                 <div class="alert-item expired-item alert-item-clickable${_isMedicalRow(item) ? ' is-medical' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
@@ -10398,7 +10506,7 @@ async function loadDashboard() {
                             ${_alertItemHead(item)}
                             <div class="alert-item-meta-row">
                                 ${_alertItemMeta(item)}
-                                <span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>
+                                ${verdictHtml}
                             </div>
                         </div>
                     </div>
@@ -11331,10 +11439,19 @@ function renderBannerItem() {
             `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`
             + `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`
             + `<button type="button" class="btn-banner btn-banner-more" id="alert-banner-more-btn" onclick="event.stopPropagation();_bannerMenuToggle()" aria-expanded="false" aria-controls="alert-banner-menu" title="${moreLabel}" aria-label="${moreLabel}">⋮</button>`
-            + `<div class="alert-banner-menu" id="alert-banner-menu" hidden>`
-            +   `<button type="button" class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${escapeHtml(t('dashboard.banner_expired_action_finished'))}</button>`
-            +   `<button type="button" class="btn-banner btn-banner-edit" onclick="editReviewItem(${itemId}, ${productId})">${escapeHtml(t('dashboard.banner_expired_action_modify'))}</button>`
-            +   `<button type="button" class="btn-banner btn-banner-ok" onclick="bannerStillGood()">✅ ${escapeHtml(t('dashboard.banner_opened_action_still_good'))}</button>`
+            + `<div class="alert-banner-menu" id="alert-banner-menu" hidden role="menu">`
+            +   `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerStillGood()">`
+            +     `<span class="alert-banner-menu-icon" aria-hidden="true">✓</span>`
+            +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_still_good'))}</span>`
+            +   `</button>`
+            +   `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerFinishAll()">`
+            +     `<span class="alert-banner-menu-icon" aria-hidden="true">🏁</span>`
+            +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_finished'))}</span>`
+            +   `</button>`
+            +   `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="editReviewItem(${itemId}, ${productId})">`
+            +     `<span class="alert-banner-menu-icon" aria-hidden="true">✏️</span>`
+            +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_edit'))}</span>`
+            +   `</button>`
             + `</div>`;
         openedOthers = _openedQueueSiblings(item);
 
@@ -11567,7 +11684,11 @@ function renderBannerItem() {
         note.type = 'button';
         note.className = 'banner-opened-more';
         note.textContent = t('dashboard.banner_opened_more', { n: openedOthers });
-        note.addEventListener('click', _showOpenedTab);
+        note.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            _showOpenedTab();
+        });
         counterEl.appendChild(note);
     }
     banner.style.display = '';
@@ -12001,11 +12122,21 @@ function _openedQueueSiblings(item) {
 /** Open the "Aperti" tab under the dashboard, where every opened row is listed. */
 function _showOpenedTab() {
     try { showPage('dashboard'); } catch (e) { /* already on the dashboard */ }
-    setTimeout(() => {
-        try { _stockHubSelect('opened'); } catch (e) { /* hub hidden: nothing to select */ }
+    const activate = () => {
         const hub = document.getElementById('stock-hub');
-        if (hub && hub.scrollIntoView) hub.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 150);
+        if (!hub) return;
+        hub.hidden = false;
+        const tabBtn = document.querySelector('#stock-hub .stock-tab[data-stock="opened"]');
+        if (tabBtn) tabBtn.hidden = false;
+        try { _stockHubSelect('opened'); } catch (e) { /* hub not ready */ }
+        // Force the panel even if the async list paint has not filled `.alert-item` yet —
+        // otherwise the tab looks selected and the body stays blank / the carousel wins.
+        const panel = document.querySelector('#stock-hub [data-stock-panel="opened"]');
+        if (panel) panel.style.display = '';
+        if (hub.scrollIntoView) hub.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    setTimeout(activate, 80);
+    setTimeout(activate, 450);
 }
 
 /**
@@ -12400,6 +12531,13 @@ function _renderInventoryTagFilter() {
 
 function _inventoryVisibleItems(items) {
     let out = (items || []).filter(i => !isInventoryDepleted(i));
+    // Macro context: with no specific place selected, "Tutte le locazioni cucina" never
+    // mixes medicines into the food list (and the pharmacy tab is only the cabinet).
+    if (!currentLocation) {
+        out = _locationDomain === 'medical'
+            ? out.filter(i => _isMedicalRow(i))
+            : out.filter(i => !_isMedicalRow(i));
+    }
     if (_inventoryTagFilter.length) {
         out = out.filter(i => {
             const names = (i.tags || []).map(x => String(x).toLowerCase());
@@ -12618,6 +12756,7 @@ async function loadInventory() {
         } else {
             renderInventory(currentInventory);
         }
+        _syncLocationFilterUi();
         loadQuickAccess();
     } catch (err) {
         console.error('Inventory load error:', err);
@@ -13029,13 +13168,73 @@ function _playInventorySwipeDemo(container) {
     })();
 }
 
+function _inventoryIsMedicalContext() {
+    const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
+    return _locationDomain === 'medical' || (!!key && isMedicalLocation(key));
+}
+
+/** Symptom chips under the pantry search — only in the pharmacy context. */
+function _syncInventoryMedChips() {
+    const host = document.getElementById('inventory-med-chips');
+    if (!host) return;
+    const on = _inventoryIsMedicalContext() && _medOn();
+    host.hidden = !on;
+    if (!on) {
+        host.innerHTML = '';
+        return;
+    }
+    const featured = ['pain', 'stomach', 'cold', 'firstaid'];
+    const cats = (_medStatus && _medStatus.categories) || [];
+    host.innerHTML = featured.map(slug => {
+        const cat = cats.find(c => c && c.slug === slug);
+        const label = cat && cat.label_key ? t(cat.label_key) : slug;
+        return `<button type="button" class="inv-med-chip" data-slug="${escapeAttr(slug)}"`
+            + ` onclick="_medInventoryChip('${escapeAttr(slug)}')">${escapeHtml(label)}</button>`;
+    }).join('');
+}
+
+/** Chip → symptom search (teaches the cabinet query even when empty). */
+function _medInventoryChip(slug) {
+    const seed = t('medical.chip_query_' + slug);
+    _medOpenSearch(seed && seed !== ('medical.chip_query_' + slug) ? seed : '');
+}
+
+/** Empty cabinet: scan / type AIC — not the generic food empty state. */
+function _medCabinetEmptyHtml() {
+    return `<div class="empty-state empty-state-med">`
+        + `<div class="empty-state-icon" aria-hidden="true">💊</div>`
+        + `<p class="empty-state-title">${escapeHtml(t('medical.empty_title'))}</p>`
+        + `<p class="empty-state-sub">${escapeHtml(t('medical.empty_sub'))}</p>`
+        + `<div class="empty-state-actions">`
+        + `<button type="button" class="btn btn-primary" onclick="_medCabinetEmptyScan()">${escapeHtml(t('medical.empty_scan'))}</button>`
+        + `<button type="button" class="btn btn-secondary" onclick="_medCabinetEmptyManual()">${escapeHtml(t('medical.empty_manual'))}</button>`
+        + `</div></div>`;
+}
+
+function _medCabinetEmptyScan() {
+    _medGoToCabinetScan();
+}
+
+function _medCabinetEmptyManual() {
+    _medGoToCabinetScan();
+    setTimeout(() => {
+        const input = document.getElementById('scan-med-code-input');
+        if (input) {
+            try { input.focus(); } catch (_) { /* */ }
+        }
+    }, 400);
+}
+
 function renderInventory(items, options = {}) {
     if (!_knownTags.length) { _loadKnownTags(); _loadFamilies(); }
     _renderInventoryTagFilter();
+    _syncInventoryMedChips();
     const container = document.getElementById('inventory-list');
     const visible = _inventoryVisibleItems(items);
     if (visible.length === 0) {
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
+        container.innerHTML = _inventoryIsMedicalContext()
+            ? _medCabinetEmptyHtml()
+            : `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
         return;
     }
     if (options.flat) {
@@ -13186,6 +13385,8 @@ async function _refineCategoryBadgesAsync() {
 
 function filterLocation(loc) {
     currentLocation = loc;
+    const key = loc ? normalizeLocationKey(loc) : '';
+    _locationDomain = (key && isMedicalLocation(key)) ? 'medical' : 'food';
     // Opening a place shows that place: an old query or tag filter left over from another
     // location made five products look like one. Both are cleared here (and the search box
     // with them, so what you see matches what is typed).
@@ -13455,16 +13656,18 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     <span>${escapeHtml(t('inventory.detail_consume_all'))}</span>
                 </button>
             </div>` : ''}
-            <div class="item-detail-support">
+            <div class="item-detail-support item-detail-support--row3">
                 <p class="item-detail-section-label">${t('inventory.detail_other_actions')}</p>
-                ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('dashboard.banner_expired_action_extend'))}</span></button>` : ''}
+                ${_shouldOfferExtendExpiry(item)
+                    ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('inventory.detail_extend_short'))}</span></button>`
+                    : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`}
                 <button type="button" class="item-detail-support-btn" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     <span class="item-detail-action-icon" aria-hidden="true">🍳</span>
-                    <span>${escapeHtml(t('inventory.item_detail_recipe'))}</span>
+                    <span>${escapeHtml(t('inventory.item_detail_recipe_short'))}</span>
                 </button>
                 <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
                     <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
-                    <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
+                    <span>${escapeHtml(t('inventory.item_detail_throw_short'))}</span>
                 </button>
             </div>
         </div>

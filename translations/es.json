@@ -111,7 +111,13 @@
   "locations": {
     "dispensa": "Despensa",
     "frigo": "Nevera",
-    "freezer": "Congelador"
+    "freezer": "Congelador",
+    "food_kitchen": "Comida y cocina",
+    "pharmacy": "Farmacia",
+    "food_all": "Todos los lugares de cocina",
+    "create_new": "Crear ubicación nueva…",
+    "food_menu_aria": "Elegir un lugar de cocina",
+    "macro_aria": "Contexto: comida o farmacia"
   },
   "categories": {
     "latticini": "Lácteos",
@@ -289,7 +295,10 @@
     "banner_anomaly_align": "Confirmar {qty} {unit}",
     "banner_anomaly_aligned": "Stock ajustado a {qty} {unit}",
     "stale_expiry_label": "Caducidad",
-    "banner_anomaly_edit_qty": "Editar cantidad"
+    "banner_anomaly_edit_qty": "Editar cantidad",
+    "banner_opened_menu_still_good": "Marcar como aún bueno",
+    "banner_opened_menu_finished": "Marcar como terminado",
+    "banner_opened_menu_edit": "Editar cantidad o fecha"
   },
   "inventory": {
     "title": "Lista",
@@ -342,7 +351,10 @@
     "detail_other_actions": "Otras acciones",
     "detail_more": "Detalles",
     "detail_consumed": "{qty} de {name} registrados",
-    "location_filter": "Filtrar por lugar"
+    "location_filter": "Filtrar por lugar",
+    "detail_extend_short": "Ampliar",
+    "item_detail_recipe_short": "Receta",
+    "item_detail_throw_short": "Tirar"
   },
   "scan": {
     "title": "Escáner",
@@ -3044,7 +3056,15 @@
     "pack_qty_hint": "Lo que contiene la caja llena: la app lo usa para «cuánto queda» y para la lista de la compra.",
     "no_cabinet": "Ningún botiquín configurado: créalo en Ajustes → Medicamentos, o un fármaco no se puede guardar.",
     "family_keep_reading": "Seguir leyendo",
-    "atc_corticosteroid_topical": "Cortisona tópica"
+    "atc_corticosteroid_topical": "Cortisona tópica",
+    "empty_title": "No hay medicamentos",
+    "empty_sub": "Añade medicamentos para controlar caducidades y encontrar el remedio adecuado",
+    "empty_scan": "📷 Escanear código / AIC",
+    "empty_manual": "＋ Entrada manual",
+    "chip_query_pain": "fiebre",
+    "chip_query_stomach": "estómago",
+    "chip_query_cold": "resfriado",
+    "chip_query_firstaid": "herida"
   },
   "months": {
     "january": "Enero",

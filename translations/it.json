@@ -111,7 +111,13 @@
   "locations": {
     "dispensa": "Dispensa",
     "frigo": "Frigo",
-    "freezer": "Freezer"
+    "freezer": "Freezer",
+    "food_kitchen": "Cibo & Cucina",
+    "pharmacy": "Farmacia",
+    "food_all": "Tutte le locazioni cucina",
+    "create_new": "Crea nuova locazione…",
+    "food_menu_aria": "Scegli una locazione cucina",
+    "macro_aria": "Ambiente: cibo o farmacia"
   },
   "categories": {
     "latticini": "Latticini",
@@ -289,7 +295,10 @@
     "banner_anomaly_align": "Conferma {qty} {unit}",
     "banner_anomaly_aligned": "Scorta allineata a {qty} {unit}",
     "stale_expiry_label": "Scadenza",
-    "banner_anomaly_edit_qty": "Modifica quantità"
+    "banner_anomaly_edit_qty": "Modifica quantità",
+    "banner_opened_menu_still_good": "Segna come ancora buono",
+    "banner_opened_menu_finished": "Segna come terminato / finito",
+    "banner_opened_menu_edit": "Modifica quantità o data"
   },
   "inventory": {
     "title": "Lista",
@@ -342,7 +351,10 @@
     "detail_other_actions": "Altre azioni",
     "detail_more": "Dettagli",
     "detail_consumed": "{qty} di {name} registrati",
-    "location_filter": "Filtra per luogo"
+    "location_filter": "Filtra per luogo",
+    "detail_extend_short": "Estendi",
+    "item_detail_recipe_short": "Ricetta",
+    "item_detail_throw_short": "Butta"
   },
   "scan": {
     "title": "Scansiona",
@@ -3044,7 +3056,15 @@
     "pack_qty_hint": "Quanto contiene la confezione piena: è quello che l’app usa per «quanto ne resta» e per la lista della spesa.",
     "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto.",
     "family_keep_reading": "Continua a leggere",
-    "atc_corticosteroid_topical": "Cortisone per la pelle"
+    "atc_corticosteroid_topical": "Cortisone per la pelle",
+    "empty_title": "Nessun farmaco presente",
+    "empty_sub": "Aggiungi i medicinali per monitorare le scadenze e trovare subito il rimedio che cerchi",
+    "empty_scan": "📷 Scansiona Codice / AIC",
+    "empty_manual": "＋ Inserimento manuale",
+    "chip_query_pain": "febbre",
+    "chip_query_stomach": "stomaco",
+    "chip_query_cold": "raffreddore",
+    "chip_query_firstaid": "ferita"
   },
   "months": {
     "january": "Gennaio",

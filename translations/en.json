@@ -111,7 +111,13 @@
   "locations": {
     "dispensa": "Pantry",
     "frigo": "Fridge",
-    "freezer": "Freezer"
+    "freezer": "Freezer",
+    "food_kitchen": "Food & Kitchen",
+    "pharmacy": "Pharmacy",
+    "food_all": "All kitchen locations",
+    "create_new": "Create new location…",
+    "food_menu_aria": "Choose a kitchen location",
+    "macro_aria": "Context: food or pharmacy"
   },
   "categories": {
     "latticini": "Dairy",
@@ -289,7 +295,10 @@
     "banner_anomaly_align": "Confirm {qty} {unit}",
     "banner_anomaly_aligned": "Stock set to {qty} {unit}",
     "stale_expiry_label": "Expiry",
-    "banner_anomaly_edit_qty": "Edit quantity"
+    "banner_anomaly_edit_qty": "Edit quantity",
+    "banner_opened_menu_still_good": "Mark as still good",
+    "banner_opened_menu_finished": "Mark as finished",
+    "banner_opened_menu_edit": "Edit quantity or date"
   },
   "inventory": {
     "title": "List",
@@ -342,7 +351,10 @@
     "detail_other_actions": "Other actions",
     "detail_more": "Details",
     "detail_consumed": "{qty} of {name} logged",
-    "location_filter": "Filter by location"
+    "location_filter": "Filter by location",
+    "detail_extend_short": "Extend",
+    "item_detail_recipe_short": "Recipe",
+    "item_detail_throw_short": "Bin"
   },
   "scan": {
     "title": "Scan",
@@ -3044,7 +3056,15 @@
     "pack_qty_hint": "What the full pack holds: the app uses it for “how much is left” and for the shopping list.",
     "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored.",
     "family_keep_reading": "Keep reading",
-    "atc_corticosteroid_topical": "Topical corticosteroid"
+    "atc_corticosteroid_topical": "Topical corticosteroid",
+    "empty_title": "No medicines yet",
+    "empty_sub": "Add medicines to track expiry dates and find the right remedy quickly",
+    "empty_scan": "📷 Scan code / pack ID",
+    "empty_manual": "＋ Manual entry",
+    "chip_query_pain": "fever",
+    "chip_query_stomach": "stomach",
+    "chip_query_cold": "cold",
+    "chip_query_firstaid": "wound"
   },
   "months": {
     "january": "January",

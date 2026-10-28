@@ -111,7 +111,13 @@
   "locations": {
     "dispensa": "Garde-manger",
     "frigo": "Réfrigérateur",
-    "freezer": "Congélateur"
+    "freezer": "Congélateur",
+    "food_kitchen": "Nourriture & Cuisine",
+    "pharmacy": "Pharmacie",
+    "food_all": "Tous les lieux cuisine",
+    "create_new": "Créer un nouvel emplacement…",
+    "food_menu_aria": "Choisir un lieu cuisine",
+    "macro_aria": "Contexte : nourriture ou pharmacie"
   },
   "categories": {
     "latticini": "Produits laitiers",
@@ -289,7 +295,10 @@
     "banner_anomaly_align": "Confirmer {qty} {unit}",
     "banner_anomaly_aligned": "Stock réglé à {qty} {unit}",
     "stale_expiry_label": "Péremption",
-    "banner_anomaly_edit_qty": "Modifier la quantité"
+    "banner_anomaly_edit_qty": "Modifier la quantité",
+    "banner_opened_menu_still_good": "Marquer comme encore bon",
+    "banner_opened_menu_finished": "Marquer comme terminé",
+    "banner_opened_menu_edit": "Modifier quantité ou date"
   },
   "inventory": {
     "title": "Liste",
@@ -342,7 +351,10 @@
     "detail_other_actions": "Autres actions",
     "detail_more": "Détails",
     "detail_consumed": "{qty} de {name} enregistrés",
-    "location_filter": "Filtrer par emplacement"
+    "location_filter": "Filtrer par emplacement",
+    "detail_extend_short": "Prolonger",
+    "item_detail_recipe_short": "Recette",
+    "item_detail_throw_short": "Jeter"
   },
   "scan": {
     "title": "Scanner",
@@ -3044,7 +3056,15 @@
     "pack_qty_hint": "Ce que contient la boîte pleine : l’app s’en sert pour « ce qu’il reste » et pour la liste de courses.",
     "no_cabinet": "Aucune armoire configurée : ouvrez-la dans Réglages → Médicaments, sinon un médicament ne peut pas être rangé.",
     "family_keep_reading": "Continuer à lire",
-    "atc_corticosteroid_topical": "Cortisone cutané"
+    "atc_corticosteroid_topical": "Cortisone cutané",
+    "empty_title": "Aucun médicament",
+    "empty_sub": "Ajoutez des médicaments pour suivre les dates de péremption et trouver vite le bon remède",
+    "empty_scan": "📷 Scanner le code / AIC",
+    "empty_manual": "＋ Saisie manuelle",
+    "chip_query_pain": "fièvre",
+    "chip_query_stomach": "estomac",
+    "chip_query_cold": "rhume",
+    "chip_query_firstaid": "plaie"
   },
   "months": {
     "january": "Janvier",

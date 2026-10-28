@@ -111,7 +111,13 @@
   "locations": {
     "dispensa": "Vorratskammer",
     "frigo": "Kühlschrank",
-    "freezer": "Gefrierschrank"
+    "freezer": "Gefrierschrank",
+    "food_kitchen": "Essen & Küche",
+    "pharmacy": "Apotheke",
+    "food_all": "Alle Küchenorte",
+    "create_new": "Neuen Ort anlegen…",
+    "food_menu_aria": "Küchenort wählen",
+    "macro_aria": "Kontext: Essen oder Apotheke"
   },
   "categories": {
     "latticini": "Milchprodukte",
@@ -289,7 +295,10 @@
     "banner_anomaly_align": "{qty} {unit} bestätigen",
     "banner_anomaly_aligned": "Bestand auf {qty} {unit} gesetzt",
     "stale_expiry_label": "Ablauf",
-    "banner_anomaly_edit_qty": "Menge bearbeiten"
+    "banner_anomaly_edit_qty": "Menge bearbeiten",
+    "banner_opened_menu_still_good": "Als noch gut markieren",
+    "banner_opened_menu_finished": "Als aufgebraucht markieren",
+    "banner_opened_menu_edit": "Menge oder Datum ändern"
   },
   "inventory": {
     "title": "Liste",
@@ -342,7 +351,10 @@
     "detail_other_actions": "Weitere Aktionen",
     "detail_more": "Details",
     "detail_consumed": "{qty} von {name} erfasst",
-    "location_filter": "Nach Ort filtern"
+    "location_filter": "Nach Ort filtern",
+    "detail_extend_short": "Verlängern",
+    "item_detail_recipe_short": "Rezept",
+    "item_detail_throw_short": "Weg"
   },
   "scan": {
     "title": "Scannen",
@@ -3044,7 +3056,15 @@
     "pack_qty_hint": "Wie viel die volle Packung enthält: damit rechnet die App „wie viel übrig ist“ und die Einkaufsliste.",
     "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern.",
     "family_keep_reading": "Weiter lesen",
-    "atc_corticosteroid_topical": "Kortison für die Haut"
+    "atc_corticosteroid_topical": "Kortison für die Haut",
+    "empty_title": "Noch keine Medikamente",
+    "empty_sub": "Füge Medikamente hinzu, um Ablaufdaten zu überwachen und schnell das passende Mittel zu finden",
+    "empty_scan": "📷 Code / Packungs-ID scannen",
+    "empty_manual": "＋ Manuell eingeben",
+    "chip_query_pain": "fieber",
+    "chip_query_stomach": "magen",
+    "chip_query_cold": "erkältung",
+    "chip_query_firstaid": "wunde"
   },
   "months": {
     "january": "Januar",

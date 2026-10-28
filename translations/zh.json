@@ -111,7 +111,13 @@
   "locations": {
     "dispensa": "食品柜",
     "frigo": "冰箱",
-    "freezer": "冷冻柜"
+    "freezer": "冷冻柜",
+    "food_kitchen": "食品与厨房",
+    "pharmacy": "药箱",
+    "food_all": "全部厨房位置",
+    "create_new": "新建位置…",
+    "food_menu_aria": "选择厨房位置",
+    "macro_aria": "场景：食品或药箱"
   },
   "categories": {
     "latticini": "乳制品",
@@ -289,7 +295,10 @@
     "banner_anomaly_align": "确认 {qty} {unit}",
     "banner_anomaly_aligned": "库存已调整为 {qty} {unit}",
     "stale_expiry_label": "保质期",
-    "banner_anomaly_edit_qty": "修改数量"
+    "banner_anomaly_edit_qty": "修改数量",
+    "banner_opened_menu_still_good": "标记为仍然可用",
+    "banner_opened_menu_finished": "标记为已用完",
+    "banner_opened_menu_edit": "修改数量或日期"
   },
   "inventory": {
     "title": "库存",
@@ -342,7 +351,10 @@
     "detail_other_actions": "其他操作",
     "detail_more": "详情",
     "detail_consumed": "已记录 {qty} 的 {name}",
-    "location_filter": "按位置筛选"
+    "location_filter": "按位置筛选",
+    "detail_extend_short": "延期",
+    "item_detail_recipe_short": "食谱",
+    "item_detail_throw_short": "丢弃"
   },
   "scan": {
     "title": "扫描",
@@ -3044,7 +3056,15 @@
     "pack_qty_hint": "整包装的含量：应用用它来计算「还剩多少」和购物清单。",
     "no_cabinet": "尚未设置药箱：请在“设置 → 药品”中创建，否则无法存放药品。",
     "family_keep_reading": "继续识别",
-    "atc_corticosteroid_topical": "外用皮质激素"
+    "atc_corticosteroid_topical": "外用皮质激素",
+    "empty_title": "药箱为空",
+    "empty_sub": "添加药品以跟踪有效期并快速找到合适的药品",
+    "empty_scan": "📷 扫描条码 / 药监码",
+    "empty_manual": "＋ 手动输入",
+    "chip_query_pain": "发烧",
+    "chip_query_stomach": "胃",
+    "chip_query_cold": "感冒",
+    "chip_query_firstaid": "伤口"
   },
   "months": {
     "january": "一月",

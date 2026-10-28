@@ -304,14 +304,12 @@ body {
 }
 .quick-recipe-bar .btn-quick-recipe:active { transform: scale(0.99); }
 
-/* ── Locations bar: one dropdown + the cabinet's own pill ──────────────────
-   A snapping row of pills stops working at the fourth place, so the places live
-   in a native select (the same grammar as the pantry filter) and the medicine
-   cabinet keeps its pill OUTSIDE the list. Geometry only — colours come from the
-   theme. */
+/* ── Locations bar: macro Food | Pharmacy + kitchen place popover ──────────
+   Two context tabs keep food and medicines apart; the kitchen side opens a
+   compact menu (counts + alert dots) instead of a bare <select>. */
 .location-bar {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
     flex-wrap: wrap;
     padding: 2px 2px 10px;
@@ -323,6 +321,240 @@ body {
     max-width: none;
 }
 .location-bar .location-pill { flex: 0 0 auto; }
+
+.loc-macro {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    flex-wrap: wrap;
+}
+.loc-macro-food {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 4px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+}
+.loc-macro-food.is-active {
+    border-color: color-mix(in srgb, var(--brand-primary, #10b981) 45%, var(--surface-border));
+}
+.loc-macro-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.loc-macro-tab.is-active {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 14%, transparent);
+}
+.loc-macro-tab.loc-macro-med {
+    flex: 0 1 auto;
+    border: 1px solid #6366f1;
+    background: rgba(99, 102, 241, 0.10);
+    border-radius: 14px;
+    padding: 8px 12px;
+}
+.loc-macro-tab.loc-macro-med.is-active {
+    background: rgba(99, 102, 241, 0.20);
+}
+.loc-macro-tab.is-disabled,
+.loc-macro-tab:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.loc-macro-icon { display: inline-flex; line-height: 1; }
+.loc-macro-label { max-width: 9.5rem; overflow: hidden; text-overflow: ellipsis; }
+.loc-macro-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-light);
+    background: color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+.loc-macro-dot,
+.loc-food-trigger-dot,
+.loc-food-item-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tone-danger, #ef4444);
+    flex: 0 0 auto;
+}
+.loc-macro-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    box-shadow: 0 0 0 2px var(--surface-bg);
+}
+
+.loc-food-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    min-width: 0;
+    margin-left: auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--bg-app, var(--bg-card));
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.loc-food-trigger-label {
+    max-width: 7.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.loc-food-trigger-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+.loc-food-trigger-caret {
+    color: var(--text-light);
+    font-size: 0.7rem;
+}
+
+.loc-food-menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    min-width: 220px;
+    max-height: min(60vh, 360px);
+    overflow: auto;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+.loc-food-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+}
+.loc-food-item:hover,
+.loc-food-item:focus-visible {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 10%, transparent);
+    outline: none;
+}
+.loc-food-item.is-active {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 16%, transparent);
+    font-weight: 700;
+}
+.loc-food-item-label { flex: 1 1 auto; min-width: 0; }
+.loc-food-item-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+.loc-food-item-create {
+    margin-top: 4px;
+    border-top: 1px solid var(--surface-border);
+    border-radius: 0 0 10px 10px;
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+.location-tabs .loc-macro { width: 100%; }
+.location-tabs .loc-macro-food { flex: 1 1 180px; }
+
+.inv-med-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 2px 10px;
+}
+.inv-med-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid #c7d2fe;
+    background: rgba(99, 102, 241, 0.08);
+    color: #4338ca;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.inv-med-chip:active { transform: scale(0.98); }
+
+.empty-state-med {
+    padding: 28px 18px 36px;
+    text-align: center;
+}
+.empty-state-med .empty-state-icon {
+    font-size: 2.4rem;
+    line-height: 1;
+    margin-bottom: 10px;
+}
+.empty-state-med .empty-state-title {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.empty-state-med .empty-state-sub {
+    margin: 0 auto 18px;
+    max-width: 28rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--text-light);
+}
+.empty-state-med .empty-state-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 22rem;
+    margin: 0 auto;
+}
+.empty-state-med .empty-state-actions .btn {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+}
 
 .location-pill {
     display: inline-flex;
@@ -1150,6 +1382,25 @@ body {
 }
 .item-detail-support-btn:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
 [data-theme="dark"] .item-detail-support-btn { background: #1E293B; color: #CBD5E1; }
+/* One row, three equal columns: Estendi | Ricetta | Butta (shorter modal on phones). */
+.item-detail-support--row3 {
+    flex-wrap: nowrap;
+    align-items: stretch;
+}
+.item-detail-support--row3 .item-detail-section-label { flex: 0 0 100%; }
+.item-detail-support--row3 .item-detail-support-btn,
+.item-detail-support--row3 .item-detail-support-spacer {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 0.82rem;
+    gap: 4px;
+}
+.item-detail-support--row3 .item-detail-support-btn span:not(.item-detail-action-icon) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 /* Barcode, timestamps and status live here, one tap away. */
 .item-detail-more {
@@ -1262,13 +1513,42 @@ body {
 .alert-banner-menu {
     flex: 1 0 100%;
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 2px;
     margin-top: 2px;
     padding-top: 8px;
     border-top: 1px dashed var(--surface-border);
 }
 .alert-banner-menu[hidden] { display: none; }
+.alert-banner-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+.alert-banner-menu-item:hover,
+.alert-banner-menu-item:focus-visible {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 10%, transparent);
+    outline: none;
+}
+.alert-banner-menu-icon {
+    flex: 0 0 1.4rem;
+    width: 1.4rem;
+    text-align: center;
+    line-height: 1;
+}
+.alert-banner-menu-label { flex: 1 1 auto; min-width: 0; }
 /* "e altri 2 prodotti aperti da verificare": a discrete line next to the carousel dots. */
 .banner-opened-more {
     margin-left: 8px;

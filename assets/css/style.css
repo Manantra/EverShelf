@@ -5497,7 +5497,8 @@ body:has(#page-scan.active) .app-content {
 /* ===== TOAST ===== */
 .toast {
     position: fixed;
-    bottom: calc(var(--nav-height) + 16px);
+    /* Clear the bottom nav + SHELFY mic (nav alone left the toast covering the centre slot). */
+    bottom: 85px;
     left: 50%;
     transform: translateX(-50%) translateY(100px);
     background: var(--bg-dark);
