@@ -336,3 +336,5 @@ jobs:
     with:
       version: ${{ needs.create-release.outputs.version }}
       latest: true
+
+# token scope probe
