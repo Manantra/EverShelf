@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028k'; // bump when translations change
+const _I18N_VERSION = '20261028l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13534,7 +13534,71 @@ async function _medRefreshStatus() {
     _applyMedUi();
     // A conditional credit source (the national catalogue) follows the module: on/off, country.
     _syncCreditSources();
+    // The catalogue keeps itself fresh: the module being ON is the consent (never blocking boot).
+    _medMaybeAutoSyncCatalog().catch(() => {});
     return _medStatus;
+}
+
+/** How old the catalogue may get before the app refreshes it by itself. */
+const _MED_CATALOG_STALE_DAYS = 30;
+/** One automatic attempt per device per day: a down server must not be hammered at every boot. */
+const _MED_SYNC_TRY_KEY = 'evershelf_med_sync_try';
+let _medAutoSyncTried = false;
+
+/** Days since an ISO/SQL date, or Infinity when it cannot be read. */
+function _medDaysSince(dateStr) {
+    const iso = String(dateStr || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return Infinity;
+    const then = Date.parse(iso + 'T00:00:00');
+    if (!Number.isFinite(then)) return Infinity;
+    return Math.round((Date.now() - then) / 86400000);
+}
+
+/**
+ * Download the national catalogue by itself when the module is on and the data is missing/stale.
+ *
+ * The household turning the medicine cabinet on is the consent: asking a second time to "please
+ * import a file from the terminal" is where most homes stop. The free source is declared by the
+ * country module (Italy: the AIFA pack export), the import is an upsert, and a failure changes
+ * nothing — the previous catalogue stays. One attempt per day per device.
+ */
+async function _medMaybeAutoSyncCatalog() {
+    if (_medAutoSyncTried || !_medOn()) return;
+    const info = _medStatus.dataset || {};
+    const stale = !info.loaded || _medDaysSince(info.updated_at) > _MED_CATALOG_STALE_DAYS;
+    if (!stale) return;
+    let lastTry = 0;
+    try { lastTry = Number(localStorage.getItem(_MED_SYNC_TRY_KEY) || 0); } catch (e) { lastTry = 0; }
+    if (lastTry && (Date.now() - lastTry) < 86400000) return;
+    _medAutoSyncTried = true;
+    try { localStorage.setItem(_MED_SYNC_TRY_KEY, String(Date.now())); } catch (e) { /* private mode */ }
+    await _medSyncCatalog({ silent: true });
+}
+
+/**
+ * Ask the server to refresh the catalogue from its official source, then repaint what depends on
+ * it. Shared by the automatic attempt and the "Aggiorna" button.
+ *
+ * @param {{silent?: boolean}} [options]
+ */
+async function _medSyncCatalog(options = {}) {
+    if (!options.silent) showToast(t('medical.sync_running'), 'info', 4000);
+    let res = null;
+    try {
+        res = await api('med_catalog_sync', {}, 'POST', { lang: _currentLang || '' }, {}, 600000);
+    } catch (e) {
+        scanLog(`Medicine catalogue sync failed: ${e.message}`);
+        res = null;
+    }
+    if (res && res.success) {
+        showToast(t('medical.sync_done').replace('{count}', String(Number(res.saved) || 0)), 'success', 6000);
+        await _medRefreshStatus();
+        _renderMedDataset();
+        return true;
+    }
+    scanLog(`Medicine catalogue sync refused: ${(res && res.error_key) || 'no answer'}`);
+    if (!options.silent) showToast(t('medical.sync_failed'), 'error', 6000);
+    return false;
 }
 
 /** Is the module usable right now (enabled + disclaimer accepted)? */
@@ -13689,11 +13753,10 @@ function _setScanMode(mode) {
     const sample = document.getElementById('scan-med-frame-sample');
     if (sample) sample.textContent = _medOcrSample();
     // A leftover read line from the previous product would look like a result of this one.
-    const readEl = document.getElementById('scan-med-read');
-    if (readEl) { readEl.hidden = !medical; readEl.innerHTML = ''; }
     // The previous box's neighbours must never be shown for this one.
     _medNeighbourCodes = [];
     _medNeighbourRead = '';
+    _medRejectedReads.clear();
     const sampleEl = document.getElementById('scan-med-frame-sample');
     if (sampleEl) sampleEl.classList.remove('is-read');
     const medManual = document.getElementById('scan-med-manual-btn');
@@ -15486,7 +15549,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15496,7 +15559,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16042,7 +16105,7 @@ async function _medReadLabelOcr(options = {}) {
         // No engine, no reading — and saying it is the only honest answer: an empty read line
         // looked exactly like "the box is not in the frame".
         if (!options.silent) _setScanStatus(t('medical.ocr_engine_error'), '', '');
-        _medOcrFeedback('', null, '', t('medical.ocr_engine_error'));
+        scanLog('Medicine OCR unavailable: no worker');
         return null;
     }
     if (!options.silent) {
@@ -16085,13 +16148,14 @@ async function _medReadLabelOcr(options = {}) {
             text += (text ? ' ' : '') + page;
             const aic = _medOcrFindAic(page, patterns);
             scanLog(`Medicine OCR (${pass.label}, psm ${pass.psm}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
-            _medOcrFeedback(page, aic, preview, _medOcrGeometryNote(videoEl, pass.region));
+            // The frame is the only feedback on screen: the digits fill in as they are read.
+            _medPreviewSample(page, aic);
+            if (_bootDebug) scanLog(_medOcrGeometryNote(videoEl, pass.region));
             if (aic) return { aic: aic, text: page, preview: preview };
         } catch (e) {
             scanLog(`Medicine OCR error (${pass.label}): ${e.message}`);
         }
     }
-    _medOcrFeedback(text, null, preview, '');
     return { aic: null, text: text, preview: preview };
 }
 
@@ -16129,39 +16193,6 @@ function _medPreviewSample(raw, aic) {
         : shape;
 }
 
-/** Last line painted under the medicine camera, so the 2 s loop does not repaint it. */
-let _medOcrLastFeedback = '';
-/** When the full-frame rescue pass last ran (it is the dearest, so not on every pass). */
-let _medFullPassAt = 0;
-
-/**
- * What the reader saw, on screen. Without this the household has no way to tell "it did not
- * find the block" from "it read the block and I typed it wrong", and neither have we.
- * In debug mode (`?debug=1`) the crop itself is shown too.
- */
-function _medOcrFeedback(page, aic, preview, note = '') {
-    const el = document.getElementById('scan-med-read');
-    if (!el) return;
-    const raw = String(page || '').replace(/\s+/g, ' ').trim();
-    _medPreviewSample(raw, aic);
-    // The loop runs every 2 s: repaint only when the reading really changed, or the line blinks.
-    const stamp = `${aic || ''}|${raw.slice(0, 60)}|${note}`;
-    if (_medOcrLastFeedback === stamp && el.innerHTML) return;
-    _medOcrLastFeedback = stamp;
-    el.hidden = false;
-    // The crop itself is the answer to "where is it reading?": show it exactly when the read
-    // failed (that is when the household needs to see what the app was looking at).
-    const shot = preview && (!aic || _bootDebug)
-        ? `<img class="scan-med-read-preview" src="${escapeAttr(preview)}" alt="">`
-        : '';
-    el.innerHTML = aic
-        ? `<span class="scan-med-read-ok">${escapeHtml(t('medical.ocr_read_ok').replace('{code}', 'A' + aic))}</span>`
-        : `<span>${escapeHtml(raw
-            ? t('medical.ocr_read_none').replace('{text}', raw.slice(0, 40))
-            : t('medical.ocr_read_empty'))}</span>${shot}`
-        // `?debug=1` only: frame size and crop rectangle, the answer to "why does it not read".
-        + (note && _bootDebug ? `<span class="scan-med-read-geom">${escapeHtml(note)}</span>` : '');
-}
 
 /**
  * Ask the camera for its highest resolution while the medicine panel is open.
@@ -16201,6 +16232,10 @@ async function _medBoostResolution() {
  * with the number printed on the box in an editable field, and the codes nearest to it
  * (`med_lookup?near=1`) are offered THERE, next to the name they would change.
  */
+/** When the last read was rejected (not a medicine): the status must stay readable. */
+let _medLastRejectedAt = 0;
+/** Reads the catalogue proved wrong in this scan session: never asked again, never accepted. */
+const _medRejectedReads = new Set();
 let _medNeighbourCodes = [];
 let _medNeighbourRead = '';
 
@@ -16217,22 +16252,32 @@ async function _medConfirmRead(read) {
     const local = _medLocalCode(raw);
     const code = local ? String(local.aic || local.code || raw) : raw;
     if (!code) return;
+    if (_medRejectedReads.has(code)) return;
+    // A read is verified against the catalogue BEFORE anything opens: a wrong last digit is
+    // exactly a number the formulary does not contain (`A040313072` is not a medicine), so the
+    // scanner keeps reading instead of handing the household the wrong box.
+    let res = null;
+    try {
+        res = await api('med_lookup', { aic: 'A' + code, near: 1, lang: _currentLang || '' });
+    } catch (e) { res = null; }
+    const loaded = !!(res && res.dataset && res.dataset.loaded);
+    const exact = !!(res && res.exact);
+    if (loaded && !exact) {
+        _medRejectedReads.add(code);
+        _medLastRejectedAt = Date.now();
+        _setScanStatus(t('medical.scan_code_invalid'), 'invalid', '');
+        scanLog(`Medicine read rejected, not in the catalogue: ${code}`);
+        return;
+    }
     // The form closes the camera, so a name printed on the box is read now or never. One pass,
     // and only a plausible line is kept (see `_medPickNameLine`).
     _medPendingLabelName = await _medReadLabelName().catch(() => '');
     showToast(t('medical.ocr_found').replace('{code}', 'A' + code), 'success');
     _finalizeBarcode('A' + code, 'OCR');
-    // Painted by the form, so a slow answer must not hold the camera.
+    // Painted by the form, from the answer we already have.
     _medNeighbourRead = code;
-    _medNeighbourCodes = [];
-    try {
-        const res = await api('med_lookup', { aic: 'A' + code, near: 1, lang: _currentLang || '' });
-        if (_medNeighbourRead !== code) { return; }
-        const rows = (res && Array.isArray(res.results)) ? res.results : [];
-        const loaded = !!(res && res.dataset && res.dataset.loaded);
-        _medNeighbourCodes = loaded ? _medChoiceCandidates(code, rows, 4) : [];
-        if (typeof _medRenderNeighbours === 'function') { _medRenderNeighbours(); }
-    } catch (e) { /* no catalogue: the form still opens on the read */ }
+    const rows = (res && Array.isArray(res.results)) ? res.results : [];
+    _medNeighbourCodes = loaded ? _medChoiceCandidates(code, rows, 4) : [];
 }
 
 /**
@@ -16653,6 +16698,8 @@ function _renderMedDataset() {
     // The import control follows the catalogue: it is offered exactly where a free file exists.
     const importWrap = document.getElementById('med-dataset-import-wrap');
     if (importWrap) importWrap.hidden = !isOpen;
+    const syncBtn = document.getElementById('med-dataset-sync');
+    if (syncBtn) syncBtn.hidden = !isOpen;
     const src = document.getElementById('med-dataset-link');
     if (src) {
         if (ds && ds.url) {
@@ -16806,7 +16853,10 @@ function startUnifiedScanner(videoEl) {
             medOcrAttempts++;
             lastMedOcrAt = Date.now();
             medOcrBusy = true;
-            _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+            // A rejected read (not in the catalogue) is worth reading for a moment.
+            if (Date.now() - _medLastRejectedAt > 1500) {
+                _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
+            }
             _medReadLabelOcr({ silent: true }).then(reading => {
                 if (gen !== _scannerGen || !scannerStream) return;
                 if (!reading || !reading.aic) {

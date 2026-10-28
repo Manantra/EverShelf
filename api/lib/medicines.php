@@ -77,6 +77,212 @@ function medicinesEnsureTable(PDO $db): void
 
 
 /**
+ * Fetch a URL server-side (curl when present, streams otherwise). Returns the body or null.
+ *
+ * The app never queries a medicine API at scan time; this is used ONCE to download the free
+ * open-data file a national agency publishes, and by the periodic refresh.
+ */
+function medicinesFetchUrl(string $url, int $maxBytes = 41943040, int $timeout = 25): ?string
+{
+    if (!preg_match('#^https?://#i', $url)) {
+        return null;
+    }
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 4,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_USERAGENT => 'EverShelf/1 medicine catalogue sync',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_MAXFILESIZE => $maxBytes,
+        ]);
+        $body = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $size = (int)curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD);
+        curl_close($ch);
+        if ($body === false || $status < 200 || $status >= 300 || $size > $maxBytes) {
+            return null;
+        }
+        return (string)$body;
+    }
+    if (!ini_get('allow_url_fopen')) {
+        return null;
+    }
+    $ctx = stream_context_create(['http' => ['timeout' => $timeout, 'user_agent' => 'EverShelf/1']]);
+    $body = @file_get_contents($url, false, $ctx, 0, $maxBytes);
+    return is_string($body) && $body !== '' ? $body : null;
+}
+
+/**
+ * Download a URL straight to a file (curl streams it: the AIFA formulary is ~82 MB).
+ *
+ * @returns int bytes written, or -1 on failure
+ */
+function medicinesDownloadToFile(string $url, string $path, int $maxBytes = 157286400, int $timeout = 300): int
+{
+    if (!preg_match('#^https?://#i', $url) || !function_exists('curl_init')) {
+        return -1;
+    }
+    $fh = @fopen($path, 'wb');
+    if (!$fh) {
+        return -1;
+    }
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_FILE => $fh,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 4,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_USERAGENT => 'EverShelf/1 medicine catalogue sync',
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_NOPROGRESS => false,
+        CURLOPT_PROGRESSFUNCTION => static function ($resource, $total, $done) use ($maxBytes) {
+            return ($done > $maxBytes) ? 1 : 0;
+        },
+    ]);
+    $ok = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    fclose($fh);
+    $size = (int)@filesize($path);
+    if ($ok === false || $status < 200 || $status >= 300 || $size <= 0 || $size > $maxBytes) {
+        @unlink($path);
+        return -1;
+    }
+    return $size;
+}
+
+/**
+ * Download and import the national catalogue from the free source the country module declares.
+ *
+ * `dataset_sync` in the module says WHERE (a public page) and WHAT (file-name prefixes: the
+ * releases are dated, so a pinned URL would be stale within days). Every matching file is
+ * downloaded, imported with the country's column map, and deleted. No key, no quota, no API:
+ * the official open data, read once locally — the scans then answer from the table.
+ *
+ * @param array{page?:string,files?:array<int,string>} $sync
+ * @param array<string,array<int,string>> $aliases the country's column map
+ * @returns array{ok:bool,files:array<int,array<string,mixed>>,saved:int,skipped:int,error:string}
+ */
+function medicinesSyncSources(PDO $db, array $sync, array $aliases, array $options = []): array
+{
+    $out = ['ok' => false, 'files' => [], 'saved' => 0, 'skipped' => 0, 'error' => ''];
+    $page = (string)($sync['page'] ?? '');
+    $prefixes = array_values(array_filter(array_map('strval', (array)($sync['files'] ?? []))));
+    $direct = array_values(array_filter(array_map('strval', (array)($sync['urls'] ?? []))));
+    // Preferred: the national formulary published as ONE file (Italy: the AIFA "confezioni"
+    // export). It is the complete list — every box, every class — so a scan can be verified
+    // against it. The page scrape below is the older, partial path kept as a fallback.
+    if ($direct) {
+        $maxBytes = (int)($sync['max_bytes'] ?? 157286400);
+        foreach ($direct as $url) {
+            $file = basename((string)parse_url($url, PHP_URL_PATH));
+            $tmp = tempnam(sys_get_temp_dir(), 'evershelf_meds_');
+            $path = $tmp !== false ? $tmp . '.' . (strtolower(pathinfo($file, PATHINFO_EXTENSION)) ?: 'csv') : '';
+            $bytes = $path !== '' ? medicinesDownloadToFile($url, $path, $maxBytes) : -1;
+            if ($bytes < 0) {
+                $out['files'][] = ['file' => $file, 'saved' => 0, 'error' => 'download_failed'];
+                continue;
+            }
+            $result = medicinesImportFile($db, $path, [
+                'limit' => (int)($options['limit'] ?? 0),
+                'truncate' => !empty($options['truncate']),
+            ], $aliases);
+            @unlink($path);
+            if ($tmp !== false) {
+                @unlink($tmp);
+            }
+            $saved = (int)($result['saved'] ?? 0);
+            $out['saved'] += $saved;
+            $out['skipped'] += (int)($result['skipped'] ?? 0);
+            $out['files'][] = [
+                'file' => $file,
+                'bytes' => $bytes,
+                'format' => (string)($result['format'] ?? ''),
+                'rows' => (int)($result['rows'] ?? 0),
+                'saved' => $saved,
+                'error' => (string)($result['error'] ?? ''),
+            ];
+        }
+        $out['ok'] = $out['saved'] > 0;
+        if (!$out['ok']) {
+            $out['error'] = 'nothing_imported';
+        }
+        return $out;
+    }
+    if ($page === '' || !$prefixes) {
+        $out['error'] = 'no_source';
+        return $out;
+    }
+    $html = medicinesFetchUrl($page, 4194304);
+    if ($html === null) {
+        $out['error'] = 'page_unreachable';
+        return $out;
+    }
+    // Relative links resolved against the page: the site serves `/documents/...` paths.
+    $base = (string)preg_replace('#^(https?://[^/]+).*$#i', '$1', $page);
+    $links = [];
+    if (preg_match_all('/href="([^"]+\.(?:csv|xml|json))[^"]*"/i', $html, $m)) {
+        foreach ($m[1] as $href) {
+            $href = str_starts_with($href, 'http') ? $href : $base . '/' . ltrim($href, '/');
+            $file = basename((string)parse_url($href, PHP_URL_PATH));
+            foreach ($prefixes as $prefix) {
+                if ($prefix !== '' && stripos($file, $prefix) === 0) {
+                    $links[] = $href;
+                    break;
+                }
+            }
+        }
+    }
+    $links = array_values(array_unique($links));
+    $maxFiles = max(1, (int)($options['max_files'] ?? 6));
+    $links = array_slice($links, 0, $maxFiles);
+    if (!$links) {
+        $out['error'] = 'no_file_found';
+        return $out;
+    }
+    foreach ($links as $url) {
+        $file = basename((string)parse_url($url, PHP_URL_PATH));
+        $body = medicinesFetchUrl($url);
+        if ($body === null) {
+            $out['files'][] = ['file' => $file, 'saved' => 0, 'error' => 'download_failed'];
+            continue;
+        }
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION)) ?: 'csv';
+        $tmp = tempnam(sys_get_temp_dir(), 'evershelf_meds_');
+        $path = $tmp !== false ? $tmp . '.' . $ext : '';
+        if ($path === '' || file_put_contents($path, $body) === false) {
+            $out['files'][] = ['file' => $file, 'saved' => 0, 'error' => 'write_failed'];
+            continue;
+        }
+        $result = medicinesImportFile($db, $path, ['limit' => (int)($options['limit'] ?? 0)], $aliases);
+        @unlink($path);
+        if ($tmp !== false) {
+            @unlink($tmp);
+        }
+        $saved = (int)($result['saved'] ?? 0);
+        $out['saved'] += $saved;
+        $out['skipped'] += (int)($result['skipped'] ?? 0);
+        $out['files'][] = [
+            'file' => $file,
+            'format' => (string)($result['format'] ?? ''),
+            'rows' => (int)($result['rows'] ?? 0),
+            'saved' => $saved,
+            'error' => (string)($result['error'] ?? ''),
+        ];
+    }
+    $out['ok'] = $out['saved'] > 0;
+    if (!$out['ok'] && $out['error'] === '') {
+        $out['error'] = 'nothing_imported';
+    }
+    return $out;
+}
+
+/**
  * Insert or update one row. Everything but the AIC and the name is optional (the AIFA files
  * differ between releases); an empty field never overwrites a value a previous import had.
  */
@@ -246,15 +452,18 @@ function medicinePublicRow(array $row): array
  *
  * @param array<string,array<int,string>> $aliases field => accepted header names
  */
-function medicineFieldForHeader(string $label, array $aliases): string
+function medicineFieldForHeader(string $label, array $aliases, array $taken = []): string
 {
     $key = medicineNormalizeName($label);
     $key = trim((string)preg_replace('/\s+/', ' ', $key));
     if ($key === '') {
         return '';
     }
+    // A field already filled by an earlier column stays filled (the AIFA export has both
+    // `DENOMINAZIONE` and `DESCRIZIONE`: the first is the name, the second the pack).
+    $free = static fn(string $field): bool => !in_array($field, $taken, true);
     foreach ($aliases as $field => $names) {
-        if (in_array($key, $names, true)) {
+        if ($free((string)$field) && in_array($key, $names, true)) {
             return (string)$field;
         }
     }
@@ -262,6 +471,9 @@ function medicineFieldForHeader(string $label, array $aliases): string
     // width ("codice aic 9"). The reverse (a key ENDING with an alias) is deliberately not
     // accepted: it mapped openFDA's `labeler_name` to `name`, so the company became the drug.
     foreach ($aliases as $field => $names) {
+        if (!$free((string)$field)) {
+            continue;
+        }
         foreach ($names as $alias) {
             if (str_starts_with($key, $alias . ' ') || $key === $alias) {
                 return (string)$field;
@@ -281,7 +493,7 @@ function medicinesHeaderMap(array $header, array $aliases): array
 {
     $map = [];
     foreach ($header as $index => $label) {
-        $field = medicineFieldForHeader((string)$label, $aliases);
+        $field = medicineFieldForHeader((string)$label, $aliases, array_keys($map));
         if ($field !== '' && !isset($map[$field])) {
             $map[$field] = (int)$index;
         }

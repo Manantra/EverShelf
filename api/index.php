@@ -1246,6 +1246,12 @@ try {
         case 'med_catalog_import':
             medCatalogImportAction($db);
             break;
+        // POST med_catalog_sync — download the free national catalogue from the source the
+        // country module declares (Italy: the AIFA "Banca Dati Farmaci" export). Runs by itself
+        // when the module is switched on and when the data is older than a month.
+        case 'med_catalog_sync':
+            medCatalogSyncAction($db);
+            break;
 
         case 'ai_test':
             aiTestConnection();
@@ -9792,6 +9798,69 @@ function medLookupAction(PDO $db): void {
         // where the name came from, and that it is an identification, not advice.
         'dataset_key' => 'medical.dataset_aifa',
         'advice_key' => 'medical.no_dosage',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST med_catalog_sync — fetch the free national catalogue from the official source.
+ *
+ * The module declares WHERE (`dataset_sync`): Italy points at the AIFA "confezioni" export, one
+ * ~82 MB CSV with every authorised pack — AIC, name, company, pack, form, ATC, active ingredients
+ * — which is the WHOLE formulary, not the class-A subset. That completeness is what makes a scan
+ * verifiable: a read the catalogue does not contain is a misread digit, not a product.
+ *
+ * Runs without a key, without a quota, and without a per-scan request: the file lands in the
+ * local table and every lookup afterwards is offline. A failed download never empties what is
+ * already there (the import is an upsert).
+ */
+function medCatalogSyncAction(PDO $db): void {
+    if (!medicalEnabled($db)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $country = medicalActiveCountry($db, (string)($_POST['lang'] ?? ($_GET['lang'] ?? '')));
+    $module = medicalCountryModule($country);
+    $sync = (array)($module['dataset_sync'] ?? []);
+    $columnsFn = (string)($module['dataset_columns'] ?? '');
+    if (!$sync || $columnsFn === '' || !is_callable($columnsFn)) {
+        echo json_encode(['success' => false, 'error_key' => 'medical.sync_no_source', 'country' => $country], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    // Tens of thousands of rows: the ceiling of a web request must not cut the import in half.
+    @set_time_limit(0);
+    @ini_set('memory_limit', '512M');
+    $started = microtime(true);
+    $result = medicinesSyncSources($db, $sync, (array)$columnsFn(), [
+        'truncate' => false,
+        'limit' => 0,
+    ]);
+    $saved = (int)($result['saved'] ?? 0);
+    EverLog::info('Medicine catalogue sync', [
+        'event' => 'med_catalog_sync',
+        'country' => $country,
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'error' => (string)($result['error'] ?? ''),
+        'files' => count((array)($result['files'] ?? [])),
+        'seconds' => round(microtime(true) - $started, 1),
+    ]);
+    if (!$result['ok']) {
+        echo json_encode([
+            'success' => false,
+            'error_key' => 'medical.sync_failed',
+            'files' => $result['files'] ?? [],
+            'dataset' => medicinesDatasetInfo($db),
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    echo json_encode([
+        'success' => true,
+        'saved' => $saved,
+        'skipped' => (int)($result['skipped'] ?? 0),
+        'seconds' => round(microtime(true) - $started, 1),
+        'files' => $result['files'] ?? [],
+        'dataset' => medicinesDatasetInfo($db),
+        'message_key' => 'medical.sync_done',
     ], JSON_UNESCAPED_UNICODE);
 }
 

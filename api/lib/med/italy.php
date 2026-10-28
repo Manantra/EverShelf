@@ -73,17 +73,19 @@ function medicalItalyColumnAliases(): array
         'aic' => ['aic', 'codice aic', 'cod aic', 'codiceaic', 'aic9', 'aic7', 'aic code', 'code aic',
                   'codice', 'code', 'cod medicinale', 'codice medicinale'],
         'name' => ['denominazione', 'nome', 'name', 'denominazione farmaco', 'descrizione', 'description',
+                   'farmaco',
                    'nome commerciale', 'product name'],
-        'ingredient' => ['principio attivo', 'principioattivo', 'active ingredient', 'ingredient',
+        'ingredient' => ['principio attivo', 'principioattivo', 'pa associati', 'active ingredient', 'ingredient',
                          'sostanza attiva', 'sostanze attive', 'active substances'],
         'form' => ['forma', 'forma farmaceutica', 'pharmaceutical form', 'form', 'formafarmaceutica'],
         'dosage' => ['dosaggio', 'dose', 'strength', 'dosage', 'concentrazione'],
-        'pack' => ['confezione', 'descrizione confezione', 'pack', 'packaging', 'confezionamento',
+        'pack' => ['confezione', 'descrizione confezione', 'descrizione', 'pack', 'packaging', 'confezionamento',
                    'descrizione della confezione'],
-        'company' => ['titolare', 'titolare aic', 'ditta', 'azienda', 'company', 'marketing authorisation holder',
+        'company' => ['titolare', 'titolare aic', 'ditta', 'azienda', 'company', 'ragione sociale',
+                      'marketing authorisation holder',
                       'titolare dell autorizzazione'],
         'atc' => ['atc', 'codice atc', 'atc code', 'codiceatc'],
-        'fascia' => ['fascia', 'classe', 'fascia ssn', 'class', 'regime'],
+        'fascia' => ['fascia', 'classe', 'fascia ssn', 'class', 'regime', 'fornitura'],
     ];
 }
 
@@ -100,5 +102,19 @@ function medicalItalyModule(): array
         'local_code' => 'medicalItalyLocalCode',
         'dataset_columns' => 'medicalItalyColumnAliases',
         'dataset_id' => 'aifa',
+        // Where the free file comes from (no API, no key): the official lists page publishes the
+        // CSVs, and the dated names change with every release — hence the prefixes, not URLs.
+        'dataset_sync' => [
+            // The AIFA "Banca Dati Farmaci" export: every authorised pack, every class, with the
+            // AIC, the name, the company, the ATC and the active ingredients. ~82 MB, one file.
+            'urls' => ['https://drive.aifa.gov.it/farmaci/confezioni_fornitura.csv'],
+            'max_bytes' => 157286400,
+            // Older, partial lists (class A + equivalents), kept as a fallback if the export moves.
+            'page' => 'https://www.aifa.gov.it/liste-dei-farmaci',
+            'files' => [
+                'Lista_farmaci_equivalenti',
+                'Classe-A_per_principio-attivo',
+            ],
+        ],
     ];
 }

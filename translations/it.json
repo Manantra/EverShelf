@@ -2980,9 +2980,6 @@
     "dataset_openfda": "openFDA — NDC Directory",
     "dataset_closed": "Questo catalogo non è open data: serve una licenza (o un export) del titolare. La scansione funziona lo stesso, il nome lo scrivi tu.",
     "scan_code_ignored": "Codice a barre letto ({code}): non è il numero del farmaco, leggo l’etichetta. Inquadra il codice grande che inizia con la A.",
-    "ocr_read_ok": "Letto: AIC {code}",
-    "ocr_read_none": "Letto «{text}» — nessun codice A qui. Inquadra solo la riga con la A.",
-    "ocr_read_empty": "Nessun testo leggibile nel riquadro: avvicinati e metti a fuoco la riga con la A.",
     "choice_title": "Ho letto {code}. Qual è il codice stampato sulla scatola?",
     "match_atc": "ATC {value}",
     "match_fascia": "Fascia {value}",
@@ -3001,6 +2998,13 @@
     "ocr_engine_error": "Il lettore OCR non è disponibile su questo dispositivo: scrivi il codice a mano.",
     "match_filled": "Nome, ditta e note compilati da AIFA per {code}. Controlla che sia la tua scatola.",
     "match_needs_catalog": "Codice {code} salvato, ma il catalogo non è caricato: nome e ditta non si possono compilare. Importalo da Impostazioni → Farmaci.",
-    "match_name_from_label": "Nome letto dall’etichetta: “{name}”. Controllalo: il catalogo non lo conosce."
+    "match_name_from_label": "Nome letto dall’etichetta: “{name}”. Controllalo: il catalogo non lo conosce.",
+    "scan_code_invalid": "Il codice letto non esiste nel catalogo: continuo a leggere…",
+    "sync_running": "Scarico il catalogo farmaci da AIFA…",
+    "sync_done": "Catalogo aggiornato: {count} farmaci.",
+    "sync_failed": "Non riesco a scaricare il catalogo in questo momento: riprovo più tardi.",
+    "sync_no_source": "Nessuna fonte automatica per questo paese: importa il file a mano.",
+    "sync_btn": "Aggiorna dal sito AIFA",
+    "sync_last": "Aggiornato il {date}"
   }
 }

@@ -2358,6 +2358,11 @@ a.free-api:hover { border-color: var(--brand-primary); }
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.85);
 }
+/* The digits recognised so far, in the guide frame: the shape becomes the reading. */
+.scan-med-frame-sample.is-read {
+    color: #6ee7b7;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
 .scan-med-hint {
     /* One short line, not a white card sitting above the viewfinder: on a phone the hint was a
        block of three lines of prose over the page. */
@@ -2370,56 +2375,6 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: var(--text-muted);
 }
 .scan-med-hint[hidden] { display: none; }
-/* The browser import of the national catalogue, next to the CLI command it replaces. */
-.med-dataset-import {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-    cursor: pointer;
-}
-.med-dataset-import[hidden] { display: none; }
-.med-dataset-import input[type="file"] {
-    /* The native control cannot be styled; the label IS the button. */
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-}
-.med-dataset-import.is-busy {
-    opacity: 0.65;
-    pointer-events: none;
-}
-/* What the label reader saw. The household must be able to tell "it did not find the block"
-   from "it read something else" without opening a console. */
-.scan-med-read {
-    /* Everything else in the viewport is absolutely placed, so this line is too: right under the
-       status chip, never in the flow (it would sit behind the live stream). */
-    position: absolute;
-    top: 44px;
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: calc(100% - 24px);
-    z-index: 12;
-    padding: 5px 9px;
-    border-radius: 8px;
-    /* Scanner chrome, not a dialog: dark glass over the live video, like the status chip. */
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(2, 6, 23, 0.62);
-    color: rgba(255, 255, 255, 0.9);
-    font-family: ui-monospace, "OCR B", "Courier New", monospace;
-    font-size: 0.76rem;
-    line-height: 1.35;
-    word-break: break-word;
-    text-align: center;
-}
-.scan-med-read[hidden] { display: none; }
-/* The digits recognised so far, in the guide frame: the shape becomes the reading. */
-.scan-med-frame-sample.is-read {
-    color: #6ee7b7;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-}
 /* "Non è questo?": the codes one digit away, inside the form where the name they change is.
    A pill row on the card's own surface — never a panel over the camera. */
 .med-match-filled {
@@ -2459,22 +2414,27 @@ a.free-api:hover { border-color: var(--brand-primary); }
     line-height: 1.15;
     color: var(--text-muted);
 }
-.scan-med-read-ok {
-    color: #6ee7b7;
-    font-weight: 700;
+
+/* The browser import of the national catalogue, next to the CLI command it replaces. */
+.med-dataset-import {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    cursor: pointer;
 }
-.scan-med-read-geom {
-    display: block;
-    margin-top: 2px;
-    font-size: 0.64rem;
-    opacity: 0.75;
+.med-dataset-import[hidden] { display: none; }
+.med-dataset-import input[type="file"] {
+    /* The native control cannot be styled; the label IS the button. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
 }
-.scan-med-read-preview {
-    display: block;
-    width: 180px;
-    margin: 6px auto 0;
-    border-radius: 6px;
-    border: 1px solid var(--surface-border);
+.med-dataset-import.is-busy {
+    opacity: 0.65;
+    pointer-events: none;
 }
 /* A drug code read inside the FOOD panel: one inline notice, both answers visible. */
 .scan-med-cross {

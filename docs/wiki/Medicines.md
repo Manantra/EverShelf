@@ -150,6 +150,14 @@ php scripts/import-medicines.php file.csv --country=IT                # explicit
   network). The medicine form shows the match — name, ingredient, form, pack, company — with a
   **"Usa questo nome"** button: the household confirms, nothing is auto-filled.
 
+### The catalogue loads and refreshes itself
+
+Turning the medicine cabinet on **is** the consent: the app downloads the free national file by itself (`_medMaybeAutoSyncCatalog()` → `POST med_catalog_sync`), once a day at most, and again whenever the data is older than **30 days** — including from the cron (`cron_smart_shopping.php`), so a household that never opens the settings still scans against today's boxes. Italy points at the AIFA *confezioni* export (`drive.aifa.gov.it/farmaci/confezioni_fornitura.csv`, ~82 MB, **160 000 packs**: AIC, name, company, pack, form, ATC, active ingredients) — the whole formulary, not the class-A subset. The import is an upsert streamed line by line (~30 s, ~4 MB of memory): a failed download never empties what is already there. Settings → Farmaci keeps a manual nudge (*Aggiorna dal sito AIFA*).
+
+### A read is verified before it is used
+
+Because the catalogue is complete, a scan can be **checked**: `_medConfirmRead()` rejects any AIC the formulary does not contain and keeps reading (`medical.scan_code_invalid`). `A040313076` read as `A040313072` is exactly that case — `...72` is not a medicine — so the wrong box never reaches the form. Reads proven wrong are remembered for the session, and with no catalogue loaded there is nothing to verify against, so the read is taken and the name is read off the label.
+
 ### Loading it from the browser
 
 Settings → Farmaci carries **Importa il file del catalogo** (`POST med_catalog_import`):

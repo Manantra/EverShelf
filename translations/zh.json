@@ -2980,9 +2980,6 @@
     "dataset_openfda": "openFDA — NDC Directory",
     "dataset_closed": "该目录不是开放数据：需要其所有者的许可（或导出文件）。扫描照常可用，名称由你输入。",
     "scan_code_ignored": "已读取条码（{code}）：这不是药品编号，我正在读取标签。请对准以 A 开头的大号代码。",
-    "ocr_read_ok": "识别到：AIC {code}",
-    "ocr_read_none": "识别到“{text}”——其中没有 A 码。只对准带 A 的那一行。",
-    "ocr_read_empty": "框内没有可读文字：请靠近并对准带 A 的那一行。",
     "choice_title": "我读到 {code}。包装上印的是哪个代码？",
     "match_atc": "ATC {value}",
     "match_fascia": "类别 {value}",
@@ -3001,6 +2998,13 @@
     "ocr_engine_error": "此设备不支持 OCR 识别：请手动输入代码。",
     "match_filled": "已根据 AIFA 填写 {code} 的名称、公司和备注。请确认是你的包装。",
     "match_needs_catalog": "代码 {code} 已保存，但未加载目录：无法填写名称和公司。请到设置 → 药品中导入。",
-    "match_name_from_label": "从包装上读到的名称：{name}。请核对：目录中没有这个名称。"
+    "match_name_from_label": "从包装上读到的名称：{name}。请核对：目录中没有这个名称。",
+    "scan_code_invalid": "读到的代码不在目录中：继续识别…",
+    "sync_running": "正在从 AIFA 下载药品目录…",
+    "sync_done": "目录已更新：{count} 种药品。",
+    "sync_failed": "暂时无法下载目录：稍后再试。",
+    "sync_no_source": "此国家没有自动来源：请手动导入文件。",
+    "sync_btn": "从 AIFA 网站更新",
+    "sync_last": "更新于 {date}"
   }
 }

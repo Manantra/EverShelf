@@ -606,7 +606,7 @@ function evershelfSettingsSchema(): array
       'env' => '',
       'tab' => 'tab-medical',
       'group' => 'medical',
-      'label' => 'medical.import_btn',
+      'label' => 'medical.sync_btn',
       'hint' => 'medical.import_hint',
       'card' => 'medical.title',
       'card_hint' => 'medical.hint',

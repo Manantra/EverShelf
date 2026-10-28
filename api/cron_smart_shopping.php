@@ -303,6 +303,42 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
     }
 }
 
+// ── Medicine catalogue: keep it fresh on its own ──────────────────────────────
+// The free national formulary (Italy: the AIFA pack export) is a FILE that changes: refreshed
+// monthly here, so a household that never opens the settings still scans against today's boxes.
+// Only when the module is ON and the data is older than 30 days; a failure keeps what is there.
+if (medicalEnabled($db)) {
+    try {
+        $info = medicinesDatasetInfo($db);
+        $updated = (string)($info['updated_at'] ?? '');
+        $ageDays = $updated !== '' ? (int)floor((time() - (int)strtotime($updated)) / 86400) : PHP_INT_MAX;
+        if (!$info['loaded'] || $ageDays > 30) {
+            $cc = medicalActiveCountry($db);
+            $module = medicalCountryModule($cc);
+            $columnsFn = (string)($module['dataset_columns'] ?? '');
+            $sync = (array)($module['dataset_sync'] ?? []);
+            if ($sync && $columnsFn !== '' && is_callable($columnsFn)) {
+                @set_time_limit(0);
+                $result = medicinesSyncSources($db, $sync, (array)$columnsFn(), ['truncate' => false]);
+                EverLog::info('Medicine catalogue synced by cron', [
+                    'event' => 'med_catalog_sync_cron',
+                    'country' => $cc,
+                    'saved' => (int)($result['saved'] ?? 0),
+                    'error' => (string)($result['error'] ?? ''),
+                    'age_days' => $ageDays === PHP_INT_MAX ? -1 : $ageDays,
+                ]);
+                echo '[' . date('Y-m-d H:i:s') . '] Medicine catalogue: ' . (int)($result['saved'] ?? 0) . " rows
+";
+            }
+        }
+    } catch (Throwable $medE) {
+        EverLog::warn('Medicine catalogue sync failed in cron', [
+            'event' => 'med_catalog_sync_cron_failed',
+            'message' => $medE->getMessage(),
+        ]);
+    }
+}
+
 // ── Avahi/mDNS discovery registration ─────────────────────────────────────────
 // If avahi-daemon is running on this host, register the _evershelf._tcp service
 // so that Home Assistant can auto-discover this instance via Zeroconf.

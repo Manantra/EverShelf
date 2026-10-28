@@ -2980,9 +2980,6 @@
     "dataset_openfda": "openFDA — NDC Directory",
     "dataset_closed": "This catalogue is not open data: it needs a licence (or an export) from its owner. Scanning still works, you type the name.",
     "scan_code_ignored": "Barcode read ({code}): it is not the drug number, I am reading the label. Frame the big code that starts with A.",
-    "ocr_read_ok": "Read: AIC {code}",
-    "ocr_read_none": "Read “{text}” — no A code there. Frame only the line with the A.",
-    "ocr_read_empty": "No readable text in the box: move closer and focus the line with the A.",
     "choice_title": "I read {code}. Which code is printed on the box?",
     "match_atc": "ATC {value}",
     "match_fascia": "Class {value}",
@@ -3001,6 +2998,13 @@
     "ocr_engine_error": "The OCR reader is not available on this device: type the code by hand.",
     "match_filled": "Name, company and notes filled from AIFA for {code}. Check it is your box.",
     "match_needs_catalog": "Code {code} saved, but no catalogue is loaded: name and company cannot be filled. Import it from Settings → Medicines.",
-    "match_name_from_label": "Name read from the label: “{name}”. Check it: the catalogue does not know it."
+    "match_name_from_label": "Name read from the label: “{name}”. Check it: the catalogue does not know it.",
+    "scan_code_invalid": "The code I read is not in the catalogue: still reading…",
+    "sync_running": "Downloading the medicine catalogue from AIFA…",
+    "sync_done": "Catalogue updated: {count} medicines.",
+    "sync_failed": "I cannot download the catalogue right now: I will retry later.",
+    "sync_no_source": "No automatic source for this country: import the file by hand.",
+    "sync_btn": "Update from the AIFA site",
+    "sync_last": "Updated on {date}"
   }
 }

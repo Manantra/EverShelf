@@ -2980,9 +2980,6 @@
     "dataset_openfda": "openFDA — NDC Directory",
     "dataset_closed": "Dieser Katalog ist keine Open Data: es braucht eine Lizenz (oder einen Export) des Inhabers. Der Scan funktioniert trotzdem, den Namen tippst du ein.",
     "scan_code_ignored": "Barcode gelesen ({code}): das ist nicht die Arzneimittelnummer, ich lese das Etikett. Richte die Kamera auf den großen Code, der mit A beginnt.",
-    "ocr_read_ok": "Gelesen: AIC {code}",
-    "ocr_read_none": "Gelesen „{text}“ — kein A-Code darin. Nur die Zeile mit dem A erfassen.",
-    "ocr_read_empty": "Kein lesbarer Text im Rahmen: näher heran und auf die Zeile mit dem A scharf stellen.",
     "choice_title": "Ich habe {code} gelesen. Welcher Code steht auf der Schachtel?",
     "match_atc": "ATC {value}",
     "match_fascia": "Klasse {value}",
@@ -3001,6 +2998,13 @@
     "ocr_engine_error": "Der OCR-Leser ist auf diesem Gerät nicht verfügbar: Code von Hand eingeben.",
     "match_filled": "Name, Firma und Notizen aus AIFA für {code} gefüllt. Prüfe, ob es deine Schachtel ist.",
     "match_needs_catalog": "Code {code} gespeichert, aber kein Katalog geladen: Name und Firma können nicht gefüllt werden. Importiere ihn unter Einstellungen → Medikamente.",
-    "match_name_from_label": "Name vom Etikett gelesen: „{name}“. Bitte prüfen: der Katalog kennt ihn nicht."
+    "match_name_from_label": "Name vom Etikett gelesen: „{name}“. Bitte prüfen: der Katalog kennt ihn nicht.",
+    "scan_code_invalid": "Der gelesene Code steht nicht im Katalog: ich lese weiter…",
+    "sync_running": "Lade den Medikamentenkatalog von AIFA…",
+    "sync_done": "Katalog aktualisiert: {count} Medikamente.",
+    "sync_failed": "Der Katalog kann gerade nicht geladen werden: später erneut.",
+    "sync_no_source": "Keine automatische Quelle für dieses Land: Datei von Hand importieren.",
+    "sync_btn": "Vom AIFA-Server aktualisieren",
+    "sync_last": "Aktualisiert am {date}"
   }
 }
