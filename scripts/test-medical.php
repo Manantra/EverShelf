@@ -920,6 +920,9 @@ check('the label reader shows WHAT it read (a silent failure is not debuggable)'
     && (bool)preg_match('/_medOcrFeedback\(page, aic, preview\);\s*if \(aic\) return/s', $app)
     && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,2000}?readEl\.hidden = !medical; readEl\.innerHTML = /s', $app)
     && str_contains($css, '.scan-med-read {')
+    // Absolutely placed like every other child of the viewport: in the flow it would sit
+    // behind the live stream and never be seen.
+    && (bool)preg_match('/\.scan-med-read \{[^}]*position: absolute;[^}]*z-index: 12;/s', $css)
     && str_contains($css, '.scan-med-read-ok')
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
         return $c && isset($med[$l]['ocr_read_ok'], $med[$l]['ocr_read_none'], $med[$l]['ocr_read_empty']);
