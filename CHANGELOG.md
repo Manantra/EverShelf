@@ -31,14 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`recalculateAddExpiry()` returns early for a medical row).
 
 ### Fixed
-- **The printed expiry of a medicine had nothing to choose.** The month list was painted only by
-  the scanner's path (`_medFormStockReset()`), so a box added **by hand** — the "è un farmaco?"
-  switch on a product form the scanner never touched — showed two empty controls: no month to
-  pick, no year to type. The pair is now painted by `_medFormStockFieldsVisible()` (the choke
-  point every path goes through) and by `_syncProductMedicalUi()`, the month is a picker with its
-  translated name, the year is a **typed field**, and `_medExpiryFillPickers(.., .., keep)` never
-  throws away what the household already chose. A year that has already gone now answers *data
-  nel passato* (`_medExpiryErrorKey()`) instead of "inserisci la scadenza".
+- **The month of a medicine's expiry could not be chosen at all.** The list was painted by JS only,
+  so whenever that painter did not run (a box added **by hand** through the "è un farmaco?"
+  switch, a form reopened) the `<select>` was empty — and, in a flex row with `min-width: 0`,
+  invisible: nothing to tap, nothing to type. The twelve months now live **in the markup**,
+  translated by `data-i18n` (`months.january` … `months.december`, six locales), so the control is
+  populated before any script runs; `_medExpiryFillPickers()` only decides *what is selected* (and
+  fills the list as a last line of defence), the month keeps a floor width
+  (`min-width: 130px`), the year is a **typed field**, and `keep` never throws away what the
+  household already chose. A year that has already gone answers *data nel passato*
+  (`_medExpiryErrorKey()`) instead of "inserisci la scadenza".
 - **A medicine no longer wears the food icon.** Every row fell back to its food **category**
   emoji when the URL had no picture — and a medicine is stored as `altro`, so a box of tablets was
   drawn as 📦, the same mark a custom place and an unidentified product use (a mis-saved category

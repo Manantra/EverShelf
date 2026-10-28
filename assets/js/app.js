@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zw'; // bump when translations change
+const _I18N_VERSION = '20261028zx'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15783,7 +15783,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zw';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zx';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15793,7 +15793,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zw';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zx';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -18461,8 +18461,8 @@ function _medFormStockReset() {
  * The printed expiry of a medicine is a MONTH and a YEAR ("scadenza 10/2026").
  *
  * A box never prints a day, so asking for one made the household invent it. The month is a picker
- * with its NAME in the UI language (`_medExpiryMonthName()`), the year is a TYPED number — a
- * phone opens the numeric keypad, a desktop can type it straight — and the hidden
+ * with its NAME in the UI language (`months.*`, the options are in the markup), the year is a
+ * TYPED number — a phone opens the numeric keypad, a desktop can type it straight — and the hidden
  * `#<prefix>-expiry` keeps the ISO value the rest of the form reads: the LAST day of the chosen
  * month, which is what "10/2026" means ("good until the end of October") and what the pantry row
  * must carry to expire right.
@@ -18476,25 +18476,37 @@ function _medFormStockReset() {
  */
 const _MED_EXPIRY_YEARS_AHEAD = 12;
 
-/** The option label of a month, in the UI language ("gennaio" → "Gennaio"). */
-function _medExpiryMonthName(index) {
-    let name = '';
-    try {
-        name = new Intl.DateTimeFormat(_collationLocale(), { month: 'long' }).format(new Date(2020, index, 1));
-    } catch (_) {
-        name = '';
-    }
-    if (!name) return String(index + 1);
-    return name.charAt(0).toUpperCase() + name.slice(1);
+/**
+ * The twelve month options of a printed expiry, in the UI language.
+ *
+ * They live in `index.html` too — the product form carries them statically, so the control has
+ * something to choose even if no script runs — and the pantry step builds its own block at
+ * runtime (`_medAddExpiryHtml()`), which is why this helper exists as well. The twelve `t()` calls
+ * are literal on purpose: the i18n audit cannot see a computed key (`t('months.' + k)`), so a
+ * missing translation would slip through unnoticed.
+ *
+ * @returns {string} `<option>` markup, the empty "Mese" one included
+ */
+function _medExpiryMonthOptionsHtml() {
+    const names = [
+        t('months.january'), t('months.february'), t('months.march'), t('months.april'),
+        t('months.may'), t('months.june'), t('months.july'), t('months.august'),
+        t('months.september'), t('months.october'), t('months.november'), t('months.december'),
+    ];
+    return `<option value="">${escapeHtml(t('medical.expiry_month_placeholder'))}</option>`
+        + names.map((name, i) => `<option value="${String(i + 1).padStart(2, '0')}">${escapeHtml(name)}</option>`).join('');
 }
 
 /**
  * Paint (or repaint) a month + year pair, keeping `iso` when it carries one.
  *
- * Idempotent: it rebuilds the month names (so a repaint is always in the current language). With
- * `keep` the controls are not wiped when `iso` is silent about them — that is how a repaint (the
- * medical switch, a re-render) can never throw away a month the household already picked.
- * Called with no `iso` and no `keep` it clears both, which is what a NEW box wants.
+ * The options are NOT rebuilt here: the markup owns them (or `_medExpiryMonthOptionsHtml()` does,
+ * for the block born at runtime), so a repaint can only decide **what is selected**. That is the
+ * fix for "the month cannot be chosen": a list painted only by JS was empty — and invisible, a
+ * flex `<select>` with no options has no width — whenever that painter did not run.
+ * If the control is somehow still empty, it is filled here as the last line of defence.
+ *
+ * With `keep` a repaint never wipes what the household already picked.
  *
  * @param {string} prefix 'pf' | 'add'
  * @param {string} [iso] a YYYY-MM-DD value already chosen
@@ -18503,14 +18515,14 @@ function _medExpiryMonthName(index) {
 function _medExpiryFillPickers(prefix, iso = '', keep = false) {
     const monthSel = document.getElementById(`${prefix}-expiry-month`);
     const yearEl = document.getElementById(`${prefix}-expiry-year`);
-    if (!monthSel) return;
-    const beforeMonth = String(monthSel.value || '');
+    const monthIsSelect = !!monthSel && monthSel.tagName === 'SELECT';
+    // Last line of defence: a control that somehow arrived without its options is filled here.
+    if (monthIsSelect && (!monthSel.options || !monthSel.options.length)) {
+        monthSel.innerHTML = _medExpiryMonthOptionsHtml();
+    }
+    const beforeMonth = String((monthIsSelect ? monthSel.value : '') || '');
     const beforeYear = yearEl ? String(yearEl.value || '') : '';
     const thisYear = new Date().getFullYear();
-    // "Mese" + the twelve names, every time: a repaint must never leave the old language behind.
-    monthSel.innerHTML = `<option value="">${escapeHtml(t('medical.expiry_month_placeholder'))}</option>`
-        + Array.from({ length: 12 }, (_, i) =>
-            `<option value="${String(i + 1).padStart(2, '0')}">${escapeHtml(_medExpiryMonthName(i))}</option>`).join('');
     if (yearEl) {
         // The year is typed. The bounds are only what a native stepper walks through.
         yearEl.min = String(thisYear);
@@ -18520,7 +18532,7 @@ function _medExpiryFillPickers(prefix, iso = '', keep = false) {
     const pickYear = match ? Number(match[1]) : 0;
     const pickMonth = match ? Number(match[2]) : 0;
     const keptMonth = keep && /^\d{2}$/.test(beforeMonth) ? beforeMonth : '';
-    monthSel.value = pickMonth ? String(pickMonth).padStart(2, '0') : keptMonth;
+    if (monthIsSelect) monthSel.value = pickMonth ? String(pickMonth).padStart(2, '0') : keptMonth;
     if (yearEl) yearEl.value = pickYear ? String(pickYear) : (keep ? beforeYear : '');
 }
 
@@ -20498,7 +20510,7 @@ function _medAddExpiryHtml() {
         <div id="expiry-detail" class="expiry-detail">
             <label>${t('medical.form_expiry_label')}</label>
             <div class="med-expiry-pickers">
-                <select id="add-expiry-month" class="form-input med-expiry-month" onchange="_medExpiryPick('add')"></select>
+                <select id="add-expiry-month" class="form-input med-expiry-month" onchange="_medExpiryPick('add')">${_medExpiryMonthOptionsHtml()}</select>
                 <input type="number" id="add-expiry-year" class="form-input med-expiry-year"
                        inputmode="numeric" step="1" placeholder="AAAA"
                        aria-label="${escapeAttr(t('medical.expiry_year_placeholder'))}"

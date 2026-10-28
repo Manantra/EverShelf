@@ -3041,5 +3041,19 @@
     "almost_title": "The code is not exact: which pack do you have?",
     "scan_code_almost": "Nearly right: pick the pack",
     "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored."
+  },
+  "months": {
+    "january": "January",
+    "february": "February",
+    "march": "March",
+    "april": "April",
+    "may": "May",
+    "june": "June",
+    "july": "July",
+    "august": "August",
+    "september": "September",
+    "october": "October",
+    "november": "November",
+    "december": "December"
   }
 }

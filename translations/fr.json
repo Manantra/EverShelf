@@ -3041,5 +3041,19 @@
     "almost_title": "Le code n'est pas exact : quelle boîte avez-vous ?",
     "scan_code_almost": "Presque juste : choisissez la boîte",
     "no_cabinet": "Aucune armoire configurée : ouvrez-la dans Réglages → Médicaments, sinon un médicament ne peut pas être rangé."
+  },
+  "months": {
+    "january": "Janvier",
+    "february": "Février",
+    "march": "Mars",
+    "april": "Avril",
+    "may": "Mai",
+    "june": "Juin",
+    "july": "Juillet",
+    "august": "Août",
+    "september": "Septembre",
+    "october": "Octobre",
+    "november": "Novembre",
+    "december": "Décembre"
   }
 }

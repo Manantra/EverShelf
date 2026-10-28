@@ -3041,5 +3041,19 @@
     "almost_title": "Der Code stimmt nicht genau: welche Packung hast du?",
     "scan_code_almost": "Fast richtig: Packung wählen",
     "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern."
+  },
+  "months": {
+    "january": "Januar",
+    "february": "Februar",
+    "march": "März",
+    "april": "April",
+    "may": "Mai",
+    "june": "Juni",
+    "july": "Juli",
+    "august": "August",
+    "september": "September",
+    "october": "Oktober",
+    "november": "November",
+    "december": "Dezember"
   }
 }

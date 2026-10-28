@@ -3041,5 +3041,19 @@
     "almost_title": "编码不准确：你手里是哪一盒？",
     "scan_code_almost": "接近匹配：请选择包装",
     "no_cabinet": "尚未设置药箱：请在“设置 → 药品”中创建，否则无法存放药品。"
+  },
+  "months": {
+    "january": "一月",
+    "february": "二月",
+    "march": "三月",
+    "april": "四月",
+    "may": "五月",
+    "june": "六月",
+    "july": "七月",
+    "august": "八月",
+    "september": "九月",
+    "october": "十月",
+    "november": "十一月",
+    "december": "十二月"
   }
 }

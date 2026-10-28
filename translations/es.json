@@ -3041,5 +3041,19 @@
     "almost_title": "El código no es exacto: ¿qué caja tienes?",
     "scan_code_almost": "Casi: elige la caja",
     "no_cabinet": "Ningún botiquín configurado: créalo en Ajustes → Medicamentos, o un fármaco no se puede guardar."
+  },
+  "months": {
+    "january": "Enero",
+    "february": "Febrero",
+    "march": "Marzo",
+    "april": "Abril",
+    "may": "Mayo",
+    "june": "Junio",
+    "july": "Julio",
+    "august": "Agosto",
+    "september": "Septiembre",
+    "october": "Octubre",
+    "november": "Noviembre",
+    "december": "Diciembre"
   }
 }

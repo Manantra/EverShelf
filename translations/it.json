@@ -3041,5 +3041,19 @@
     "almost_title": "Il codice non è esatto: quale confezione hai in mano?",
     "scan_code_almost": "Quasi: scegli la confezione",
     "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto."
+  },
+  "months": {
+    "january": "Gennaio",
+    "february": "Febbraio",
+    "march": "Marzo",
+    "april": "Aprile",
+    "may": "Maggio",
+    "june": "Giugno",
+    "july": "Luglio",
+    "august": "Agosto",
+    "september": "Settembre",
+    "october": "Ottobre",
+    "november": "Novembre",
+    "december": "Dicembre"
   }
 }

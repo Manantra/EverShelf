@@ -2315,10 +2315,12 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* "Scadenza MM/AAAA": a box prints a month and a year, never a day, so the two pickers ask
    exactly that. The month takes the room, the year what four digits need. */
 /* "Scadenza MM/AAAA": a box prints a month and a year, never a day. The month is a picker with
-   its translated NAME, the year is a TYPED field (a phone opens the numeric keypad, a desktop
-   types it), so it only needs room for four digits — the native spinner still steps it. */
+   its translated NAME (the options are in the markup), the year is a TYPED field (a phone opens
+   the numeric keypad, a desktop types it), so it only needs room for four digits — the native
+   spinner still steps it. The month keeps a floor width: an empty list must never collapse the
+   control to nothing (that is what "I cannot choose the month" looked like). */
 .med-expiry-pickers { display: flex; gap: 8px; align-items: center; }
-.med-expiry-pickers .med-expiry-month { flex: 1 1 auto; min-width: 0; }
+.med-expiry-pickers .med-expiry-month { flex: 1 1 auto; min-width: 130px; }
 .med-expiry-pickers .med-expiry-year { flex: 0 0 104px; text-align: center; }
 .med-stock-fields .form-hint { margin: 4px 0 0; }
 /* A confirmed read: the correction is a footnote, not a choice to make. */
