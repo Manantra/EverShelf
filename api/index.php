@@ -5175,7 +5175,9 @@ function applyAutoProductRules(PDO $db): void {
     $lang   = productKindNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
 
     $rows = $db->query(
-        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind, COALESCE(shopping_name, '') AS shopping_name FROM products ORDER BY id"
+        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind, COALESCE(shopping_name, '') AS shopping_name,
+                COALESCE(is_medical, 0) AS is_medical
+         FROM products ORDER BY id"
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $update  = $db->prepare(
@@ -5188,9 +5190,20 @@ function applyAutoProductRules(PDO $db): void {
     foreach ($rows as $row) {
         $oldName  = (string)$row['name'];
         $oldKind  = (string)$row['kind'];
-        $applied  = productKindApply($oldName, (string)$row['brand'], (string)$row['category'], $lang, true, $oldKind);
-        $newName  = $applied['name'];
-        $newKind  = $applied['kind'] !== '' ? $applied['kind'] : $oldKind;
+        $isMedical = !empty($row['is_medical']);
+        if ($isMedical) {
+            // Medicines are not food genres: strip a leading "Farmaco"/"Medicine" and clear
+            // a stored kind that is only the domain label.
+            $stripped = productKindStripUmbrellaCategoryPrefix($oldName);
+            $newName  = productTitleCapitalize($stripped !== '' ? $stripped : $oldName);
+            $newKind  = productKindIsPlausibleGenre($oldKind) ? $oldKind : '';
+            $source   = 'medical';
+        } else {
+            $applied  = productKindApply($oldName, (string)$row['brand'], (string)$row['category'], $lang, true, $oldKind);
+            $newName  = $applied['name'];
+            $newKind  = $applied['kind'] !== '' ? $applied['kind'] : $oldKind;
+            $source   = $applied['source'];
+        }
 
         if ($newName === $oldName && $newKind === $oldKind) {
             continue;
@@ -5201,7 +5214,7 @@ function applyAutoProductRules(PDO $db): void {
         if ($newName !== $oldName) {
             $renamed++;
             if (count($samples) < 5) {
-                $samples[] = ['from' => $oldName, 'to' => $newName, 'source' => $applied['source']];
+                $samples[] = ['from' => $oldName, 'to' => $newName, 'source' => $source];
             }
         }
         if (!$dryRun) {
@@ -5210,8 +5223,13 @@ function applyAutoProductRules(PDO $db): void {
             // "Piselli", "Fette biscottate") must not lose its number just because the title
             // did: the shopping list buys "Grissini", never one "Grissino". The column is
             // historical on purpose — only a product that never got one is given its word here.
+            // Medicines keep the cleaned title as their shopping word (never "Farmaco").
             $shopping = trim((string)$row['shopping_name']);
-            if ($shopping === '') {
+            if ($isMedical) {
+                if ($shopping === '' || !productKindIsPlausibleGenre($shopping)) {
+                    $shopping = $newName;
+                }
+            } elseif ($shopping === '') {
                 $shopping = computeShoppingName($newName, (string)$row['category'], (string)$row['brand'], false);
             }
             $update->execute([
@@ -6971,9 +6989,19 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
     // signature cache, then ONE cached AI word (lib/product_kind.php) — and never a
     // second prefix on a title that already carries a genre.
     // When the user locked the title, never mutate the name (prefix stays off).
+    // Medicines are not food genres: never prefix "Farmaco"/"Medicine" onto a box name.
     $kind = (string)($existing['kind'] ?? '');
     $nameLocked = !empty($nameUserSet);
-    if (productKindPrefixEnabled() && !$nameLocked) {
+    $isMedical = !empty($input['is_medical']) || !empty($existing['is_medical']);
+    if ($isMedical) {
+        $healed = productKindStripUmbrellaCategoryPrefix($name);
+        if ($healed !== $name) {
+            $name = productTitleCapitalize($healed);
+        }
+        if ($kind !== '' && !productKindIsPlausibleGenre($kind)) {
+            $kind = '';
+        }
+    } elseif (productKindPrefixEnabled() && !$nameLocked) {
         $applied = productKindApply($name, $brand, $category, $lang, true, $kind);
         if ($applied['kind'] !== '') {
             $kind = $applied['kind'];
@@ -6998,7 +7026,10 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
 
     // Locked title owns the buyable word: ignore catalog/OFF shopping_name and
     // recompute from the name the user chose (so "La sfogliata… piadine" → Piadina).
-    if ($nameLocked) {
+    // Medicines never ask the food AI for a shopping generic ("Farmaco").
+    if ($isMedical) {
+        $shoppingName = $name;
+    } elseif ($nameLocked) {
         $shoppingName = computeShoppingName($name, $category, $brand, false);
     } else {
         $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
@@ -10134,18 +10165,45 @@ function medClassifyAction(PDO $db): void {
         if ($t !== '' && in_array($t, $valid, true) && !in_array($t, $tags, true)) { $tags[] = $t; }
     }
     $atc = strtoupper(trim((string)($input['atc'] ?? '')));
-    $allowedAtc = [];
-    foreach (medicalCategories() as $c) {
-        foreach ((array)($c['atc'] ?? []) as $a) { $allowedAtc[] = strtoupper((string)$a); }
+    // The catalogue hands a FULL ATC (`N02BE01`); the closed taxonomy only lists the household
+    // PREFIXES (`N02B`). Accept a code that starts with one of those prefixes — an exact match
+    // against the prefix list rejected every real AIFA code and left the category unsaved.
+    $atcOk = ($atc === '');
+    if (!$atcOk) {
+        foreach (medicalCategories() as $c) {
+            foreach ((array)($c['atc'] ?? []) as $a) {
+                $prefix = strtoupper((string)$a);
+                if ($prefix !== '' && str_starts_with($atc, $prefix)) { $atcOk = true; break 2; }
+            }
+        }
     }
     $ingredient = mb_substr(trim((string)($input['ingredient'] ?? '')), 0, 80);
     $paoDays = max(0, min(365, (int)($input['pao_days'] ?? 0)));
-    if ($productId <= 0 || ($atc !== '' && !in_array($atc, $allowedAtc, true))) {
+    if ($productId <= 0 || !$atcOk) {
         echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
         return;
     }
     $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_atc = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
        ->execute([implode(',', $tags), $atc, $ingredient, $paoDays, $productId]);
+    // A medicine is not a food genre: drop a leading "Farmaco"/"Medicine" the title AI may
+    // have stamped, and clear a kind/shopping_name that is only the domain label.
+    $nameRow = $db->prepare('SELECT name, kind, shopping_name FROM products WHERE id = ?');
+    $nameRow->execute([$productId]);
+    $prod = $nameRow->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($prod) {
+        $oldName = (string)($prod['name'] ?? '');
+        $stripped = productKindStripUmbrellaCategoryPrefix($oldName);
+        $newName = productTitleCapitalize($stripped !== '' ? $stripped : $oldName);
+        $newKind = productKindIsPlausibleGenre((string)($prod['kind'] ?? '')) ? (string)$prod['kind'] : '';
+        $shop = trim((string)($prod['shopping_name'] ?? ''));
+        if ($shop === '' || !productKindIsPlausibleGenre($shop)) {
+            $shop = $newName;
+        }
+        if ($newName !== $oldName || $newKind !== (string)($prod['kind'] ?? '') || $shop !== (string)($prod['shopping_name'] ?? '')) {
+            $db->prepare('UPDATE products SET name = ?, kind = ?, shopping_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+               ->execute([$newName, $newKind, $shop, $productId]);
+        }
+    }
     // A medicine lives in the cabinet: a product that already had stock (it was a food row
     // being corrected) moves there now, so the domain rule never depends on the order in
     // which the household did things.
@@ -14877,8 +14935,11 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     if ($allowAi && $needsAI) {
         $aiResult = _geminiClassifyProduct($name, $brand, $category);
         // The AI word goes straight into the shopping list: give it the capital letter
-        // every other branch of this function already produces.
-        if ($aiResult !== null) return productTitleCapitalize($aiResult);
+        // every other branch of this function already produces. Domain labels ("Farmaco",
+        // "Dairy") are not buyable words — the same gate the title genre uses.
+        if ($aiResult !== null && productKindIsPlausibleGenre($aiResult)) {
+            return productTitleCapitalize($aiResult);
+        }
     }
 
     // 4. Fallback: capitalize the first meaningful token.

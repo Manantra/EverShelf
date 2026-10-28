@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-10-28
 
 ### Changed
+- **Cabinet list shows what matters for a box.** Name, smaller brand, expiry date, application
+  category, residual quantity and sealed/opened — no location badge and no redundant “Farmaco”
+  tag (you already opened the cabinet).
+- **Medicine titles are never prefixed with “Farmaco”.** The food genre pipeline treated the AI
+  word as a grocery kind and wrote `Farmaco tachipirina`; medicines skip the prefix, the word
+  is in `umbrella_labels`, and existing rows are healed on classify / maintenance.
+- **Skin creams get a category chip.** Topical corticosteroids (`D07*`, e.g. Euclorina Eritemi e
+  Dermatiti) and antifungals (`D01*`) map to **firstaid**, with dermatitis/erythema/eczema words
+  added to that category’s symptom list — the form used to leave every chip empty for those ATC.
+- **Medicine AIC OCR is leaner.** One thin strip + `psm 7/13` first (whitelist `A0-9`), smaller
+  default crop (720 px / ~100 kpx), 8 s job timeout, and pageseg mode is not re-set every pass.
+  Ink/boost and off-guide strips rotate in only after misses — fewer wasted seconds on a phone.
+- **Uncertain AIC: pick a real pack on the camera, never invent one.** `_medOpenFamily()` no longer
+  opens an empty product form (“crea un farmaco”); the household chooses among catalogue rows over
+  the scanner, or types the AIC. Empty `_medStartManualEntry('')` is refused. `MED_DEBUG` stays
+  off (`false`); no `data/med_debug/` artefacts to clear.
+
+### Fixed
+- **Medicine save: the category toast was a lie.** `med_classify` / `med_open` were called with
+  the payload in the GET-params slot of `api()`, so on POST the body stayed empty, PHP saw
+  `product_id=0` and answered `medical.classify_error` (“Non ho potuto salvare la categoria”)
+  while the product itself had already been written. The calls now put the JSON in the body; the
+  official ATC of the catalogue row is stored with them, and the server accepts a full AIFA code
+  (`N02BE01`) against the household prefixes (`N02B`) instead of demanding an exact match. The
+  follow-on “salvato ma non nell’armadietto” was the same bug cascading: without `is_medical=1`
+  the cabinet answered `error.food_in_cabinet`. Classify now blocks the stock step on failure.
+- **`medical.only_catalogue` no longer mentions the pantry.** The refusal is about the national
+  database (AIFA), not about “already in dispensa”; spray/device packs whose MINSAN starts with
+  `9` (Rinorex, Rinoreal, …) are not in the AIFA medicines export at all.
+
+### Changed
 - **The application category is ticked from the ATC, and the map now covers what a household
   actually has.** “Fastum gel” (`M02AA15`, a topical NSAID) arrived with **no category** because
   `data/medical_categories.json` only listed the oral ones (`M01A`). The ATC prefixes are DATA, and

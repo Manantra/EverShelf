@@ -3023,7 +3023,6 @@
     "form_qty_label": "Wie viel hast du",
     "form_expiry_label": "📅 Aufgedrucktes Haltbarkeitsdatum *",
     "form_save": "✅ Im Medikamentenschrank speichern",
-
     "expiry_month_hint": "Auf der Packung stehen Monat und Jahr: haltbar bis zum letzten Tag des Monats.",
     "expiry_month_placeholder": "Monat",
     "expiry_year_placeholder": "Jahr",
@@ -3031,12 +3030,11 @@
     "action_add_sub": "in den Medikamentenschrank",
     "action_use_sub": "aus dem Medikamentenschrank",
     "stock_added": "{name} ist im Medikamentenschrank.",
-
     "ask_title": "Ich kann den Code nicht lesen",
     "ask_body": "Tippe ihn unten ein, wie er auf der Packung steht (z. B. A040313076), oder starte den Scan erneut.",
     "almost_title": "Der Code stimmt nicht genau: welche Packung hast du?",
     "scan_code_almost": "Fast richtig: Packung wählen",
-    "only_catalogue": "Ein Medikament lässt sich nur hinzufügen, wenn der Code im AIFA-Katalog steht oder die Packung schon im Schrank ist.",
+    "only_catalogue": "Ein Medikament lässt sich nur hinzufügen, wenn der Code in der nationalen Datenbank (AIFA) steht. Prüfe den Code auf der Packung.",
     "name_from_catalogue": "Der Name kommt aus dem AIFA-Katalog: er wird nicht von Hand geschrieben.",
     "scan_needs_catalog": "Kein Medikamentenkatalog geladen: ohne ihn kann keine Packung hinzugefügt werden. Importiere ihn unter Einstellungen → Medikamente.",
     "cabinet_created": "„{place}“ für Medikamente angelegt.",
@@ -3044,7 +3042,9 @@
     "pack_detected": "Packung erkannt: {pack}",
     "pack_qty_label": "Ganze Packung",
     "pack_qty_hint": "Wie viel die volle Packung enthält: damit rechnet die App „wie viel übrig ist“ und die Einkaufsliste.",
-    "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern."
+    "no_cabinet": "Kein Schrank eingerichtet: richte ihn unter Einstellungen → Medikamente ein, sonst lässt sich kein Medikament lagern.",
+    "family_keep_reading": "Weiter lesen",
+    "atc_corticosteroid_topical": "Kortison für die Haut"
   },
   "months": {
     "january": "Januar",

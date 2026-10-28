@@ -3023,7 +3023,6 @@
     "form_qty_label": "Combien en avez-vous",
     "form_expiry_label": "📅 Date de péremption imprimée *",
     "form_save": "✅ Enregistrer dans l’armoire à pharmacie",
-
     "expiry_month_hint": "La boîte indique un mois et une année : valable jusqu’au dernier jour du mois.",
     "expiry_month_placeholder": "Mois",
     "expiry_year_placeholder": "Année",
@@ -3031,12 +3030,11 @@
     "action_add_sub": "dans l’armoire à pharmacie",
     "action_use_sub": "de l’armoire à pharmacie",
     "stock_added": "{name} est dans l’armoire à pharmacie.",
-
     "ask_title": "Je ne parviens pas à lire le code",
     "ask_body": "Saisissez-le ci-dessous tel qu'il est imprimé (ex. A040313076), ou relancez la lecture.",
     "almost_title": "Le code n'est pas exact : quelle boîte avez-vous ?",
     "scan_code_almost": "Presque juste : choisissez la boîte",
-    "only_catalogue": "Un médicament ne s'ajoute que si son code est dans le catalogue AIFA ou si la boîte est déjà dans l'armoire.",
+    "only_catalogue": "On ne peut ajouter un médicament que si son code est dans la base nationale (AIFA). Vérifie le code imprimé sur la boîte.",
     "name_from_catalogue": "Le nom vient du catalogue AIFA : il ne s'écrit pas à la main.",
     "scan_needs_catalog": "Aucun catalogue de médicaments chargé : sans lui, aucune boîte ne peut être ajoutée. Importe-le depuis Réglages → Médicaments.",
     "cabinet_created": "J’ai créé « {place} » pour les médicaments.",
@@ -3044,7 +3042,9 @@
     "pack_detected": "Boîte détectée : {pack}",
     "pack_qty_label": "Boîte pleine",
     "pack_qty_hint": "Ce que contient la boîte pleine : l’app s’en sert pour « ce qu’il reste » et pour la liste de courses.",
-    "no_cabinet": "Aucune armoire configurée : ouvrez-la dans Réglages → Médicaments, sinon un médicament ne peut pas être rangé."
+    "no_cabinet": "Aucune armoire configurée : ouvrez-la dans Réglages → Médicaments, sinon un médicament ne peut pas être rangé.",
+    "family_keep_reading": "Continuer à lire",
+    "atc_corticosteroid_topical": "Cortisone cutané"
   },
   "months": {
     "january": "Janvier",

@@ -3023,7 +3023,6 @@
     "form_qty_label": "你有多少",
     "form_expiry_label": "📅 包装上印刷的有效期 *",
     "form_save": "✅ 保存到药柜",
-
     "expiry_month_hint": "药盒上只印月和年：有效期到当月最后一天。",
     "expiry_month_placeholder": "月",
     "expiry_year_placeholder": "年",
@@ -3031,12 +3030,11 @@
     "action_add_sub": "放入药柜",
     "action_use_sub": "从药柜取出",
     "stock_added": "{name} 已放入药柜。",
-
     "ask_title": "我无法读取编码",
     "ask_body": "请在下方按包装上印刷的样子输入（例如 A040313076），或重新扫描。",
     "almost_title": "编码不准确：你手里是哪一盒？",
     "scan_code_almost": "接近匹配：请选择包装",
-    "only_catalogue": "只有编码在 AIFA 目录中或药盒已在药柜里时，才能添加药品。",
+    "only_catalogue": "只能添加国家药品数据库（AIFA）中有编码的药品。请核对包装上的编码。",
     "name_from_catalogue": "名称来自 AIFA 目录，不能手动输入。",
     "scan_needs_catalog": "未加载药品目录：没有目录无法添加药盒。请到设置 → 药品中导入。",
     "cabinet_created": "已为药品创建「{place}」。",
@@ -3044,7 +3042,9 @@
     "pack_detected": "已识别包装：{pack}",
     "pack_qty_label": "整包容量",
     "pack_qty_hint": "整包装的含量：应用用它来计算「还剩多少」和购物清单。",
-    "no_cabinet": "尚未设置药箱：请在“设置 → 药品”中创建，否则无法存放药品。"
+    "no_cabinet": "尚未设置药箱：请在“设置 → 药品”中创建，否则无法存放药品。",
+    "family_keep_reading": "继续识别",
+    "atc_corticosteroid_topical": "外用皮质激素"
   },
   "months": {
     "january": "一月",

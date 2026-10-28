@@ -3023,7 +3023,6 @@
     "form_qty_label": "How much do you have",
     "form_expiry_label": "📅 Expiry date printed on the box *",
     "form_save": "✅ Save to the medicine cabinet",
-
     "expiry_month_hint": "The box prints a month and a year: it is good until the last day of that month.",
     "expiry_month_placeholder": "Month",
     "expiry_year_placeholder": "Year",
@@ -3031,12 +3030,11 @@
     "action_add_sub": "in the medicine cabinet",
     "action_use_sub": "from the medicine cabinet",
     "stock_added": "{name} is in the medicine cabinet.",
-
     "ask_title": "I cannot read the code",
     "ask_body": "Type it below exactly as printed on the box (e.g. A040313076), or try scanning again.",
     "almost_title": "The code is not exact: which pack do you have?",
     "scan_code_almost": "Nearly right: pick the pack",
-    "only_catalogue": "A medicine can be added only when its code is in the AIFA catalogue or the box is already in the pantry.",
+    "only_catalogue": "A medicine can only be added when its code is in the national database (AIFA). Check the code printed on the box.",
     "name_from_catalogue": "The name comes from the AIFA catalogue: it is not typed by hand.",
     "scan_needs_catalog": "No medicine catalogue is loaded: without it no box can be added. Import it from Settings → Medicines.",
     "cabinet_created": "I created “{place}” for medicines.",
@@ -3044,7 +3042,9 @@
     "pack_detected": "Pack detected: {pack}",
     "pack_qty_label": "Full pack",
     "pack_qty_hint": "What the full pack holds: the app uses it for “how much is left” and for the shopping list.",
-    "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored."
+    "no_cabinet": "No cabinet configured: set it up in Settings → Medicines, or a medicine cannot be stored.",
+    "family_keep_reading": "Keep reading",
+    "atc_corticosteroid_topical": "Topical corticosteroid"
   },
   "months": {
     "january": "January",

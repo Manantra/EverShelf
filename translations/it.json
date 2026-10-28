@@ -3023,7 +3023,6 @@
     "form_qty_label": "Quanto ne hai",
     "form_expiry_label": "📅 Scadenza stampata sulla scatola *",
     "form_save": "✅ Salva nell’armadietto",
-
     "expiry_month_hint": "La scatola stampa mese e anno: vale fino all’ultimo giorno del mese.",
     "expiry_month_placeholder": "Mese",
     "expiry_year_placeholder": "Anno",
@@ -3031,12 +3030,11 @@
     "action_add_sub": "nell’armadietto dei farmaci",
     "action_use_sub": "dall’armadietto dei farmaci",
     "stock_added": "{name} è nell’armadietto dei farmaci.",
-
     "ask_title": "Non riesco a leggere il codice",
     "ask_body": "Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione.",
     "almost_title": "Il codice non è esatto: quale confezione hai in mano?",
     "scan_code_almost": "Quasi: scegli la confezione",
-    "only_catalogue": "Un farmaco si aggiunge solo se il codice è nel catalogo AIFA o se la scatola è già in dispensa.",
+    "only_catalogue": "Non è possibile aggiungere un farmaco che non è nel database nazionale (AIFA). Controlla il codice sulla scatola.",
     "name_from_catalogue": "Il nome arriva dal catalogo AIFA: non si scrive a mano.",
     "scan_needs_catalog": "Il catalogo farmaci non è caricato: senza catalogo nessuna scatola può essere aggiunta. Importalo da Impostazioni → Farmaci.",
     "cabinet_created": "Ho creato «{place}» per i farmaci.",
@@ -3044,7 +3042,9 @@
     "pack_detected": "Confezione rilevata: {pack}",
     "pack_qty_label": "Confezione intera",
     "pack_qty_hint": "Quanto contiene la confezione piena: è quello che l’app usa per «quanto ne resta» e per la lista della spesa.",
-    "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto."
+    "no_cabinet": "Nessun armadietto configurato: aprilo da Configurazione → Farmaci, altrimenti un farmaco non può essere aggiunto.",
+    "family_keep_reading": "Continua a leggere",
+    "atc_corticosteroid_topical": "Cortisone per la pelle"
   },
   "months": {
     "january": "Gennaio",

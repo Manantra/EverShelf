@@ -619,6 +619,24 @@ function productKindIsPlausibleGenre(string $kind): bool {
     if (isset($englishTabs[$norm]) || isset($englishTabs[$compact])) {
         return false;
     }
+    // Umbrella / domain labels ("Farmaco", "Dairy", "Snacks & sweets") are filters, not
+    // article genres — the AI once prefixed every medicine with "Farmaco".
+    static $umbrellaTabs = null;
+    if ($umbrellaTabs === null) {
+        $umbrellaTabs = [];
+        foreach (productKindUmbrellaCategoryLabels() as $tabWord) {
+            $u = mb_strtolower(trim((string)preg_replace('/[^\p{L}\s]+/u', ' ', (string)$tabWord)));
+            $u = trim(preg_replace('/\s+/u', ' ', $u) ?? $u);
+            if ($u === '') {
+                continue;
+            }
+            $umbrellaTabs[$u] = true;
+            $umbrellaTabs[str_replace(' ', '', $u)] = true;
+        }
+    }
+    if (isset($umbrellaTabs[$norm]) || isset($umbrellaTabs[$compact])) {
+        return false;
+    }
     // More than three words is a phrase dump, not a genre ("Sponge cake roll")
     if (count(preg_split('/\s+/u', $norm, -1, PREG_SPLIT_NO_EMPTY) ?: []) > 3) {
         return false;
