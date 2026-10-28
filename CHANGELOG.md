@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.29.0] - 2026-10-28
 
 ### Changed
+- **The label reader preprocesses the crop properly, instead of making “one black-and-white copy”.**
+  Tesseract binarizes internally (Otsu), so the old single **global** threshold (58 % between min and
+  max) let the lamp gradient of a glossy blister decide the cut: measured on a synthetic strip with a
+  40→240 gradient it turned 7140 px of the dark side into “ink” and lost the digits on the bright one
+  (168 px). The first two passes now get
+  * a **local Bradley threshold** (`_binarizeScanCanvas()`, integral image, window = 1/8 of the short
+    side, margin 0.15 → **240/240** ink pixels on the same strip, i.e. exactly the 480 strokes, split
+    evenly across the gradient), and
+  * a **contrast stretch (2 %–98 %) + 3×3 sharpen** (`_contrastScanCanvas()`) for grey ink under poor
+    light.
+  The other four passes keep the raw pixels, so a clean label is never harmed by over-processing, and
+  `_medDebugPass()` now records the `prep` of each pass instead of a `binarize` boolean.
 - **No “new medicine”: a box is added only when the catalogue knows it.** The medicine form no
   longer carries the word at all (`medical.form_title` is “💊 Farmaco”, not “Nuovo farmaco”), and
   nothing can be invented: `_medStartManualEntry()` asks the local catalogue **before** any form

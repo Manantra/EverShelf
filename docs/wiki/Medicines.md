@@ -68,7 +68,11 @@ panel says so in the status line (`medical.scan_code_ignored`) and goes back to 
 
 Under the camera a one-line report says **what the reader actually saw** (`Letto «…»`, and the
 crop itself when nothing matched): “it does not read” and “it read something else” are
-two different problems. The reader binarizes and blows up the crop, restricts the alphabet to
+two different problems. The reader blows up the crop ×3 and **preprocesses** it: a **local**
+(Bradley) threshold (`_binarizeScanCanvas()`) and a contrast-stretched + sharpened copy
+(`_contrastScanCanvas()`), never one global black-and-white cut — a glossy box has a light gradient
+that a single threshold turns into a half-white label. Only the first two passes are preprocessed;
+the other four keep the raw pixels. It also restricts the alphabet to
 `0-9A` and retries the block with a wider segmentation and a 1.6× wider band before giving
 up, and the loop keeps trying (2 s, then 4 s) instead of stopping after a minute.
 

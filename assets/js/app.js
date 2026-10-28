@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zzc'; // bump when translations change
+const _I18N_VERSION = '20261028zzd'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15788,7 +15788,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzc';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzd';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15798,7 +15798,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzc';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzd';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16350,33 +16350,136 @@ let _medPassCursor = 0;
  * and a warm lamp eats the thin strokes of an OCR-B digit, which is exactly why a clean-looking
  * AIC line comes back as "A0l2345678" or as nothing at all.
  */
+/* ── OCR preprocessing ───────────────────────────────────────────────────────
+   "Turn it black and white" is only HALF the answer. Tesseract binarizes internally (Otsu), so a
+   pure copy loses nothing — but one GLOBAL threshold on a phone photo of a glossy blister eats the
+   digits on the bright side: the lamp gradient decides the cut, not the ink. What actually helps,
+   in the order it matters:
+     1. characters big enough — the crop is upscaled ×3 (pixel budget willing) BEFORE any pixel is
+        touched, because the engine wants ~30-50 px of character height;
+     2. a LOCAL threshold (Bradley, integral image) when the light is uneven → `_binarizeScanCanvas()`;
+        a shadow on one side no longer decides the whole label;
+     3. a contrast stretch + light sharpen when the ink is grey (a phone photo at dusk) →
+        `_contrastScanCanvas()`;
+     4. and never as the ONLY chance: the raw frame keeps three slots of the rotation, because
+        over-processing a clean label is a regression, not a gain.
+   All of it works in place on the CROP (0.1-0.3 Mpx, a few milliseconds), never on the full frame:
+   the OCR job itself costs 0.5-2 s, and this must stay free next to it. */
+
+/** Grayscale pixels of a canvas, with the handle needed to write them back (BT.601 luma). */
+function _ocrGrayPixels(canvas) {
+    const w = canvas.width;
+    const h = canvas.height;
+    if (!w || !h) return null;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    const gray = new Uint8ClampedArray(w * h);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        gray[p] = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+    }
+    return { ctx, img, d, gray, w, h };
+}
+
+/** Write a grayscale buffer back into the canvas (alpha forced opaque: OCR ignores transparency). */
+function _ocrWriteGray(px, buffer) {
+    const d = px.d;
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        const v = buffer[p];
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255;
+    }
+    px.ctx.putImageData(px.img, 0, 0);
+}
+
+/**
+ * Bradley adaptive threshold: a pixel is ink when it is clearly darker than its NEIGHBOURHOOD.
+ *
+ * One integral image makes every window sum O(1), so the whole pass is a single linear sweep and
+ * costs nothing next to the OCR. `win` follows the crop size (an eighth of the short side) so the
+ * same code works for a 200 px strip and a 900 px band, and `t = 0.15` is the classic margin that
+ * survives JPEG noise without eating thin printed strokes.
+ */
 function _binarizeScanCanvas(canvas) {
     try {
-        const ctx = canvas.getContext('2d');
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const d = img.data;
-        let min = 255;
-        let max = 0;
-        for (let i = 0; i < d.length; i += 4) {
-            const l = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
-            d[i] = d[i + 1] = d[i + 2] = l;
-            if (l < min) min = l;
-            if (l > max) max = l;
+        const px = _ocrGrayPixels(canvas);
+        if (!px) return;
+        const { gray, w, h } = px;
+        const iw = w + 1;
+        const integral = new Int32Array(iw * (h + 1));
+        for (let y = 0; y < h; y++) {
+            let rowSum = 0;
+            for (let x = 0; x < w; x++) {
+                rowSum += gray[y * w + x];
+                integral[(y + 1) * iw + (x + 1)] = integral[y * iw + (x + 1)] + rowSum;
+            }
         }
-        // Halfway between the darkest ink and the brightest paper, skewed to the paper: the
-        // printed block is bold, the shading around it is not ink.
-        const thr = min + Math.max(1, max - min) * 0.58;
-        for (let i = 0; i < d.length; i += 4) {
-            const v = d[i] > thr ? 255 : 0;
-            d[i] = d[i + 1] = d[i + 2] = v;
+        const win = Math.max(8, Math.round(Math.min(w, h) / 8));
+        const half = win >> 1;
+        const margin = 0.15;
+        const out = new Uint8ClampedArray(gray.length);
+        for (let y = 0; y < h; y++) {
+            const y1 = Math.max(0, y - half);
+            const y2 = Math.min(h - 1, y + half);
+            for (let x = 0; x < w; x++) {
+                const x1 = Math.max(0, x - half);
+                const x2 = Math.min(w - 1, x + half);
+                const area = (x2 - x1 + 1) * (y2 - y1 + 1);
+                const sum = integral[(y2 + 1) * iw + (x2 + 1)] - integral[y1 * iw + (x2 + 1)]
+                    - integral[(y2 + 1) * iw + x1] + integral[y1 * iw + x1];
+                out[y * w + x] = gray[y * w + x] < (sum / area) * (1 - margin) ? 0 : 255;
+            }
         }
-        ctx.putImageData(img, 0, 0);
+        _ocrWriteGray(px, out);
     } catch (e) {
         scanLog(`Medicine binarize failed: ${e.message}`);
     }
 }
 
-function _captureMedLabelFrame(videoEl, region = null, binarize = false) {
+/**
+ * Contrast stretch (2 %-98 % of the histogram) + a light 3×3 sharpen, in grayscale.
+ *
+ * The binarized copy is the aggressive one; this is the polite version kept for a label that is
+ * already sharp but was photographed in poor light: it lifts the ink without inventing holes in a
+ * thin stroke, and the engine still does its own Otsu on top.
+ */
+function _contrastScanCanvas(canvas) {
+    try {
+        const px = _ocrGrayPixels(canvas);
+        if (!px) return;
+        const { gray, w, h } = px;
+        const hist = new Uint32Array(256);
+        for (let i = 0; i < gray.length; i++) hist[gray[i]]++;
+        const total = gray.length;
+        let lo = 0;
+        let hi = 255;
+        let acc = 0;
+        for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.02) { lo = v; break; } }
+        acc = 0;
+        for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.98) { hi = v; break; } }
+        const span = Math.max(1, hi - lo);
+        const stretched = new Uint8ClampedArray(gray.length);
+        for (let i = 0; i < gray.length; i++) {
+            stretched[i] = Math.max(0, Math.min(255, ((gray[i] - lo) * 255) / span));
+        }
+        const out = new Uint8ClampedArray(gray.length);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const c = stretched[y * w + x];
+                const n = y > 0 ? stretched[(y - 1) * w + x] : c;
+                const s = y < h - 1 ? stretched[(y + 1) * w + x] : c;
+                const west = x > 0 ? stretched[y * w + x - 1] : c;
+                const east = x < w - 1 ? stretched[y * w + x + 1] : c;
+                out[y * w + x] = Math.max(0, Math.min(255, 5 * c - n - s - west - east));
+            }
+        }
+        _ocrWriteGray(px, out);
+    } catch (e) {
+        scanLog(`Medicine contrast pass failed: ${e.message}`);
+    }
+}
+
+function _captureMedLabelFrame(videoEl, region = null, prep = '') {
     if (!videoEl || !videoEl.videoWidth) return null;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -16398,7 +16501,10 @@ function _captureMedLabelFrame(videoEl, region = null, binarize = false) {
         canvas.height = sized.height;
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(videoEl, region.sx, region.sy, region.sw, region.sh, 0, 0, canvas.width, canvas.height);
-        if (binarize) _binarizeScanCanvas(canvas);
+        // '' = the pixels the camera gave us; 'ink' = local (Bradley) threshold; 'boost' =
+        // contrast stretch + sharpen. See the block above the two helpers.
+        if (prep === 'ink') _binarizeScanCanvas(canvas);
+        else if (prep === 'boost') _contrastScanCanvas(canvas);
         return canvas;
     }
     const vw = videoEl.videoWidth;
@@ -16463,17 +16569,21 @@ async function _medReadLabelOcrInner(options = {}) {
     // The order is the measured one: psm 13 on the rectangle is the cleanest read of a printed
     // OCR-B line, a half-frame BAND is what catches a box held away from the rectangle (psm 6,
     // never 7 — a band holds several lines and the single-line mode answers ""), and the 1.5×
-    // "wide" rectangle carries the binarized copy for a low-contrast lamp.
+    // "wide" rectangle is the second chance when the strip cut the line in half.
+    // The pixels of the first two passes are PREPROCESSED (local threshold / contrast stretch):
+    // see the block above `_binarizeScanCanvas()`. The other four keep the raw pixels.
     // The unit of work is a thin STRIP of the rectangle: same width (characters big), half the
     // pixels (a phone can finish it). The strips rotate so every line of the sticker is read.
     const strips = _medLabelStrips(videoEl);
     const wideStrips = _medLabelStrips(videoEl, 1.5);
     const rotation = [];
-    // The BINARIZED strip is the pass that read the household's own label (a phone photo is dark
-    // and low-contrast): it goes first, then the plain ones. Five regions, not eight — every pass
-    // costs 0.5-2 s and the household counts them.
-    if (strips[1]) rotation.push({ region: strips[1], psm: '6', label: 'strip-ink', binarize: true });
-    if (strips[1]) rotation.push({ region: strips[1], psm: '6', label: 'strip-mid' });
+    // The PROCESSED strips are the passes that read the household's own label (a phone photo is
+    // dark and low-contrast): the locally-thresholded copy goes first, then the contrast-stretched
+    // one, and the raw pixels keep the other three slots — over-processing a clean label would be
+    // a regression, so a processed copy is never the only chance. Five regions, not eight: every
+    // pass costs 0.5-2 s and the household counts them.
+    if (strips[1]) rotation.push({ region: strips[1], psm: '6', label: 'strip-ink', prep: 'ink' });
+    if (strips[1]) rotation.push({ region: strips[1], psm: '6', label: 'strip-boost', prep: 'boost' });
     if (strips[1]) rotation.push({ region: strips[1], psm: '13', label: 'strip-raw' });
     if (strips[2]) rotation.push({ region: strips[2], psm: '6', label: 'strip-low' });
     if (strips[0]) rotation.push({ region: strips[0], psm: '6', label: 'strip-top' });
@@ -16496,8 +16606,8 @@ async function _medReadLabelOcrInner(options = {}) {
     let text = '';
     let preview = '';
     for (const pass of passes) {
-        const raw = _captureMedLabelFrame(videoEl, pass.region, false);
-        const canvas = pass.binarize && raw ? _captureMedLabelFrame(videoEl, pass.region, true) : raw;
+        const raw = _captureMedLabelFrame(videoEl, pass.region, '');
+        const canvas = pass.prep && raw ? _captureMedLabelFrame(videoEl, pass.region, pass.prep) : raw;
         if (!canvas) {
             scanLog(`Medicine OCR (${pass.label}): no frame (video ${videoEl ? videoEl.videoWidth + 'x' + videoEl.videoHeight : 'absent'})`);
             continue;
@@ -17022,7 +17132,7 @@ function _medDebugPass(pass, raw, page, aic, videoEl) {
                 kind: 'pass',
                 label: pass.label,
                 psm: pass.psm,
-                binarize: !!pass.binarize,
+                prep: pass.prep || '',
                 region: region,
                 canvas: raw ? { w: raw.width, h: raw.height } : null,
                 video: videoEl ? { w: videoEl.videoWidth, h: videoEl.videoHeight } : null,
