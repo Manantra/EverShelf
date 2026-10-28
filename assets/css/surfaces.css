@@ -2363,6 +2363,31 @@ a.free-api:hover { border-color: var(--brand-primary); }
     color: #6ee7b7;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
+/* Medicines: the code can be typed where the scanner is — no extra buttons to explain. */
+.scan-med-code-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 8px;
+}
+.scan-med-code-row[hidden] { display: none; }
+.scan-med-code-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-family: ui-monospace, "OCR B", "Courier New", monospace;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.scan-med-code-input::placeholder {
+    letter-spacing: 0.08em;
+    opacity: 0.55;
+}
 .scan-med-hint {
     /* One short line, not a white card sitting above the viewfinder: on a phone the hint was a
        block of three lines of prose over the page. */

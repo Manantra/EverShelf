@@ -452,10 +452,10 @@ check('the country schema falls back to the UI language (no APP_LANG needed)',
     && (bool)preg_match('/function medicalActiveCountry\(\?PDO \$db = null, string \$uiLang = .{0,10}\)/s', $lib)
     && str_contains($api, "medicalActiveCountry(\$db, (string)(\$_GET['lang'] ?? ''))"));
 check('the two panels route the form (no "is it a medicine?" dialog any more)',
-    str_contains($app, 'function _medManualFromScan()')
+    str_contains($app, 'function _medSubmitCode()')
     && !str_contains($app, 'function _medOfferMedicalFallback(')
     && !str_contains($app, 'medical.fallback_yes')
-    && (bool)preg_match('/function _medArmProductForm\(code = \'\', labelKey = \'\'\)[\s\S]{0,300}?_medFormSetMode\(true, \{ code: String\(code \|\| \'\'\), label_key: String\(labelKey \|\| \'\'\) \}\);/s', $app));
+    && (bool)preg_match('/function _medArmProductForm\(code = \'\', labelKey = \'\'\)[\s\S]{0,400}?_medFormSetMode\(true, \{ code: String\(code \|\| \'\'\), label_key: String\(labelKey \|\| \'\'\) \}\);/s', $app));
 
 // ── 5. Taxonomy: CLOSED, data-only, six locales ─────────────────────────────
 $slugs = array_map(fn($c) => $c['slug'] ?? '', $cats['categories'] ?? []);
@@ -530,11 +530,15 @@ check('the medicine panel is a different screen, not a corner of the food one',
     && str_contains($css, '#page-scan.is-medical-scan #scan-search-btn')
     && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,1600}?is-medical-scan/s', $app)
     && (bool)preg_match('/function _setScanMode\(mode\)[\s\S]{0,2000}?medical\.scan_title/s', $app));
-check('the medicine actions exist only in the medicine panel',
-    str_contains($html, 'id="scan-med-ocr-btn"')
-    && str_contains($html, 'id="scan-med-manual-btn"')
-    && (bool)preg_match("/const medManual = document\.getElementById\('scan-med-manual-btn'\);\s*if \(medManual\) medManual\.hidden = !medical;/s", $app)
-    && str_contains($app, "_medStartManualEntry('', true, '');"));
+check('the medicine panel offers ONE field to type the code (no read/add buttons)',
+    str_contains($html, 'id="scan-med-code-row"')
+    && str_contains($html, 'id="scan-med-code-input"')
+    && !str_contains($html, 'scan-med-ocr-btn')
+    && !str_contains($html, 'scan-med-manual-btn')
+    && !str_contains($app, 'function _medOcrFromScan(')
+    && !str_contains($app, 'function _medManualFromScan(')
+    && (bool)preg_match("/const codeRow = document\\.getElementById\\('scan-med-code-row'\\);/s", $app)
+    && (bool)preg_match('/function _medSubmitCode\\(\\)[\\s\\S]{0,900}?_medConfirmRead\\(/s', $app));
 check('the medicine panel refuses an EAN instead of looking it up',
     // The scan loop never finalises an EAN there (it kicks the label OCR); the defensive branch
     // in onBarcodeDetected is what says it out loud.
@@ -815,7 +819,7 @@ foreach ($langs as $l) {
     sort($keys);
     if ($keys !== $base) { $aligned = false; }
 }
-check('all six locales carry the same 174 medical keys', $aligned && count($base) === 174);
+check('all six locales carry the same 180 medical keys', $aligned && count($base) === 180);
 check('the category labels PHP returns exist in all six locales',
     array_reduce($cats['categories'], function ($carry, $c) use ($med, $langs) {
         $key = substr((string)$c['label_key'], strlen('medical.'));
@@ -902,7 +906,10 @@ check('the NAME is read off the box when the catalogue cannot name it',
     // AIC, and the camera is still live at that moment: one extra pass, one plausible line.
     str_contains($app, 'async function _medReadLabelName()')
     && (bool)preg_match('/function _medPickNameLine\(page\)[\s\S]{0,1200}?bestScore/s', $app)
-    && (bool)preg_match('/_medPendingLabelName = await _medReadLabelName\(\)/s', $app)
+    && (bool)preg_match('/_medReadLabelName\(\)\.then\(name =>/s', $app)
+    // One OCR job at a time on the shared worker: interleaved calls returned nothing at all.
+    && str_contains($app, 'function _medOcrRun(job)')
+    && (bool)preg_match('/const page = await _medOcrRun\(async \(\) => \{[\s\S]{0,200}?worker\.recognize\(canvas\)/s', $app)
     && (bool)preg_match("/function _medLabelNameFill\(\)[\s\S]{0,700}?medical\.match_name_from_label/s", $app)
     // Only when nothing name-like was typed/filled by the catalogue.
     && (bool)preg_match('/if \\(field && !String\\(field\\.value \\|\\| .{2}\\)\\.trim\\(\\)\\)/s', $app)
@@ -970,10 +977,10 @@ check('the reader makes the printed block readable (binarize, upscale, three pas
     && str_contains($app, "passes.push({ region: guide, psm: '7', label: 'frame' });")
     && str_contains($app, "passes.push({ region: guide, psm: '7', label: 'frame-ink', binarize: true });")
     && str_contains($app, "label: 'wide', binarize: true"));
-check('the OCR button exists on the scan page and only for the module',
-    str_contains($html, 'id="scan-med-ocr-btn"')
-    && str_contains($app, '_medOcrFromScan()')
-    && (bool)preg_match('/if \(ocrBtn\) ocrBtn\.hidden = !readable;/s', $app));
+check('the typed code goes through the same verification as a read',
+    (bool)preg_match('/function _medSubmitCode\\(\\)[\\s\\S]{0,1400}?_medLocalCode\\(/s', $app)
+    && (bool)preg_match("/if \\(!code\\) \\{[\\s\\S]{0,200}?medical\\.code_invalid_shape/s", $app)
+    && (bool)preg_match('/onkeydown="if\\(event\\.key===\'Enter\'\)_medSubmitCode\\(\\)"/', $html));
 // The printed-code reader must find the AIC in a real page of OCR text (both ports agree).
 if (count($jsFns) === 9 && $itFn !== '') {
     $pages = [
@@ -1170,6 +1177,16 @@ check('a doubtful read is correctable where the name is (not over the camera)',
     && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
         return $c && isset($med[$l]['choice_title_inline'], $med[$l]['choice_switched']);
     }, true));
+check('the engine proves itself on this device before any label is blamed',
+    // One synthetic image with `A040313076` drawn on it, through the same worker and patterns: if
+    // that fails, the problem is WASM/the worker, and the status says so plainly.
+    str_contains($app, 'async function _medOcrSelfTest()')
+    && (bool)preg_match("/ctx\.fillText\('A040313076'/s", $app)
+    && (bool)preg_match('/async function _medOcrSelfTest\(\)[\s\S]{0,2200}?_medOcrFindAic\(page, _medOcrPatterns\(\)\)/s', $app)
+    && (bool)preg_match('/if \(medical\) _medOcrSelfTest\(\)/s', $app)
+    && array_reduce(['it','en','de','fr','es','zh'], function ($c, $l) use ($med) {
+        return $c && isset($med[$l]['ocr_selftest_ok'], $med[$l]['ocr_selftest_failed']);
+    }, true));
 check('the reader says WHY it cannot read (engine, geometry, frames)',
     // "It does not read" had three indistinguishable causes: no engine, a crop of 30 px, or a
     // box outside the rectangle. Each one is now reported where the household and I can see it.
@@ -1177,9 +1194,11 @@ check('the reader says WHY it cannot read (engine, geometry, frames)',
     && str_contains($app, 'function _medOcrGeometryNote(videoEl, region)')
     && (bool)preg_match('/GEOM frame [^`]{0,12}crop/s', $app)
     && str_contains($app, "label: 'whole-frame'")
-    // A 640x480 stream is an unreadable crop: the medicine panel asks for more pixels.
-    && (bool)preg_match('/if \(medical\) _medBoostResolution\(\)/s', $app)
-    && (bool)preg_match('/async function _medBoostResolution\(\)[\s\S]{0,1600}?applyConstraints/s', $app)
+    // No `applyConstraints()` on a live medicine stream: re-negotiating the track restarted the
+    // camera on some phones and left the reader with nothing (the frame stayed at 000000000).
+    && !str_contains($app, '_medBoostResolution')
+    // What the pass actually read is one line in the status chip that is already there.
+    && str_contains($app, "t('medical.ocr_saw')")
     && (bool)preg_match("/if \(now - _medFullPassAt > 6000\)/s", $app)
     // The geometry stays in the log: the household asked for no boxes on the camera.
     && !str_contains($css, '.scan-med-read-geom')

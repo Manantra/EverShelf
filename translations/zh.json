@@ -3005,6 +3005,12 @@
     "sync_failed": "暂时无法下载目录：稍后再试。",
     "sync_no_source": "此国家没有自动来源：请手动导入文件。",
     "sync_btn": "从 AIFA 网站更新",
-    "sync_last": "更新于 {date}"
+    "sync_last": "更新于 {date}",
+    "ocr_saw": "识别到“{text}”",
+    "code_placeholder": "A040313076",
+    "code_confirm": "确认",
+    "code_invalid_shape": "这不是 AIC：请输入 A 加 9 位数字（例如 A040313076）。",
+    "ocr_selftest_ok": "OCR 已就绪：对准代码，我来读取数字。",
+    "ocr_selftest_failed": "此设备的 OCR 无法工作：请在下方输入代码。"
   }
 }

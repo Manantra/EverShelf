@@ -3005,6 +3005,12 @@
     "sync_failed": "Der Katalog kann gerade nicht geladen werden: später erneut.",
     "sync_no_source": "Keine automatische Quelle für dieses Land: Datei von Hand importieren.",
     "sync_btn": "Vom AIFA-Server aktualisieren",
-    "sync_last": "Aktualisiert am {date}"
+    "sync_last": "Aktualisiert am {date}",
+    "ocr_saw": "Gelesen „{text}“",
+    "code_placeholder": "A040313076",
+    "code_confirm": "Bestätigen",
+    "code_invalid_shape": "Das ist keine AIC: A und 9 Ziffern (z. B. A040313076).",
+    "ocr_selftest_ok": "OCR-Leser bereit: Code erfassen, ich lese die Ziffern.",
+    "ocr_selftest_failed": "Der OCR-Leser funktioniert auf diesem Gerät nicht: Code unten eintippen."
   }
 }

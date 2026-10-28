@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261028l">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028l">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028l">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261028m">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028m">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028m">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028l">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028l">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028m">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028m">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261028l"></script>
-    <script src="assets/js/core/auth.js?v=20261028l"></script>
-    <script src="assets/js/core/med.js?v=20261028l"></script>
+    <script src="assets/js/core/dom.js?v=20261028m"></script>
+    <script src="assets/js/core/auth.js?v=20261028m"></script>
+    <script src="assets/js/core/med.js?v=20261028m"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261028l"></script>
+    <script src="assets/js/med/italy.js?v=20261028m"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261028l"></script>
+    <script src="assets/js/core/support.js?v=20261028m"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028m';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028l';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028m';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261028l"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261028m"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -553,14 +553,17 @@
                      (Italy prints the AIC), so the reader that OCRs the label is one tap away.
                      Both this button and "Aggiungi a mano" exist ONLY in the medicine panel
                      (hidden unless the module is on AND the country prints a code to read). -->
-                <button type="button" class="scan-action-btn scan-action-med" id="scan-med-ocr-btn" hidden onclick="_medOcrFromScan()">
-                    <span class="scan-action-icon" aria-hidden="true">💊</span>
-                    <span class="scan-action-label" data-i18n="medical.ocr_btn">Leggi AIC</span>
-                </button>
-                <button type="button" class="scan-action-btn" id="scan-med-manual-btn" hidden onclick="_medManualFromScan()">
-                    <span class="scan-action-icon" aria-hidden="true">✏️</span>
-                    <span class="scan-action-label" data-i18n="medical.scan_manual">Aggiungi a mano</span>
-                </button>
+                <!-- Medicines: no extra buttons. The code can be typed straight in (the label is
+                     often creased or glossy and the reader cannot win every time), and the answer
+                     names the box from the local catalogue like a scan does. -->
+                <div class="scan-med-code-row" id="scan-med-code-row" hidden>
+                    <input type="text" class="scan-med-code-input" id="scan-med-code-input"
+                           inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                           maxlength="12" placeholder="A040313076"
+                           aria-label="AIC" data-i18n-placeholder="medical.code_placeholder"
+                           onkeydown="if(event.key==='Enter')_medSubmitCode()">
+                    <button type="button" class="btn btn-primary btn-small" id="scan-med-code-btn" onclick="_medSubmitCode()" data-i18n="medical.code_confirm">Conferma</button>
+                </div>
             </div>
 
             <!-- Name search sheet (opened on demand — no autofocus on page open) -->
@@ -3323,15 +3326,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261028l"></script>
-<script src="assets/js/food_facts.generated.js?v=20261028l"></script>
-<script src="assets/js/free_apis.generated.js?v=20261028l"></script>
-<script src="assets/js/core/vocab.js?v=20261028l"></script>
-<script src="assets/js/app.js?v=20261028l"></script>
-<script src="assets/js/audit.js?v=20261028l"></script>
-<script src="assets/js/receipt.js?v=20261028l"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261028l"></script>
-<script src="assets/js/settings_search.js?v=20261028l"></script>
+<script src="assets/js/vocab.generated.js?v=20261028m"></script>
+<script src="assets/js/food_facts.generated.js?v=20261028m"></script>
+<script src="assets/js/free_apis.generated.js?v=20261028m"></script>
+<script src="assets/js/core/vocab.js?v=20261028m"></script>
+<script src="assets/js/app.js?v=20261028m"></script>
+<script src="assets/js/audit.js?v=20261028m"></script>
+<script src="assets/js/receipt.js?v=20261028m"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261028m"></script>
+<script src="assets/js/settings_search.js?v=20261028m"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

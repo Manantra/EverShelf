@@ -90,6 +90,10 @@ Why not a card on the scanner: a white panel glued over the viewfinder hides the
 household is aiming at, and asking two questions at once is how a scan becomes a chore. The
 scanner keeps a single line of text (below), the form does the choosing.
 
+Nothing is drawn over the camera: the guide frame fills in with the digits and the **status chip** shows the one line each pass actually read (`Letto «…»`). At panel open the engine runs one synthetic `A040313076` image through itself (`_medOcrSelfTest()`): if the OCR is broken on that device (WASM blocked, worker killed), the status says so instead of leaving a frame that never fills. Every OCR call goes through `_medOcrRun()` — label reader and name reader share one worker, and two jobs in flight returned nothing at all.
+
+The code can also be **typed**: one field + Conferma in the medicine panel (`_medSubmitCode()`), with the same catalogue verification as a scan. There is no "read" button and no "add by hand" button any more — the reader runs by itself, and the field is what to use when it cannot.
+
 The guide frame fills in with the **digits already recognised** (`_medPreviewSample()`,
 `A0403130···`, emerald when complete), so “it is reading” and “it is stuck” never look the same.
 When it *is* stuck, the reader says why (`?debug=1`, `_medOcrGeometryNote()`): the frame size and

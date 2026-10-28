@@ -3005,6 +3005,12 @@
     "sync_failed": "No puedo descargar el catálogo ahora: lo reintentaré más tarde.",
     "sync_no_source": "Sin fuente automática para este país: importa el archivo a mano.",
     "sync_btn": "Actualizar desde el sitio de AIFA",
-    "sync_last": "Actualizado el {date}"
+    "sync_last": "Actualizado el {date}",
+    "ocr_saw": "Leído «{text}»",
+    "code_placeholder": "A040313076",
+    "code_confirm": "Confirmar",
+    "code_invalid_shape": "No es un AIC: escribe A seguida de 9 dígitos (ej. A040313076).",
+    "ocr_selftest_ok": "Lector OCR listo: encuadra el código y leeré los dígitos.",
+    "ocr_selftest_failed": "El lector OCR no funciona en este dispositivo: escribe el código abajo."
   }
 }

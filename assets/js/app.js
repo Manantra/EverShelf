@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028l'; // bump when translations change
+const _I18N_VERSION = '20261028m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13759,12 +13759,14 @@ function _setScanMode(mode) {
     _medRejectedReads.clear();
     const sampleEl = document.getElementById('scan-med-frame-sample');
     if (sampleEl) sampleEl.classList.remove('is-read');
-    const medManual = document.getElementById('scan-med-manual-btn');
-    if (medManual) medManual.hidden = !medical;
-    const ocrBtn = document.getElementById('scan-med-ocr-btn');
-    if (ocrBtn) ocrBtn.hidden = !readable;
-    // The label is small print: give the reader the pixels it needs (when the camera allows).
-    if (medical) _medBoostResolution().catch(() => {});
+    if (medical) _medOcrSelfTest().catch(() => {});
+    // One field for the code, always available in the medicine panel: no "read" button and no
+    // "add by hand" button — the reader runs by itself, and this is what to type when it cannot.
+    const codeRow = document.getElementById('scan-med-code-row');
+    if (codeRow) codeRow.hidden = !medical;
+    // The status chip is the ONE line of feedback (no box over the camera): what the reader got.
+    const codeInput = document.getElementById('scan-med-code-input');
+    if (codeInput && !medical) codeInput.value = '';
     if (medical && !_medScanSupported()) _medBlockedPopup();
     const actionBar = document.getElementById('scan-action-bar');
     if (actionBar) actionBar.classList.toggle('has-med', !!(ocrBtn && !ocrBtn.hidden));
@@ -13798,11 +13800,6 @@ function _medGoToCabinetScan() {
     showPage('scan');
 }
 
-/** Medicine panel: the form opens with the medicine mode already armed and nothing else asked. */
-function _medManualFromScan() {
-    stopScanner();
-    _medStartManualEntry('', true, '');
-}
 
 /**
  * A NATIONAL short code — the pack's own number: an Italian AIC, a German PZN, a Spanish CN, a
@@ -15549,7 +15546,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15559,7 +15556,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16142,21 +16139,77 @@ async function _medReadLabelOcr(options = {}) {
             try { preview = raw.toDataURL('image/jpeg', 0.6); } catch (e) { preview = ''; }
         }
         try {
-            await worker.setParameters({ tessedit_pageseg_mode: pass.psm });
-            const { data } = await worker.recognize(canvas);
-            const page = String((data && data.text) || '');
+            const page = await _medOcrRun(async () => {
+                await worker.setParameters({ tessedit_pageseg_mode: pass.psm });
+                const { data } = await worker.recognize(canvas);
+                return String((data && data.text) || '');
+            });
             text += (text ? ' ' : '') + page;
             const aic = _medOcrFindAic(page, patterns);
             scanLog(`Medicine OCR (${pass.label}, psm ${pass.psm}): ${aic ? 'AIC ' + aic : 'no AIC'} in "${page.trim().slice(0, 80)}"`);
             // The frame is the only feedback on screen: the digits fill in as they are read.
             _medPreviewSample(page, aic);
+            // The one line of feedback: what this pass actually read (tiny, in the status
+            // chip that is already there — never a box over the label being aimed at).
+            const seen = page.trim().replace(/\s+/g, ' ').slice(0, 24);
+            if (!aic && seen) _setScanStatus(t('medical.ocr_saw').replace('{text}', seen), 'partial', '');
             if (_bootDebug) scanLog(_medOcrGeometryNote(videoEl, pass.region));
-            if (aic) return { aic: aic, text: page, preview: preview };
+            if (aic) {
+                // The name is printed above this very text: keep the picture for it.
+                _medLastLabelFrame = raw || canvas;
+                return { aic: aic, text: page, preview: preview };
+            }
         } catch (e) {
             scanLog(`Medicine OCR error (${pass.label}): ${e.message}`);
         }
     }
     return { aic: null, text: text, preview: preview };
+}
+
+let _medSelfTestDone = false;
+
+/**
+ * Does the OCR engine work on THIS device? Answer it before blaming the label.
+ *
+ * One synthetic image with the printed shape drawn on it (`A040313076`, bold monospace on white)
+ * goes through the same worker and the same patterns. If that fails, the problem is the engine
+ * (WASM blocked, worker killed by the browser, no memory) and the status says so — instead of the
+ * household staring at a frame that never fills.
+ */
+async function _medOcrSelfTest() {
+    if (_medSelfTestDone || !_medOn()) return null;
+    _medSelfTestDone = true;
+    const worker = await _ensureTesseractWorker('aic');
+    if (!worker) {
+        scanLog('OCR self-test: no worker');
+        _setScanStatus(t('medical.ocr_engine_error'), '', '');
+        return false;
+    }
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 120;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 64px monospace';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('A040313076', 24, 62);
+        const page = await _medOcrRun(async () => {
+            await worker.setParameters({ tessedit_pageseg_mode: '7' });
+            const { data } = await worker.recognize(canvas);
+            return String((data && data.text) || '');
+        });
+        const ok = !!_medOcrFindAic(page, _medOcrPatterns());
+        scanLog(`OCR self-test: ${ok ? 'OK' : 'FAILED'} — "${page.trim().slice(0, 40)}"`);
+        _setScanStatus(ok ? t('medical.ocr_selftest_ok') : t('medical.ocr_selftest_failed'), ok ? 'partial' : 'invalid', '');
+        return ok;
+    } catch (e) {
+        scanLog(`OCR self-test error: ${e.message}`);
+        _setScanStatus(t('medical.ocr_engine_error'), '', '');
+        return false;
+    }
 }
 
 /**
@@ -16194,34 +16247,6 @@ function _medPreviewSample(raw, aic) {
 }
 
 
-/**
- * Ask the camera for its highest resolution while the medicine panel is open.
- *
- * OCR needs pixels: a 640×480 stream gives the guide rectangle a crop of ~100×30 px, and no
- * amount of upscaling invents the strokes back. The rear camera is opened with `ideal` sizes
- * (1280×720), which a phone is free to ignore — so for the label reader the live track is
- * re-constrained, when it says it can.
- */
-async function _medBoostResolution() {
-    const videoEl = document.getElementById('scanner-video');
-    const stream = videoEl && videoEl.srcObject;
-    const track = (stream && stream.getVideoTracks) ? stream.getVideoTracks()[0] : null;
-    if (!track || typeof track.applyConstraints !== 'function') return;
-    const caps = typeof track.getCapabilities === 'function' ? (track.getCapabilities() || {}) : {};
-    const maxW = Number(caps.width && caps.width.max) || 1920;
-    const maxH = Number(caps.height && caps.height.max) || 1080;
-    if (maxW < 1280 && maxH < 720) return;
-    try {
-        await track.applyConstraints({
-            width: { ideal: Math.min(1920, maxW) },
-            height: { ideal: Math.min(1080, maxH) },
-        });
-        const now = typeof track.getSettings === 'function' ? (track.getSettings() || {}) : {};
-        scanLog(`Medicine scan resolution: ${now.width || '?'}x${now.height || '?'}`);
-    } catch (e) {
-        scanLog(`Medicine resolution boost refused: ${e.message}`);
-    }
-}
 
 /**
  * The read is confirmed here, and the CORRECTION lives in the form — not in a panel over the
@@ -16269,11 +16294,16 @@ async function _medConfirmRead(read) {
         scanLog(`Medicine read rejected, not in the catalogue: ${code}`);
         return;
     }
-    // The form closes the camera, so a name printed on the box is read now or never. One pass,
-    // and only a plausible line is kept (see `_medPickNameLine`).
-    _medPendingLabelName = await _medReadLabelName().catch(() => '');
     showToast(t('medical.ocr_found').replace('{code}', 'A' + code), 'success');
     _finalizeBarcode('A' + code, 'OCR');
+    // The form is open and the camera is closed: the name is read from the frame we kept, a
+    // moment later, and written into an empty field. Nothing waits for it.
+    _medPendingLabelName = '';
+    _medReadLabelName().then(name => {
+        if (!name) return;
+        _medPendingLabelName = name;
+        _medLabelNameFill();
+    }).catch(() => {});
     // Painted by the form, from the answer we already have.
     _medNeighbourRead = code;
     const rows = (res && Array.isArray(res.results)) ? res.results : [];
@@ -16340,11 +16370,25 @@ function _medOcrKick() {
     _medOcrFallback('', { silent: true }).catch(() => {});
 }
 
-/** The "🏷️ Leggi il codice AIC" button of the scan page (a manual trigger for the same read). */
-async function _medOcrFromScan() {
-    if (!_medOn()) return;
-    // Nothing to read? `_medOcrFallback` says so and resumes the camera itself.
-    await _medOcrFallback('', { silent: false });
+/**
+ * The typed code: the household's own reading wins over the camera's.
+ *
+ * Same path as a scan — validated by the country module, verified against the catalogue, then the
+ * form — so a box whose label is creased, glossy or simply not being read is never a dead end.
+ */
+function _medSubmitCode() {
+    const input = document.getElementById('scan-med-code-input');
+    const raw = String(input && input.value || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    if (!raw) return;
+    const local = _medLocalCode(/^A/.test(raw) ? raw.toUpperCase() : 'A' + raw.toUpperCase());
+    const code = local && (local.aic || local.code) ? String(local.aic || local.code) : '';
+    if (!code) {
+        // Not the shape this country prints: say it, keep the field for a correction.
+        showToast(t('medical.code_invalid_shape'), 'error', 5000);
+        return;
+    }
+    if (input) input.value = '';
+    _medConfirmRead(/^A/.test(raw) ? raw.toUpperCase() : 'A' + raw.toUpperCase());
 }
 
 // ===== LOCAL MEDICINE CATALOGUE (AIFA open data, imported once) =====
@@ -16360,31 +16404,43 @@ let _medAutoFilled = {};
 let _medPendingLabelName = '';
 
 /**
- * Read the COMMERCIAL NAME off the box, from the same camera, in one pass.
+ * One OCR job at a time.
  *
- * The name is printed on the label, above the AIC: when the local catalogue does not know the
- * code (or is not loaded at all), waiting for the household to retype it is pointless. The block
- * is OCR'd once while the stream is still live (the form closes the camera), and a single
- * plausible line is kept — the AIC and the company are read by the label but not by us, so a
- * wrong guess lands in an editable field, never in the database.
+ * The label reader and the name reader share ONE Tesseract worker: two `recognize()` calls in
+ * flight (or a `setParameters()` slipping between them) make the worker answer the wrong job and
+ * silently return nothing, which is exactly what "it reads nothing any more" looked like.
+ */
+let _medOcrQueue = Promise.resolve();
+function _medOcrRun(job) {
+    const next = _medOcrQueue.then(job, job);
+    _medOcrQueue = next.catch(() => {});
+    return next;
+}
+
+/** The frame that produced the accepted AIC: the name is read from it, after the form opens. */
+let _medLastLabelFrame = null;
+
+/**
+ * Read the COMMERCIAL NAME off the box from the frame that was just captured.
+ *
+ * The name is printed above the AIC, so it is in the same picture — and reading it from the saved
+ * canvas (not from the live camera) is what keeps it out of the way: the form opens immediately,
+ * the name arrives a moment later, and nothing waits for the other OCR job to finish.
  *
  * @returns {Promise<string>} the best line, or ''
  */
 async function _medReadLabelName() {
-    if (!_medOn()) return '';
-    const videoEl = document.getElementById('scanner-video');
-    if (!videoEl || !videoEl.videoWidth) return '';
+    const canvas = _medLastLabelFrame;
+    if (!_medOn() || !canvas) return '';
     const worker = await _ensureTesseractWorker('med');
     if (!worker) return '';
-    // The name sits ABOVE the AIC: a taller band, without binarizing (an anti-aliased label reads
-    // worse as black and white).
-    const region = _medGuideRect(videoEl, 2) || null;
-    const canvas = _captureMedLabelFrame(videoEl, region, false);
-    if (!canvas) return '';
     try {
-        await worker.setParameters({ tessedit_pageseg_mode: '6' });
-        const { data } = await worker.recognize(canvas);
-        const name = _medPickNameLine(String((data && data.text) || ''));
+        const page = await _medOcrRun(async () => {
+            await worker.setParameters({ tessedit_pageseg_mode: '6' });
+            const { data } = await worker.recognize(canvas);
+            return String((data && data.text) || '');
+        });
+        const name = _medPickNameLine(page);
         scanLog(`Medicine label name: ${name ? `"${name}"` : 'none'}`);
         return name;
     } catch (e) {
