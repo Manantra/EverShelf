@@ -7,7 +7,7 @@
  * token yet) and has to work offline. The credits row under the boot rail, the Settings
  * card and the footer all read the same list, and a service is added in one row of JSON.
  *
- * Run it after editing data/free_apis.json; scripts/test-vocabulary.php fails when the
+ * Run it after editing data/free_apis.json: the bundle must match the data.
  * generated file and the data drift apart.
  */
 $root = dirname(__DIR__);
@@ -106,7 +106,7 @@ $json = json_encode($apis, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $jsonSources = json_encode($sources, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $js = "/**\n"
     . " * GENERATED FILE — do not edit. Source: data/free_apis.json\n"
-    . " * Regenerate: php scripts/gen-free-apis-js.php   (locked by scripts/test-vocabulary.php)\n"
+    . " * Regenerate: php scripts/gen-free-apis-js.php\n"
     . " * Data only: no logic here.\n"
     . " */\n"
     . "const EVERSHELF_FREE_APIS = {$json};\n"

@@ -18,7 +18,7 @@
 | `assets/css/style.css` | All styles | ~10.8k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
 | `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded before `mobile.css`, deletes no selector |
-| `assets/css/mobile.css` | **Fourth layer: phone geometry only** (no colours) — list rows wrap instead of truncating, badges/quantities move under the text, buttons never break mid-word | ~200 lines; loaded **LAST** so the themes cannot override it; guarded by `scripts/test-mobile-layout.php` |
+| `assets/css/mobile.css` | **Fourth layer: phone geometry only** (no colours) — list rows wrap instead of truncating, badges/quantities move under the text, buttons never break mid-word | ~200 lines; loaded **LAST** so the themes cannot override it; guarded by |
 | `api/index.php` | **Entire backend**: router + all handlers | ~19.6k lines, 409 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |
@@ -28,7 +28,7 @@
 | `api/scale_*.php` | Kitchen-scale gateway relay/discovery | |
 | `translations/*.json` | 6 languages, nested keys | 2,184 leaf keys, 67 top-level groups |
 | `data/` | Runtime DB + caches + logs (**HTTP denied** via `.htaccess`) | not all committed |
-| `scripts/*` | Maintenance CLIs + the regression suite CI runs | |
+| `scripts/*` | Maintenance CLIs: generators, i18n audits, importers | |
 | `mcp-server/` | Node MCP server exposing EverShelf API to agents | separate npm pkg |
 | `evershelf-kiosk/`, `evershelf-health-bridge/` | Android apps (Kotlin/Gradle) | |
 
@@ -65,19 +65,19 @@ reports). The web side paints `html` with `var(--bg)` so no frame is ever white.
   `_preloaderStage(stage, state)`: grey (`is-pending`) → blinking (`is-active`) →
   coloured with an aura (`is-done`), amber/red for `is-warn`/`is-error`; the version
   chip `#preloader-version` is rewritten by `scripts/bump-version.sh`. The stages, their
-  labels and the six locales are locked together by `scripts/test-preloader-stages.php`.
+ labels and the six locales are locked together by.
 - State held in module-level `let` vars (`shoppingItems`, `LOCATIONS`,
   `_currentLang`, `_scale*`, banner queue, …). No framework/reactivity.
 - i18n via `t(key)` + `data-i18n` attributes; `loadTranslations()` fetches
   `translations/<lang>.json`. The boot order is **`?lang=` in the URL →
   `localStorage.evershelf_lang` → `navigator.language` → `en`** (`_urlLangOverride()`
   parses `de`, `zh-CN`, `fr_FR` and ignores anything else; `changeLanguage()` rewrites
-  the parameter instead of reloading into the old language — `scripts/test-i18n-boot.php`
+ the parameter instead of reloading into the old language
   locks it). Anything PHP can hand to the UI travels as a key, never as prose:
   `error_key` (resolved once inside `api()`), `hint_key`, `tip_key`, `reasons[]`,
   `urgency_label_key`. **Never** print a literal emoji beside a translated
   label: the values already carry their icon, so use `iconLabel(icon, key)` /
-  `_stripLeadingEmoji()` (`scripts/test-i18n-icons.php` enforces it in all six locales).
+ `_stripLeadingEmoji` ( enforces it in all six locales).
 - Dashboard: the alert blocks are capped per block (`DASHBOARD_EXPIRING_MAX` 3,
   `DASHBOARD_OPENED_MAX` 5, `DASHBOARD_ALERT_MAX` 5 for expired,
   `DASHBOARD_STALE_MAX` 5). "Dimenticati" ranks by expiry, not by rotation:
@@ -265,8 +265,7 @@ Groups:
   5 minutes from `/etc/cron.d/evershelf` as `www-data` (`docker/evershelf-cron`); bare
   metal uses the host crontab. The backup is `createLocalBackup()` in `api/index.php`
   (`VACUUM INTO` + `.part` rename, retention, `data/backup_last_ts.json`), and
-  *Settings → 💾 Backup* warns when the last one is missing or older than 8 days —
-  guard test `scripts/test-docker-cron.php`.
+  *Settings → 💾 Backup* warns when the last one is missing or older than 8 days.
 
 ## 10. CI/CD (`.github/workflows`)
 
@@ -279,11 +278,6 @@ Groups:
   appended, with a 200-line safety cap). The old end pattern `/^## [0-9]/` never
   matched the bracketed headings and ran to end-of-file — that is why v1.16.1
   shipped with the 1.16.0 notes under it.
-- The heavier gates — the `scripts/test-*.php` regression suite,
-  `scripts/i18n-audit.py`, `shellcheck` and `node -c` on **every** JS file
-  (including `mcp-server/`) — are listed in `AGENTS.md` and run **locally today**.
-  Wiring them into CI needs a `workflow`-scoped PAT, so the patch waits in
-  `todo/0001-ci-run-the-test-suite-lint-every-JS-file-shellcheck-.patch`.
 - `build-kiosk.yml`, `build-health-bridge.yml`, `build-scale-gateway.yml`,
   `publish-docker.yml`, `security.yml`, dependabot.
 

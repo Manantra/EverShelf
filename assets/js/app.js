@@ -1622,7 +1622,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zn'; // bump when translations change
+const _I18N_VERSION = '20261028zo'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7310,7 +7310,7 @@ function switchSettingsTab(btn, tabId) {
 // ── Settings navigation: sections (level 1) → tabs (level 2) ──────────────
 // 16 tabs in a single strip was unreadable (see CHANGELOG 1.9.1). Each tab
 // declares its section in the `data-group` attribute in index.html and only the
-// active section's tabs are shown. scripts/test-settings-nav.php keeps the two
+// active section's tabs are shown; the two lists must not drift apart.
 // ends in sync — add a group here AND a data-group there.
 const SETTINGS_GROUPS = ['app', 'cooking', 'medical', 'alerts', 'system'];
 
@@ -9290,7 +9290,7 @@ function _captureStopMeter() {
  * and a denied microphone all go through it. It must exist: it went missing in a
  * refactor while three callers still called it, and the ReferenceError made
  * `_closeCaptureSheet()` stop at its first line — the dialog stayed on screen and the
- * microphone never started. Guard test: scripts/test-capture-parse.php.
+ * microphone never started.
  */
 function _captureVoiceStop() {
     if (_captureVoice.timer) {
@@ -15697,7 +15697,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zn';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zo';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -15707,7 +15707,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zn';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261028zo';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -17190,25 +17190,6 @@ function _medNeighboursHtml(rows) {
         `</div>`;
 }
 
-/**
- * Repaint the neighbour chips after the async answer arrives (the card is already on screen).
- */
-function _medRenderNeighbours() {
-    const host = document.getElementById('pf-med-match');
-    if (!host || host.hidden) return;
-    const previous = host.querySelector('.med-neighbour-row');
-    const title = host.querySelector('.med-neighbours-title');
-    if (!_medNeighbourCodes.length) {
-        if (previous) previous.remove();
-        if (title) title.remove();
-        return;
-    }
-    const html = _medNeighboursHtml(_medMatchResults || []);
-    if (!html) return;
-    if (previous) previous.remove();
-    if (title) title.remove();
-    host.insertAdjacentHTML('beforeend', html);
-}
 
 /**
  * Take one of the neighbouring codes: the field is the truth, so it is rewritten and the
@@ -35293,7 +35274,7 @@ const _PRELOADER_STAGE_KEYS = {
 /**
  * Which rail icon owns each low-level check of the health_check payload. The
  * payload reports ~30 flat checks; the rail groups them into the seven things a
- * human can actually act on. Guard test: scripts/test-preloader-stages.php
+ * human can actually act on.
  * (every key of the startup CHECKS list must be owned by exactly one stage).
  */
 const _PRELOADER_STAGE_OF_CHECK = {

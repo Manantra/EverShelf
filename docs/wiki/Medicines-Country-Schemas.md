@@ -82,7 +82,6 @@ that cannot be expressed as a pattern — Italy's three printed AIC forms plus A
    **all six locales**, then run:
 
    ```bash
-   php scripts/test-medical.php      # schema, OCR rules, module split, catalogue importer
    python3 scripts/i18n-audit.py     # no missing key in any locale
    ```
 
@@ -112,7 +111,6 @@ that cannot be expressed as a pattern — Italy's three printed AIC forms plus A
 
 - `docs/wiki/Medicines.md` — the module itself (opt-in, cabinet, symptom lookup, panels).
 - `api/lib/medicines.php` — the local catalogue store (key, search, importer).
-- `scripts/test-medical.php` — the guard test that locks all of the above.
 
 | 🇬🇧 GB | EAN-13 (no national reimbursement number since Brexit) | no | — |
 | 🇨🇭 CH, 🇧🇪 BE, 🇳🇱 NL, 🇵🇹 PT, 🇵🇱 PL, 🇬🇷 GR, 🇸🇪 SE, 🇩🇰 DK, 🇫🇮 FI, 🇮🇪 IE | EAN/GTIN of the country's range (+ FMD where it applies) | no | — |

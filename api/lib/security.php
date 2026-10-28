@@ -243,8 +243,7 @@ function evershelfSendSecurityHeaders(): void {
  * `migration_*` flag re-runs a data migration on the next boot.
  *
  * One list, read by both directions, so a new internal row cannot leak by default.
- * `scripts/test-app-settings-api.php` also asserts that every key the frontend
- * writes is listed here, so the two sides cannot drift.
+ * Every key the frontend writes must be listed here, or the two sides drift.
  */
 function evershelfClientSettingsKeys(): array
 {

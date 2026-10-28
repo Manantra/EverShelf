@@ -3,10 +3,9 @@
  * The `.env` keys that have no control on the settings page — on purpose.
  *
  * The settings registry maps a control to its `.env` key when they share the
- * slug; everything else must be listed here with the reason, so
- * scripts/test-settings-schema.php can prove that **no key is forgotten** and
- * the search bar can still find it (it shows the key with a “server setting”
- * note instead of a jump).
+ * slug; everything else must be listed here with the reason, so **no key is
+ * forgotten** and the search bar can still find it (it shows the key with a
+ * “server setting” note instead of a jump).
  *
  * Buckets:
  *   security  — credentials and hardening: never editable from the browser

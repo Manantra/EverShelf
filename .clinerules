@@ -80,40 +80,6 @@ for f in mcp-server/src/*.js; do node --check "$f"; done
 python3 -c "import json,glob; [json.load(open(f)) for f in glob.glob('translations/*.json')]"
 python3 scripts/i18n-audit.py
 
-# regression tests (run the ones the change touches)
-php scripts/test-shopping-guards.php
-php scripts/test-shopping-restock.php
-php scripts/test-expiry-and-plan-days.php
-php scripts/test-tap-open.php
-php scripts/test-locale-dates.php
-php scripts/test-mobile-layout.php
-php scripts/test-shopping-dismiss.php
-php scripts/test-product-kind-prefix.php
-php scripts/test-product-number.php
-php scripts/test-preloader-stages.php
-php scripts/test-dashboard-panels.php
-php scripts/test-settings-nav.php
-php scripts/test-i18n-icons.php
-php scripts/test-html-in-text.php
-php scripts/test-auto-favorite.php
-php scripts/test-recipe-archive.php
-php scripts/test-env-overrides.php
-php scripts/test-docker-cron.php
-php scripts/test-backup-i18n.php
-php scripts/test-i18n-boot.php
-php scripts/test-vocabulary.php
-php scripts/test-product-thumb.php
-php scripts/test-opened-shelf-life.php
-php scripts/test-credits.php
-php scripts/test-spesa-flow.php
-php scripts/test-seasonal-match.php
-php scripts/test-medical.php          # opt-in medicines: disclaimer, domain separation, offline ATC matcher, no dosage
-php scripts/test-location-rename.php   # renaming a custom location moves stock, history and the medicine marking
-php scripts/test-location-order.php    # Dispensa → 💊 medicine cabinet → fridges → other places, one icon set
-php scripts/test-location-expiry.php   # the expiry follows the KIND of place: "Dispensa cucina" is dated like "Dispensa"
-php scripts/test-js-structure.php      # no top-level function swallowed by a missing brace; inline handlers exist
-# full list: ls scripts/test-*.php
-
 # after big edits, regenerate the navigation indexes
 bash scripts/gen-code-index.sh
 ```

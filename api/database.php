@@ -200,8 +200,7 @@ function initializeDB(PDO $db): void {
         CREATE INDEX IF NOT EXISTS idx_transactions_pid_type_undone ON transactions(product_id, type, undone);
         -- Hot read paths (audit D1/G2): FIFO pick by added_at, product name and the
         -- shopping family/buy key. The expression indexes must stay equivalent to the
-        -- WHERE clauses they serve (scripts/test-db-indexes.php asserts it with
-        -- EXPLAIN QUERY PLAN).
+        -- WHERE clauses they serve (EXPLAIN QUERY PLAN was run on each of them).
         CREATE INDEX IF NOT EXISTS idx_inventory_added ON inventory(added_at);
         CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products(lower(name));
         CREATE INDEX IF NOT EXISTS idx_products_shopping_name_lower ON products(lower(trim(shopping_name)));
@@ -1129,8 +1128,8 @@ function recipesBackfillAndDedupByHash(PDO $db): void {
     // shopping cron, on columns that had no index. Created here as well as in
     // initializeDB() so an existing database picks them up on the next boot.
     // SQLite compares the *parsed* expression, so an expression index must stay
-    // equivalent to the WHERE clause it serves; scripts/test-db-indexes.php runs
-    // EXPLAIN QUERY PLAN on the real statements to keep them honest.
+    // equivalent to the WHERE clause it serves: EXPLAIN QUERY PLAN was run on the
+    // real statements when the index was added.
     $db->exec('CREATE INDEX IF NOT EXISTS idx_inventory_added ON inventory(added_at)');
     $db->exec('CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products(lower(name))');
     $db->exec("CREATE INDEX IF NOT EXISTS idx_products_shopping_name_lower ON products(lower(trim(shopping_name)))");

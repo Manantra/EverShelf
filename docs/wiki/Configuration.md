@@ -163,7 +163,7 @@ provider opens the credential card of that provider.
 The Kiosk download banner, the Kiosk update panel and the About card (version,
 bug report, changelog) live inside **Info**. They used to sit outside the panels,
 so they were painted below every single tab.
-`scripts/test-settings-nav.php` fails if a tab declares a section the JS does not
+ fails if a tab declares a section the JS does not
 know, if a panel has no tab (or two), if the page opens on a tab of a section
 that is not highlighted, if the sub-section list starts scrolling sideways again, or
 if those blocks move back out of *Info*.
@@ -199,11 +199,11 @@ The **first-run wizard** only offers what the server has not already decided: th
 step — `GDRIVE_ENABLED=false` hides it, because switching the feature off is a decision,
 while the `.env` default (key absent) still offers it as a discovery step.
 
-`scripts/test-setup-assistant.php` fails if a row points at a tab that does not exist,
+ fails if a row points at a tab that does not exist,
 if an `ask` item names a wizard step outside `_setupSteps()`, if a label is missing in
 any of the six locales, if the card starts listing configured options again, or if the
 wizard goes back to a hardcoded closing step.
-`scripts/test-setup-wizard-config.php` runs the shipped `_getMissingSetupSteps()` in node
+ runs the shipped `_getMissingSetupSteps` in node
 and fails if a new device is asked again on a configured instance, if an explicit
 `GDRIVE_ENABLED=false` keeps the Drive step, or if the instance ledger stops being read
 and written.

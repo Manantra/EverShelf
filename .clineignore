@@ -116,4 +116,3 @@ todo/screenshots/
 **/pnpm-lock.yaml
 
 # TEMPORARY medicine-read diagnostic (frames + events of the OCR reader)
-data/med_debug/

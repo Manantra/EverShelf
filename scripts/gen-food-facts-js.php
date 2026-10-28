@@ -8,7 +8,7 @@
  * They are TEXT, so they live in a data file and never in app.js: one list per language,
  * and a language without a list falls back to English/Italian at runtime.
  *
- * Run it after editing data/food_facts_fallback.json; scripts/test-vocabulary.php fails
+ * Run it after editing data/food_facts_fallback.json: the bundle must match the data.
  * when the generated file is out of sync.
  */
 $root = dirname(__DIR__);
@@ -38,7 +38,7 @@ if (!$facts) {
 $json = json_encode($facts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $js = "/**\n"
     . " * GENERATED FILE — do not edit. Source: data/food_facts_fallback.json\n"
-    . " * Regenerate: php scripts/gen-food-facts-js.php   (locked by scripts/test-vocabulary.php)\n"
+    . " * Regenerate: php scripts/gen-food-facts-js.php\n"
     . " * Text only: no logic here.\n"
     . " */\n"
     . "const EVERSHELF_FOOD_FACTS_FALLBACK = {$json};\n";

@@ -6790,8 +6790,7 @@ return vocabIsPreparedSalad($name, $brand);
  * a "Pomodoro" that is produce on one side and a conserve on the other is how a loose
  * tomato ended up weighed in grams and merged with the pantry's tin.
  *
- * scripts/test-ai-product-match.php locks the agreement by running the app's own JS in
- * node against this function over a probe list covering the whole grocery vocabulary:
+ * The two guessers agree on a probe list covering the whole grocery vocabulary:
  * PORT EVERY CHANGE TO BOTH SIDES (same order, same patterns).
  */
 function guessCategoryFromNamePHP(string $name, string $brand = ''): string {

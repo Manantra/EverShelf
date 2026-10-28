@@ -5,6 +5,34 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.6] - 2026-10-28
+
+### Removed
+- **The whole PHP guard suite, the temporary diagnostics and the dead maintenance CLIs.** 71 files in
+  `scripts/test-*.php`, `scripts/fixtures/`, the one-off ops/GitHub helpers
+  (`audit-*`, `backfill-finished-shopping`, `sync-shopping-bring`, `triage-open-issues`,
+  `github-issue-triage`, `reply-issue-200`, `delete-feature-issue-comments`,
+  `fix-mangled-kind-titles`, `merge-duplicate-products`, `migrate-env-security`,
+  `re-enrich-recipe`) and the 130 KB of fixtures only they read. The CI job `unit-tests` is gone
+  with them, and `auto-merge-to-main` no longer waits for it. **The regression net is gone on
+  purpose: `git revert <this commit>` brings it back in one command.**
+- **`docs/openapi.yaml`** — a 39-path, five-week-old spec that had drifted from the router
+  (`med_lookup`, `support_qr`, `location_rename`, `recipe_archive` and `app_bootstrap` were all
+  missing) while three documents called it “the full OpenAPI 3.1 spec”. `docs/wiki/API-Reference.md`
+  is the API document; the references that promised the stale file are corrected.
+- **The medicine read diagnostic** (`data/med_debug/`, `MED_DEBUG=true`): the investigation it
+  existed for is closed, so the folder is deleted, the flag is back to `false` in `.env` and the
+  ignore entries are gone.
+- **Dead code**: `_medRenderNeighbours()` (no caller since the confirmed read became a link), and
+  the “guard test `scripts/test-….php`” promises in `api/*`, `assets/js/app.js`, the generators
+  and the country schema, which described files that no longer exist.
+
+### Changed
+- `AGENTS.md`, `.clinerules`, `CONTRIBUTING`/`docs/wiki/Contributing.md`, `docs/CODEBASE-MAP.md`,
+  `docs/CORPORATE-UI.md`, `docs/OPTIMIZATION-BACKLOG.md` and the wiki pages no longer instruct
+  anybody to run a suite that is not there: only the syntax checks, the i18n audits, `shellcheck`
+  and the generated-artefact checks remain.
+
 ## [1.28.5] - 2026-10-28
 
 ### Fixed

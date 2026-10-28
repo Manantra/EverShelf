@@ -96,7 +96,7 @@ What a re-enable touches (the comments in the code name the same list):
 | 5. Un-comment the two `[data-ad-slot]` divs (dashboard + screensaver) | `index.html` |
 | 6. Un-comment the CSS block and the renderer + `online`/`offline` listeners | `assets/css/style.css`, `assets/js/core/support.js` |
 | 7. Un-comment the two radio buttons and the two branches | `evershelf-kiosk` (`activity_setup.xml`, `SetupActivity.kt`) |
-| 8. Put the banner assertions back | `scripts/test-support-monetization.php` |
+| 8. Put the banner assertions back | |
 
 `_renderAdSlots()` still exists as a **no-op** on purpose: a client cached in a kiosk
 WebView may call it, and a missing function would throw instead of doing nothing.
@@ -170,5 +170,5 @@ keeps the whole answer in the file and removes the second step.
 | Markup (dialog, Settings card), the two parked slots as comments | `index.html` |
 | Styles | `assets/css/style.css` (section “SUPPORT DIALOG (donation)”) |
 | Strings (6 locales) | `translations/*.json` → `support` |
-| Guard test | `scripts/test-support-monetization.php` |
+| Guard test | |
 | Kiosk wizard step | `evershelf-kiosk` → SetupActivity “features” step |

@@ -20,8 +20,7 @@
  *   4. the localized app category as a last resort.
  *
  * The dictionaries live here (and not inline in api/index.php) because both
- * computeShoppingName() and the kind resolver must read the *same* vocabulary:
- * scripts/test-product-kind-prefix.php locks that down.
+ * computeShoppingName() and the kind resolver must read the *same* vocabulary.
  */
 
 /** Stop words / filler adjectives dropped before looking a token up. */

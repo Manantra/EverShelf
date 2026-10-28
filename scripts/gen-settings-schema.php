@@ -11,7 +11,7 @@
  *   api/lib/settings_schema.php              (server/tests)
  *
  * It never invents an entry: a control that is not in index.html is not in the
- * registry, and scripts/test-settings-schema.php fails when the two drift apart.
+ * registry; the two must not drift apart.
  *
  * Usage: php scripts/gen-settings-schema.php [--check]
  *   --check  exit 1 when the generated files are stale (CI-friendly)

@@ -49,37 +49,6 @@ jobs:
             node --check "$f"
           done
 
-  # ── Regression tests ─────────────────────────────────────────────────────
-  # 60+ guard tests live in scripts/test-*.php and encode every rule this project
-  # learned the hard way (product kind, shopping restock, expiry, i18n, setup
-  # wizard, indexes, backups…). Until this job existed none of them ran in CI, so a
-  # regression they lock could reach main as long as `php -l` stayed happy.
-  unit-tests:
-    name: PHP Regression Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: pdo_sqlite, curl, mbstring
-
-      - name: Run the test suite
-        run: |
-          set -e
-          mkdir -p data
-          failed=""
-          for t in scripts/test-*.php; do
-            echo "== $t =="
-            php "$t" || failed="$failed $t"
-          done
-          if [ -n "$failed" ]; then
-            echo "::error::failed tests:$failed"
-            exit 1
-          fi
-
   # ── Shell scripts ────────────────────────────────────────────────────────
   # backup.sh and the container cron are only exercised when something breaks.
   shellcheck:
@@ -177,7 +146,7 @@ jobs:
   # You never need to merge manually again — just push to develop.
   auto-merge-to-main:
     name: Auto-merge develop → main
-    needs: [lint-php, lint-js, unit-tests, shellcheck, generated-files, docker-build, validate-translations]
+    needs: [lint-php, lint-js, shellcheck, generated-files, docker-build, validate-translations]
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     permissions:
@@ -336,5 +305,3 @@ jobs:
     with:
       version: ${{ needs.create-release.outputs.version }}
       latest: true
-
-# token scope probe

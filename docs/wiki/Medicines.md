@@ -221,7 +221,7 @@ prefilled medical entry with *"Codice rilevato…"*.
 4. **More countries**: the schema already carries `codes`, `dataset` and `ignored` per country;
    a national open-data importer is the missing piece (AIFA is the one implemented).
 
-Guard test: `php scripts/test-medical.php` (167 checks: opt-in, disclaimer, domain separation,
+Guard test: `php (167 checks: opt-in, disclaimer, domain separation,
 matcher, safety copy, the AIC/FMD/ignored rules in both ports, the catalogue importer, the
 label OCR, and the copy in six locales).
 
@@ -253,7 +253,7 @@ declares:
   importer is a script, because the app never calls a medicine API.
 
 **Adding a country is a data change**: copy a block, set the ranges and the code types, add it
-to the table below, and run `php scripts/test-medical.php` (it asserts the file parses, that
+to the table below, and run `php (it asserts the file parses, that
 `IT`/`DE` stay complete, that Italy claims only the AIC, and that a country with no schema
 claims **nothing**). No new action, no migration.
 
