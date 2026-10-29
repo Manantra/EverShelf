@@ -128,3 +128,24 @@ GitHub CI as green until actual runs appear and finish successfully.
 - SQLite WAL concurrency, simultaneous clients, duplicate removal races
 - Recovery after an interrupted write, service-worker cache and offline replay
 - Docker/Apache startup, image rebuild and real Safari/iPhone browser tests
+
+## Additional HTTP/dismissal integration test (2026-10-30)
+
+A new script, `scripts/integration-shopping-dismiss.py`, uses the loopback-only,
+explicitly marked sandbox and actual application functions. It creates an
+unstocked synthetic product, supplies an urgent smart-shopping cache item and
+verifies that `internalShoppingAutoAddCritical()` adds it. The item is then
+removed using the real `shopping_remove` HTTP API with `purchased:false`.
+
+Because this removal invalidates the smart-shopping cache, the test deliberately
+**restores the same stale urgent forecast** to emulate a race with cron. The
+sync must not recreate the dismissed item. It also invokes
+`bringQuickSyncProduct()` (the live stock-change path), repeats cron sync and
+confirms via fresh HTTP reads and a separate SQLite connection that the item
+remains dismissed, with the decision stored in `app_settings` and database
+integrity still `ok`.
+
+**Result:** local sandbox **passed** every check of this sequence. The test now
+runs in the CI's isolated HTTP/SQLite job. This verifies one representative
+critical/depleted family; multiple products, partial inventory, multi-device
+conflicts and full five-minute cron schedule remain future coverage.
