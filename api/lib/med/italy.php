@@ -61,6 +61,30 @@ function medicalItalyLocalCode(string $code): ?array
 }
 
 /**
+ * Italian PARAF / EAN for parafarmaci and medical devices (Farmadati Italia Srl).
+ *
+ * High-confidence shape only: exactly 9 digits starting with `9` (optional leading `A`).
+ * These are NOT AIFA AICs — never returned from `medicalItalyLocalCode()`.
+ *
+ * @return array{code:string,type:string,label_key:string}|null
+ */
+function medicalItalyParafFromCode(string $code): ?array
+{
+    $c = medicalCompactCode($code);
+    if ($c === '') {
+        return null;
+    }
+    if (!preg_match('/^A?(\d{9})$/', $c, $m)) {
+        return null;
+    }
+    $nine = $m[1];
+    if ($nine[0] !== '9') {
+        return null;
+    }
+    return ['code' => $nine, 'type' => 'paraf', 'label_key' => 'medical.code_paraf'];
+}
+
+/**
  * The AIFA open-data columns, by the many names the releases have used.
  *
  * The file is data somebody else writes: the headers change between editions (and between the
@@ -100,6 +124,8 @@ function medicalItalyModule(): array
         'slug' => 'it',
         // Callable names, so the core never has to know what "an AIC" is.
         'local_code' => 'medicalItalyLocalCode',
+        // Optional: Farmadati PARAF/EAN (9xxxxxxxx) — not AIFA, not in the public catalogue.
+        'paraf_code' => 'medicalItalyParafFromCode',
         'dataset_columns' => 'medicalItalyColumnAliases',
         'dataset_id' => 'aifa',
         // Where the free file comes from (no API, no key): the official lists page publishes the

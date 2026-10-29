@@ -38,6 +38,25 @@ function _medItalyAicFromCode(code) {
     return null;
 }
 
+/**
+ * Italian PARAF / EAN for parafarmaci and medical devices (Farmadati Italia Srl).
+ *
+ * High-confidence shape only: exactly 9 digits starting with `9` (optional leading `A` stripped).
+ * These are NOT AIFA AICs and never belong in `localCode()`.
+ *
+ * @param {string} read
+ * @returns {{code:string,type:string,label_key:string}|null}
+ */
+function _medItalyParafFromCode(code) {
+    const c = _medCompactCode(code);
+    if (!c) return null;
+    const digits = /^A?(\d{9})$/.exec(c);
+    if (!digits) return null;
+    const nine = digits[1];
+    if (nine[0] !== '9') return null;
+    return { code: nine, type: 'paraf', label_key: 'medical.code_paraf' };
+}
+
 _medRegisterCountryModule('italy', {
     cc: 'IT',
 
@@ -53,5 +72,15 @@ _medRegisterCountryModule('italy', {
         const aic = _medItalyAicFromCode(read);
         if (!aic) return null;
         return { code: 'A' + aic, type: 'aic', label_key: 'medical.code_aic', aic: aic };
+    },
+
+    /**
+     * Is this read an Italian Farmadati PARAF/EAN (9xxxxxxxx)?
+     *
+     * @param {string} read
+     * @returns {{code:string,type:string,label_key:string}|null}
+     */
+    parafCode(read) {
+        return _medItalyParafFromCode(read);
     },
 });

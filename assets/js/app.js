@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261029j'; // bump when translations change
+const _I18N_VERSION = '20261029n'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14148,6 +14148,90 @@ function _medCloseBlocked(resume = false) {
 let _medBlockedShown = false;
 
 /**
+ * Italy Farmadati PARAF/EAN (9xxxxxxxx): explain the proprietary registry, then optionally open
+ * an empty medicine form. Detection lives in the Italy module (`_medParafCode`); this is wiring.
+ *
+ * @param {string} code nine digits starting with 9
+ */
+function _medShowParafNotice(code) {
+    const nine = String(code || '').replace(/\D/g, '');
+    if (!(typeof _medParafCode === 'function' && _medParafCode(nine))) return;
+    _medParafPendingCode = nine;
+    const ov = document.getElementById('med-paraf-overlay');
+    const codeEl = document.getElementById('med-paraf-code');
+    if (codeEl) {
+        codeEl.hidden = false;
+        // Bare t('medical.code_paraf') so the i18n audit sees the Italy label_key.
+        codeEl.textContent = `${t('medical.code_paraf')}: ${nine}`;
+    }
+    if (ov) {
+        ov.style.display = 'flex';
+        try { ov.querySelector('.btn-primary')?.focus({ preventScroll: true }); } catch (e) { /* */ }
+    }
+}
+
+function _medCloseParafNotice() {
+    _medParafPendingCode = '';
+    const ov = document.getElementById('med-paraf-overlay');
+    if (ov) ov.style.display = 'none';
+    try { resumeScanner(); } catch (e) { /* */ }
+    if (typeof _medAskCodeSoon === 'function') _medAskCodeSoon();
+}
+
+function _medConfirmParafNotice() {
+    const code = String(_medParafPendingCode || '').replace(/\D/g, '');
+    _medParafPendingCode = '';
+    const ov = document.getElementById('med-paraf-overlay');
+    if (ov) ov.style.display = 'none';
+    if (!(typeof _medParafCode === 'function' && _medParafCode(code))) {
+        try { resumeScanner(); } catch (e) { /* */ }
+        return;
+    }
+    _medOpenParafManualForm(code);
+}
+
+/**
+ * Empty medicine form for an Italy Farmadati PARAF the public AIFA DB cannot name.
+ * Name is editable; the code is stored as `_medParafManualCode` + `_medConfirmedAic`.
+ *
+ * @param {string} code nine digits starting with 9
+ */
+function _medOpenParafManualForm(code) {
+    const nine = String(code || '').replace(/\D/g, '');
+    if (!(typeof _medParafCode === 'function' && _medParafCode(nine))) return;
+    try { stopScanner(); } catch (e) { /* */ }
+    _medShowAsk(false);
+    _medParafManualCode = nine;
+    currentProduct = {
+        id: null,
+        barcode: nine,
+        name: '',
+        brand: '',
+        category: '',
+        unit: 'pz',
+        default_quantity: 1,
+        notes: '',
+        is_medical: 1,
+    };
+    showPage('product-form');
+    _medFormSetMode(true);
+    _medConfirmedAic = nine;
+    _medConfirmedAtc = '';
+    const nameInput = document.getElementById('pf-name');
+    if (nameInput) {
+        nameInput.value = '';
+        nameInput.readOnly = false;
+        nameInput.classList.remove('is-readonly');
+        try { nameInput.focus({ preventScroll: true }); } catch (e) { /* */ }
+    }
+    const codeInput = document.getElementById('pf-barcode');
+    if (codeInput) codeInput.value = nine;
+    const idInput = document.getElementById('pf-id');
+    if (idInput) idInput.value = '';
+    scanLog(`Medicine PARAF manual form opened: ${nine}`);
+}
+
+/**
  * Which scan panel is open: 'food' (the default) or 'medicine'.
  *
  * The two are never mixed — the household said it plainly: a food panel that answers with drug
@@ -14223,7 +14307,10 @@ function _setScanModeInner(mode) {
     const frame = document.getElementById('scan-med-frame');
     if (frame) frame.hidden = !readable;
     const sample = document.getElementById('scan-med-frame-sample');
-    if (sample) sample.textContent = _medOcrSample();
+    if (sample) {
+        sample.textContent = _medOcrSample() || 'A000000000';
+        sample.classList.remove('is-read', 'is-partial');
+    }
     // A leftover read line from the previous product would look like a result of this one.
     // The previous box's neighbours must never be shown for this one.
     _medNeighbourCodes = [];
@@ -15119,6 +15206,8 @@ const _OVERLAY_CLOSERS = {
     // A country the scanner cannot read: the dialog says so, Esc closes it and the camera
     // resumes (the household is still standing in front of the cabinet).
     'med-blocked-overlay': () => _medCloseBlocked(true),
+    // Italy Farmadati PARAF (9xxxxxxxx): Esc cancels without opening the empty form.
+    'med-paraf-overlay': () => _medCloseParafNotice(),
     // The two dialogs the Settings page opens in place: the free-API explanation and the
     // location rename. Esc closes them without leaving a half-typed rename behind.
     'free-apis-overlay': () => _closeFreeApisDialog(),
@@ -16082,7 +16171,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -16092,7 +16181,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261029j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -17008,6 +17097,8 @@ function _medOcrGeometryNote(videoEl, region) {
  *
  * An empty / short OCR pass must NEVER wipe a longer partial already on screen (one-pass-per-
  * attempt rotation used to flash A000000000 again every 2 s and looked “stuck”).
+ * The ghost placeholder itself is NOT a “longer read”: its nine zeros used to block every
+ * partial (`digits.length < shown.length` → never left A000000000).
  */
 function _medPreviewSample(raw, aic) {
     const el = document.getElementById('scan-med-frame-sample');
@@ -17024,9 +17115,14 @@ function _medPreviewSample(raw, aic) {
     const digits = String(raw || '').replace(/[^0-9]/g, '').slice(0, wantLen);
     // Ignore noise under 3 digits — and never replace a better preview with the ghost shape.
     if (digits.length < 3) return;
-    const shown = String(el.textContent || '').replace(/[^0-9]/g, '');
-    if (digits.length < shown.length) return;
+    const rawShown = String(el.textContent || '');
+    const isGhost = !el.classList.contains('is-read')
+        && (rawShown === shape || rawShown === 'A000000000' || /^A0+$/.test(rawShown));
+    const shown = isGhost ? '' : rawShown.replace(/[^0-9]/g, '').replace(/·/g, '');
+    // Keep a longer partial; equal length may refine the digits the OCR just re-read.
+    if (shown && digits.length < shown.length) return;
     el.classList.remove('is-read');
+    el.classList.add('is-partial');
     el.textContent = ('A' + digits).padEnd(shape.length || (wantLen + 1), '·');
 }
 
@@ -17222,6 +17318,20 @@ function _medNearChoices(code, nearRows) {
  */
 async function _medConfirmRead(read, method = 'OCR') {
     const raw = String(read || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+    // Italy Farmadati PARAF/EAN (9xxxxxxxx): not an AIFA AIC — notice dialog, never name-search.
+    const parafEarly = (typeof _medParafCode === 'function')
+        ? (_medParafCode(raw) || _medParafCode(String(raw).replace(/^A/, '')))
+        : null;
+    if (parafEarly && parafEarly.code) {
+        if (parafEarly.code === _medConfirmingCode) return false;
+        _medConfirmingCode = parafEarly.code;
+        _setScanStatus('', 'idle', '');
+        try { stopScanner(); } catch (e) { /* already stopped */ }
+        _medShowAsk(false);
+        _medShowParafNotice(parafEarly.code);
+        _medConfirmingCode = '';
+        return true;
+    }
     const withA = /^A\d{9}$/.test(raw) ? raw : (/^\d{9}$/.test(raw) ? ('A' + raw) : raw);
     const local = _medLocalCode(withA);
     const code = String((local && (local.aic || local.code)) ? (local.aic || local.code) : raw.replace(/^A/, '')).replace(/\D/g, '');
@@ -17417,9 +17527,11 @@ function _medShowAsk(on) {
         nameAsk.hidden = true;
         const list = document.getElementById('scan-med-name-list');
         if (list) list.innerHTML = '';
-        const more = document.getElementById('scan-med-name-more');
-        if (more) more.hidden = true;
+        _medNameMoreSet(false);
         _medNameSearch = { q: '', offset: 0, rows: [] };
+    } else if (on && nameAsk && nameAsk.hidden) {
+        // Code-only ask (timeout): never leave a leftover “Altre 4 proposte” from a prior name search.
+        _medNameMoreSet(false);
     }
     if (!row) return;
     row.hidden = false;
@@ -17449,6 +17561,12 @@ function _medCodeDigitsOnly(el) {
 /** State for the name fallback inside the ask card (4 proposals + “more”). */
 let _medNameSearch = { q: '', offset: 0, rows: [] };
 
+/** “Altre 4 proposte” only after a full page of hits — never before a search or on an empty page. */
+function _medNameMoreSet(on) {
+    const more = document.getElementById('scan-med-name-more');
+    if (more) more.hidden = !on;
+}
+
 /**
  * Code not in the catalogue: ask for the commercial name and offer real packs.
  *
@@ -17470,8 +17588,7 @@ function _medRevealNameAsk(opts = {}) {
     _medNameSearch = { q: '', offset: 0, rows: [] };
     const list = document.getElementById('scan-med-name-list');
     if (list) list.innerHTML = '';
-    const more = document.getElementById('scan-med-name-more');
-    if (more) more.hidden = true;
+    _medNameMoreSet(false);
     try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
 }
 
@@ -17483,6 +17600,7 @@ async function _medSearchName() {
         return;
     }
     _medNameSearch = { q: q, offset: 0, rows: [] };
+    _medNameMoreSet(false);
     await _medFetchNamePage(false);
 }
 
@@ -17495,9 +17613,15 @@ async function _medFetchNamePage(append) {
     const q = _medNameSearch.q;
     const offset = append ? _medNameSearch.offset : 0;
     const list = document.getElementById('scan-med-name-list');
-    const more = document.getElementById('scan-med-name-more');
     if (!list) return;
-    if (!append) list.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_searching'))}</p>`;
+    if (!q) {
+        _medNameMoreSet(false);
+        return;
+    }
+    if (!append) {
+        list.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_searching'))}</p>`;
+        _medNameMoreSet(false);
+    }
     let res = null;
     try {
         res = await api('med_lookup', { q: q, limit: 4, offset: offset, lang: _currentLang || '' });
@@ -17508,7 +17632,7 @@ async function _medFetchNamePage(append) {
     _medNameSearch.offset = offset + rows.length;
     if (!_medNameSearch.rows.length) {
         list.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.name_ask_none'))}</p>`;
-        if (more) more.hidden = true;
+        _medNameMoreSet(false);
         return;
     }
     list.innerHTML = _medNameSearch.rows.map((row, i) => {
@@ -17518,7 +17642,8 @@ async function _medFetchNamePage(append) {
             <span class="scan-med-name-aic">A${escapeHtml(String(row.aic))}</span>
         </button>`;
     }).join('');
-    if (more) more.hidden = rows.length < 4;
+    // Another page only if THIS page was full (4 hits). A short/empty page means the end.
+    _medNameMoreSet(rows.length >= 4);
 }
 
 function _medPickNameRow(index) {
@@ -17566,10 +17691,18 @@ function _medResumeScan() {
 
 async function _medSubmitCode() {
     const input = document.getElementById('scan-med-code-input');
-    // Digits only in the field; the locked prefix supplies the printed `A`.
+    // Digits only in the field; the locked prefix supplies the printed `A` for AIC.
+    // A Farmadati PARAF also fits here (9xxxxxxxx): the A is decorative for that path.
     const digits = String(input && input.value || '').replace(/\D/g, '').slice(0, 9);
     if (digits.length !== 9) {
         showToast(t('medical.code_invalid_shape'), 'error', 5000);
+        return;
+    }
+    if (input) input.value = '';
+    const paraf = (typeof _medParafCode === 'function') ? _medParafCode(digits) : null;
+    if (paraf && paraf.code) {
+        _medShowAsk(false);
+        _medShowParafNotice(paraf.code);
         return;
     }
     const withA = 'A' + digits;
@@ -17579,7 +17712,6 @@ async function _medSubmitCode() {
         showToast(t('medical.code_invalid_shape'), 'error', 5000);
         return;
     }
-    if (input) input.value = '';
     // Typed codes are deliberate: one catalogue miss → name fallback (no “try twice” OCR rule).
     // Clear a prior OCR rejection of the same digits so near/family can run again (027 → gocce 041).
     _medRejectedReads.delete(code);
@@ -19006,11 +19138,15 @@ function _medFormSetMode(on) {
     if (page) page.classList.toggle('is-medicine-form', !!on);
 
     // A form starts with nothing confirmed: the catalogue (or the row that already exists) is what
-    // makes a box a medicine, never a typed title.
+    // makes a box a medicine, never a typed title — except Italy Farmadati PARAF after notice.
     _medConfirmedAic = '';
     _medConfirmedAtc = '';
     // Leaving (or re-entering) the form must not leave the scan lock stuck on the last AIC.
-    if (!on) _medConfirmingCode = '';
+    if (!on) {
+        _medConfirmingCode = '';
+        _medParafManualCode = '';
+    }
+    const parafManual = !!(on && _medParafManualCode);
 
     // Back to the food form: a catalogue card left over from a medicine must not follow the
     // household into the next product.
@@ -19061,14 +19197,20 @@ function _medFormSetMode(on) {
     const nameInput = document.getElementById('pf-name');
     if (nameInput) {
         nameInput.placeholder = on ? t('medical.form_name_placeholder') : t('product.name_placeholder');
-        // A medicine is never typed: the name is the official AIFA one, so the field is read-only
-        // in medicine mode (and the hint under it says where it comes from). The catalogue card's
-        // "Non è questo?" is the way to correct a wrong pack.
-        nameInput.readOnly = !!on;
-        nameInput.classList.toggle('is-readonly', !!on);
+        // AIFA medicines are never typed (official catalogue name). Italy Farmadati PARAF is the
+        // one exception: the public DB has no row, so the household writes the commercial name.
+        nameInput.readOnly = !!(on && !parafManual);
+        nameInput.classList.toggle('is-readonly', !!(on && !parafManual));
     }
     const nameHint = document.getElementById('pf-med-name-hint');
-    if (nameHint) nameHint.hidden = !on;
+    if (nameHint) {
+        nameHint.hidden = !on;
+        if (on) {
+            const hintKey = parafManual ? 'medical.paraf_name_hint' : 'medical.name_from_catalogue';
+            nameHint.setAttribute('data-i18n', hintKey);
+            nameHint.textContent = t(hintKey);
+        }
+    }
     const brandInput = document.getElementById('pf-brand');
     if (brandInput) brandInput.placeholder = on ? t('medical.form_brand_placeholder') : t('product.brand_placeholder');
     const notesInput = document.getElementById('pf-notes');
@@ -19090,7 +19232,11 @@ function _medFormSetMode(on) {
     // food fields (_updateBarcodeHint() decides, because it also runs on every keystroke).
     _updateBarcodeHint();
     const title = document.getElementById('product-form-title');
-    if (title) title.textContent = on ? t('medical.form_title') : t('product.title_new');
+    if (title) {
+        title.textContent = on
+            ? (parafManual ? t('medical.paraf_form_title') : t('medical.form_title'))
+            : t('product.title_new');
+    }
     // The submit button does TWO things on a medicine box — it saves the catalogue row AND puts
     // the box in the cabinet — so "Salva prodotto" would hide half of what the tap does.
     const submitBtn = document.getElementById('pf-submit-btn');
@@ -19132,6 +19278,13 @@ let _medFormStock = null;
 let _medConfirmedAic = '';
 /** Official ATC of the confirmed catalogue row ('' when unknown); sent with med_classify. */
 let _medConfirmedAtc = '';
+/**
+ * Italy Farmadati PARAF/EAN (9xxxxxxxx) the household confirmed: unlocks a typed name on the
+ * medicine form. Empty for every AIFA / other-country path.
+ */
+let _medParafManualCode = '';
+/** Pending PARAF code while the Farmadati notice dialog is open. */
+let _medParafPendingCode = '';
 
 /** Sealed or already opened: read by `submitProduct()` and applied to the pantry row. */
 function _medFormStockState(state) {
@@ -20073,6 +20226,10 @@ async function _medStockAddDirect(productId, stock) {
         if (opened && opened.success) {
             showToast(t('medical.opened_saved').replace('{date}', opened.expiry_date ? formatDate(opened.expiry_date) : '—'), 'info', 6000);
         }
+    } else if (_medParafManualCode && _medConfirmedAic === _medParafManualCode) {
+        // Bare t() so the i18n audit sees medical.paraf_saved (Italy Farmadati manual path).
+        showToast(t('medical.paraf_saved'), 'success', 4000);
+        _medParafManualCode = '';
     } else {
         showToast(t('medical.stock_added').replace('{name}', currentProduct?.name || ''), 'success', 4000);
     }
@@ -20119,12 +20276,26 @@ async function submitProduct(e) {
     // its expiry, and the sheet edits it there).
     const medOn = isMedicine || !!document.getElementById('pf-is-medical')?.checked;
     const pfId = String(document.getElementById('pf-id')?.value || '');
-    // NO invented medicines: a box is stocked only when the CATALOGUE confirmed the code (the form
-    // was filled from a `medicines` row) or when the product already exists (`pfId`). A typed title
-    // is not an identification, and the pantry must not fill up with rows nothing can verify.
-    if (medOn && !pfId && !_medConfirmedAic) {
+    // NO invented AIFA medicines: a box is stocked only when the CATALOGUE confirmed the code,
+    // the product already exists, or (Italy only) the household confirmed a Farmadati PARAF
+    // 9xxxxxxxx and typed the commercial name on the empty form.
+    const parafOk = !!(
+        _medParafManualCode
+        && typeof _medParafCode === 'function'
+        && _medParafCode(_medParafManualCode)
+        && _medConfirmedAic === _medParafManualCode
+    );
+    if (medOn && !pfId && !_medConfirmedAic && !parafOk) {
         showToast(t('medical.only_catalogue'), 'error', 8000);
         return;
+    }
+    if (medOn && !pfId && parafOk) {
+        const typedName = String(document.getElementById('pf-name')?.value || '').trim();
+        if (typedName.length < 2) {
+            showToast(t('medical.paraf_name_required'), 'error', 5000);
+            document.getElementById('pf-name')?.focus();
+            return;
+        }
     }
     let medStock = null;
     if (medOn && !pfId) {

@@ -2795,9 +2795,13 @@ a.free-api:hover { border-color: var(--brand-primary); }
     background: rgba(0, 0, 0, 0.45);
 }
 /* The digits recognised so far, in the guide frame: the shape becomes the reading. */
+.scan-med-frame-sample.is-partial {
+    color: #fde68a;
+    opacity: 0.85;
+}
 .scan-med-frame-sample.is-read {
     color: #6ee7b7;
-    opacity: 0.7;
+    opacity: 0.85;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 /* Medicine status: wrap on a phone — never a truncated ellipsis of the same sentence. */
@@ -3014,6 +3018,8 @@ button.scan-med-name-hit:focus-visible {
     display: flex;
     justify-content: center;
 }
+/* `.btn { display: … }` beats the bare [hidden] attribute — same trap as .scan-action-btn. */
+#scan-med-name-more[hidden] { display: none !important; }
 /* While the app is asking, the camera chrome has nothing to offer. */
 #scanner-viewport.is-asking .scan-viewport-controls,
 #scanner-viewport.is-asking .scan-guide-frame,

@@ -9874,6 +9874,26 @@ function medLookupAction(PDO $db): void {
     $country = medicalActiveCountry($db, (string)($_GET['lang'] ?? ''));
     $raw = (string)($_GET['aic'] ?? '');
     $query = trim((string)($_GET['q'] ?? ''));
+    // Country-specific non-catalogue pack codes (Italy: Farmadati PARAF 9xxxxxxxx) are not AIFA
+    // AICs — never invent near/name rows for them; the client opens the Farmadati confirm dialog.
+    $paraf = $raw !== '' ? medicalParafCode($raw, $country) : null;
+    if (is_array($paraf) && !empty($paraf['code'])) {
+        echo json_encode([
+            'success' => true,
+            'enabled' => true,
+            'country' => $country,
+            'aic' => '',
+            'paraf' => true,
+            'paraf_code' => (string)$paraf['code'],
+            'exact' => false,
+            'implausible' => false,
+            'results' => [],
+            'dataset' => medicinesDatasetInfo($db),
+            'dataset_key' => 'medical.dataset_aifa',
+            'advice_key' => 'medical.no_dosage',
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
     // The country module says which number a read carries (Italy: the AIC); the catalogue is
     // keyed by that number, in its canonical 9-digit form.
     $local = $raw !== '' ? medicalLocalCode($raw, $country) : null;

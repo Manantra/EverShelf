@@ -360,6 +360,25 @@ function medicalLocalCode(string $code, string $country): ?array
 }
 
 /**
+ * Is this read a country-specific non-catalogue pack code (Italy: Farmadati PARAF 9xxxxxxxx)?
+ *
+ * Optional module hook — countries without `paraf_code` answer null. The core never interprets
+ * the shape; it only forwards the module's `{code, type, label_key}`.
+ *
+ * @return array{code:string,type:string,label_key:string}|null
+ */
+function medicalParafCode(string $code, string $country): ?array
+{
+    $module = medicalCountryModule($country);
+    $fn = (string)($module['paraf_code'] ?? '');
+    if ($fn === '' || !is_callable($fn)) {
+        return null;
+    }
+    $result = $fn($code);
+    return is_array($result) && !empty($result['code']) ? $result : null;
+}
+
+/**
  * Is this read one of the PACKAGING codes the schema tells us to throw away?
  *
  * In Italy the SSN label is a Pharmacode/Laetus and the 2D DataMatrix carries a lot/serial:

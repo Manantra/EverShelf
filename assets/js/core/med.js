@@ -25,7 +25,7 @@ globalThis.EVERSHELF_MED_MODULES = globalThis.EVERSHELF_MED_MODULES || {};
  * Register one country module.
  *
  * @param {string} slug the value of `"module"` in data/medical_code_schemas.json
- * @param {{cc:string, localCode:function(string):({code:string,type:string,label_key:string,aic?:string}|null)}} module
+ * @param {{cc:string, localCode:function(string):({code:string,type:string,label_key:string,aic?:string}|null), parafCode?:function(string):({code:string,type:string,label_key:string}|null)}} module
  */
 function _medRegisterCountryModule(slug, module) {
     const key = String(slug || '').toLowerCase().trim();
@@ -117,6 +117,21 @@ function _medLocalCode(code) {
     if (!module) return null;
     let result = null;
     try { result = module.localCode(String(code || '')); } catch (e) { result = null; }
+    return (result && result.code) ? result : null;
+}
+
+/**
+ * Is this read a country-specific non-catalogue pack code (Italy: Farmadati PARAF 9xxxxxxxx)?
+ *
+ * Optional module hook — countries without it answer null. The core never interprets the shape.
+ *
+ * @returns {{code:string,type:string,label_key:string}|null}
+ */
+function _medParafCode(code) {
+    const module = _medCountryModule();
+    if (!module || typeof module.parafCode !== 'function') return null;
+    let result = null;
+    try { result = module.parafCode(String(code || '')); } catch (e) { result = null; }
     return (result && result.code) ? result : null;
 }
 
