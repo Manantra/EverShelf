@@ -102,7 +102,8 @@ if (!defined('CRON_MODE')) {
 // ===== RATE LIMITING =====
 /**
  * Simple file-based rate limiter.
- * Limits: 120 req/min general, 15 req/min for AI endpoints, 5 req/min for recipe/login.
+ * Limits: 120/min anonymous general, 600/min paired general, 15/min AI, 5/min recipe,
+ *         boot probes (health/bootstrap/ping) on their own bucket.
  *
  * Defined here (top level, before the early-exit action branches) so it is
  * hoisted and callable from every action — including ping/health_check/get_logs
@@ -125,6 +126,12 @@ function checkRateLimit(string $action): void {
     $clientTelemetryActions = ['report_error', 'check_update'];
     $bugActions   = ['report_bug'];
     $priceActions = ['get_shopping_price', 'get_all_shopping_prices'];
+    // Boot probes must not share the general write/read torrent: a few rapid
+    // reloads (cache-bust while polishing the splash) used to 429 health_check /
+    // get_settings and the client then looked like a fresh install (wizard + empty Home).
+    $bootProbeActions = ['health_check', 'app_bootstrap', 'ping'];
+
+    $paired = function_exists('evershelfApiTokenValid') && evershelfApiTokenValid();
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
@@ -153,6 +160,19 @@ function checkRateLimit(string $action): void {
         $limit = 20;
         $window = 60;
         $bucket = 'client_telemetry';
+    } elseif (in_array($action, $bootProbeActions, true)) {
+        // Cheap JSON, needed every reload — own bucket so polishing the UI cannot
+        // lock the household out of boot.
+        $limit = $paired ? 120 : 60;
+        $window = 60;
+        $bucket = 'boot_probe';
+    } elseif ($paired) {
+        // A paired browser fires dozens of GETs per boot (settings, inventory,
+        // stats, med, shopping…). 120/min was easy to trip with a few F5s and
+        // made the pantry look wiped until the window rolled over.
+        $limit = 600;
+        $window = 60;
+        $bucket = 'general_auth';
     } else {
         $limit = 120;
         $window = 60;

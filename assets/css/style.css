@@ -110,7 +110,8 @@ body {
     align-items: center;
     justify-content: center;
     overflow-y: auto;
-    transition: opacity 0.36s ease, background-color 0.28s ease;
+    transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+                background-color 0.4s ease;
 }
 #app-preloader.fade-out {
     opacity: 0;
@@ -118,9 +119,6 @@ body {
 }
 #app-preloader.is-lifting { background-color: var(--bg-app, #f8fafc); }
 #app-preloader.is-lifting .app-preloader-inner { opacity: 0; }
-.app-preloader-inner {
-    transition: opacity 0.22s ease;
-}
 .app-preloader-inner {
     display: flex;
     flex-direction: column;
@@ -131,6 +129,34 @@ body {
     width: 100%;
     padding: 24px 0;
     gap: clamp(18px, 3.5vh, 28px);
+    transition: opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Crossfade splash → Home: shell stays invisible under the overlay, then fades in
+   with the same curve as the splash opacity drop (no hard cut). */
+body.is-booting .app-header,
+body.is-booting .app-content,
+body.is-booting .bottom-nav {
+    opacity: 0;
+}
+body.is-booting .page {
+    animation: none;
+}
+body.is-booting.is-revealing .app-header,
+body.is-booting.is-revealing .app-content,
+body.is-booting.is-revealing .bottom-nav {
+    opacity: 1;
+    transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+    #app-preloader {
+        transition: opacity 0.2s ease, background-color 0.15s ease;
+    }
+    .app-preloader-inner { transition: opacity 0.15s ease; }
+    body.is-booting.is-revealing .app-header,
+    body.is-booting.is-revealing .app-content,
+    body.is-booting.is-revealing .bottom-nav {
+        transition: opacity 0.2s ease;
+    }
 }
 .app-preloader-label {
     color: #64748b;
@@ -142,11 +168,13 @@ body {
     height: 150px;
     width: auto;
     object-fit: contain;
+    /* Soft green lift that follows the PNG alpha (no rectangular box). */
+    filter: drop-shadow(0 10px 22px rgba(5, 150, 105, 0.15));
     animation: logoPulse 2.8s ease-in-out infinite;
 }
 @keyframes logoPulse {
-    0%, 100% { filter: drop-shadow(0 4px 16px rgba(5,150,105,0.14)); transform: scale(1); }
-    50%       { filter: drop-shadow(0 6px 28px rgba(5,150,105,0.32)); transform: scale(1.02); }
+    0%, 100% { filter: drop-shadow(0 10px 22px rgba(5, 150, 105, 0.15)); transform: scale(1); }
+    50%       { filter: drop-shadow(0 14px 28px rgba(5, 150, 105, 0.22)); transform: scale(1.015); }
 }
 /* ── Brand: logo + version chip ──────────────────────────────────────── */
 .app-preloader-brand {
@@ -206,65 +234,82 @@ body {
     max-width: 22rem;
     line-height: 1.35;
 }
-/* ── Boot rail: one icon per startup stage ───────────────────────────────
-   pending → grey · active → blinks while the checks run · done → keeps the
-   colour of its own emoji and gains an aura in `--stage-accent`.
-   warn / error override the accent so a failed stage can never look green. */
+/* ── Boot rail: three steps + ONE continuous connector behind the dots ──
+   Do not use per-item ::after segments (they gap/misalign). A single
+   `.preloader-stages::before` draws the track; each icon shares the splash
+   background and sits above it (z-index) so the line looks seamless. */
 .preloader-stages {
+    --preloader-dot: 40px;
+    position: relative;
     display: flex;
     align-items: flex-start;
-    justify-content: center;
-    gap: clamp(4px, 2vw, 12px);
-    width: 100%;
-    margin: 0;
+    justify-content: space-between;
+    width: min(100% - 32px, 360px);
+    margin: 0 auto;
     padding: 0;
     list-style: none;
+    gap: 0;
+}
+/* Continuous horizontal track, centred on the dots (half of --preloader-dot). */
+.preloader-stages::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--preloader-dot) / 2);
+    left: calc(100% / 6);
+    right: calc(100% / 6);
+    height: 2px;
+    border-radius: 99px;
+    background: rgba(15, 23, 42, 0.12);
+    transform: translateY(-50%);
+    z-index: 0;
+    pointer-events: none;
 }
 .preloader-stage {
     position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    min-width: 34px;
+    text-align: center;
+    gap: 8px;
 }
-/* Connector between two icons: lights up when the stage on its left is done */
+/* Kill the old per-dot connectors if any stylesheet still targets them. */
 .preloader-stage:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    top: 16px;
-    left: calc(50% + 19px);
-    width: calc(clamp(4px, 2vw, 12px) - 3px);
-    height: 2px;
-    border-radius: 99px;
-    background: rgba(15,23,42,0.08);
-    transition: background 0.4s ease, box-shadow 0.4s ease;
-}
-.preloader-stage.is-done:not(:last-child)::after {
-    background: var(--stage-accent);
-    box-shadow: 0 0 10px var(--stage-glow);
+    content: none !important;
+    display: none !important;
 }
 .preloader-stage-icon {
-    width: 40px;
-    height: 40px;
+    position: relative;
+    z-index: 2;
+    width: var(--preloader-dot);
+    height: var(--preloader-dot);
     border-radius: 50%;
     display: grid;
     place-items: center;
     font-size: 1.05rem;
     line-height: 1;
-    background: #fff;
+    /* Same as splash canvas so the track disappears under the disc. */
+    background: #f4f7f5;
     border: 1px solid rgba(15,23,42,0.1);
     filter: grayscale(1) opacity(0.55);
     transition: filter 0.45s ease, background 0.45s ease, border-color 0.45s ease,
                 box-shadow 0.45s ease, transform 0.3s ease;
 }
+#app-preloader.is-lifting .preloader-stage-icon {
+    background: var(--bg-app, #f8fafc);
+}
 .preloader-stage-label {
+    display: block;
+    width: 100%;
     font-size: 0.68rem;
     line-height: 1.25;
     letter-spacing: 0.01em;
     text-align: center;
     color: #94a3b8;
-    max-width: 110px;
+    max-width: 7.5rem;
+    margin: 0 auto;
     transition: color 0.4s ease;
 }
 .preloader-stage.is-active .preloader-stage-icon {
@@ -274,17 +319,17 @@ body {
 }
 .preloader-stage.is-active .preloader-stage-label { color: #334155; font-weight: 600; }
 @keyframes stageBlink {
-    0%, 100% { opacity: 0.65; transform: scale(0.96); box-shadow: 0 0 0 0 rgba(5,150,105,0.12); }
-    50%      { opacity: 1;   transform: scale(1.05); box-shadow: 0 0 0 6px rgba(5,150,105,0.06); }
+    0%, 100% { opacity: 0.7; transform: scale(0.97); box-shadow: 0 0 0 0 rgba(5,150,105,0.1); }
+    50%      { opacity: 1;   transform: scale(1.04); box-shadow: 0 0 0 5px rgba(5,150,105,0.06); }
 }
 .preloader-stage.is-done .preloader-stage-icon,
 .preloader-stage.is-warn .preloader-stage-icon,
 .preloader-stage.is-error .preloader-stage-icon {
     filter: grayscale(0) opacity(1);
-    background: color-mix(in srgb, var(--stage-accent) 16%, transparent);
+    background: #f4f7f5;
     border-color: var(--stage-accent);
-    box-shadow: 0 0 16px var(--stage-glow),
-                0 0 0 3px color-mix(in srgb, var(--stage-accent) 12%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-accent) 14%, transparent),
+                0 0 14px var(--stage-glow);
     animation: stagePop 0.5s cubic-bezier(0.22, 1.4, 0.36, 1);
 }
 .preloader-stage.is-done .preloader-stage-label,
@@ -294,7 +339,7 @@ body {
 .preloader-stage.is-error { --stage-accent: #f87171; --stage-glow: rgba(248,113,113,0.5); }
 @keyframes stagePop {
     0%   { transform: scale(0.72); }
-    55%  { transform: scale(1.14); }
+    55%  { transform: scale(1.1); }
     100% { transform: scale(1); }
 }
 /* Name of the running stage — replaces the per-icon labels on narrow screens */
@@ -387,17 +432,11 @@ body {
 }
 
 @media (min-width: 641px) {
-    .preloader-stages { gap: clamp(10px, 4vw, 28px); }
-    .preloader-stage { min-width: 44px; }
+    .preloader-stages { width: min(100% - 48px, 400px); }
     .preloader-stage-icon {
-        width: 38px;
-        height: 38px;
+        width: 40px;
+        height: 40px;
         font-size: 1.05rem;
-    }
-    .preloader-stage:not(:last-child)::after {
-        top: 19px;
-        left: calc(50% + 21px);
-        width: calc(clamp(10px, 4vw, 28px) - 4px);
     }
     /* The per-icon labels are readable here, so the caption would repeat them */
     .preloader-stage-caption { display: none; }

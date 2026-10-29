@@ -8023,7 +8023,9 @@ function showPage(pageId, param = null, options = {}) {
     // Page-specific init
     switch(pageId) {
         case 'dashboard':
-            loadDashboard();
+            // Boot awaits its own first paint under the splash (skipDataLoad) so the
+            // urgency hub cannot race the fade-out and shove the Home page down.
+            if (!options.skipDataLoad) loadDashboard();
             break;
         case 'inventory':
             if (param !== null) {
@@ -37443,17 +37445,32 @@ async function _runStartupCheck() {
         }
     }, 100);
 
-    // Make the request
+    // Make the request (retry once on 429 — rapid reloads share a bucket and a
+    // rate-limited health_check used to look like every critical check failed).
     let result = null;
     try {
-        const ctrl = new AbortController();
-        const tid  = setTimeout(() => ctrl.abort(), 12000);
-        const resp = await fetch('api/index.php?action=health_check', {
-            signal: ctrl.signal,
-            headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
-        });
-        clearTimeout(tid);
-        result = await resp.json();
+        const _fetchHealth = async () => {
+            const ctrl = new AbortController();
+            const tid  = setTimeout(() => ctrl.abort(), 12000);
+            try {
+                const resp = await fetch('api/index.php?action=health_check', {
+                    signal: ctrl.signal,
+                    headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
+                });
+                const data = await resp.json();
+                return { resp, data };
+            } finally {
+                clearTimeout(tid);
+            }
+        };
+        let { resp, data } = await _fetchHealth();
+        if (resp.status === 429 || data?.error_key === 'error.rate_limited') {
+            const waitMs = Math.min(5000, Math.max(800, Number(data?.retry_after || 2) * 400));
+            setProgress(8, tl('rate_limited_retry', 'Too many requests — retrying…'), 'warn');
+            await new Promise(r => setTimeout(r, waitMs));
+            ({ resp, data } = await _fetchHealth());
+        }
+        result = data;
         if (result.public && result.api_token_required && typeof getApiToken === 'function' && !getApiToken()) {
             window._apiTokenRequired = true;
             // Pairing is the normal path for a fresh browser: say so, instead of the
@@ -37475,6 +37492,16 @@ async function _runStartupCheck() {
         }
         // Stay on "system" until pantry checks begin (dwell keeps the label readable).
         _preloaderStage('system', 'active');
+        // Still rate-limited after retry: do not invent "PHP / DB missing" from an
+        // empty checks map — that blocked boot until the window rolled over.
+        if (result && (result.error_key === 'error.rate_limited' || !result.checks)) {
+            clearInterval(slowAnim);
+            _fetchDone = true;
+            _preloaderStage('system', 'warn');
+            setProgress(100, tl('rate_limited_continue', 'Server busy — continuing with cached data'), 'warn');
+            wrapEl.style.display = 'none';
+            return true;
+        }
     } catch(e) {
         clearInterval(slowAnim);
         _preloaderStage('system', 'error');
@@ -37746,22 +37773,52 @@ async function _initApp() {
     } else {
         // Fetch server settings first so .env credentials (Bring!, Gemini)
         // are taken into account before deciding which wizard steps to show.
-        let serverSettings = {};
-        try { serverSettings = await api('get_settings'); } catch(e) {}
+        // A rate-limited / failed get_settings must NOT look like a fresh install:
+        // empty {} made the wizard reopen and the pantry look wiped until the next reload.
+        let serverSettings = null;
+        let settingsFetchOk = false;
+        try {
+            const r = await api('get_settings');
+            // get_settings is field-shaped (no `success:true`); a 429 answer has
+            // error_key / success:false and must never be treated as a blank install.
+            const looksLikeSettings = r && typeof r === 'object'
+                && r.success !== false
+                && r.error_key !== 'error.rate_limited'
+                && ('gemini_key_set' in r || 'ai_configured' in r || 'demo_mode' in r || 'setup_done' in r);
+            if (looksLikeSettings) {
+                serverSettings = r;
+                settingsFetchOk = true;
+            }
+        } catch (e) { /* offline / 429 */ }
+        if (!settingsFetchOk) {
+            const cached = typeof _offlineCacheGetSettings === 'function' ? _offlineCacheGetSettings() : null;
+            if (cached && typeof cached === 'object') {
+                serverSettings = cached;
+                settingsFetchOk = true;
+            }
+        }
         // State source for the checklist *before* deciding which assistant steps are
         // pending (_getMissingSetupSteps reads it through _assistantPendingSteps).
         _serverSettings = serverSettings || {};
-        _geminiAvailable = !!(serverSettings.ai_configured);
-    _mealieAvailable = !!(serverSettings.mealie_usable);
-        _demoMode = !!serverSettings.demo_mode;
+        _geminiAvailable = !!(_serverSettings.ai_configured);
+        _mealieAvailable = !!(_serverSettings.mealie_usable);
+        _demoMode = !!_serverSettings.demo_mode;
         _updateGeminiButtonState();
         _applyDemoModeUI();
-        const missing = _getMissingSetupSteps(serverSettings);
-        if (missing.length > 0 && !_demoMode) {
-            showSetupWizard(missing);
+        if (settingsFetchOk) {
+            const missing = _getMissingSetupSteps(_serverSettings);
+            if (missing.length > 0 && !_demoMode) {
+                showSetupWizard(missing);
+            }
+            // Reuse the already-fetched serverSettings to avoid a second get_settings request
+            _applySyncedSettings(_serverSettings);
+        } else if (typeof showToast === 'function') {
+            try {
+                showToast(t('error.rate_limited') !== 'error.rate_limited'
+                    ? t('error.rate_limited')
+                    : 'Too many requests — settings will sync on the next refresh.', 'warning');
+            } catch (_) { /* i18n not ready */ }
         }
-        // Reuse the already-fetched serverSettings to avoid a second get_settings request
-        _applySyncedSettings(serverSettings);
     }
 
     // Support layer: the one-off donation dialog only opens while nothing was decided
@@ -37783,7 +37840,11 @@ async function _initApp() {
         scaleInit(); // connect to smart scale gateway if configured (needs settings)
         initInactivityWatcher();
     });
-    showPage('dashboard');
+    showPage('dashboard', null, { skipDataLoad: true });
+    // Paint Home under the splash BEFORE we lift it — otherwise the "Salva lo spreco"
+    // hub (and other first-paint blocks) appear in the same frame as the fade and the
+    // whole page jumps down. Med status can still trigger a second quiet reload after.
+    try { await loadDashboard(); } catch (e) { /* offline / first paint */ }
     // EverShelf Med (opt-in): the switch is instance-level, so the boot asks the server
     // once and, only when the module is on, repaints the dashboard with its own block.
     _medRefreshStatus().then(() => {
@@ -37827,8 +37888,10 @@ async function _initApp() {
         if (ver) preloaderVer.textContent = ver;
     }
 
-    // Hide preloader — floor ≈ 1.2 s (three paced stages). Content fades, canvas matches
-    // the app colour, then a short opacity fade — no dark→white flashbang.
+    // Hide preloader — floor ≈ 1.2 s (three paced stages). Crossfade: splash content
+    // lifts, then splash opacity and Home shell opacity swap on the same curve so the
+    // panorama fades in instead of popping. Dashboard is already painted under the splash.
+    const _SPLASH_CROSSFADE_MS = 550;
     const preloader = document.getElementById('app-preloader');
     if (preloader) {
         const elapsed = Date.now() - _splashStart;
@@ -37836,12 +37899,22 @@ async function _initApp() {
         setTimeout(async () => {
             await _preloaderAwaitDwell();
             _preloaderStage('ready', 'done');
+            document.body.classList.add('is-booting');
             preloader.classList.add('is-lifting');
-            setTimeout(() => {
-                preloader.classList.add('fade-out');
-                setTimeout(() => preloader.remove(), 360);
-            }, 220);
+            // Two rAFs: shell is opacity 0 under the still-opaque splash, then both sides animate.
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    document.body.classList.add('is-revealing');
+                    preloader.classList.add('fade-out');
+                    setTimeout(() => {
+                        preloader.remove();
+                        document.body.classList.remove('is-booting', 'is-revealing');
+                    }, _SPLASH_CROSSFADE_MS);
+                });
+            });
         }, minDelay);
+    } else {
+        document.body.classList.remove('is-booting', 'is-revealing');
     }
 
     // Defer update check: fire 6 s after app is ready so it doesn't compete
