@@ -91,6 +91,18 @@ async function testReplay() {
     assert.equal(r.synced, 2);
     assert.equal(r.remaining.length, 0);
     assert.equal(r.calls[1].body.id, 91, 'Resolve temporary IDs only after confirmed create');
+
+    r = await runReplay([create, dependent], async (action) => (
+        action === 'inventory_add'
+            ? { success: true, id: 91 }
+            : { success: false, error: 'database_busy' }
+    ));
+    assert.equal(r.synced, 1, 'A failed follow-up edit is not synchronized');
+    assert.equal(r.remaining.length, 1);
+    assert.equal(r.remaining[0].body.id, 91, 'Retain the real ID when an edit fails after a successful create');
+    const retried = await runReplay(r.remaining, async () => ({ success: true }));
+    assert.equal(retried.synced, 1, 'Persisted real ID must replay on the next attempt');
+    assert.equal(retried.remaining.length, 0);
 }
 
 async function runRemove(reply) {

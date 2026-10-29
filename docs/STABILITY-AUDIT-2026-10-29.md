@@ -10,7 +10,7 @@ not a claim that every runtime path has been exhaustively tested.
 
 | Check | Result | Method / environment |
 |---|---|---|
-| Existing PHP regression scripts | **49 pass, 1 fail** (50 total) | Isolated PHP **8.3.6** CLI, extensions loaded from extracted Ubuntu packages |
+| Existing PHP regression scripts | **50 pass, 0 fail** (50 total) | Isolated PHP **8.3.6** CLI, extensions loaded from extracted Ubuntu packages |
 | PHP syntax | **110 pass, 0 fail** | `php -l` over `api/` and `scripts/` |
 | JavaScript syntax | **15 pass, 0 fail** | `node --check` over first-party JavaScript |
 | Translation JSON syntax | **6 pass, 0 fail** | Python JSON parser |
@@ -24,6 +24,12 @@ not a claim that every runtime path has been exhaustively tested.
 The tests ran on a disposable clone of the fork, not the deployed image.
 The production Dockerfile uses PHP 8.5 whereas this isolated run used PHP 8.3;
 version-specific compatibility still requires confirmation.
+
+**Correction after environment validation:** an initial run reported one failure
+in the product-kind test (`Caffè Kaffee` vs `Kaffee`). The isolated PHP binary
+was missing the `iconv` extension required for accent transliteration.
+Loading `iconv` fixed the test; **all 50 tests pass**. That initial failure
+was an incomplete test environment, **not a confirmed EverShelf defect**.
 
 ## Confirmed findings (reproduced)
 
@@ -70,20 +76,6 @@ user-specific cause; name matching and auto-add still need separate fixtures.
 re-fetch and reconcile server-authoritative state, and verify family matching
 for `name` / `rawName` and dismissal status.
 
-### S-03 — Existing product-kind prefix regression fails
-
-**Severity: Medium.**
-**Source:** `scripts/test-product-kind-prefix.php`,
-`api/lib/product_kind.php`.
-
-Existing test expectation:
-`applyProductKindPrefix('Kaffee','Caffè') === 'Kaffee'`.
-Actual result: **`'Caffè Kaffee'`**. One test failed; 49 others passed.
-
-**Recommended regression:** repair multilingual genre-equivalence handling
-without broadening string matching into false duplicate merges; retain the
-existing named test.
-
 ## Confirmed process gap
 
 ### P-01 — CI does not run the project's PHP regression suite
@@ -94,8 +86,7 @@ existing named test.
 The mandatory CI includes PHP syntax checks, `node -c assets/js/app.js`,
 a Docker build/boot smoke test, and JSON checks. No step executes the
 `scripts/test-*.php` suite. On `develop`, successful checks can trigger an
-automated merge to `main` and release. This allowed the currently failing
-product-kind test to go undetected by the required jobs.
+automated merge to `main` and release. Future regressions in those tests can go undetected by the required jobs.
 
 **Recommended fix:** add an explicit regression-suite CI job with relevant
 extensions and make the merge/release require it, together with a small JS
@@ -129,9 +120,8 @@ reappearing generic shopping title and unexpectedly large recommended amount are
 1. **Stop silent loss of offline-queued writes** (S-01): regression test then minimal fix.
 2. **Make removal acknowledgments truthful and reload-stable** (S-02).
 3. **Make the regression suite mandatory in CI** (P-01), preventing future regressions.
-4. **Repair the known prefix assertion** (S-03) with multilingual fixtures.
-5. **Exercise shopping-list read/write concurrency** (R-01).
-6. **Build a disposable end-to-end test environment** and run Docker, browser and
+4. **Exercise shopping-list read/write concurrency** (R-01).
+5. **Build a disposable end-to-end test environment** and run Docker, browser and
    PWA tests before any deployment to household data.
 
 ## Safeguards

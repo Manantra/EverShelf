@@ -20377,16 +20377,29 @@ async function removeBringItem(idx) {
             listUUID: shoppingListUUID,
             purchased: false, // Rimuovi → month-only suppress, not until finished
         });
-        if (data.success || data._offline) {
-            _markBringPurchased([item.name], false);
-            shoppingItems.splice(idx, 1);
-            _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
-            renderShoppingItems();
-            if (panel) panel.scrollTop = scrollY;
-            showToast(t('toast.removed_from_list_short'), 'success');
-            logOperation('bring_manual_remove', { name: item.name });
-            loadShoppingCount();
+        const queuedOffline = data?._offline === true && data?._queued === true;
+        const removedOnServer = data?.success === true
+            && (data.removed === true || (typeof data.removed === 'number' && data.removed > 0));
+        if (!queuedOffline && !removedOnServer) {
+            // The API can return success:true, removed:0. Do not hide a row
+            // locally when no matching server row was actually deleted.
+            showToast(t('shopping.remove_error'), 'error');
+            await loadShoppingList();
+            return;
         }
+        _markBringPurchased([item.name], false);
+        shoppingItems.splice(idx, 1);
+        _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+        renderShoppingItems();
+        if (panel) panel.scrollTop = scrollY;
+        // A queued offline operation is pending, NOT a successful server write.
+        if (queuedOffline) {
+            showToast(t('error.offline_ops_pending').replace('{n}', _offlineQueueGet().length), 'info');
+        } else {
+            showToast(t('toast.removed_from_list_short'), 'success');
+        }
+        logOperation('bring_manual_remove', { name: item.name });
+        loadShoppingCount();
     } catch (err) {
         showToast(t('shopping.remove_error'), 'error');
     }
@@ -26650,18 +26663,28 @@ async function _syncOfflineQueue() {
     for (const op of q) {
         if (!op.action) continue;
         let body = op.body ? { ...op.body } : {};
-        // Resolve any temp IDs from earlier add operations in this batch
-        if (typeof body.id === 'number' && body.id < 0 && tempIdMap[body.id]) {
+        // A queued edit of a locally-created item cannot run until its create
+        // has been acknowledged and its temporary ID has been resolved.
+        if (op.action !== 'inventory_add' && typeof body.id === 'number' && body.id < 0) {
+            if (!tempIdMap[body.id]) { failed.push(op); continue; }
             body = { ...body, id: tempIdMap[body.id] };
         }
         try {
             const result = await api(op.action, {}, 'POST', body);
-            if (result && result._offline) { failed.push(op); continue; }
-            if (op.action === 'inventory_add' && result?.id && op.body?.id < 0) {
+            // api() returns JSON errors instead of throwing for HTTP 4xx/5xx.
+            // Never lose a queued write unless the server explicitly confirmed it.
+            if (!result || result.success !== true || result._offline) {
+                // Preserve the resolved server ID for the next replay attempt.
+                // Otherwise a successful add followed by a failed edit leaves
+                // an orphaned negative ID that can never be retried.
+                failed.push({ ...op, body });
+                continue;
+            }
+            if (op.action === 'inventory_add' && result.id && op.body?.id < 0) {
                 tempIdMap[op.body.id] = result.id;
             }
             synced++;
-        } catch(_) { failed.push(op); }
+        } catch(_) { failed.push({ ...op, body }); }
     }
     _offlineQueueSet(failed);
     return synced;
