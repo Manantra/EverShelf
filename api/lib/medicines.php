@@ -394,6 +394,70 @@ function medicineFindNeighbours(PDO $db, string $prefix, int $limit = 12): array
     }
 }
 
+/**
+ * Catalogue rows one digit away from a read (primary-key lookups only — never a full scan).
+ *
+ * Prefix matching catches the usual OCR miss on the pack suffix (`029788027` → family `029788*`).
+ * A single wrong digit in the middle (`040313076` → `040393076`) shares no long prefix, so this
+ * second pass asks the 90 possible one-edit codes. Cheap: each candidate is `WHERE aic = ?`.
+ *
+ * @return list<array<string,mixed>>
+ */
+function medicineFindOneEdit(PDO $db, string $aic, int $limit = 8): array
+{
+    $code = medicineNormalizeAic($aic);
+    if (strlen($code) !== 9 || !ctype_digit($code)) {
+        return [];
+    }
+    $alts = [];
+    $seen = [$code => true];
+    $len = strlen($code);
+    for ($i = 0; $i < $len; $i++) {
+        for ($d = 0; $d <= 9; $d++) {
+            $ch = (string)$d;
+            if ($code[$i] === $ch) {
+                continue;
+            }
+            $alt = $code;
+            $alt[$i] = $ch;
+            if (isset($seen[$alt])) {
+                continue;
+            }
+            $seen[$alt] = true;
+            $alts[] = $alt;
+        }
+    }
+    if ($alts === []) {
+        return [];
+    }
+    $limit = max(1, min(20, $limit));
+    try {
+        // One IN query instead of up to 90 primary-key round-trips.
+        $placeholders = implode(',', array_fill(0, count($alts), '?'));
+        $stmt = $db->prepare("SELECT * FROM medicines WHERE aic IN ($placeholders)");
+        $stmt->execute($alts);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+    usort($rows, static function ($a, $b) use ($code) {
+        return medicineLevenshtein($code, (string)($a['aic'] ?? ''))
+            <=> medicineLevenshtein($code, (string)($b['aic'] ?? ''));
+    });
+    return array_slice($rows, 0, $limit);
+}
+
+/**
+ * Italian AICs in the AIFA confezioni export are 9 digits; today's formulary is entirely in the
+ * `0………` range. A read that opens with 1–9 and matches nothing is almost never a missing pack —
+ * it is a lot/serial/OCR invention. The UI can say that instead of "unknown medicine".
+ */
+function medicineAicLooksImplausible(string $aic): bool
+{
+    $code = medicineNormalizeAic($aic);
+    return strlen($code) === 9 && ctype_digit($code) && $code[0] !== '0';
+}
+
 /** One medicine by AIC (with or without the printed `A`), or null. */
 function medicineFindByAic(PDO $db, string $aic): ?array
 {
@@ -412,29 +476,255 @@ function medicineFindByAic(PDO $db, string $aic): ?array
 }
 
 /**
- * Search by commercial name or active ingredient. A name read by the OCR of a box is noisy, so
- * the query is normalised the same way the stored titles are, and every token must be found
- * (AND): "tachipirina 1000" matches "TACHIPIRINA 1000 MG COMPRESSE", while a second word that
- * is not on the pack must not fall back to an unrelated product.
+ * Search by commercial name or active ingredient.
+ *
+ * The household types what is printed on the box — marketing words AIFA never stored
+ * ("Connettivina Bio Plus"), truncated stems ("connettivin"), and typos ("conettivina",
+ * "tachiprina"). Pipeline:
+ *   1. AND of tokens, each expanded to stem/prefix variants; pack is searched too (strengths);
+ *   2. drop trailing tokens until something hits (optional marketing suffixes);
+ *   3. if still empty, fuzzy-match the brand word (edit distance) against catalogue first words.
  */
-function medicineSearch(PDO $db, string $query, int $limit = 8): array
+function medicineSearch(PDO $db, string $query, int $limit = 8, int $offset = 0): array
 {
     $q = medicineNormalizeName($query);
     if (mb_strlen($q) < 3) {
         return [];
     }
     $limit = max(1, min(25, $limit));
-    $tokens = array_slice(array_values(array_filter(explode(' ', $q))), 0, 5);
+    $offset = max(0, min(200, $offset));
+    $tokens = array_slice(array_values(array_filter(explode(' ', $q), static function ($t) {
+        return $t !== '';
+    })), 0, 5);
+    if ($tokens === []) {
+        return [];
+    }
+
+    $use = $tokens;
+    while (count($use) >= 1) {
+        if (medicineSearchProbe($db, $use)) {
+            return medicineSearchWithTokens($db, $use, $tokens, $q, $limit, $offset);
+        }
+        array_pop($use);
+    }
+
+    // LIKE found nothing (typo on the brand): closest catalogue names by edit distance.
+    return medicineSearchFuzzy($db, $tokens, $q, $limit, $offset);
+}
+
+/**
+ * Variants of one typed word for a forgiving LIKE (stem + short prefix). Digits stay exact.
+ *
+ * @return list<string>
+ */
+function medicineSearchTokenVariants(string $token): array
+{
+    $token = trim($token);
+    if ($token === '' || mb_strlen($token) < 3) {
+        return [];
+    }
+    if (ctype_digit($token)) {
+        return [$token];
+    }
+    $out = [$token];
+    $len = mb_strlen($token);
+    // Trailing-letter slip / plural: connettivina → connettivin / connettivi
+    if ($len >= 6) {
+        $out[] = mb_substr($token, 0, $len - 1);
+    }
+    if ($len >= 7) {
+        $out[] = mb_substr($token, 0, $len - 2);
+    }
+    // Shared stem prefix (not a tiny 3–4 letter hook: that pulls half the catalogue).
+    if ($len >= 6) {
+        $out[] = mb_substr($token, 0, min(6, $len));
+    }
+    $out = array_values(array_unique(array_filter($out, static function ($t) {
+        return mb_strlen($t) >= 3;
+    })));
+    return $out;
+}
+
+/**
+ * Cheap existence check for a token set (LIMIT 1).
+ *
+ * @param list<string> $tokens
+ */
+function medicineSearchProbe(PDO $db, array $tokens): bool
+{
+    return medicineSearchWithTokens($db, $tokens, $tokens, '', 1, 0) !== [];
+}
+
+/**
+ * @param list<string> $whereTokens AND filter (relaxed)
+ * @param list<string> $rankTokens original words — more hits sort first
+ * @return list<array<string,mixed>>
+ */
+function medicineSearchWithTokens(
+    PDO $db,
+    array $whereTokens,
+    array $rankTokens,
+    string $qPrefix,
+    int $limit,
+    int $offset
+): array {
+    if ($whereTokens === []) {
+        return [];
+    }
     $where = [];
     $params = [];
+    // Pack carries the strength ("1000 MG COMPRESSE") that the commercial name omits.
+    foreach ($whereTokens as $token) {
+        $variants = medicineSearchTokenVariants($token);
+        if ($variants === []) {
+            continue;
+        }
+        $parts = [];
+        foreach ($variants as $v) {
+            $parts[] = '(name_norm LIKE ? OR IFNULL(ingredient, \'\') LIKE ? OR IFNULL(pack, \'\') LIKE ?)';
+            $params[] = '%' . $v . '%';
+            $params[] = '%' . $v . '%';
+            $params[] = '%' . $v . '%';
+        }
+        $where[] = '(' . implode(' OR ', $parts) . ')';
+    }
+    if ($where === []) {
+        return [];
+    }
+    $scoreParts = [];
+    foreach ($rankTokens as $token) {
+        // Name beats ingredient beats pack — "destrometorfano gocce" must surface
+        // DESTROMETORFANO… before DESTROTUS (same molecule in the ingredient field).
+        $scoreParts[] = '(CASE'
+            . ' WHEN name_norm LIKE ? THEN 8'
+            . ' WHEN IFNULL(ingredient, \'\') LIKE ? THEN 3'
+            . ' WHEN IFNULL(pack, \'\') LIKE ? THEN 1'
+            . ' ELSE 0 END)';
+        $params[] = '%' . $token . '%';
+        $params[] = '%' . $token . '%';
+        $params[] = '%' . $token . '%';
+        foreach (medicineSearchTokenVariants($token) as $v) {
+            if ($v === $token) {
+                continue;
+            }
+            $scoreParts[] = '(CASE'
+                . ' WHEN name_norm LIKE ? THEN 4'
+                . ' WHEN IFNULL(ingredient, \'\') LIKE ? THEN 2'
+                . ' WHEN IFNULL(pack, \'\') LIKE ? THEN 1'
+                . ' ELSE 0 END)';
+            $params[] = '%' . $v . '%';
+            $params[] = '%' . $v . '%';
+            $params[] = '%' . $v . '%';
+        }
+    }
+    $scoreSql = $scoreParts !== [] ? implode(' + ', $scoreParts) : '0';
+    $params[] = ($qPrefix !== '' ? $qPrefix : $whereTokens[0]) . '%';
+    $sql = 'SELECT * FROM medicines WHERE ' . implode(' AND ', $where)
+         . ' ORDER BY (' . $scoreSql . ') DESC, (name_norm LIKE ?) DESC, LENGTH(name) ASC'
+         . ' LIMIT ' . $limit . ' OFFSET ' . $offset;
+    try {
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Brand typo fallback: edit-distance against catalogue first words that share a short prefix.
+ *
+ * @param list<string> $tokens
+ * @return list<array<string,mixed>>
+ */
+function medicineSearchFuzzy(PDO $db, array $tokens, string $qPrefix, int $limit, int $offset): array
+{
+    $brand = '';
+    foreach ($tokens as $t) {
+        if (!ctype_digit($t) && mb_strlen($t) > mb_strlen($brand)) {
+            $brand = $t;
+        }
+    }
+    if ($brand === '' || mb_strlen($brand) < 4) {
+        return [];
+    }
+    $maxDist = mb_strlen($brand) <= 5 ? 1 : (mb_strlen($brand) <= 9 ? 2 : 3);
+    // 3-letter prefix keeps the candidate set tiny; if empty, retry with 2.
+    $candidates = [];
+    foreach ([3, 2] as $prefixLen) {
+        if (mb_strlen($brand) < $prefixLen) {
+            continue;
+        }
+        $prefix = mb_substr($brand, 0, $prefixLen);
+        try {
+            $stmt = $db->prepare(
+                'SELECT DISTINCT name_norm FROM medicines WHERE name_norm LIKE ? LIMIT 500'
+            );
+            $stmt->execute([$prefix . '%']);
+            $candidates = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (Throwable $e) {
+            $candidates = [];
+        }
+        if ($candidates !== []) {
+            break;
+        }
+    }
+    if ($candidates === []) {
+        return [];
+    }
+
+    /** @var array<string,int> $bestWord word => distance */
+    $bestWord = [];
+    foreach ($candidates as $nameNorm) {
+        foreach (explode(' ', (string)$nameNorm) as $word) {
+            if (mb_strlen($word) < 3) {
+                continue;
+            }
+            // levenshtein() is byte-wise; name_norm is ASCII after medicineNormalizeName().
+            if (strlen($brand) > 255 || strlen($word) > 255) {
+                continue;
+            }
+            $d = levenshtein($brand, $word);
+            if ($d > $maxDist) {
+                continue;
+            }
+            if (!isset($bestWord[$word]) || $d < $bestWord[$word]) {
+                $bestWord[$word] = $d;
+            }
+        }
+    }
+    if ($bestWord === []) {
+        return [];
+    }
+    asort($bestWord);
+    $words = array_slice(array_keys($bestWord), 0, 3);
+    $where = [];
+    $params = [];
+    foreach ($words as $w) {
+        $where[] = 'name_norm = ? OR name_norm LIKE ?';
+        $params[] = $w;
+        $params[] = $w . ' %';
+    }
+    // Prefer the closest brand, then rows that still match leftover tokens (plus, 1000…).
+    $scoreParts = [];
+    foreach ($words as $i => $w) {
+        $weight = 10 - $i;
+        $scoreParts[] = '(CASE WHEN name_norm = ? OR name_norm LIKE ? THEN ' . (int)$weight . ' ELSE 0 END)';
+        $params[] = $w;
+        $params[] = $w . ' %';
+    }
     foreach ($tokens as $token) {
-        $where[] = '(name_norm LIKE ? OR ingredient LIKE ?)';
+        if ($token === $brand) {
+            continue;
+        }
+        $scoreParts[] = '(CASE WHEN name_norm LIKE ? OR IFNULL(pack, \'\') LIKE ? THEN 2 ELSE 0 END)';
         $params[] = '%' . $token . '%';
         $params[] = '%' . $token . '%';
     }
-    $sql = 'SELECT * FROM medicines WHERE ' . implode(' AND ', $where)
-         . ' ORDER BY (name_norm LIKE ?) DESC, LENGTH(name) ASC LIMIT ' . $limit;
-    $params[] = $q . '%';
+    $scoreSql = implode(' + ', $scoreParts);
+    $sql = 'SELECT * FROM medicines WHERE (' . implode(' OR ', $where) . ')'
+         . ' ORDER BY (' . $scoreSql . ') DESC, LENGTH(name) ASC'
+         . ' LIMIT ' . $limit . ' OFFSET ' . $offset;
     try {
         $stmt = $db->prepare($sql);
         $stmt->execute($params);

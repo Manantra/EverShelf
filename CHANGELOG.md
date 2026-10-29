@@ -5,6 +5,27 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.1] - 2026-10-29
+
+### Changed
+- **Medicine OCR ask card is the message.** No more truncated status chip over the camera before
+  the white “cannot read” card; the locked `A` prefix sits beside a digits-only AIC field.
+- **Unknown AIC → name search.** When a typed/OCR code is not in the catalogue, ask for the
+  commercial name and offer **4 AIFA packs** (rewrite + “4 more”), with **form + pack size** on
+  each row so two CONNETTIVINA PLUS packs are distinguishable.
+- **Name search is forgiving.** Marketing suffixes AIFA never stored (`Bio`), stems, pack strengths
+  (`1000`), and brand typos (`conettivina`, `tachiprina`) still find real packs; ranking prefers
+  the commercial name over a shared ingredient.
+- **Near-match prefers the 6-digit family.** `A029788027` offers Destrometorfano Sella packs
+  (gocce `041`, …) instead of unrelated Sella neighbours at distance 2.
+- **Scan overlay aims at the printed AIC.** No barcode-style rectangle; large OCR-B ghost digits
+  at 70% opacity and “frame A + 9 digits, not the barcode”; short status strings that wrap on a
+  phone; partial reads no longer reset to `A000000000`.
+- **Opened medicine: ¼ · ½ · ¾ chips** set remaining quantity from the full pack.
+
+### Fixed
+- Ghost AIC preview stopped updating after empty OCR passes; longer partials are kept.
+
 ## [1.29.0] - 2026-10-28
 
 ### Changed

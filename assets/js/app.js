@@ -1684,7 +1684,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261028zzg'; // bump when translations change
+const _I18N_VERSION = '20261029j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15156,6 +15156,12 @@ function _closeTopOverlay() {
 
 document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' || ev.key === 'Esc') {
+        // Pack picker sits over the camera (not a `.modal-overlay`): Esc must dismiss it too.
+        if (typeof _medFamilyOpen !== 'undefined' && _medFamilyOpen) {
+            _medHideFamilyPicker();
+            ev.preventDefault();
+            return;
+        }
         if (_closeTopOverlay()) ev.preventDefault();
         return;
     }
@@ -16076,7 +16082,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzg';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -16086,7 +16092,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzg';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -16931,7 +16937,10 @@ async function _medReadLabelOcrInner(options = {}) {
     }
     // Nothing carried the letter: hand over the digit runs so the CATALOGUE can say which one is
     // a medicine (a bare 9-digit run is otherwise exactly the pack's serial).
-    return { aic: null, text: text, preview: preview, candidates: _medOcrDigitCandidates(text) };
+    // Replay the accumulated page so a later empty strip does not leave the ghost A000000000 up.
+    const candidates = _medOcrDigitCandidates(text);
+    _medPreviewSample(text, candidates[0] || null);
+    return { aic: null, text: text, preview: preview, candidates: candidates };
 }
 
 let _medSelfTestDone = false;
@@ -16996,22 +17005,29 @@ function _medOcrGeometryNote(videoEl, region) {
  * The guide frame shows the SHAPE to look for (`A000000000`), and — while the reader works — the
  * digits it has already recognised. Seeing them fill in is the difference between "it is reading"
  * and "it is stuck": a wrong digit is visible in the box before anything is accepted.
+ *
+ * An empty / short OCR pass must NEVER wipe a longer partial already on screen (one-pass-per-
+ * attempt rotation used to flash A000000000 again every 2 s and looked “stuck”).
  */
 function _medPreviewSample(raw, aic) {
     const el = document.getElementById('scan-med-frame-sample');
     if (!el) return;
     const shape = _medOcrSample() || 'A000000000';
+    const wantLen = Math.max(9, shape.length - 1);
     if (aic) {
-        el.textContent = 'A' + String(aic);
+        const code = String(aic).replace(/\D/g, '').slice(0, wantLen);
+        if (!code) return;
+        el.textContent = 'A' + code;
         el.classList.add('is-read');
         return;
     }
-    const digits = String(raw || '').replace(/[^0-9]/g, '').slice(0, shape.length - 1);
+    const digits = String(raw || '').replace(/[^0-9]/g, '').slice(0, wantLen);
+    // Ignore noise under 3 digits — and never replace a better preview with the ghost shape.
+    if (digits.length < 3) return;
+    const shown = String(el.textContent || '').replace(/[^0-9]/g, '');
+    if (digits.length < shown.length) return;
     el.classList.remove('is-read');
-    // Three digits is the point where a partial read is information, not noise.
-    el.textContent = digits.length >= 3
-        ? ('A' + digits).padEnd(shape.length, '·')
-        : shape;
+    el.textContent = ('A' + digits).padEnd(shape.length || (wantLen + 1), '·');
 }
 
 
@@ -17092,12 +17108,18 @@ function _medShowFamilyPicker(rows) {
     if (!items.length) return;
     _medFamilyOpen = true;
     _medShowAsk(false);
+    const title = host.querySelector('.scan-med-family-title');
+    if (title) {
+        const read = String(_medNeighbourRead || '').replace(/\D/g, '');
+        title.textContent = read
+            ? t('medical.almost_title_read').replace('{code}', 'A' + read)
+            : t('medical.almost_title');
+    }
     list.innerHTML = items.slice(0, 4).map((row) => {
-        const meta = [row.pack, row.form, row.dosage].filter(Boolean).join(' · ');
         return `<button type="button" class="scan-med-family-row" onclick="_medPickFamily('${escapeAttr(String(row.aic))}')">
-            <strong>${escapeHtml(String(row.name))}</strong>
+            <strong>${escapeHtml(_medDisplayName(row.name))}</strong>
+            ${_medCatalogueChoiceDetailHtml(row)}
             <span class="scan-med-family-aic">A${escapeHtml(String(row.aic))}</span>
-            ${meta ? `<span class="scan-med-family-meta">${escapeHtml(meta)}</span>` : ''}
         </button>`;
     }).join('');
     host.hidden = false;
@@ -17118,7 +17140,74 @@ function _medPickFamily(aic) {
     const code = String(aic || '').replace(/^A/i, '');
     if (!code) return;
     _medHideFamilyPicker();
-    _medConfirmRead(code, 'OCR');
+    // A family pick is deliberate: never blocked by a prior OCR rejection of the wrong suffix.
+    _medRejectedReads.delete(code);
+    _medConfirmingCode = '';
+    _medConfirmRead('A' + code, 'OCR');
+}
+
+/**
+ * Open the medicine form for a catalogue-proven AIC — once, without re-entering the confirm loop.
+ *
+ * `_finalizeBarcode` → `onBarcodeDetected` → `_medStartManualEntry` → `_medConfirmRead` used to
+ * bounce on `_medConfirmingCode` and never call `startManualEntry`, so a verified new box toasted
+ * "found" and then died on the type-AIC card. The form is armed here with the lookup we already have.
+ *
+ * @param {string} code 9-digit AIC
+ * @param {object} lookupRes `med_lookup` answer (exact + results)
+ * @param {string} [method]
+ */
+async function _medOpenVerifiedForm(code, lookupRes, method = 'OCR') {
+    const digits = String(code || '').replace(/\D/g, '');
+    if (digits.length !== 9) return false;
+    const barcode = 'A' + digits;
+    const rows = (lookupRes && Array.isArray(lookupRes.results)) ? lookupRes.results : [];
+    const info = {
+        loaded: true,
+        aic: digits,
+        rows: rows,
+        exact: true,
+        implausible: false,
+    };
+    _medRejectHits = { code: '', n: 0 };
+    _medNeighbourRead = digits;
+    _medNeighbourCodes = [];
+    // Stop the camera the same way a confirmed food barcode does, without routing through
+    // `_finalizeBarcode` (that path re-enters this confirm for medicines).
+    _scannerGen++;
+    quaggaRunning = false;
+    const scannerLine = document.querySelector('.scanner-line');
+    if (scannerLine) scannerLine.classList.remove('scanning', 'detecting');
+    _hideScanLiveCode();
+    _scanCloudMode = 'lock';
+    _setScanHudState('confirming');
+    _setScanStatus(t('scan.status_confirmed'), 'confirmed', method);
+    scanLog(`Medicine CONFIRMED: ${barcode} via ${method}`);
+    showToast(t('medical.ocr_found').replace('{code}', barcode), 'success');
+    startManualEntry(barcode);
+    _medArmProductForm();
+    await _medShowCatalogueMatch(barcode, info);
+    _medConfirmingCode = '';
+    return true;
+}
+
+/**
+ * Near-match rows safe to offer as "which pack?": distance ≤1 first, else the 6-digit family,
+ * else distance ≤2. Never prefer a wrong-prefix family over a closer one-edit hit.
+ *
+ * @param {string} code
+ * @param {Array<object>} nearRows
+ * @returns {Array<object>}
+ */
+function _medNearChoices(code, nearRows) {
+    const named = (Array.isArray(nearRows) ? nearRows : []).filter(r => r && r.aic && r.name);
+    // Same 6-digit medicine family first (pack suffix OCR miss: 027 → 041 gocce / 015 / 054).
+    // Distance-1 strangers must not outrank the real Destrometorfano packs on that prefix.
+    const family = _medFamilyRows(code, named);
+    if (family.length) return family;
+    const close = named.filter(r => Number(r.distance) <= 1);
+    if (close.length) return close;
+    return named.filter(r => Number(r.distance) <= 2);
 }
 
 /**
@@ -17133,9 +17222,10 @@ function _medPickFamily(aic) {
  */
 async function _medConfirmRead(read, method = 'OCR') {
     const raw = String(read || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
-    const local = _medLocalCode(raw);
-    const code = local ? String(local.aic || local.code || raw) : raw;
-    if (!code) return false;
+    const withA = /^A\d{9}$/.test(raw) ? raw : (/^\d{9}$/.test(raw) ? ('A' + raw) : raw);
+    const local = _medLocalCode(withA);
+    const code = String((local && (local.aic || local.code)) ? (local.aic || local.code) : raw.replace(/^A/, '')).replace(/\D/g, '');
+    if (code.length !== 9) return false;
     if (_medRejectedReads.has(code)) return false;
     // The scan loop decodes the same barcode on every frame (and the OCR returns the same digits
     // again): a read is confirmed ONCE. Without this, two `_finalizeBarcode()` calls raced and the
@@ -17151,19 +17241,29 @@ async function _medConfirmRead(read, method = 'OCR') {
     } catch (e) { res = null; }
     const loaded = !!(res && res.dataset && res.dataset.loaded);
     const exact = !!(res && res.exact);
-    if (loaded && !exact) {
+    const nearRows = (res && Array.isArray(res.results)) ? res.results : [];
+    // No catalogue answer (empty dataset OR a failed lookup): never open an unverified form.
+    if (!res || !loaded) {
+        _medConfirmingCode = '';
+        _setScanStatus(t('medical.scan_needs_catalog'), 'invalid', '');
+        showToast(t('medical.scan_needs_catalog'), 'error', 7000);
+        return false;
+    }
+    if (!exact) {
         // The catalogue HAS this medicine: the read lost its last digits. An AIC is 6 digits of
         // the product + 3 of the pack, so `029788027` is one-digit-away from `029788015/041/054`
         // (Destrometorfano Sella). Ask WHICH pack instead of calling the box unknown: the family
         // rows carry the names, the forms and the pack sizes, and no wrong number is ever stored.
-        const family = _medFamilyRows(code, (res && Array.isArray(res.results)) ? res.results : []);
-        if (family.length) {
+        // One-edit neighbours (middle digit wrong) come from the same `near=1` answer and win
+        // over a 6-digit family that only shares a wrong prefix.
+        const choices = _medNearChoices(code, nearRows);
+        if (choices.length) {
             _medRejectHits = { code: '', n: 0 };
             _medConfirmingCode = '';
             _medLastRejectedAt = Date.now();
             _setScanStatus(t('medical.scan_code_almost'), 'partial', '');
-            scanLog(`Medicine read ${code} is in the catalogue at another pack: offering ${family.length} real rows`);
-            _medOpenFamily(code, family);
+            scanLog(`Medicine read ${code} is near the catalogue: offering ${choices.length} real rows`);
+            _medOpenFamily(code, choices);
             return true;
         }
         // The same read comes back on every pass, and nothing shares its digits. One rejection
@@ -17174,27 +17274,26 @@ async function _medConfirmRead(read, method = 'OCR') {
         _medRejectHits = { code: code, n: hits };
         _medLastRejectedAt = Date.now();
         _medConfirmingCode = '';
+        const implausible = !!(res && res.implausible);
         if (hits < 2) {
-            _setScanStatus(t('medical.scan_code_invalid'), 'invalid', '');
-            scanLog(`Medicine read rejected, not in the catalogue: ${code}`);
+            // Keep the camera going — never paint a long nowrap chip that will be replaced by the
+            // ask card a moment later (that flash is what looked like a truncated error).
+            _setScanStatus('', 'idle', '');
+            scanLog(`Medicine read rejected, not in the catalogue: ${code}${implausible ? ' (implausible)' : ''}`);
             return false;
         }
-        // Stable read, catalogue does not know it: nothing opens. A medicine is added only when
-        // the catalogue names the box, so this is the honest end of the read — no typed title, no
-        // name guessed from the picture.
-        scanLog(`Medicine read stable but unknown to the catalogue: not added (${code})`);
-        _setScanStatus(t('medical.read_unknown'), 'invalid', '');
-        showToast(t('medical.only_catalogue'), 'error', 9000);
-        _medOcrKick();
+        // Stable read, catalogue does not know it: ask for the commercial name and offer real
+        // packs (4 + “more”), instead of a dead-end toast over a truncated status chip.
+        _medRejectedReads.add(code);
+        scanLog(`Medicine read stable but unknown to the catalogue: ask name (${code})`);
+        _setScanStatus('', 'idle', '');
+        try { stopScanner(); } catch (e) { /* already stopped */ }
+        _medRevealNameAsk({ code: code, reason: implausible ? 'implausible' : 'unknown' });
         return false;
     }
-    showToast(t('medical.ocr_found').replace('{code}', 'A' + code), 'success');
-    _finalizeBarcode('A' + code, method);
-    // Painted by the form, from the answer we already have.
-    _medNeighbourRead = code;
-    const rows = (res && Array.isArray(res.results)) ? res.results : [];
-    _medNeighbourCodes = loaded ? _medChoiceCandidates(code, rows, 4) : [];
-    return true;
+    // Exact hit: open the form HERE. Never `_finalizeBarcode` → `_medStartManualEntry` →
+    // `_medConfirmRead` again (that loop was blocked by `_medConfirmingCode` and never armed the form).
+    return _medOpenVerifiedForm(code, res, method);
 }
 
 /**
@@ -17252,10 +17351,9 @@ async function _medOcrFallback(code, options = {}) {
     }
     if (medicalPack) {
         // Packaging barcode, no AIC yet: never open an empty form (that looked like inventing a
-        // medicine). Ask for the typed AIC and keep the reader going.
-        showToast(t('medical.ocr_not_found'), 'info', 5000);
+        // medicine). Ask for the typed AIC — the card is the message, not a truncated chip.
         _setScanHudState('idle');
-        _setScanStatus(t('medical.ocr_not_found'), 'partial', '');
+        _setScanStatus('', 'idle', '');
         try { stopScanner(); } catch (e) { /* already stopped */ }
         _medShowAsk(true);
         return true;
@@ -17308,9 +17406,21 @@ function _medShowAsk(on) {
     const bar = document.getElementById('scan-action-bar');
     const resume = document.getElementById('scan-med-resume');
     const input = document.getElementById('scan-med-code-input');
+    const nameAsk = document.getElementById('scan-med-name-ask');
     if (ask) ask.hidden = !on;
     const vp = document.getElementById('scanner-viewport');
     if (vp) vp.classList.toggle('is-asking', !!on);
+    // The status chip is nowrap+ellipsis: a long "non riesco…" over the camera then the white
+    // card is exactly the double message the household complained about. The card IS the message.
+    if (on) _setScanStatus('', 'idle', '');
+    if (!on && nameAsk) {
+        nameAsk.hidden = true;
+        const list = document.getElementById('scan-med-name-list');
+        if (list) list.innerHTML = '';
+        const more = document.getElementById('scan-med-name-more');
+        if (more) more.hidden = true;
+        _medNameSearch = { q: '', offset: 0, rows: [] };
+    }
     if (!row) return;
     row.hidden = false;
     if (on) {
@@ -17318,6 +17428,8 @@ function _medShowAsk(on) {
         row.classList.add('is-wanted');
         if (resume) resume.hidden = false;
         if (ask && row.parentElement !== ask) ask.appendChild(row);
+        // Digits only; the locked "A" lives in the prefix span.
+        if (input && !String(input.value || '').trim()) input.value = '';
         try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
     } else {
         row.classList.remove('is-wanted');
@@ -17325,6 +17437,98 @@ function _medShowAsk(on) {
         // Back under the camera while the reader runs (always available to type).
         if (bar && row.parentElement !== bar) bar.appendChild(row);
     }
+}
+
+/** Keep only the 9 AIC digits in the field (the printed `A` is a fixed prefix next to it). */
+function _medCodeDigitsOnly(el) {
+    if (!el) return;
+    const digits = String(el.value || '').replace(/\D/g, '').slice(0, 9);
+    if (el.value !== digits) el.value = digits;
+}
+
+/** State for the name fallback inside the ask card (4 proposals + “more”). */
+let _medNameSearch = { q: '', offset: 0, rows: [] };
+
+/**
+ * Code not in the catalogue: ask for the commercial name and offer real packs.
+ *
+ * @param {{code?:string, reason?:string}} [opts]
+ */
+function _medRevealNameAsk(opts = {}) {
+    _medShowAsk(true);
+    const nameAsk = document.getElementById('scan-med-name-ask');
+    const lead = document.getElementById('scan-med-name-lead');
+    const input = document.getElementById('scan-med-name-input');
+    if (!nameAsk) return;
+    nameAsk.hidden = false;
+    const code = String(opts.code || '').replace(/\D/g, '');
+    if (lead) {
+        lead.textContent = code
+            ? t('medical.name_ask_body_code').replace('{code}', 'A' + code)
+            : t('medical.name_ask_body');
+    }
+    _medNameSearch = { q: '', offset: 0, rows: [] };
+    const list = document.getElementById('scan-med-name-list');
+    if (list) list.innerHTML = '';
+    const more = document.getElementById('scan-med-name-more');
+    if (more) more.hidden = true;
+    try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
+}
+
+async function _medSearchName() {
+    const input = document.getElementById('scan-med-name-input');
+    const q = String(input && input.value || '').trim();
+    if (q.length < 3) {
+        showToast(t('medical.name_ask_short'), 'info', 4000);
+        return;
+    }
+    _medNameSearch = { q: q, offset: 0, rows: [] };
+    await _medFetchNamePage(false);
+}
+
+async function _medSearchNameMore() {
+    if (!_medNameSearch.q) return;
+    await _medFetchNamePage(true);
+}
+
+async function _medFetchNamePage(append) {
+    const q = _medNameSearch.q;
+    const offset = append ? _medNameSearch.offset : 0;
+    const list = document.getElementById('scan-med-name-list');
+    const more = document.getElementById('scan-med-name-more');
+    if (!list) return;
+    if (!append) list.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.match_searching'))}</p>`;
+    let res = null;
+    try {
+        res = await api('med_lookup', { q: q, limit: 4, offset: offset, lang: _currentLang || '' });
+    } catch (e) { res = null; }
+    const rows = (res && Array.isArray(res.results)) ? res.results.filter(r => r && r.aic && r.name) : [];
+    if (!append) _medNameSearch.rows = [];
+    _medNameSearch.rows = _medNameSearch.rows.concat(rows);
+    _medNameSearch.offset = offset + rows.length;
+    if (!_medNameSearch.rows.length) {
+        list.innerHTML = `<p class="settings-hint">${escapeHtml(t('medical.name_ask_none'))}</p>`;
+        if (more) more.hidden = true;
+        return;
+    }
+    list.innerHTML = _medNameSearch.rows.map((row, i) => {
+        return `<button type="button" class="scan-med-name-hit" role="option" onclick="_medPickNameRow(${i})">
+            <strong>${escapeHtml(_medDisplayName(row.name))}</strong>
+            ${_medCatalogueChoiceDetailHtml(row)}
+            <span class="scan-med-name-aic">A${escapeHtml(String(row.aic))}</span>
+        </button>`;
+    }).join('');
+    if (more) more.hidden = rows.length < 4;
+}
+
+function _medPickNameRow(index) {
+    const row = _medNameSearch.rows[Number(index)];
+    if (!row || !row.aic) return;
+    _medShowAsk(false);
+    _medRejectedReads.delete(String(row.aic));
+    _medConfirmingCode = '';
+    // Same door as a verified scan: the catalogue row is the proof.
+    _medConfirmRead('A' + String(row.aic), 'NAME');
 }
 
 function _medAskCodeSoon() {
@@ -17360,21 +17564,34 @@ function _medResumeScan() {
     _medAskCodeSoon();
 }
 
-function _medSubmitCode() {
+async function _medSubmitCode() {
     const input = document.getElementById('scan-med-code-input');
-    const raw = String(input && input.value || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
-    if (!raw) return;
-    const local = _medLocalCode(/^A/.test(raw) ? raw.toUpperCase() : 'A' + raw.toUpperCase());
-    const code = local && (local.aic || local.code) ? String(local.aic || local.code) : '';
-    if (!code) {
-        // Not the shape this country prints: say it, keep the field for a correction.
+    // Digits only in the field; the locked prefix supplies the printed `A`.
+    const digits = String(input && input.value || '').replace(/\D/g, '').slice(0, 9);
+    if (digits.length !== 9) {
+        showToast(t('medical.code_invalid_shape'), 'error', 5000);
+        return;
+    }
+    const withA = 'A' + digits;
+    const local = _medLocalCode(withA);
+    const code = local && (local.aic || local.code) ? String(local.aic || local.code) : digits;
+    if (!code || String(code).replace(/\D/g, '').length !== 9) {
         showToast(t('medical.code_invalid_shape'), 'error', 5000);
         return;
     }
     if (input) input.value = '';
-    // The card did its job: a typed code is a read like any other.
-    _medShowAsk(false);
-    _medConfirmRead(/^A/.test(raw) ? raw.toUpperCase() : 'A' + raw.toUpperCase());
+    // Typed codes are deliberate: one catalogue miss → name fallback (no “try twice” OCR rule).
+    // Clear a prior OCR rejection of the same digits so near/family can run again (027 → gocce 041).
+    _medRejectedReads.delete(code);
+    _medConfirmingCode = '';
+    // Keep the ask card up while the lookup runs so the camera does not flash behind it.
+    _medRejectHits = { code: code, n: 1 };
+    const ok = await _medConfirmRead(withA, 'MANUAL');
+    if (ok) {
+        _medShowAsk(false);
+        return;
+    }
+    _medRevealNameAsk({ code: code });
 }
 
 // ===== LOCAL MEDICINE CATALOGUE (AIFA open data, imported once) =====
@@ -17553,6 +17770,52 @@ function _medOcrRun(job) {
  * @param {object} row a catalogue row (`medicinePublicRow`)
  * @param {{force?: boolean}} [options]
  */
+/** AIFA titles are often ALL CAPS (`MOMENT`); show a readable Title Case in the form. */
+/**
+ * Form + pack size for a catalogue choice (name search / family picker).
+ *
+ * The raw AIFA pack line is a wall of text; the household needs "Crema · 25 g" or
+ * "10 compresse" to tell two CONNETTIVINA PLUS packs apart.
+ *
+ * @param {object} row med_lookup public row
+ * @returns {{form:string, qty:string}}
+ */
+function _medCatalogueChoiceMeta(row) {
+    const form = String((row && row.form) || '').replace(/\s+/g, ' ').trim();
+    const packRaw = [row && row.pack, row && row.dosage].filter(Boolean).join(' ');
+    const size = (typeof _medPackSize === 'function')
+        ? _medPackSize(packRaw)
+        : { qty: 0, unit: 'pz', label: '' };
+    let qty = '';
+    if (size && size.qty > 0) {
+        qty = (size.unit === 'pz' && size.label)
+            ? String(size.label)
+            : _formatQtyPlain(size.qty, size.unit, size.qty, '');
+    } else if (packRaw) {
+        // Nothing parsed: keep a short readable slice of the official pack line.
+        qty = String(packRaw).replace(/\s+/g, ' ').trim().slice(0, 72);
+    }
+    return { form: form, qty: qty };
+}
+
+/** HTML block under the commercial name: typology + pack quantity. */
+function _medCatalogueChoiceDetailHtml(row) {
+    const m = _medCatalogueChoiceMeta(row);
+    if (!m.form && !m.qty) return '';
+    return `<span class="scan-med-choice-detail">`
+        + (m.form ? `<span class="scan-med-choice-form">${escapeHtml(m.form)}</span>` : '')
+        + (m.qty ? `<span class="scan-med-choice-qty">${escapeHtml(m.qty)}</span>` : '')
+        + `</span>`;
+}
+
+function _medDisplayName(name) {
+    const s = String(name || '').trim();
+    if (!s) return s;
+    const letters = s.replace(/[^A-Za-zÀ-ÿ]/g, '');
+    if (!letters || letters !== letters.toUpperCase()) return s;
+    return s.toLowerCase().replace(/(^|[\s\-/'`(])(\S)/g, (_, a, b) => a + b.toUpperCase());
+}
+
 function _medFillFromCatalogue(row, options = {}) {
     if (!row || !row.name) return false;
     // The catalogue CONFIRMED this code: only from here may the form stock a medicine
@@ -17571,7 +17834,7 @@ function _medFillFromCatalogue(row, options = {}) {
         _medAutoFilled[key] = value;
         el.dispatchEvent(new Event('input', { bubbles: true }));
     };
-    set('pf-name', String(row.name), 'name');
+    set('pf-name', _medDisplayName(row.name), 'name');
     if (row.company) set('pf-brand', String(row.company), 'brand');
     // The active ingredient has its own field: it used to live only inside the notes.
     if (row.ingredient) set('pf-med-ingredient', String(row.ingredient), 'ingredient');
@@ -17671,19 +17934,25 @@ function _medUseCode(code) {
  * @returns {Promise<{loaded:boolean, aic:string, rows:object[]}>}
  */
 async function _medLookupCatalogue(code) {
-    const local = _medLocalCode(code);
-    const aic = (local && local.aic) ? String(local.aic) : '';
-    if (!aic) return { loaded: true, aic: '', rows: [] };
+    // Always ask with the printed form (`A` + 9): Italy's local_code refuses a bare 9-digit
+    // serial (pack progressive), and the near/family pass needs the same key as the scan path.
+    const raw = String(code || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+    const withA = /^A\d{9}$/.test(raw) ? raw : (/^\d{9}$/.test(raw) ? ('A' + raw) : raw);
+    const local = _medLocalCode(withA);
+    const aicDigits = String((local && local.aic) ? local.aic : raw.replace(/^A/, '')).replace(/\D/g, '');
+    if (aicDigits.length !== 9) return { loaded: true, aic: '', rows: [], exact: false, implausible: false };
     let res = null;
     try {
-        res = await api('med_lookup', { aic: aic, near: 1, lang: _currentLang || '' });
+        res = await api('med_lookup', { aic: 'A' + aicDigits, near: 1, lang: _currentLang || '' });
     } catch (e) {
         res = null;
     }
     return {
         loaded: !!(res && res.dataset && res.dataset.loaded),
-        aic: aic,
+        aic: aicDigits,
         rows: (res && Array.isArray(res.results)) ? res.results : [],
+        exact: !!(res && res.exact),
+        implausible: !!(res && res.implausible),
     };
 }
 
@@ -18631,11 +18900,13 @@ async function onBarcodeDetected(barcode) {
                     _medTryLooseReads(reading.candidates);
                     return;
                 }
-                showToast(t('medical.ocr_not_found'), 'info', 5000);
+                // Card = message. No toast and no nowrap chip that truncates the same sentence.
+                _setScanStatus('', 'idle', '');
+                try { stopScanner(); } catch (e) { /* already stopped */ }
                 _medShowAsk(true);
             }).catch(() => {
-                _setScanStatus(t('scan.status_scanning'), '', '');
-                showToast(t('medical.ocr_not_found'), 'info', 5000);
+                _setScanStatus('', 'idle', '');
+                try { stopScanner(); } catch (e) { /* already stopped */ }
                 _medShowAsk(true);
             });
             return;
@@ -18702,30 +18973,21 @@ async function _medStartManualEntry(barcode, medical = true) {
         startManualEntry(barcode);
         return;
     }
-    // No empty form, no invented medicines: a box enters only with a code the catalogue names.
+    // No empty form, no invented medicines: one confirmation path with the scanner
+    // (`_medConfirmRead` → exact form / family picker / name fallback).
     if (!String(barcode || '').trim()) {
-        showToast(t('medical.only_catalogue'), 'error', 7000);
         if (_scanModeIsMedical()) _medShowAsk(true);
         return;
     }
-    const info = await _medLookupCatalogue(barcode);
-    if (!info.loaded) {
-        showToast(t('medical.scan_needs_catalog'), 'error', 9000);
-        if (_scanModeIsMedical()) _medOcrKick();
-        return;
+    const raw = String(barcode).replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    const withA = /^A\d{9}$/.test(raw) ? raw : (/^\d{9}$/.test(raw) ? ('A' + raw) : raw);
+    const digits = String(withA).replace(/\D/g, '');
+    // Typed/handed codes are deliberate: one miss is enough for the name fallback.
+    if (digits.length === 9) _medRejectHits = { code: digits, n: 1 };
+    const ok = await _medConfirmRead(withA, 'MANUAL');
+    if (!ok && _scanModeIsMedical()) {
+        _medRevealNameAsk({ code: digits });
     }
-    if (!info.aic || !info.rows.length) {
-        // Not in the catalogue (or not a national code at all): say it and keep reading. The
-        // neighbours of a doubtful read are offered by `_medOpenFamily()`/`med_lookup?near=1`.
-        showToast(t('medical.only_catalogue'), 'error', 9000);
-        if (_scanModeIsMedical()) _medOcrKick();
-        return;
-    }
-    showToast(t('medical.code_detected'), 'info', 4000);
-    startManualEntry(barcode);
-    _medArmProductForm();
-    // Painted from the answer we already have: one lookup, not two.
-    _medShowCatalogueMatch(barcode, info);
 }
 
 /**
@@ -18747,6 +19009,8 @@ function _medFormSetMode(on) {
     // makes a box a medicine, never a typed title.
     _medConfirmedAic = '';
     _medConfirmedAtc = '';
+    // Leaving (or re-entering) the form must not leave the scan lock stuck on the last AIC.
+    if (!on) _medConfirmingCode = '';
 
     // Back to the food form: a catalogue card left over from a medicine must not follow the
     // household into the next product.
@@ -18889,6 +19153,13 @@ function _medFormStockSyncPackRow() {
     const opened = _medFormStockStateValue === 'opened';
     const row = document.getElementById('pf-med-pack-row');
     if (row) row.hidden = !opened;
+    const frac = document.getElementById('pf-med-frac');
+    if (frac) {
+        frac.hidden = !opened;
+        if (!opened) {
+            frac.querySelectorAll('.med-piece-chip').forEach(b => b.classList.remove('is-on'));
+        }
+    }
     const packEl = document.getElementById('pf-med-pack');
     const qtyEl = document.getElementById('pf-med-qty');
     if (opened && packEl && !String(packEl.value || '').trim() && qtyEl) {
@@ -18896,6 +19167,36 @@ function _medFormStockSyncPackRow() {
         packEl.value = String(qtyEl.value || '');
     }
     _medFormStockSyncPackUnit();
+}
+
+/**
+ * Opened pack shortcut: remaining stock = full pack × fraction (¼ · ½ · ¾).
+ *
+ * The pack field is the source of truth when open; if it is still empty we fall back to the
+ * quantity already on the form (usually the catalogue fill). Pieces are rounded; g/ml keep two
+ * decimals so a 50 g tube at ½ becomes 25, not 25.00 noise.
+ *
+ * @param {number} frac 0.25 | 0.5 | 0.75
+ */
+function _medFormStockFrac(frac) {
+    const f = Number(frac);
+    if (!(f > 0) || f > 1) return;
+    const qtyEl = document.getElementById('pf-med-qty');
+    const packEl = document.getElementById('pf-med-pack');
+    const unitEl = document.getElementById('pf-med-unit');
+    if (!qtyEl) return;
+    const packRaw = parseFloat(String((packEl && packEl.value) || qtyEl.value || '').replace(',', '.'));
+    if (!(packRaw > 0)) return;
+    if (packEl && !String(packEl.value || '').trim()) packEl.value = String(packRaw);
+    const unit = String((unitEl && unitEl.value) || 'pz');
+    let n = packRaw * f;
+    if (unit === 'pz') n = Math.max(0, Math.round(n));
+    else n = Math.round(n * 100) / 100;
+    qtyEl.value = String(n);
+    qtyEl.dataset.userSet = '1';
+    document.querySelectorAll('#pf-med-frac .med-piece-chip').forEach(b => {
+        b.classList.toggle('is-on', Number(b.dataset.frac) === f);
+    });
 }
 
 /** The pack is measured in the unit of the quantity (a tube of gel is 50 g, not 50 pz). */
@@ -21052,27 +21353,33 @@ function _renderAddMedStock() {
     ].filter(Boolean).join(' '));
     const row = document.getElementById('add-med-pieces-row');
     const piecesHint = document.getElementById('add-med-pieces-hint');
-    if (row) row.hidden = pack.pieces < 2;
-    if (piecesHint) {
-        piecesHint.textContent = pack.pieces >= 2
-            ? t('medical.pieces_hint').replace('{n}', String(pack.pieces)).replace('{unit}', pack.unit)
-            : '';
-    }
     const chips = document.getElementById('add-med-pieces');
+    if (chips) chips.innerHTML = '';
+    // Fractions appear only when the box is already open (¼ · ½ · ¾ of the catalogue pack).
+    if (pack.pieces < 2) {
+        if (row) { row.hidden = true; delete row.dataset.noPack; row.dataset.noPack = '1'; }
+        if (piecesHint) piecesHint.textContent = '';
+        return;
+    }
+    if (row) delete row.dataset.noPack;
+    if (piecesHint) {
+        piecesHint.textContent = t('medical.pieces_hint').replace('{n}', String(pack.pieces)).replace('{unit}', pack.unit);
+    }
     if (!chips) return;
-    chips.innerHTML = '';
-    if (pack.pieces < 2) return;
-    [[1, t('medical.pieces_all')], [0.75, '¾'], [0.5, '½'], [0.25, '¼']].forEach(pair => {
+    [[0.75, '¾'], [0.5, '½'], [0.25, '¼']].forEach(pair => {
         const frac = pair[0];
         const n = Math.max(1, Math.round(pack.pieces * frac));
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'med-piece-chip' + (frac === 1 ? ' is-on' : '');
+        btn.className = 'med-piece-chip';
         btn.dataset.pieces = String(n);
+        btn.dataset.frac = String(frac);
         btn.textContent = `${pair[1]} (${n})`;
         btn.onclick = () => _medAddStockPieces(n);
         chips.appendChild(btn);
     });
+    // Start sealed → hide fractions until "Già aperta".
+    if (row) row.hidden = _medAddStockStateValue !== 'opened';
 }
 
 /** Sealed or already opened: the value `submitAdd()` reads when the row is written. */
@@ -21081,6 +21388,12 @@ function _medAddStockState(state) {
     document.querySelectorAll('#add-med-state .med-state-chip').forEach(b => {
         b.classList.toggle('is-on', b.dataset.state === _medAddStockStateValue);
     });
+    // Fractions of the pack only make sense once the box is open (sealed = the whole pack).
+    const piecesRow = document.getElementById('add-med-pieces-row');
+    if (piecesRow && !piecesRow.dataset.noPack) {
+        const hasChips = !!document.querySelector('#add-med-pieces .med-piece-chip');
+        piecesRow.hidden = _medAddStockStateValue !== 'opened' || !hasChips;
+    }
 }
 
 /** A fraction of the pack, written into the quantity field the form already owns. */

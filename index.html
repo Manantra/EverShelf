@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261028zzp">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261028zzp">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261028zzp">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261029j">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261029j">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261029j">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261028zzp">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261028zzp">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261029j">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261029j">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261028zzp"></script>
-    <script src="assets/js/core/auth.js?v=20261028zzp"></script>
-    <script src="assets/js/core/med.js?v=20261028zzp"></script>
+    <script src="assets/js/core/dom.js?v=20261029j"></script>
+    <script src="assets/js/core/auth.js?v=20261029j"></script>
+    <script src="assets/js/core/med.js?v=20261029j"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261028zzp"></script>
+    <script src="assets/js/med/italy.js?v=20261029j"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261028zzp"></script>
+    <script src="assets/js/core/support.js?v=20261029j"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261028zzp';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029j';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261028zzp';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029j';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261028zzp"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261029j"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -120,7 +120,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.0</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.1</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -189,7 +189,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.0</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.1</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -477,13 +477,12 @@
                 <div class="scanner-overlay">
                     <div class="scanner-line"></div>
                 </div>
-                <!-- Medicine panel: WHERE to aim, and WHAT the app expects to read there.
-                     The rectangle is also the OCR's field of view (_medGuideRect()), so the
-                     small pack serial printed under the SSN barcode is never read as the drug
-                     number. The sample comes from the country data (schema.ocr.sample). -->
+                <!-- Medicine panel: ghost AIC digits (OCR crop still uses this box via
+                     _medGuideRect). No barcode-style rectangle — that made people aim at the
+                     bollino stripes instead of the printed A+9. -->
                 <div class="scan-med-frame" id="scan-med-frame" hidden aria-hidden="true">
                     <span class="scan-med-frame-sample" id="scan-med-frame-sample">A000000000</span>
-                    <span class="scan-med-frame-label" data-i18n="medical.code_aic">codice AIC</span>
+                    <span class="scan-med-frame-hint" data-i18n="medical.scan_aim_hint">Inquadra A + 9 cifre, non il codice a barre</span>
                 </div>
                 <!-- Tracking feedback: AI-like particle cloud + lock box on barcode -->
                 <div class="scan-tracking-layer" id="scan-tracking-layer" aria-hidden="true">
@@ -535,7 +534,24 @@
                 <div class="scan-med-ask" id="scan-med-ask" hidden>
                     <span class="scan-med-ask-icon" aria-hidden="true">⌨️</span>
                     <strong class="scan-med-ask-title" data-i18n="medical.ask_title">Non riesco a leggere il codice</strong>
-                    <p class="scan-med-ask-body" data-i18n="medical.ask_body">Scrivilo qui sotto come è stampato sulla scatola (es. A040313076), oppure riprova la scansione.</p>
+                    <p class="scan-med-ask-body" data-i18n="medical.ask_body">Scrivi le 9 cifre del bollino (la A è già lì), oppure riprova la scansione.</p>
+                    <!-- Name fallback: shown when a typed/OCR code is not in the catalogue. -->
+                    <div class="scan-med-name-ask" id="scan-med-name-ask" hidden>
+                        <p class="scan-med-name-lead" id="scan-med-name-lead" data-i18n="medical.name_ask_body">Non trovo questo codice nel catalogo. Scrivi il nome del farmaco:</p>
+                        <div class="scan-med-name-query">
+                            <input type="text" class="scan-med-name-input" id="scan-med-name-input"
+                                   autocomplete="off" autocapitalize="sentences" spellcheck="false"
+                                   maxlength="80" data-i18n-placeholder="medical.name_ask_placeholder"
+                                   placeholder="es. Tachipirina"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();_medSearchName();}">
+                            <button type="button" class="btn btn-primary btn-small" onclick="_medSearchName()" data-i18n="medical.name_ask_search">Cerca</button>
+                        </div>
+                        <div class="scan-med-name-list" id="scan-med-name-list" role="listbox"></div>
+                        <div class="scan-med-name-actions">
+                            <button type="button" class="btn btn-outline btn-small" id="scan-med-name-more" hidden
+                                    onclick="_medSearchNameMore()" data-i18n="medical.name_ask_more">Altre 4 proposte</button>
+                        </div>
+                    </div>
                 </div>
                 <!-- Uncertain AIC: only real catalogue packs — never “crea un farmaco nuovo”. -->
                 <div class="scan-med-family" id="scan-med-family" hidden role="dialog" aria-modal="true">
@@ -567,11 +583,15 @@
                      often creased or glossy and the reader cannot win every time), and the answer
                      names the box from the local catalogue like a scan does. -->
                 <div class="scan-med-code-row" id="scan-med-code-row" hidden>
-                    <input type="text" class="scan-med-code-input" id="scan-med-code-input"
-                           inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
-                           maxlength="12" placeholder="A040313076"
-                           aria-label="AIC" data-i18n-aria="medical.code_aic" data-i18n-placeholder="medical.code_placeholder"
-                           onkeydown="if(event.key==='Enter')_medSubmitCode()">
+                    <div class="scan-med-aic-field" title="A + 9 digits" data-i18n-title="medical.code_aic_hint">
+                        <span class="scan-med-aic-prefix" aria-hidden="true">A</span>
+                        <input type="text" class="scan-med-code-input" id="scan-med-code-input"
+                               inputmode="numeric" autocomplete="off" spellcheck="false"
+                               maxlength="9" placeholder="040313076"
+                               aria-label="AIC" data-i18n-aria="medical.code_aic" data-i18n-placeholder="medical.code_digits_placeholder"
+                               oninput="_medCodeDigitsOnly(this)"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();_medSubmitCode();}">
+                    </div>
                     <button type="button" class="btn btn-primary btn-small" id="scan-med-code-btn" onclick="_medSubmitCode()" data-i18n="medical.code_confirm">Conferma</button>
                     <!-- Ten seconds without a read: the camera stops and this row takes over. -->
                     <button type="button" class="btn btn-outline btn-small" id="scan-med-resume" onclick="_medResumeScan()" hidden data-i18n="medical.resume_scan">Riprova la scansione</button>
@@ -1003,6 +1023,12 @@
                                     <option value="ml">ml</option>
                                     <option value="g">g</option>
                                 </select>
+                            </div>
+                            <!-- Opened pack: one tap sets remaining = pack × fraction (¼ · ½ · ¾). -->
+                            <div class="med-frac-chips" id="pf-med-frac" hidden>
+                                <button type="button" class="med-piece-chip" data-frac="0.25" onclick="_medFormStockFrac(0.25)">¼</button>
+                                <button type="button" class="med-piece-chip" data-frac="0.5" onclick="_medFormStockFrac(0.5)">½</button>
+                                <button type="button" class="med-piece-chip" data-frac="0.75" onclick="_medFormStockFrac(0.75)">¾</button>
                             </div>
                             <p class="form-hint" id="pf-med-qty-hint"></p>
                         </div>
@@ -3408,15 +3434,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261028zzp"></script>
-<script src="assets/js/food_facts.generated.js?v=20261028zzp"></script>
-<script src="assets/js/free_apis.generated.js?v=20261028zzp"></script>
-<script src="assets/js/core/vocab.js?v=20261028zzp"></script>
-<script src="assets/js/app.js?v=20261028zzp"></script>
-<script src="assets/js/audit.js?v=20261028zzp"></script>
-<script src="assets/js/receipt.js?v=20261028zzp"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261028zzp"></script>
-<script src="assets/js/settings_search.js?v=20261028zzp"></script>
+<script src="assets/js/vocab.generated.js?v=20261029j"></script>
+<script src="assets/js/food_facts.generated.js?v=20261029j"></script>
+<script src="assets/js/free_apis.generated.js?v=20261029j"></script>
+<script src="assets/js/core/vocab.js?v=20261029j"></script>
+<script src="assets/js/app.js?v=20261029j"></script>
+<script src="assets/js/audit.js?v=20261029j"></script>
+<script src="assets/js/receipt.js?v=20261029j"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261029j"></script>
+<script src="assets/js/settings_search.js?v=20261029j"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

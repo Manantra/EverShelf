@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.0-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.1-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,8 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.29.1** — **OCR farmaci più onesto e recupero per nome.** Niente chip troncato sopra la card «non riesco a leggere»; prefisso **A** bloccato e solo 9 cifre; codice sconosciuto → cerca il nome con **4 proposte AIFA** (riscrivi / altre 4) che mostrano **forma + quantità confezione**; ricerca tollerante a typo e suffissi marketing (`Bio`); famiglia near senza prodotti Sella estranei; overlay che punta alle cifre stampate (non al barcode); chip **¼ · ½ · ¾** se la scatola è già aperta.
 
 **v1.29.0** — **un farmaco scansionato entra da solo nell'armadietto: niente «dove lo metti?», niente quantità chiesta due volte.** Le risposte del form del farmaco (quanti, scadenza stampata, sigillata/aperta) scrivono ora la riga **direttamente nell'armadietto** (`_medStockAddDirect()`): il passo dispensa non c'è più nel flusso, e si finisce sulla dashboard con la conferma; resta solo come ripiego di una scrittura rifiutata, con le risposte già compilate. La scadenza di una scatola è **mese e anno** — il mese si sceglie da un elenco i cui 12 nomi stanno **solo** nei file delle lingue (`months.*`, tutte e sei) e l'anno si scrive — perché il giorno sulla confezione non c'è, e la data salvata è l'ultimo giorno di quel mese — e per i farmaci spariscono i riferimenti al cibo e alla dispensa: il bottone dice «Salva nell'armadietto», la pagina «Aggiungi all'armadietto», la pagina azione «nell'armadietto dei farmaci» e non offre ricette. **E nessun farmaco «nuovo»**: il form non dice più «Nuovo farmaco», il nome arriva **solo dal catalogo AIFA** (campo in sola lettura), un codice che il catalogo non conosce non apre nessun form, e l'unico altro modo di aggiungere una scatola è un prodotto che hai già. **E il farmaco ha finalmente la sua icona**: una capsula disegnata (`assets/img/icons/medicine.svg`, tinta medica), al posto dell'emoji della categoria che sulla riga diventava 📦 — la stessa di un alimento non identificato — con il badge «Farmaco» al posto di «Altro», un gruppo suo nelle liste raggruppate e l'armadietto segnato con la stessa capsula nei pill e nei tab.
 

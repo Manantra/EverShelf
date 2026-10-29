@@ -5304,10 +5304,30 @@ function addToInventory(PDO $db): void {
     // Food and medicines never share a place (EverShelf Med): a medicine lives only in the
     // cabinet the household marked, and food never goes into it. The client hides the wrong
     // buttons; this is the rule that cannot be bypassed.
-    $medStmt = $db->prepare('SELECT COALESCE(is_medical, 0) FROM products WHERE id = ?');
+    $medStmt = $db->prepare('SELECT COALESCE(is_medical, 0) AS is_medical, barcode FROM products WHERE id = ?');
     $medStmt->execute([$productId]);
-    $isMedicalProduct = (int)($medStmt->fetchColumn() ?: 0) === 1;
+    $medRow = $medStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $medStmt->closeCursor();   // an open read cursor blocks the write below on SQLite
+    $isMedicalProduct = (int)($medRow['is_medical'] ?? 0) === 1;
+    // Harden the classify→stock race: a cabinet write with an AIC the national catalogue knows
+    // is a medicine even if `med_classify` has not flipped the flag yet (seen in logs as
+    // food_in_cabinet on the first tap, success on the retry).
+    if (!$isMedicalProduct && medicalEnabled($db)) {
+        $keys = medicalLocationKeys($db);
+        $loc = mb_strtolower(trim((string)$location));
+        $inCabinet = $loc !== '' && in_array($loc, $keys, true);
+        $aic = medicineNormalizeAic((string)($medRow['barcode'] ?? ''));
+        if ($inCabinet && $aic !== '' && medicineFindByAic($db, $aic)) {
+            $db->prepare('UPDATE products SET is_medical = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND COALESCE(is_medical, 0) = 0')
+               ->execute([$productId]);
+            $isMedicalProduct = true;
+            EverLog::info('inventory_add promoted catalogue AIC to medical', [
+                'event' => 'api_inventory_add_med_promote',
+                'product_id' => $productId,
+                'aic' => $aic,
+            ]);
+        }
+    }
     $domainError = inventoryLocationDomainError($db, $isMedicalProduct, (string)$location);
     if ($domainError !== null) {
         EverLog::warn('addToInventory: location refused by the medicine domain', [
@@ -9875,12 +9895,16 @@ function medLookupAction(PDO $db): void {
     // are genuine rows — the same medicine at another pack size — and each carries its name, so
     // a wrong digit becomes visible instead of silent. Ranked by distance from the read.
     $near = in_array(strtolower((string)($_GET['near'] ?? '')), ['1', 'true', 'yes'], true);
-    if ($near && $aic !== '') {
+    // Exact hit: the box is known — skip neighbour/one-edit work (the client clears alt chips).
+    if ($near && $aic !== '' && !$exact) {
         $seen = [];
         foreach ($results as $r) { $seen[(string)$r['aic']] = true; }
         $code = medicineNormalizeAic($aic);
-        foreach ([7, 6, 5] as $take) {
-            if (count($results) >= 4) { break; }
+        $familyPrefix = strlen($code) >= 6 ? substr($code, 0, 6) : '';
+        // Pack suffix is what OCR usually mangling (029788027 vs real 029788041 gocce): pull the
+        // WHOLE 6-digit family first, before any looser neighbour that shares only "02978…".
+        foreach ([6, 7] as $take) {
+            if ($take > strlen($code)) { continue; }
             foreach (medicineFindNeighbours($db, substr($code, 0, $take), 24) as $row) {
                 $rowAic = (string)($row['aic'] ?? '');
                 if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
@@ -9888,14 +9912,61 @@ function medLookupAction(PDO $db): void {
                 $results[] = medicinePublicRow($row) + ['distance' => medicineLevenshtein($code, $rowAic)];
             }
         }
-        usort($results, static function ($a, $b) {
+        $hasFamily = false;
+        if ($familyPrefix !== '') {
+            foreach ($results as $r) {
+                if (str_starts_with((string)($r['aic'] ?? ''), $familyPrefix)) {
+                    $hasFamily = true;
+                    break;
+                }
+            }
+        }
+        // A single wrong digit in the middle shares no long prefix: try the 90 one-edit codes.
+        if (!$hasFamily && count($results) < 4) {
+            foreach (medicineFindOneEdit($db, $code, 8) as $row) {
+                $rowAic = (string)($row['aic'] ?? '');
+                if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
+                $seen[$rowAic] = true;
+                $results[] = medicinePublicRow($row) + ['distance' => medicineLevenshtein($code, $rowAic)];
+            }
+        }
+        // 5-digit prefix only when NOTHING in the 6-digit family exists — otherwise it pulls
+        // unrelated Sella packs at distance 2 (Argento/Canfora) and crowds out the real gocce.
+        if (!$hasFamily && count($results) < 4) {
+            foreach (medicineFindNeighbours($db, substr($code, 0, 5), 24) as $row) {
+                $rowAic = (string)($row['aic'] ?? '');
+                if ($rowAic === '' || isset($seen[$rowAic])) { continue; }
+                $dist = medicineLevenshtein($code, $rowAic);
+                if ($dist > 2) { continue; }
+                $seen[$rowAic] = true;
+                $results[] = medicinePublicRow($row) + ['distance' => $dist];
+            }
+        }
+        usort($results, static function ($a, $b) use ($familyPrefix) {
+            $aFam = ($familyPrefix !== '' && str_starts_with((string)($a['aic'] ?? ''), $familyPrefix)) ? 0 : 1;
+            $bFam = ($familyPrefix !== '' && str_starts_with((string)($b['aic'] ?? ''), $familyPrefix)) ? 0 : 1;
+            if ($aFam !== $bFam) { return $aFam <=> $bFam; }
             $d = ((int)$a['distance']) <=> ((int)$b['distance']);
             return $d !== 0 ? $d : strcmp((string)$a['aic'], (string)$b['aic']);
         });
+        $results = array_values(array_filter($results, static function ($r) {
+            return (int)($r['distance'] ?? 99) <= 2;
+        }));
+        // Prefer keeping the whole family (up to 4) over padding with strangers.
+        if ($hasFamily && $familyPrefix !== '') {
+            $familyOnly = array_values(array_filter($results, static function ($r) use ($familyPrefix) {
+                return str_starts_with((string)($r['aic'] ?? ''), $familyPrefix);
+            }));
+            if ($familyOnly !== []) {
+                $results = $familyOnly;
+            }
+        }
         $results = array_slice($results, 0, 4);
     }
     if (!$results && $query !== '') {
-        foreach (medicineSearch($db, $query) as $row) {
+        $limit = max(1, min(25, (int)($_GET['limit'] ?? 4)));
+        $offset = max(0, min(200, (int)($_GET['offset'] ?? 0)));
+        foreach (medicineSearch($db, $query, $limit, $offset) as $row) {
             $results[] = medicinePublicRow($row);
         }
     }
@@ -9923,6 +9994,9 @@ function medLookupAction(PDO $db): void {
         'aic' => (string)$aic,
         'results' => $results,
         'exact' => $exact,
+        // Hint for the client: a 9-digit read that cannot be a current AIFA pack (e.g. starts
+        // with 9) should not be framed as “medicine missing from the catalogue”.
+        'implausible' => (!$exact && $aic !== '' && medicineAicLooksImplausible((string)$aic)),
         'dataset' => medicinesDatasetInfo($db),
         // The source and the licence are shown next to the result: the household must know
         // where the name came from, and that it is an identification, not advice.
@@ -10183,8 +10257,15 @@ function medClassifyAction(PDO $db): void {
         echo json_encode(['success' => false, 'error_key' => 'medical.classify_error'], JSON_UNESCAPED_UNICODE);
         return;
     }
-    $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_atc = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
-       ->execute([implode(',', $tags), $atc, $ingredient, $paoDays, $productId]);
+    // Settings classify posts tags/ingredient/PAO with no ATC: never wipe the AIFA code the
+    // scan stored (`med_atc = ''` broke Phase-2 symptom search for that box).
+    if ($atc === '') {
+        $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
+           ->execute([implode(',', $tags), $ingredient, $paoDays, $productId]);
+    } else {
+        $db->prepare("UPDATE products SET is_medical = 1, med_tags = ?, med_atc = ?, med_ingredient = ?, med_pao_days = ? WHERE id = ?")
+           ->execute([implode(',', $tags), $atc, $ingredient, $paoDays, $productId]);
+    }
     // A medicine is not a food genre: drop a leading "Farmaco"/"Medicine" the title AI may
     // have stamped, and clear a kind/shopping_name that is only the domain label.
     $nameRow = $db->prepare('SELECT name, kind, shopping_name FROM products WHERE id = ?');

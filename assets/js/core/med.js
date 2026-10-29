@@ -407,16 +407,21 @@ function _medPackSize(pack) {
 
 function _medPackCount(pack) {
     const measures = ['ml', 'l', 'cl', 'dl', 'cc', 'g', 'gr', 'mg', 'kg', 'mcg', 'ui', 'iu', 'dose', 'gocce'];
+    // Prefer real pack words when several numbers appear ("200 MG … 24 COMPRESSE" → 24).
+    const preferred = /^(compresse?|cpr|bustine?|capsule?|cps|fiale?|supposte?|ovuli|cerotti|bustina|sachets?|tablets?|capsules?)$/i;
     const re = /(\d{1,3})\s*([A-Za-zÀ-ÿ]{2,})/g;
+    let best = { pieces: 0, unit: '' };
     let m = null;
     while ((m = re.exec(String(pack || ''))) !== null) {
         const pieces = Number(m[1]);
         const unit = String(m[2]).toLowerCase();
         if (measures.indexOf(unit) !== -1) continue;
         if (!(pieces >= 2 && pieces <= 200)) continue;
-        return { pieces: pieces, unit: String(m[2]) };
+        const score = preferred.test(unit) ? (pieces + 1000) : pieces;
+        const bestScore = preferred.test(best.unit) ? (best.pieces + 1000) : best.pieces;
+        if (score > bestScore) best = { pieces: pieces, unit: String(m[2]) };
     }
-    return { pieces: 0, unit: '' };
+    return best;
 }
 
 
