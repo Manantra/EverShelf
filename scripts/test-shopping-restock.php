@@ -97,7 +97,7 @@ $db->exec("CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, prod
     quantity REAL, location TEXT DEFAULT 'dispensa', notes TEXT DEFAULT '', undone INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
 $db->exec("CREATE TABLE shopping_list (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, raw_name TEXT DEFAULT '',
-    specification TEXT DEFAULT '')");
+    specification TEXT DEFAULT '', need_qty REAL, need_unit TEXT NOT NULL DEFAULT '')");
 $db->exec("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
 

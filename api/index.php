@@ -5174,7 +5174,7 @@ function addToInventory(PDO $db): void {
 
     clearFinishedDismissed($db, $productId);
     
-    $restock = shoppingHandleRestockAfterAdd($db, $productId);
+    $restock = shoppingHandleRestockAfterAdd($db, $productId, $quantity, $effectiveUnit);
 
     echo json_encode([
         'success' => true,
@@ -13882,6 +13882,14 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
                ->execute([$genericName, $prod['name'], $spec]);
             EverLog::info('shoppingQuickSync: added to internal list', ['product_id' => $productId, 'name' => $genericName]);
         } elseif ($totalQty > $threshold && $onList) {
+            // A cacheless real-time stock event must not erase a persisted
+            // plan-mode remaining need. The explicit restock counter is only
+            // advanced by actual inventory_add, not by a status refresh.
+            $pending = $db->prepare('SELECT need_qty, need_unit, specification FROM shopping_list WHERE lower(name)=lower(?)');
+            $pending->execute([$genericName]);
+            if (shoppingHasTrackedRemainingNeed($pending->fetch(PDO::FETCH_ASSOC) ?: [])) {
+                return;
+            }
             // Only remove when remaining family need is covered (partial restock keeps the row)
             $eval = shoppingEvaluateFamilyRestock($db, $productId);
             if (!empty($eval['covered'])) {
@@ -15274,7 +15282,7 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
     }
 
     $rows = $db->query(
-        "SELECT id, name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
+        "SELECT id, name, raw_name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
     )->fetchAll(PDO::FETCH_ASSOC);
     $bringKey = italianToBring($generic);
     foreach ($rows as $row) {
@@ -15304,6 +15312,67 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
 }
 
 /**
+ * A plan-mode row with a persisted positive need is not covered just because
+ * the forecast cache was invalidated after a stock write. Manual list rows
+ * (need_qty NULL) and the deliberately different trip mode are unaffected.
+ */
+function shoppingHasTrackedRemainingNeed(array $row): bool {
+    return shoppingRemoveOnBuyMode() === 'plan'
+        && !isShoppingBringMode()
+        && (float)($row['need_qty'] ?? 0) > 0.001
+        && trim((string)($row['need_unit'] ?? '')) !== ''
+        // A user can manually replace the suggestion with a personal note;
+        // do not let stale need_qty override that explicit decision.
+        && preg_match('/🛒\s*(?:Compra|Almeno):/u', (string)($row['specification'] ?? '')) === 1;
+}
+
+/**
+ * Decrement only an explicitly tracked outstanding shopping quantity.
+ * Conversion uses the app's mass/volume/piece families, never raw number math.
+ * Null means no eligible tracking row or incompatible units.
+ * @return array{remaining:float,unit:string}|null
+ */
+function shoppingAdvanceTrackedNeed(PDO $db, int $productId, float $addedQty, string $addedUnit): ?array {
+    if (shoppingRemoveOnBuyMode() !== 'plan' || isShoppingBringMode() || $addedQty <= 0) {
+        return null;
+    }
+    $stmt = $db->prepare('SELECT name, shopping_name, default_quantity, package_unit FROM products WHERE id=?');
+    $stmt->execute([$productId]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) return null;
+
+    $rows = $db->query('SELECT id, name, raw_name, specification, need_qty, need_unit FROM shopping_list')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $row) {
+        if (!shoppingHasTrackedRemainingNeed($row)
+            || !shoppingListRowMatchesProduct($db, (string)$row['name'], (string)$row['raw_name'],
+                (string)$product['name'], (string)$product['shopping_name'])) continue;
+        $unit = trim((string)$row['need_unit']);
+        $size = (float)$product['default_quantity'];
+        $pkgUnit = (string)$product['package_unit'];
+        $added = evershelfBaseQty($addedQty, $addedUnit, $size, $pkgUnit);
+        $target = evershelfBaseQty(1.0, $unit, $size, $pkgUnit);
+        if ($added['family'] !== $target['family'] || $target['qty'] <= 0) {
+            return null; // Never subtract grams from unconvertible pieces or vice versa.
+        }
+        $remaining = max(0.0, (float)$row['need_qty'] - $added['qty'] / $target['qty']);
+        if ($remaining > 0.001) {
+            $shown = in_array($unit, ['conf', 'pz'], true) ? ceil($remaining) : $remaining;
+            $label = formatSmartSuggestQty([
+                'suggested_qty' => $shown, 'suggested_unit' => $unit, 'suggested_approx' => true,
+            ]);
+            $spec = preg_replace('/(?:^|\s·\s)?🛒\s*(?:Compra|Almeno):\s*[^·]*/u', '', (string)$row['specification'])
+                ?? (string)$row['specification'];
+            $spec = trim($spec, " ·");
+            if ($label !== null) $spec = ($spec !== '' ? $spec . ' · ' : '') . '🛒 ' . $label;
+            $db->prepare('UPDATE shopping_list SET specification=?, need_qty=? WHERE id=?')
+                ->execute([dedupeBringSpec($spec), $remaining, (int)$row['id']]);
+        }
+        return ['remaining' => $remaining, 'unit' => $unit];
+    }
+    return null;
+}
+
+/**
  * After inventory_add: remove from shopping list only when the family need is covered;
  * otherwise keep the row and refresh remaining qty.
  *
@@ -15325,7 +15394,7 @@ function shoppingRemoveOnBuyDecided(): bool {
     return trim((string)env('SHOPPING_REMOVE_ON_BUY', '')) !== '';
 }
 
-function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {
+function shoppingHandleRestockAfterAdd(PDO $db, int $productId, float $addedQty = 0, string $addedUnit = ''): array {
     $eval = shoppingEvaluateFamilyRestock($db, $productId);
     if (shoppingRemoveOnBuyMode() === 'trip') {
         $removal = shoppingRemoveProductFromList($db, $productId);
@@ -15336,6 +15405,25 @@ function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {
                 'shopping_kept' => false,
                 'remaining' => $eval,
             ];
+        }
+    }
+    // A just-purchased product may have no active forecast after cache reset.
+    // Consume its previously recorded outstanding deficit one purchase at a
+    // time; a fresh forecast still takes precedence when available.
+    if ($addedQty > 0 && $addedUnit !== '' && !isShoppingBringMode()
+        && findSmartItemForProduct(loadSmartShoppingCacheItems(), $productId) === null) {
+        $tracked = shoppingAdvanceTrackedNeed($db, $productId, $addedQty, $addedUnit);
+        if ($tracked !== null) {
+            $stillDue = $tracked['remaining'];
+            $eval['need_base'] = $stillDue;
+            $eval['suggested_qty'] = $stillDue > 0.001
+                ? (in_array($tracked['unit'], ['conf', 'pz'], true) ? ceil($stillDue) : $stillDue)
+                : null;
+            $eval['suggested_unit'] = $tracked['unit'];
+            $eval['covered'] = $stillDue <= 0.001;
+            if ($stillDue > 0.001) {
+                return ['removed' => false, 'removed_names' => [], 'shopping_kept' => true, 'remaining' => $eval];
+            }
         }
     }
     if (!empty($eval['covered'])) {
@@ -16508,13 +16596,14 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $removed     = 0;
     $candidates  = 0;
-    $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query("SELECT id, name, raw_name, specification, need_qty, need_unit FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
     $del  = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
 
     foreach ($rows as $row) {
         $spec = (string)($row['specification'] ?? '');
         // Only EverShelf-owned rows; never a row the user marked as finished.
-        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)) {
+        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)
+            || shoppingHasTrackedRemainingNeed($row)) {
             continue;
         }
         $name = trim((string)($row['name'] ?? ''));
@@ -18944,7 +19033,7 @@ function internalShoppingPruneCovered(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query('SELECT id, name, raw_name, specification, need_qty, need_unit FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
     $prods = $db->query('SELECT id, name, shopping_name FROM products')->fetchAll(PDO::FETCH_ASSOC);
     $index = evershelfSmartItemsIndex(evershelfLoadSmartItemsForSync($db));
     $removed = 0;
@@ -18964,6 +19053,10 @@ function internalShoppingPruneCovered(PDO $db): array {
             || ($listRaw !== '' && seasonalShoppingItemOutOfSeason($listRaw))) {
             $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
             $removed++;
+            continue;
+        }
+        // Out-of-season cleanup must still win over a persisted purchase goal.
+        if (shoppingHasTrackedRemainingNeed($row)) {
             continue;
         }
         $bestPid  = null;

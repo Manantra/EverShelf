@@ -36,7 +36,7 @@ justify a change. Never make the default mode overwrite a configured mode.
 | --- | --- | --- |
 | `shopping_plan_days` | user 7/14/30, automatic/inferred, explicit API override | PHP compatibility tests; legacy cache falls back to configured days |
 | `SHOPPING_MODE` | internal; Bring! selected with and without credentials | mode dispatch tested with synthetic config; **no real Bring! network test** |
-| `SHOPPING_REMOVE_ON_BUY` | `plan`: keep when stock is insufficient; `trip`: remove after buying | config dispatch tested; `trip` HTTP+SQLite passes; **`plan` HTTP reload currently fails — see below** |
+| `SHOPPING_REMOVE_ON_BUY` | `plan`: keep when stock is insufficient; `trip`: remove after buying | config dispatch and repeated HTTP+SQLite purchases in both modes, including cron and real-time sync; **no real Bring! account used** |
 | `SHOPPING_DISMISS_DAYS`, `SHOPPING_REMOVED_BLOCK_MODE` | dated dismissal, purchase, default/override | existing dismiss regressions; one HTTP cron/live-sync path |
 | Packaging | `conf`, `pz`, `g`, `ml`; `default_quantity` and `package_unit` | 7/14/30-day cached quantity guards and HTTP 690 g per pack; `kg`/`l` not covered exhaustively |
 | User overrides | manually entered product casing, manually entered shopping quantity | PHP and HTTP persistence checks; **never cap user-entered 24 packs** |
@@ -72,32 +72,58 @@ calculations, unit display, rounding and forecast configuration remain
 unchanged. This guards *new* auto-synced specifications; it does not
 retroactively rewrite unrelated existing rows in a household database.
 
-## Confirmed, not patched yet: plan-mode partial restock is lost on reload
+## Fixed and regression-locked: plan-mode partial restock survives reload
 
-The isolated `scripts/integration-restock-settings.py` reproducer
-creates a synthetic conf product with a planned need of 3 packs and an
-auto-cache fixture. It adds a shopping row, then buys 1 pack.
+The isolated `scripts/integration-restock-settings.py` reproducer originally
+confirmed a bug: after buying 1 of 3 required packs with
+`SHOPPING_REMOVE_ON_BUY=plan`, the API said `shopping_kept:true` but the
+next `shopping_list` call silently deleted the row. Stock additions reset the
+forecast cache, and in the absence of consumption history the next read
+mistook *any* positive stock for complete coverage.
 
-- With `SHOPPING_REMOVE_ON_BUY=trip`: API reports removal and a fresh
-  shopping-list read is empty. **PASS**.
-- With `SHOPPING_REMOVE_ON_BUY=plan`: the inventory API reports
-  `shopping_kept:true`, but the next `shopping_list` read is empty.
-  **FAIL (existing bug)**.
+**Fix:** carry forward an existing *calculated* plan-mode target via the
+schema's original `shopping_list.need_qty` and `need_unit` fields. When no
+current smart forecast exists, each successful stock addition reduces that
+persisted deficit through EverShelf's native unit-family conversion. The
+shopping-list read, internal cron cleanup and real-time sync preserve an
+outstanding positive target instead of treating missing cache as full
+coverage. Once the deficit reaches zero, the normal removal/purchase-block
+flow runs. We neither added database columns nor changed the global default.
 
-**Likely cause:** `inventory_add` invalidates smart-shopping cache;
-`shoppingEvaluateFamilyRestock()` then has no consumption estimate for
-a newly created product, marks its now-positive stock as covered, and
-`internalShoppingPruneCovered()` removes the row despite the
-previously computed residual need. The schema already has
-`shopping_list.need_qty` and `need_unit`, but a correct fix must also
-cover *subsequent* partial purchases and cron cleanup. Changing just
-one prune condition would hide the failure rather than make it correct.
+**Compatibility guards:**
 
-The reproducer is intentionally **not yet a required CI step** because
-its plan-mode assertion is expected to fail on this branch. The test
-runs only against a marked loopback sandbox and restores its temporary
-.env configuration after each run. Fix the full lifecycle and then make
-this test a required CI gate.
+- This state protection is limited to `plan` mode, the internal list and
+  a server-generated `🛒 Compra:`/`🛒 Almeno:` specification with
+  positive `need_qty` and an explicit `need_unit`.
+- A manual replacement of that text disables the tracking override;
+  unrelated manually entered quantities remain untouched.
+- `trip` still removes after the first purchase. With a real Bring!
+  connection configured, the external transport retains its prior logic.
+- Product families are matched using the existing shopping-name logic;
+  only compatible mass/volume/pack units are converted. An invalid unit
+  cannot be subtracted silently.
+- Existing out-of-season removal happens **before** preservation of tracked
+  quantities. Intentional `🛒 Esaurito` rows retain their special handling.
+
+**Verified HTTP sequence (independent SQLite):**
+
+| Mode | Step | Expected result | Local result |
+| --- | --- | --- | --- |
+| plan | 3 required, buy 1 | 2 pending; survives cron/reload/live sync | PASS |
+| plan | buy another 1 | 1 pending; survives cron/reload/live sync | PASS |
+| plan | buy final 1 | shopping row removed, 3 in stock | PASS |
+| trip | 3 required, buy 1 | shopping row removed immediately | PASS |
+| trip | buy another 1 | row remains removed, stock increases | PASS |
+
+The extended `test-internal-shopping-cleanup.php` also covers
+690 g → 1 conf equivalence and rejects an incompatible liquid/solid unit.
+The two existing temporary-SQLite test fixtures now include the existing
+`need_qty`/`need_unit` columns, matching the real schema.
+
+**Limitations:** The new tracking starts from an *already computed* positive
+restock deficit. A standalone user-entered note with no numeric shopping
+metadata does not create an automatic multi-purchase target. No live Bring!,
+real multi-client races or variant-family consolidation has been tested.
 
 ## Current limitations
 

@@ -8,6 +8,7 @@ import argparse
 import json
 import secrets
 import sqlite3
+import subprocess
 import string
 import sys
 from pathlib import Path
@@ -109,12 +110,97 @@ def run_case(root, base, mode):
     verify(bool(matched) is expect_keep,
            f"{mode}: partial restock {'keeps' if expect_keep else 'removes'} shopping row")
 
+    if mode == "plan":
+        def tracked_need(expected):
+            db = sqlite3.connect(f"file:{root / 'data/evershelf.db'}?mode=ro", uri=True)
+            try:
+                row = db.execute(
+                    "SELECT need_qty, need_unit, specification FROM shopping_list WHERE lower(name)=lower(?)",
+                    (generic,),
+                ).fetchone()
+            finally:
+                db.close()
+            verify(row is not None and abs(float(row[0]) - expected) < 0.001 and row[1] == "conf",
+                   f"plan: durable remaining need is {expected} conf")
+            verify(f"{expected:g} conf" in row[2],
+                   f"plan: displayed quantity agrees with tracked need {expected}")
+
+        def cron_does_not_prune(expected):
+            # Execute the actual cron script after the forecast was invalidated.
+            run = subprocess.run(["php", "api/cron_smart_shopping.php"], cwd=root,
+                                 capture_output=True, text=True, timeout=45)
+            verify(run.returncode == 0, "plan: background cron runs successfully")
+            status, listing = call(base, "shopping_list")
+            verify(status == 200 and any(
+                x.get("name", "").casefold() == generic.casefold()
+                or x.get("rawName", "").casefold() == name.casefold()
+                for x in listing.get("purchase", [])
+            ), f"plan: cron and next HTTP reload keep remaining {expected} conf")
+            tracked_need(expected)
+            php = (
+                "define('CRON_MODE',true); require_once 'api/bootstrap.php'; "
+                "require_once 'api/index.php'; "
+                f"bringQuickSyncProduct(getDB(), {product_id});"
+            )
+            sync = subprocess.run(["php", "-r", php], cwd=root,
+                                  capture_output=True, text=True, timeout=30)
+            verify(sync.returncode == 0, "plan: real-time sync runs successfully")
+            status, after_live = call(base, "shopping_list")
+            verify(status == 200 and any(
+                x.get("name", "").casefold() == generic.casefold()
+                for x in after_live.get("purchase", [])
+            ), f"plan: real-time sync preserves remaining {expected} conf")
+
+        tracked_need(2)
+        cron_does_not_prune(2)
+        for number, remaining in ((2, 1), (3, 0)):
+            status, followup = call(base, "inventory_add", {
+                "product_id": product_id, "quantity": 1,
+                "location": "dispensa", "unit": "conf",
+            })
+            verify(status == 200 and followup.get("success") is True,
+                   f"plan: purchase {number} persisted")
+            verify(bool(followup.get("shopping_kept")) is (remaining > 0),
+                   f"plan: purchase {number} reports correct remaining list state")
+            status, listing = call(base, "shopping_list")
+            on_list = any(
+                x.get("name", "").casefold() == generic.casefold()
+                or x.get("rawName", "").casefold() == name.casefold()
+                for x in listing.get("purchase", [])
+            )
+            verify(status == 200 and on_list is (remaining > 0),
+                   f"plan: purchase {number} {'keeps' if remaining else 'clears'} row on reload")
+            if remaining > 0:
+                tracked_need(remaining)
+                cron_does_not_prune(remaining)
+            else:
+                cron = subprocess.run(["php", "api/cron_smart_shopping.php"], cwd=root,
+                                      capture_output=True, text=True, timeout=45)
+                verify(cron.returncode == 0, "plan: final completed purchase survives cron")
+                status, after_cron = call(base, "shopping_list")
+                verify(status == 200 and not any(
+                    x.get("name", "").casefold() == generic.casefold()
+                    for x in after_cron.get("purchase", [])
+                ), "plan: completed shopping row stays removed after cron")
+    else:
+        status, second = call(base, "inventory_add", {
+            "product_id": product_id, "quantity": 1,
+            "location": "dispensa", "unit": "conf",
+        })
+        verify(status == 200 and second.get("success") is True,
+               "trip: a second purchase persists without reintroducing the list row")
+        status, listing = call(base, "shopping_list")
+        verify(status == 200 and not any(
+            x.get("name", "").casefold() == generic.casefold() for x in listing.get("purchase", [])
+        ), "trip: repeat purchase does not resurrect an already removed item")
+
     db = sqlite3.connect(f"file:{root / 'data/evershelf.db'}?mode=ro", uri=True)
     try:
         qty = db.execute("SELECT SUM(quantity) FROM inventory WHERE product_id=?",
                          (product_id,)).fetchone()[0]
-        verify(abs(float(qty) - 1.0) < 0.001,
-               f"{mode}: independent SQLite read confirms quantity")
+        expected_stock = 3.0 if mode == "plan" else 2.0
+        verify(abs(float(qty) - expected_stock) < 0.001,
+               f"{mode}: independent SQLite read confirms {expected_stock:g} packages")
         verify(db.execute("PRAGMA quick_check").fetchone()[0] == "ok",
                f"{mode}: SQLite integrity")
     finally:
