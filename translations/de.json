@@ -2654,7 +2654,11 @@
     "hint_curl_missing": "cURL ist nicht verfügbar",
     "hint_internet": "Gemini-Server nicht erreichbar — KI-Funktionen benötigen eine Internetverbindung",
     "hint_missing_tables_inline": "fehlend: {list}",
-    "free_apis_lead": "EverShelf nutzt diese offenen Quellen"
+    "free_apis_lead": "EverShelf nutzt diese offenen Quellen",
+    "stage_system": "Verbindung und System",
+    "stage_pantry": "Vorräte und Ablaufdaten",
+    "stage_ready": "EverShelf bereit",
+    "powered_by_open_data": "Powered by Open Food Facts & Open Data"
   },
   "stats_monthly": {
     "title": "Monatsstatistik",

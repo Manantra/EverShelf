@@ -2654,7 +2654,11 @@
     "hint_curl_missing": "cURL 不可用",
     "hint_internet": "无法访问 Gemini 服务器 — AI 功能需要互联网连接",
     "hint_missing_tables_inline": "缺少：{list}",
-    "free_apis_lead": "EverShelf 使用这些开放来源"
+    "free_apis_lead": "EverShelf 使用这些开放来源",
+    "stage_system": "连接与系统",
+    "stage_pantry": "库存与保质期",
+    "stage_ready": "EverShelf 已就绪",
+    "powered_by_open_data": "Powered by Open Food Facts & Open Data"
   },
   "stats_monthly": {
     "title": "月度统计",

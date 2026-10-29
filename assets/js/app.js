@@ -1697,7 +1697,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261029q'; // bump when translations change
+const _I18N_VERSION = '20261029r'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6114,20 +6114,12 @@ function _closeFreeApisDialog() {
  * together with all the others. Each logo lights up in turn (`--i` staggers the glow), and the
  * line above them says what they are: `startup.free_apis_lead`.
  */
+/**
+ * Splash no longer paints free-API logos (unreadable in ~1 s; credits live in Settings).
+ * Kept as a no-op so `_syncCreditSources` and older callers stay safe.
+ */
 function _renderPreloaderApis() {
-    const el = document.getElementById('preloader-apis');
-    if (!el) return;
-    const list = _activeFreeApis((typeof EVERSHELF_FREE_APIS !== 'undefined' && Array.isArray(EVERSHELF_FREE_APIS))
-        ? EVERSHELF_FREE_APIS
-        : []).filter(api => !!api && (api.id || api.name) && api.splash !== false);
-    // Repaintable on purpose: the splash is up before the token, and when `med_status` arrives
-    // a conditional source (the national medicine catalogue) joins the row. Same list → no work.
-    const sig = list.map(api => String(api.id || '')).join(',');
-    if (el.dataset.sig === sig && el.childElementCount) return;
-    el.dataset.sig = sig;
-    el.innerHTML = list.map((api, delay) =>
-        `<span class="preloader-api" style="--i:${delay}">${_freeApiLogoHtml(api, 'preloader-api-logo')}</span>`
-    ).join('');
+    /* intentionally empty — see #preloader powered-by line in index.html */
 }
 
 async function loadSettingsUI() {
@@ -16525,7 +16517,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029q';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029r';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -16535,7 +16527,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261029q';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029r';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -36264,13 +36256,16 @@ function initInactivityWatcher() {
 
 // ===== INITIALIZATION =====
 const _splashStart = Date.now();
-/** The splash is never shorter than this, however fast the boot was (see `_initApp`). */
-const _SPLASH_MIN_MS = 3000;
+/**
+ * Splash floor: three paced macro-stages (~380 ms each) ≈ 1.2 s. Long enough to read
+ * the labels, short enough for a quick kitchen open. Debug mode still shows the bar.
+ */
+const _SPLASH_MIN_MS = 1200;
+/** Minimum time a macro-stage stays `active` before the next one lights up. */
+const _PRELOADER_STAGE_DWELL_MS = 380;
+let _preloaderStageSince = 0;
 document.addEventListener('DOMContentLoaded', () => {
-    // The splash is already on screen: credit the free services it rides on before any
-    // network call (the list is generated data, no fetch, no token). The dashboard footer
-    // and the Settings card read the same list, so they are painted here too.
-    _renderPreloaderApis();
+    // Free-API logos live in Settings → Crediti; the splash only keeps a quiet line.
     _loadFreeApis().catch(() => {});
     // Load translations first, then initialize the app
     loadTranslations(_currentLang).then(() => {
@@ -37300,31 +37295,25 @@ function _heartbeatRetry() {
  * one vocabulary, two consumers (the markup and the health-check loop below).
  */
 const _PRELOADER_STAGE_KEYS = {
-    connect: 'startup.stage_connect',
-    php:     'startup.stage_php',
-    files:   'startup.stage_files',
-    db:      'startup.stage_db',
-    config:  'startup.stage_config',
-    network: 'startup.stage_network',
-    ui:      'startup.stage_ui',
+    system: 'startup.stage_system',
+    pantry: 'startup.stage_pantry',
+    ready:  'startup.stage_ready',
 };
 
 /**
- * Which rail icon owns each low-level check of the health_check payload. The
- * payload reports ~30 flat checks; the rail groups them into the seven things a
- * human can actually act on.
- * (every key of the startup CHECKS list must be owned by exactly one stage).
+ * Which rail icon owns each low-level check of the health_check payload.
+ * ~30 flat checks collapse into three household phases (system → pantry → ready).
+ * Every key of the startup CHECKS list must be owned by exactly one stage.
  */
 const _PRELOADER_STAGE_OF_CHECK = {
-    php:     ['php_version', 'ext_pdo_sqlite', 'ext_curl', 'ext_json', 'ext_mbstring',
-              'ext_openssl', 'ext_fileinfo', 'ext_zip', 'ext_intl',
-              'php_memory', 'php_max_exec', 'php_upload'],
-    files:   ['data_dir', 'data_rate_limits', 'data_backups', 'data_write_test', 'disk_space'],
-    db:      ['db_legacy', 'db_connect', 'db_tables', 'db_integrity', 'db_wal',
-              'db_size', 'db_row_count'],
-    config:  ['env_file', 'gemini_key', 'bring_credentials', 'bring_token', 'tts_url',
-              'scale_gateway'],
-    network: ['curl_ssl', 'internet'],
+    system: ['php_version', 'ext_pdo_sqlite', 'ext_curl', 'ext_json', 'ext_mbstring',
+             'ext_openssl', 'ext_fileinfo', 'ext_zip', 'ext_intl',
+             'php_memory', 'php_max_exec', 'php_upload',
+             'data_dir', 'data_rate_limits', 'data_backups', 'data_write_test', 'disk_space',
+             'env_file', 'gemini_key', 'bring_credentials', 'bring_token', 'tts_url',
+             'scale_gateway', 'curl_ssl', 'internet'],
+    pantry: ['db_legacy', 'db_connect', 'db_tables', 'db_integrity', 'db_wal',
+             'db_size', 'db_row_count'],
 };
 /** Reverse index of _PRELOADER_STAGE_OF_CHECK (check key → stage id). */
 const _PRELOADER_CHECK_STAGE = (() => {
@@ -37353,6 +37342,9 @@ function _preloaderStage(stage, state) {
         row.classList.remove('is-pending', 'is-active', 'is-done', 'is-warn', 'is-error');
         row.classList.add('is-' + state);
     }
+    if (state === 'active' || state === 'done' || state === 'warn' || state === 'error') {
+        _preloaderStageSince = Date.now();
+    }
     if (state === 'pending') return;
     const caption = document.getElementById('preloader-stage-caption');
     const key     = _PRELOADER_STAGE_KEYS[stage];
@@ -37360,6 +37352,13 @@ function _preloaderStage(stage, state) {
     const name = t(key);
     // t() echoes the key when the locale has none: keep the previous name then.
     if (name && name !== key) caption.textContent = name;
+}
+
+/** Wait out the dwell so a fast health_check cannot strobe the three icons. */
+async function _preloaderAwaitDwell() {
+    if (!_preloaderStageSince) return;
+    const wait = Math.max(0, _PRELOADER_STAGE_DWELL_MS - (Date.now() - _preloaderStageSince));
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
 }
 
 /**
@@ -37423,10 +37422,9 @@ async function _runStartupCheck() {
         return (v === full) ? fallback : v;
     };
 
-    // The boot rail is painted from the first HTML paint: light up the stage it
-    // starts on, then hand the bar + ticker their first value. The bar and the ticker are
-    // the debug view; the household gets the rail and one final "Sistema pronto" line.
-    _preloaderStage('connect', 'active');
+    // The boot rail is painted from the first HTML paint: light up the first macro-stage,
+    // then hand the bar + ticker their first value (debug only).
+    _preloaderStage('system', 'active');
     wrapEl.style.display = _bootDebug ? '' : 'none';
 
     // Auto-provision API token for same-origin browser sessions
@@ -37462,12 +37460,12 @@ async function _runStartupCheck() {
             // generic "API token required" which gives the user nothing to act on.
             if (window._pairingRequired && typeof _promptPairingCode === 'function') {
                 _promptPairingCode();
-                _preloaderStage('connect', 'warn');
+                _preloaderStage('system', 'warn');
                 setProgress(100, tl('pairing_required', 'Pair this device — code in Settings → Security on another device, or the server log'), 'warn');
                 return false;
             }
             if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
-            _preloaderStage('connect', 'warn');
+            _preloaderStage('system', 'warn');
             setProgress(100, tl('token_required', 'API token required'), 'warn');
             return false;
         }
@@ -37475,10 +37473,11 @@ async function _runStartupCheck() {
             const resp2 = await fetch('api/index.php?action=health_check', { headers: apiAuthHeaders() });
             result = await resp2.json();
         }
-        _preloaderStage('connect', 'done');
+        // Stay on "system" until pantry checks begin (dwell keeps the label readable).
+        _preloaderStage('system', 'active');
     } catch(e) {
         clearInterval(slowAnim);
-        _preloaderStage('connect', 'error');
+        _preloaderStage('system', 'error');
         _showStartupErrorPopup(
             tl('error_network', 'Cannot reach the server.'),
             tl('error_network_detail', 'The browser cannot reach the PHP server.\n\nPossible causes:\n• Apache/PHP server is not running\n• Network or firewall issue\n• Incorrect app URL\n\nMake sure the server is started and try again.'),
@@ -37537,14 +37536,14 @@ async function _runStartupCheck() {
     const total    = CHECKS.filter(d => checks[d.key] !== undefined).length;
     let   done     = 0;
 
-    // Phase 2: step through each check with animated label
-    // The rail advances with the stages: a stage blinks while its checks run and
-    // is settled (colour + aura) as soon as the loop moves on to the next one.
-    let railStage = null;
+    // Phase 2: step through each check. The rail only has three icons: dwell so the
+    // household can read each label (~380 ms) instead of a strobe of micro-steps.
+    let railStage = 'system';
     let railHasWarn = false;
     let railHasError = false;
-    const settleStage = () => {
+    const settleStage = async () => {
         if (!railStage) return;
+        await _preloaderAwaitDwell();
         _preloaderStage(railStage, railHasError ? 'error' : railHasWarn ? 'warn' : 'done');
         railStage = null;
         railHasWarn = false;
@@ -37556,7 +37555,7 @@ async function _runStartupCheck() {
 
         const stage = _PRELOADER_CHECK_STAGE[def.key];
         if (stage && stage !== railStage) {
-            settleStage();
+            await settleStage();
             railStage = stage;
             _preloaderStage(stage, 'active');
         }
@@ -37585,7 +37584,7 @@ async function _runStartupCheck() {
 
         if (_bootDebug) await new Promise(r => setTimeout(r, 40));
     }
-    settleStage(); // last stage of the rail (network) once the loop is over
+    await settleStage(); // pantry (or system) once the loop is over
 
     // ── Errors → red bar + blocking popup ────────────────────────────────────
     if (errors.length > 0) {
@@ -37728,7 +37727,8 @@ async function _initApp() {
     const _startupOk = await _runStartupCheck();
     if (!_startupOk) return; // preloader stays visible with error; app does not start
     // Final rail stage: settings, wizard and first render happen below
-    _preloaderStage('ui', 'active');
+    await _preloaderAwaitDwell();
+    _preloaderStage('ready', 'active');
 
     // Check for setup wizard resume (after language change)
     const resumeStep = localStorage.getItem('evershelf_setup_step');
@@ -37827,26 +37827,20 @@ async function _initApp() {
         if (ver) preloaderVer.textContent = ver;
     }
 
-    // Hide preloader — the splash never lasts less than 3 s, however fast the boot was.
-    // The rail settling is the app's handshake with the household (and the only moment the
-    // gift-horse credits are on screen), so a warm reload may not skip it either: what
-    // changes between a cold boot and a reload is the work behind the rail, never the time
-    // the user is given to read it.
+    // Hide preloader — floor ≈ 1.2 s (three paced stages). Content fades, canvas matches
+    // the app colour, then a short opacity fade — no dark→white flashbang.
     const preloader = document.getElementById('app-preloader');
     if (preloader) {
         const elapsed = Date.now() - _splashStart;
         const minDelay = Math.max(0, _SPLASH_MIN_MS - elapsed);
-        setTimeout(() => {
-            // Last icon of the rail: settings, wizard and dashboard are done
-            _preloaderStage('ui', 'done');
-            // The splash is nearly black and the app is white: one frame from one to the
-            // other is a flashbang in a dark kitchen. The content leaves first, then the
-            // canvas lifts to the app colour, then the element itself fades out (300 ms).
+        setTimeout(async () => {
+            await _preloaderAwaitDwell();
+            _preloaderStage('ready', 'done');
             preloader.classList.add('is-lifting');
             setTimeout(() => {
                 preloader.classList.add('fade-out');
-                setTimeout(() => preloader.remove(), 320);
-            }, 200);
+                setTimeout(() => preloader.remove(), 360);
+            }, 220);
         }, minDelay);
     }
 

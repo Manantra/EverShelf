@@ -5,6 +5,27 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.4] - 2026-10-29
+
+### Changed
+- **Splash preloader (startup audit).** Three readable phases (`system` → `pantry` → `ready`)
+  paced ~380 ms each (~1.2 s floor); household language instead of PHP/files/DB jargon; light
+  canvas + soft cross-fade (no dark→white flashbang); free-API logos removed from splash
+  (quiet Open Data line; full credits stay in Settings).
+
+## [1.29.3] - 2026-10-29
+
+### Changed
+- **Food “Usa” sheet restored.** Typed quantity (e.g. `2.5`), live scale fill for g/ml, and
+  equal-height primary vs danger “Usa tutto” — same capability as recipe-use, styled for the app.
+- **Medicine Usa / Modifica / Butta** are cabinet-specific: no vacuum, scale or recipe; insert-time
+  fields (categories, ingredient, pack, month/year expiry, PAO) surface on edit; discard uses
+  smaltimento wording.
+
+### Fixed
+- **Cooking mode bip-bip-bip.** Removed the always-on SpeechRecognition hands-free mic that
+  restarted every few seconds and played Chrome’s start chime over the TTS.
+
 ## [1.29.2] - 2026-10-29
 
 ### Added

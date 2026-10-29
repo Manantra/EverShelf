@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261029q">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261029q">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261029q">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261029r">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261029r">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261029r">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261029q">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261029q">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261029r">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261029r">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261029q"></script>
-    <script src="assets/js/core/auth.js?v=20261029q"></script>
-    <script src="assets/js/core/med.js?v=20261029q"></script>
+    <script src="assets/js/core/dom.js?v=20261029r"></script>
+    <script src="assets/js/core/auth.js?v=20261029r"></script>
+    <script src="assets/js/core/med.js?v=20261029r"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261029q"></script>
+    <script src="assets/js/med/italy.js?v=20261029r"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261029q"></script>
+    <script src="assets/js/core/support.js?v=20261029r"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261029q';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029r';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029q';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029r';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261029q"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261029r"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -120,45 +120,31 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.3</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.4</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
             </span>
         </div>
 
+        <!-- Three household-readable phases (~350–400 ms each, ~1.2 s total). The
+             detailed PHP/files/DB checks still run; they drive these three icons. -->
         <ul class="preloader-stages" id="preloader-stages">
-            <li class="preloader-stage is-active" data-stage="connect" style="--stage-accent:#60a5fa;--stage-glow:rgba(96,165,250,.55)">
+            <li class="preloader-stage is-active" data-stage="system" style="--stage-accent:#059669;--stage-glow:rgba(5,150,105,.35)">
                 <span class="preloader-stage-icon">🔌</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_connect">Connessione e accesso</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_system">Connessione e sistema</span>
             </li>
-            <li class="preloader-stage is-pending" data-stage="php" style="--stage-accent:#a78bfa;--stage-glow:rgba(167,139,250,.55)">
-                <span class="preloader-stage-icon">🐘</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_php">Runtime PHP</span>
+            <li class="preloader-stage is-pending" data-stage="pantry" style="--stage-accent:#0d9488;--stage-glow:rgba(13,148,136,.35)">
+                <span class="preloader-stage-icon">🥫</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_pantry">Scorte e scadenze</span>
             </li>
-            <li class="preloader-stage is-pending" data-stage="files" style="--stage-accent:#22d3ee;--stage-glow:rgba(34,211,238,.55)">
-                <span class="preloader-stage-icon">📁</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_files">Archivio e permessi</span>
-            </li>
-            <li class="preloader-stage is-pending" data-stage="db" style="--stage-accent:#34d399;--stage-glow:rgba(52,211,153,.55)">
-                <span class="preloader-stage-icon">🗄️</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_db">Database</span>
-            </li>
-            <li class="preloader-stage is-pending" data-stage="config" style="--stage-accent:#fb923c;--stage-glow:rgba(251,146,60,.55)">
-                <span class="preloader-stage-icon">⚙️</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_config">Configurazione</span>
-            </li>
-            <li class="preloader-stage is-pending" data-stage="network" style="--stage-accent:#38bdf8;--stage-glow:rgba(56,189,248,.55)">
-                <span class="preloader-stage-icon">🌐</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_network">Rete e servizi</span>
-            </li>
-            <li class="preloader-stage is-pending" data-stage="ui" style="--stage-accent:#4ade80;--stage-glow:rgba(74,222,128,.55)">
-                <span class="preloader-stage-icon">🚀</span>
-                <span class="preloader-stage-label" data-i18n="startup.stage_ui">Avvio interfaccia</span>
+            <li class="preloader-stage is-pending" data-stage="ready" style="--stage-accent:#16a34a;--stage-glow:rgba(22,163,74,.4)">
+                <span class="preloader-stage-icon">✓</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_ready">EverShelf pronto</span>
             </li>
         </ul>
         <!-- Name of the stage currently running — the only label on narrow screens -->
-        <div class="preloader-stage-caption" id="preloader-stage-caption" data-i18n="startup.stage_connect">Connessione e accesso</div>
+        <div class="preloader-stage-caption" id="preloader-stage-caption" data-i18n="startup.stage_system">Connessione e sistema</div>
 
         <div id="preloader-progress-wrap" class="preloader-progress-wrap" style="display:none">
             <div class="preloader-bar-track">
@@ -169,14 +155,8 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <!-- The free services we stand on, on the splash too: the line above them says what
-             they are (startup.free_apis_lead), then the marks painted from
-             assets/js/free_apis.generated.js (no fetch, no token — the splash is up before
-             the pairing). Only the logos that read at 22 px appear here (`splash` in
-             data/free_apis.json); the full list with the names, the licences and the
-             why/where lives in Settings → API gratuite. The logos are decorative. -->
-        <p class="preloader-apis-title" data-i18n="startup.free_apis_lead">EverShelf usa queste API gratuite</p>
-        <div class="preloader-apis" id="preloader-apis" aria-hidden="true"></div>
+        <!-- Credits logos live in Settings → Crediti; the splash only keeps a quiet line. -->
+        <p class="preloader-powered" data-i18n="startup.powered_by_open_data">Powered by Open Food Facts &amp; Open Data</p>
     </div>
 </div>
 
@@ -189,7 +169,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.3</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.4</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -3453,15 +3433,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261029q"></script>
-<script src="assets/js/food_facts.generated.js?v=20261029q"></script>
-<script src="assets/js/free_apis.generated.js?v=20261029q"></script>
-<script src="assets/js/core/vocab.js?v=20261029q"></script>
-<script src="assets/js/app.js?v=20261029q"></script>
-<script src="assets/js/audit.js?v=20261029q"></script>
-<script src="assets/js/receipt.js?v=20261029q"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261029q"></script>
-<script src="assets/js/settings_search.js?v=20261029q"></script>
+<script src="assets/js/vocab.generated.js?v=20261029r"></script>
+<script src="assets/js/food_facts.generated.js?v=20261029r"></script>
+<script src="assets/js/free_apis.generated.js?v=20261029r"></script>
+<script src="assets/js/core/vocab.js?v=20261029r"></script>
+<script src="assets/js/app.js?v=20261029r"></script>
+<script src="assets/js/audit.js?v=20261029r"></script>
+<script src="assets/js/receipt.js?v=20261029r"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261029r"></script>
+<script src="assets/js/settings_search.js?v=20261029r"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>
