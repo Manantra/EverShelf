@@ -1034,6 +1034,23 @@ function productTitleCapitalize(string $name): string {
 }
 
 /**
+ * For explicitly user-locked names, capitalize only the first character.
+ * Never lowercase the rest: a manual correction like "Passierte Tomaten"
+ * must round-trip unchanged through product_save and product_get.
+ */
+function productTitleCapitalizeUserName(string $name): string {
+    $name = trim($name);
+    if ($name === '') {
+        return '';
+    }
+    $first = mb_substr($name, 0, 1, 'UTF-8');
+    if (!preg_match('/^\p{L}$/u', $first)) {
+        return $name;
+    }
+    return mb_strtoupper($first, 'UTF-8') . mb_substr($name, 1, null, 'UTF-8');
+}
+
+/**
  * Make the genre an integral part of the article title
  * ("Fiori di latte" → "Yogurt Fiori di latte"). Idempotent: a title that already
  * carries a genre (any genre) is returned untouched.

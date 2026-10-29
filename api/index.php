@@ -4433,6 +4433,12 @@ function saveProduct(PDO $db): void {
     }
 
     $existing = $id ? loadProductRow($db, $id) : null;
+    if ($id && !$existing) {
+        // A stale product ID must not produce a false success response.
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'product_not_found']);
+        return;
+    }
     $fields = mergeIncomingProductFields($existing, $input, $barcode);
     $invConvert = $fields['_inventory_convert'] ?? null;
     $fields = _stripPieceProductInternalKeys($fields);
@@ -6679,11 +6685,13 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         $nameUserSet = $forceName ? 1 : 0;
     }
 
-    // Every article title opens with a capital letter, whichever pass wrote the name
-    // (scan, import, catalog, AI, hand-typed rename): "latte fresco" → "Latte fresco".
-    // Deliberately OUTSIDE the genre guard below — the genre prefix can be switched
-    // off with PRODUCT_KIND_PREFIX=false, the spelling rule cannot.
-    $name = productTitleCapitalize($name);
+    // Automatically sourced names use the canonical title spelling. A name
+    // explicitly locked by the user must preserve internal capitalization
+    // ("Passierte Tomaten" must not become "Passierte tomaten" on every save).
+    // Both branches capitalize the first letter; neither depends on genre rules.
+    $name = !empty($nameUserSet)
+        ? productTitleCapitalizeUserName($name)
+        : productTitleCapitalize($name);
 
     // Genre (genere) as an integral part of the article title: "Fiori di latte" →
     // "Yogurt Fiori di latte". Cheap paths first — curated dictionary, then the
