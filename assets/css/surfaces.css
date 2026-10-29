@@ -1328,8 +1328,102 @@ body {
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
+.item-detail-stepper--input {
+    gap: 10px;
+}
+.item-detail-qty-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.item-detail-qty-input {
+    width: 5.5rem;
+    min-width: 4.5rem;
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    padding: 10px 8px;
+    background: var(--surface-bg);
+    color: var(--text-main);
+}
+.item-detail-qty-input:focus {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    border-color: var(--brand-primary);
+}
+.item-detail-qty-unit {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.item-detail-scale-box {
+    margin: 0 0 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface-bg));
+}
+.item-detail-scale-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.item-detail-scale-icon { font-size: 1.25rem; }
+.item-detail-scale-val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+}
+.item-detail-scale-track {
+    margin-top: 8px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface-border);
+    overflow: hidden;
+}
+.item-detail-scale-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--brand-primary);
+    transition: width 0.2s ease;
+}
+.item-detail-scale-label {
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.item-detail-med-summary {
+    margin: 10px 0 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #6366f1 28%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 7%, var(--surface-bg));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.item-detail-med-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font-size: 0.88rem;
+}
+.item-detail-med-k {
+    font-weight: 700;
+    color: var(--text-muted);
+    min-width: 7rem;
+}
+.item-detail-modal.is-medical .item-detail-chips .item-detail-chip--loc {
+    border-color: color-mix(in srgb, #6366f1 40%, transparent);
+}
 .item-detail-primary,
-.item-detail-secondary {
+.item-detail-secondary,
+.item-detail-use-all {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1347,14 +1441,24 @@ body {
     color: #fff;
 }
 .item-detail-primary:active { background: var(--brand-primary-hover); }
+/* Legacy emerald outline (kept for any leftover markup). */
 .item-detail-secondary {
-    min-height: 44px;
+    min-height: 50px;
     margin-top: 8px;
     border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
     background: var(--brand-surface);
     color: var(--brand-primary-hover);
 }
 .item-detail-secondary:active { background: color-mix(in srgb, var(--brand-primary) 18%, transparent); }
+/* "Usa tutto" / medicine "Finito": same height as Usa, danger colour so they cannot be confused. */
+.item-detail-use-all {
+    min-height: 50px;
+    margin-top: 8px;
+    border: none;
+    background: var(--danger, #dc2626);
+    color: #fff;
+}
+.item-detail-use-all:active { filter: brightness(0.92); }
 
 .item-detail-support {
     display: flex;

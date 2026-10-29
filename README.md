@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.2-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.3-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,8 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.29.3** — **Usa cibo e farmaci ripristinati.** Quantità digitabile + bilancia live; «Usa» e «Usa tutto» stesso formato, colori diversi. Farmaci: schermate dedicate senza vuoto/bilancia/ricetta; modifica con i dati d’inserimento; smaltimento al posto di «butta». Via il microfono continuo in modalità cucina (niente più bip-bip).
 
 **v1.29.2** — **Italia: codici Farmadati `9xxxxxxxx` (parafarmaco/dispositivo).** Non sono AIC AIFA: dialog di conferma (registro proprietario Farmadati Italia Srl, assente dal DB pubblico), poi form farmaco vuoto con nome editabile per mettere il prodotto in armadietto. Logica nel modulo Italia + hook sottile nel core; AIFA invariato per gli altri codici.
 

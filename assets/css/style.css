@@ -2651,9 +2651,28 @@ body.offline-mode .offline-banner-retry {
     color: #fff;
 }
 
+.use-confirm-btn,
 .use-all-btn {
-    min-height: 70px;
-    font-size: 1.15rem;
+    min-height: 52px;
+    font-size: 1.02rem;
+    font-weight: 700;
+}
+.use-all-btn {
+    margin-top: 10px;
+}
+#page-use.is-medical-use #use-location-group,
+#page-use.is-medical-use #btn-scale-use,
+#page-use.is-medical-use #scale-live-box,
+#page-use.is-medical-use #btn-use-recipe {
+    display: none !important;
+}
+#page-use .use-med-summary {
+    margin: 8px 0 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #6366f1 28%, var(--border, #e2e8f0));
+    background: color-mix(in srgb, #6366f1 7%, var(--bg, #fff));
+    font-size: 0.9rem;
 }
 
 /* —— Use-all safety confirm (checkbox + slide) —— */

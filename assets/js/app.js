@@ -598,6 +598,13 @@ function _scaleOnMessage(msg) {
         if (liveMsg.stable && document.getElementById('ruse-quantity') && !_scaleRecipeAutoFillPaused) {
             _scaleAutoFillRecipeUse(liveMsg);
         }
+        // Product "Usa" sheet (item detail): same stable fill as recipe, paused when the user types.
+        if (liveMsg.stable && document.getElementById('item-detail-qty-input') && !_itemDetailScalePaused) {
+            _updateItemDetailScaleCompare(liveMsg);
+            _scaleAutoFillItemDetail(liveMsg);
+        } else if (document.getElementById('idetail-scale-live-box')) {
+            _updateItemDetailScaleCompare(liveMsg);
+        }
     }
 }
 
@@ -1587,11 +1594,17 @@ function updateScaleReadButtons() {
         btnUse.style.display = (ready && canUseByWeight) ? '' : 'none';
     }
     // Live box: visible when scale enabled + connected + on use page + compatible unit
+    // (never on a medicine use page — packs are counted, not weighed).
     const liveBox = document.getElementById('scale-live-box');
     if (liveBox) {
+        const medUse = document.getElementById('page-use')?.classList.contains('is-medical-use');
         const isWeightUnit = (_useNormalUnit === 'g' || _useNormalUnit === 'ml') ||
                              (_useConfMode && (_useConfMode.packageUnit === 'g' || _useConfMode.packageUnit === 'ml'));
-        liveBox.style.display = (ready && _scaleConnected && _currentPageId === 'use' && isWeightUnit) ? '' : 'none';
+        liveBox.style.display = (!medUse && ready && _scaleConnected && _currentPageId === 'use' && isWeightUnit) ? '' : 'none';
+    }
+    const btnUseMedGuard = document.getElementById('btn-scale-use');
+    if (btnUseMedGuard && document.getElementById('page-use')?.classList.contains('is-medical-use')) {
+        btnUseMedGuard.style.display = 'none';
     }
 }
 
@@ -1684,7 +1697,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261029n'; // bump when translations change
+const _I18N_VERSION = '20261029q'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13634,25 +13647,35 @@ function showItemDetail(inventoryId, productId, presetQty) {
         return;
     }
 
+    const isMed = _isMedicalRow(item);
     _itemDetailQtyInit(item, presetQty);
+    _itemDetailScalePaused = false;
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
     const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
     const chips = [
         `<span class="item-detail-chip item-detail-chip--loc">${_locIconMarkup(normalizeLocationKey(item.location), locInfo)} ${escapeHtml(locInfo.label)}</span>`,
         _itemDetailExpiryChip(item),
-        item.opened_at ? `<span class="item-detail-chip item-detail-chip--opened">${t('inventory.opened_badge')}</span>` : '',
-        item.vacuum_sealed ? `<span class="item-detail-chip item-detail-chip--vacuum">${t('inventory.vacuum_badge')}</span>` : '',
+        item.opened_at ? `<span class="item-detail-chip item-detail-chip--opened">${escapeHtml(isMed ? t('medical.state_opened') : t('inventory.opened_badge'))}</span>` : '',
+        (!isMed && item.vacuum_sealed) ? `<span class="item-detail-chip item-detail-chip--vacuum">${t('inventory.vacuum_badge')}</span>` : '',
     ].filter(Boolean).join('');
 
-    const metaRows = [
-        item.brand ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('product.brand_label')}</span><span>${escapeHtml(item.brand)}</span></div>` : '',
-        `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_added')}</span><span>${formatDateTime(item.added_at)}</span></div>`,
-        item.opened_at ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_status')}</span><span>${t('inventory.opened_since').replace('{date}', formatDateTime(item.opened_at))}</span></div>` : '',
-        item.barcode ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">Barcode</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>` : '',
-    ].filter(Boolean).join('');
+    const metaRows = isMed
+        ? _itemDetailMedMetaRows(item)
+        : [
+            item.brand ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('product.brand_label')}</span><span>${escapeHtml(item.brand)}</span></div>` : '',
+            `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_added')}</span><span>${formatDateTime(item.added_at)}</span></div>`,
+            item.opened_at ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_status')}</span><span>${t('inventory.opened_since').replace('{date}', formatDateTime(item.opened_at))}</span></div>` : '',
+            item.barcode ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">Barcode</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>` : '',
+        ].filter(Boolean).join('');
+
+    const consumeLabel = isMed ? t('medical.use_qty_label') : t('inventory.detail_qty_label');
+    const consumeBtn = isMed ? t('medical.use_confirm') : t('inventory.detail_consume');
+    const useAllBtn = isMed ? t('medical.use_all') : t('inventory.detail_consume_all');
+    const throwBtn = isMed ? t('medical.discard') : t('inventory.item_detail_throw_short');
+    const locEsc = String(item.location || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
     document.getElementById('modal-content').innerHTML = `
-        <div class="item-detail-modal">
+        <div class="item-detail-modal${isMed ? ' is-medical' : ''}">
             <div class="modal-header item-detail-header">
                 <h3 class="item-detail-title">${escapeHtml(item.name)}</h3>
                 <div class="item-detail-header-actions">
@@ -13673,41 +13696,53 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     <div class="item-detail-chips">${chips}</div>
                 </div>
             </div>
+            ${isMed ? _itemDetailMedSummaryHtml(item) : ''}
             ${metaRows ? `<details class="item-detail-more"><summary>${t('inventory.detail_more')}</summary><div class="item-detail-meta">${metaRows}</div></details>` : ''}
             ${_itemDetailQty.max > 0 ? `<div class="item-detail-consume">
-                <p class="item-detail-section-label">${t('inventory.detail_qty_label')}</p>
-                <div class="item-detail-stepper">
+                <p class="item-detail-section-label">${escapeHtml(consumeLabel)}</p>
+                ${_itemDetailScaleHtml(item)}
+                <div class="item-detail-stepper item-detail-stepper--input">
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(-1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
-                    <span class="item-detail-step-value" id="item-detail-qty-value">${_itemDetailQtyLabel()}</span>
+                    <div class="item-detail-qty-field">
+                        <input type="number" id="item-detail-qty-input" class="item-detail-qty-input qty-input"
+                               value="${_itemDetailQtyNumber()}" min="0.01" step="any" inputmode="decimal"
+                               oninput="_itemDetailOnQtyInput()">
+                        <span class="item-detail-qty-unit" id="item-detail-qty-unit">${escapeHtml(_itemDetailUnitLabel())}</span>
+                    </div>
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
                 </div>
                 ${_itemDetailFractionsHtml(item)}
                 <button type="button" class="item-detail-primary" onclick="_itemDetailConsume()">
                     <span class="item-detail-action-icon" aria-hidden="true">✓</span>
-                    <span>${escapeHtml(t('inventory.detail_consume'))}</span>
+                    <span>${escapeHtml(consumeBtn)}</span>
                 </button>
-                <button type="button" class="item-detail-secondary" onclick="itemDetailUseAll(${item.product_id}, '${item.location}')">
+                <button type="button" class="item-detail-use-all" onclick="itemDetailUseAll(${item.product_id}, '${locEsc}')">
                     <span class="item-detail-action-icon" aria-hidden="true">✓✓</span>
-                    <span>${escapeHtml(t('inventory.detail_consume_all'))}</span>
+                    <span>${escapeHtml(useAllBtn)}</span>
                 </button>
             </div>` : ''}
-            <div class="item-detail-support item-detail-support--row3">
+            <div class="item-detail-support${isMed ? '' : ' item-detail-support--row3'}">
                 <p class="item-detail-section-label">${t('inventory.detail_other_actions')}</p>
-                ${_shouldOfferExtendExpiry(item)
+                ${(!isMed && _shouldOfferExtendExpiry(item))
                     ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('inventory.detail_extend_short'))}</span></button>`
-                    : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`}
-                <button type="button" class="item-detail-support-btn" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
+                    : (isMed && item.opened_at ? '' : (isMed
+                        ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();_medMarkOpened(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📭</span><span>${escapeHtml(t('medical.mark_opened'))}</span></button>`
+                        : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`))}
+                ${isMed ? '' : `<button type="button" class="item-detail-support-btn" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     <span class="item-detail-action-icon" aria-hidden="true">🍳</span>
                     <span>${escapeHtml(t('inventory.item_detail_recipe_short'))}</span>
-                </button>
+                </button>`}
                 <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
                     <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
-                    <span>${escapeHtml(t('inventory.item_detail_throw_short'))}</span>
+                    <span>${escapeHtml(throwBtn)}</span>
                 </button>
             </div>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
+    if (_itemDetailScaleEligible(item) && _scaleLatestWeight) {
+        try { _updateItemDetailScaleCompare(_scaleLatestWeight); } catch (e) { /* */ }
+    }
 }
 
 function itemDetailThrow(inventoryId) {
@@ -13735,21 +13770,21 @@ async function itemDetailUseAll(productId, location) {
 /**
  * Quantity chooser of the product modal.
  *
- * "Usa" used to open a page without saying what it would subtract, and the four action
- * buttons competed with four different colours. Here the frequent action is a stepper
- * plus one solid primary; everything else is either a quiet secondary or a neutral
- * support button (UI review, round 4).
+ * Everyday "Usa" opens this sheet (not the legacy full page). The household must be able to
+ * type 2.5, read the scale (food g/ml), and tell "Usa" from "Usa tutto" at a glance — same
+ * height, different colour — like the recipe-use modal, styled for the rest of the app.
  */
-let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, inventoryId: 0, location: '', name: '' };
+let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, inventoryId: 0, location: '', name: '', isMedical: false };
+let _itemDetailScalePaused = false;
 
 function _itemDetailQtyInit(item, presetQty) {
     const unit = String(item.unit || 'pz');
     const qty = parseFloat(item.quantity) || 0;
     const step = (unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l')
         ? (qty >= 100 ? 50 : (qty >= 20 ? 10 : 1))
-        : 1;
+        : (unit === 'pz' || unit === 'conf' ? 0.25 : 1);
     // A dictated quantity ("ho usato 300 g di fusilli") arrives here already converted:
-    // the sheet opens with the number in the stepper, so the tap is the confirmation.
+    // the sheet opens with the number in the field, so the tap is the confirmation.
     const preset = Number(presetQty);
     const value = preset > 0 ? Math.min(qty, preset) : (Math.max(Math.min(step, qty), Math.min(qty, 1)) || qty);
     _itemDetailQty = {
@@ -13761,14 +13796,123 @@ function _itemDetailQtyInit(item, presetQty) {
         inventoryId: item.id,
         location: item.location || 'dispensa',
         name: item.name || '',
+        isMedical: _isMedicalRow(item),
+        packSize: parseFloat(item.default_quantity) || 0,
+        packageUnit: String(item.package_unit || ''),
     };
 }
 
-function _itemDetailQtyLabel() {
+function _itemDetailUnitLabel() {
     const q = _itemDetailQty;
-    const n = Math.round(q.value * 100) / 100;
-    const label = q.unit === 'conf' ? t('units.conf') : (q.unit === 'pz' ? t('units.pz') : q.unit);
-    return `${n} ${label}`;
+    if (q.unit === 'conf') return t('units.conf');
+    if (q.unit === 'pz') return t('units.pz');
+    return q.unit;
+}
+
+function _itemDetailQtyNumber() {
+    const n = Math.round((_itemDetailQty.value || 0) * 100) / 100;
+    return String(n);
+}
+
+function _itemDetailQtyLabel() {
+    return `${_itemDetailQtyNumber()} ${_itemDetailUnitLabel()}`;
+}
+
+/** Medicine insert-time facts shown above the consume controls (not food vacuum / recipe). */
+function _itemDetailMedSummaryHtml(item) {
+    const rows = [];
+    const tags = String(item.med_tags || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (tags.length) {
+        const cats = (_medStatus && _medStatus.categories) || [];
+        const labels = tags.map(slug => {
+            const cat = cats.find(c => c.slug === slug);
+            return cat && cat.label_key ? t(cat.label_key) : slug;
+        });
+        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_categories'))}</span><span>${escapeHtml(labels.join(' · '))}</span></div>`);
+    }
+    if (item.med_ingredient) {
+        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_ingredient'))}</span><span>${escapeHtml(item.med_ingredient)}</span></div>`);
+    }
+    const pack = parseFloat(item.default_quantity) || 0;
+    if (pack > 0) {
+        const packUnit = item.package_unit || item.unit || 'pz';
+        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_pack'))}</span><span>${escapeHtml(stripHtml(formatQuantity(pack, packUnit === 'conf' ? 'pz' : packUnit, 0, '')))}</span></div>`);
+    }
+    if (item.barcode) {
+        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.form_code_label'))}</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>`);
+    }
+    const pao = Number(item.med_pao_days) || 0;
+    if (pao > 0) {
+        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.pao_label'))}</span><span>${pao}</span></div>`);
+    }
+    if (!rows.length) return '';
+    return `<div class="item-detail-med-summary">${rows.join('')}</div>`;
+}
+
+function _itemDetailMedMetaRows(item) {
+    return [
+        item.brand ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('medical.form_brand_label')}</span><span>${escapeHtml(item.brand)}</span></div>` : '',
+        `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_added')}</span><span>${formatDateTime(item.added_at)}</span></div>`,
+        item.opened_at ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('medical.opened_on')}</span><span>${formatDateTime(item.opened_at)}</span></div>` : '',
+        item.expiry_date ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_expiry')}</span><span>${formatDate(item.expiry_date)}</span></div>` : '',
+    ].filter(Boolean).join('');
+}
+
+function _itemDetailScaleEligible(item) {
+    if (_isMedicalRow(item)) return false;
+    const s = getSettings();
+    if (!(s.scale_enabled && s.scale_gateway_url && _scaleConnected)) return false;
+    const unit = String(item.unit || '').toLowerCase();
+    const pkg = String(item.package_unit || '').toLowerCase();
+    return unit === 'g' || unit === 'ml' || (unit === 'conf' && (pkg === 'g' || pkg === 'ml'));
+}
+
+function _itemDetailScaleHtml(item) {
+    if (!_itemDetailScaleEligible(item)) return '';
+    return `
+        <div id="idetail-scale-live-box" class="item-detail-scale-box" role="status" aria-live="polite">
+            <div class="item-detail-scale-top">
+                <span class="item-detail-scale-icon" aria-hidden="true">⚖️</span>
+                <div class="item-detail-scale-val" id="idetail-scale-val">—</div>
+            </div>
+            <div class="item-detail-scale-track"><div id="idetail-scale-progress-bar" class="item-detail-scale-bar"></div></div>
+            <div id="idetail-scale-label" class="item-detail-scale-label">${escapeHtml(t('scale.place_on_scale'))}</div>
+        </div>`;
+}
+
+function _updateItemDetailScaleCompare(msg) {
+    const box = document.getElementById('idetail-scale-live-box');
+    if (!box) return;
+    const valEl = document.getElementById('idetail-scale-val');
+    const labelEl = document.getElementById('idetail-scale-label');
+    const grams = _scaleMsgToGrams(msg);
+    if (grams === null) {
+        if (valEl) valEl.textContent = '—';
+        return;
+    }
+    const unit = (_itemDetailQty.unit === 'ml' || _itemDetailQty.packageUnit === 'ml') ? 'ml' : 'g';
+    if (valEl) valEl.textContent = `${Math.round(grams * 10) / 10} ${unit}`;
+    if (labelEl && !_itemDetailScalePaused) labelEl.textContent = t('scale.place_on_scale');
+}
+
+function _scaleAutoFillItemDetail(msg) {
+    if (_itemDetailScalePaused) return;
+    if (!document.getElementById('item-detail-qty-input')) return;
+    const grams = _scaleMsgToGrams(msg);
+    if (grams === null || grams < 1) return;
+    const q = _itemDetailQty;
+    const unit = (q.unit === 'ml' || q.packageUnit === 'ml') ? 'ml' : 'g';
+    // conf stored as packs: convert sub-unit reading into packs when possible
+    let value = grams;
+    if (q.unit === 'conf' && q.packSize > 0) {
+        value = Math.round((grams / q.packSize) * 100) / 100;
+    } else if (q.unit !== 'g' && q.unit !== 'ml' && unit === 'g') {
+        return;
+    }
+    q.value = Math.min(q.max, Math.max(0.01, Math.round(value * 100) / 100));
+    _itemDetailSyncQtyUi();
+    const labelEl = document.getElementById('idetail-scale-label');
+    if (labelEl) labelEl.textContent = t('scale.stable');
 }
 
 /**
@@ -13821,31 +13965,72 @@ function _itemDetailFractionsHtml(item) {
     }).join('') + `</div>`;
 }
 
-/** One of the shortcuts: the number goes into the stepper, the chips follow. */
-function _itemDetailSetQty(value) {
+/** Keep the typed field, unit badge and fraction chips in sync with `_itemDetailQty`. */
+function _itemDetailSyncQtyUi() {
     const q = _itemDetailQty;
-    const v = Math.round(Number(value) * 100) / 100;
-    if (!(v > 0)) return;
-    q.value = Math.min(q.max, v);
-    const el = document.getElementById('item-detail-qty-value');
-    if (el) el.textContent = _itemDetailQtyLabel();
+    const input = document.getElementById('item-detail-qty-input');
+    if (input && document.activeElement !== input) input.value = _itemDetailQtyNumber();
+    else if (input && document.activeElement === input) { /* leave caret while typing */ }
+    else if (input) input.value = _itemDetailQtyNumber();
+    const unitEl = document.getElementById('item-detail-qty-unit');
+    if (unitEl) unitEl.textContent = _itemDetailUnitLabel();
+    // Legacy span (if any leftover markup) stays coherent.
+    const span = document.getElementById('item-detail-qty-value');
+    if (span) span.textContent = _itemDetailQtyLabel();
     document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
         const f = parseFloat(b.dataset.frac);
         b.classList.toggle('is-on', Math.abs(f - q.value) < 0.005);
     });
 }
 
+/** Household typed a number (2.5 etc.): pause scale auto-fill and clamp to stock. */
+function _itemDetailOnQtyInput() {
+    _itemDetailScalePaused = true;
+    const input = document.getElementById('item-detail-qty-input');
+    const raw = parseFloat(input && input.value);
+    if (!(raw > 0)) return;
+    _itemDetailQty.value = Math.min(_itemDetailQty.max, Math.round(raw * 100) / 100);
+    document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
+        const f = parseFloat(b.dataset.frac);
+        b.classList.toggle('is-on', Math.abs(f - _itemDetailQty.value) < 0.005);
+    });
+}
+
+/** Read the live input into state (typed value wins over a stale stepper). */
+function _itemDetailReadInput() {
+    const input = document.getElementById('item-detail-qty-input');
+    if (!input) return;
+    const raw = parseFloat(input.value);
+    if (raw > 0) _itemDetailQty.value = Math.min(_itemDetailQty.max, Math.round(raw * 100) / 100);
+}
+
+/** One of the shortcuts: the number goes into the field, the chips follow. */
+function _itemDetailSetQty(value) {
+    const q = _itemDetailQty;
+    const v = Math.round(Number(value) * 100) / 100;
+    if (!(v > 0)) return;
+    _itemDetailScalePaused = true;
+    q.value = Math.min(q.max, v);
+    const input = document.getElementById('item-detail-qty-input');
+    if (input) input.value = _itemDetailQtyNumber();
+    _itemDetailSyncQtyUi();
+}
+
 function _itemDetailStep(dir) {
     const q = _itemDetailQty;
+    _itemDetailScalePaused = true;
+    _itemDetailReadInput();
     const fallback = q.step <= q.max ? q.step : q.max;
     const next = Math.round((q.value + dir * q.step) * 100) / 100;
     q.value = Math.min(q.max, Math.max(fallback || 0.01, next));
-    const el = document.getElementById('item-detail-qty-value');
-    if (el) el.textContent = _itemDetailQtyLabel();
+    const input = document.getElementById('item-detail-qty-input');
+    if (input) input.value = _itemDetailQtyNumber();
+    _itemDetailSyncQtyUi();
 }
 
 /** Register the chosen quantity: the same endpoint the use form posts to. */
 async function _itemDetailConsume() {
+    _itemDetailReadInput();
     const q = _itemDetailQty;
     if (!q.productId || !(q.value > 0)) return;
     const label = _itemDetailQtyLabel();
@@ -13857,7 +14042,12 @@ async function _itemDetailConsume() {
             location: q.location,
         });
         if (res && res.success) {
-            showToast(t('inventory.detail_consumed', { qty: label, name: q.name }), 'success');
+            showToast(
+                q.isMedical
+                    ? t('medical.use_done', { qty: label, name: q.name })
+                    : t('inventory.detail_consumed', { qty: label, name: q.name }),
+                'success'
+            );
             _dashboardLiveRefresh(q.inventoryId);
             try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
         } else {
@@ -15491,11 +15681,12 @@ async function deleteInventoryItem(id) {
     const item = currentInventory.find(i => i.id == id);
     const unit = item ? (item.unit || 'pz') : 'pz';
     const qty  = item ? (parseFloat(item.quantity) || 0) : 0;
+    const isMed = item ? _isMedicalRow(item) : false;
     const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
 
     if (!canDiscardOne) {
         // Soft-delete with undo toast (24h transaction undo on the server).
-        if (!confirm(t('confirm.remove_item'))) return;
+        if (!confirm(isMed ? t('medical.discard_confirm') : t('confirm.remove_item'))) return;
         const snapshot = item ? { ...item } : null;
         try {
             await api('inventory_delete', {}, 'POST', { id });
@@ -15523,20 +15714,21 @@ async function deleteInventoryItem(id) {
         return;
     }
 
-    // Show a choice modal: 1 piece vs everything
+    // Show a choice modal: 1 piece vs everything (medicine = smaltimento, not food waste).
     const qtyDisplay = formatQuantity(qty, unit, item.default_quantity, item.package_unit);
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3>${t('use.throw_title')}</h3>
+            <h3>${isMed ? t('medical.discard_title') : t('use.throw_title')}</h3>
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
         <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(item.name)} · ${qtyDisplay}</p>
+        ${isMed ? `<p class="settings-hint">${escapeHtml(t('medical.discard_hint'))}</p>` : ''}
         <div style="display:flex;flex-direction:column;gap:10px">
             <button class="btn btn-large btn-warning full-width" onclick="_discardOnePiece(${id})">
-                ${t('confirm.discard_one')}
+                ${isMed ? t('medical.discard_one') : t('confirm.discard_one')}
             </button>
             <button class="btn btn-large btn-danger full-width" onclick="_discardAllFromModal(${id})">
-                ${t('use.throw_all', { qty: qtyDisplay })}
+                ${isMed ? t('medical.discard_all', { qty: qtyDisplay }) : t('use.throw_all', { qty: qtyDisplay })}
             </button>
             <button class="btn btn-secondary full-width" onclick="closeModal()">
                 ${t('confirm.cancel')}
@@ -15649,6 +15841,11 @@ function editInventoryItem(id, _retried) {
         closeModal();
         showToast(t('error.not_found'), 'error');
         loadBannerAlerts();
+        return;
+    }
+
+    if (_isMedicalRow(item)) {
+        _editMedicalInventoryItem(item);
         return;
     }
     
@@ -15767,6 +15964,123 @@ function editInventoryItem(id, _retried) {
     }
 }
 
+/**
+ * Medicine edit sheet: pack / PAO / categories / month-year expiry — never vacuum, scale or recipe.
+ */
+function _editMedicalInventoryItem(item) {
+    const editLocs = _locationsForEdit(true, item.location);
+    const selectedTags = String(item.med_tags || '').split(',').map(s => s.trim()).filter(Boolean);
+    const cats = (_medStatus && _medStatus.categories) || [];
+    const catChips = cats.map(c => `
+        <label class="med-cat-chip ${selectedTags.includes(c.slug) ? 'is-on' : ''}">
+            <input type="checkbox" value="${escapeAttr(c.slug)}" ${selectedTags.includes(c.slug) ? 'checked' : ''}
+                   onchange="this.closest('.med-cat-chip').classList.toggle('is-on', this.checked)">
+            <span>${escapeHtml(t(c.label_key))}</span>
+        </label>`).join('');
+    const packQty = parseFloat(item.default_quantity) || 0;
+    const stateLabel = item.opened_at
+        ? `${t('medical.state_opened')}${item.opened_at ? ' · ' + formatDateTime(item.opened_at) : ''}`
+        : t('medical.state_new');
+
+    window._editingProduct = {
+        name: item.name,
+        brand: item.brand || '',
+        category: item.category || '',
+        image_url: item.image_url || '',
+        barcode: item.barcode || '',
+        notes: item.notes || '',
+        default_quantity: item.default_quantity,
+        package_unit: item.package_unit || '',
+        unit: item.unit || 'pz',
+        is_medical: 1,
+        med_tags: item.med_tags || '',
+        med_ingredient: item.med_ingredient || '',
+        med_pao_days: item.med_pao_days || 0,
+        med_atc: item.med_atc || '',
+    };
+
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header edit-modal-header">
+            <h3 class="edit-modal-heading">
+                <span class="edit-modal-prefix">${escapeHtml(t('medical.edit_title'))}</span>
+                <span id="edit-title-display">${escapeHtml(item.name)}</span>
+                <input type="hidden" id="edit-product-name" value="${escapeHtml(item.name || '')}">
+            </h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <form class="form is-medical-edit" onsubmit="submitEditInventory(event, ${item.id}, ${item.product_id})">
+            <input type="hidden" id="edit-unit" value="${escapeAttr(item.unit || 'pz')}">
+            <input type="hidden" id="edit-vacuum" value="0">
+            <p class="settings-hint">${escapeHtml(stateLabel)}</p>
+            ${_itemDetailMedSummaryHtml(item)}
+            <div class="form-group" id="edit-qty-group">
+                <label>${escapeHtml(t('medical.edit_qty_label'))}</label>
+                <div class="qty-control-with-unit">
+                    <div class="qty-control">
+                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
+                        <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
+                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
+                    </div>
+                    <span class="qty-unit-badge" id="edit-qty-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(item.unit || 'pz'))}</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.detail_pack'))}</label>
+                <input type="number" id="edit-med-pack" class="form-input" min="0" step="any" value="${packQty > 0 ? packQty : ''}" placeholder="${escapeAttr(t('medical.pack_qty_label'))}">
+            </div>
+            <div class="form-group" id="edit-loc-group"${editLocs.length > 1 ? '' : ' hidden'}>
+                <label>${t('inventory.label_position')}</label>
+                <div class="location-selector">
+                    ${editLocs.map(([k, v]) => `
+                        <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}"
+                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('edit-loc').value='${k}'">${v.icon} ${v.label}</button>
+                    `).join('')}
+                </div>
+                <input type="hidden" id="edit-loc" value="${item.location}">
+            </div>
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.expiry_label'))}</label>
+                <div class="med-expiry-pickers" style="display:flex;gap:8px">
+                    <select id="edit-med-expiry-month" class="form-input" style="flex:1"></select>
+                    <input type="number" id="edit-med-expiry-year" class="form-input" style="flex:1" min="2020" max="2099" inputmode="numeric" placeholder="AAAA">
+                </div>
+                <input type="hidden" id="edit-expiry" value="${escapeAttr(item.expiry_date || '')}">
+            </div>
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.detail_categories'))}</label>
+                <div id="edit-med-cats" class="med-cat-chips">${catChips || `<p class="settings-hint">${escapeHtml(t('medical.pick_category'))}</p>`}</div>
+            </div>
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.detail_ingredient'))}</label>
+                <input type="text" id="edit-med-ingredient" class="form-input" value="${escapeHtml(item.med_ingredient || '')}" placeholder="${escapeAttr(t('medical.ingredient_placeholder'))}">
+            </div>
+            <div class="form-group">
+                <label>${escapeHtml(t('medical.pao_label'))}</label>
+                <input type="number" id="edit-med-pao" class="form-input" min="0" step="1" value="${Number(item.med_pao_days) || 0}">
+            </div>
+            ${!item.opened_at ? `<button type="button" class="btn btn-secondary full-width" onclick="_medMarkOpened(${item.id})">${escapeHtml(t('medical.mark_opened'))}</button>` : ''}
+            <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
+        </form>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+    const monthEl = document.getElementById('edit-med-expiry-month');
+    if (monthEl) {
+        monthEl.innerHTML = _medExpiryMonthOptionsHtml();
+        monthEl.dataset.i18nMonths = String(_currentLang || '');
+    }
+    _medExpiryFillPickers('edit-med', item.expiry_date || '', true);
+    // Keep hidden ISO in sync when pickers change.
+    const syncExpiry = () => {
+        const iso = _medExpiryIso('edit-med');
+        const hidden = document.getElementById('edit-expiry');
+        if (hidden && iso) hidden.value = iso;
+    };
+    document.getElementById('edit-med-expiry-month')?.addEventListener('change', syncExpiry);
+    document.getElementById('edit-med-expiry-year')?.addEventListener('change', syncExpiry);
+    document.getElementById('edit-med-expiry-year')?.addEventListener('input', syncExpiry);
+    setQtyInputUnitLabel('edit-qty', item.unit || 'pz');
+}
+
 function startEditProductTitle() {
     const display = document.getElementById('edit-title-display');
     const input = document.getElementById('edit-product-name');
@@ -15836,6 +16150,7 @@ function _patchLiveInventoryItem(inventoryId, patch) {
 async function submitEditInventory(e, id, productId) {
     e.preventDefault();
     const prev = _findInventoryItem(id) || {};
+    const isMedEdit = !!document.querySelector('.form.is-medical-edit') || _isMedicalRow(prev);
     const titleInput = document.getElementById('edit-product-name');
     const titleDisplay = document.getElementById('edit-title-display');
     const name = (
@@ -15846,12 +16161,18 @@ async function submitEditInventory(e, id, productId) {
     const brand = prev.brand || '';
     const qty = parseFloat(document.getElementById('edit-qty').value);
     const loc = document.getElementById('edit-loc').value;
+    // Medicine expiry is month+year → last day of month (same as insert).
+    if (isMedEdit && document.getElementById('edit-med-expiry-month')) {
+        const iso = _medExpiryIso('edit-med');
+        const hidden = document.getElementById('edit-expiry');
+        if (hidden && iso) hidden.value = iso;
+    }
     const expiry = document.getElementById('edit-expiry').value || null;
     const unit = document.getElementById('edit-unit').value;
 
     if (!name) {
         showToast(t('product.name_required') || t('error.generic'), 'error');
-        startEditProductTitle();
+        if (!isMedEdit) startEditProductTitle();
         return;
     }
 
@@ -15860,7 +16181,7 @@ async function submitEditInventory(e, id, productId) {
         return;
     }
 
-    if (unit === 'conf') {
+    if (!isMedEdit && unit === 'conf') {
         const confSize = parseFloat(document.getElementById('edit-conf-size')?.value);
         if (!confSize || confSize <= 0) {
             showToast(t('product.conf_size_required'), 'error');
@@ -15876,6 +16197,7 @@ async function submitEditInventory(e, id, productId) {
         if (!confirm(t('edit.confirm_large_qty').replace('{qty}', qty).replace('{unit}', unit))) return;
     }
 
+    const vacuumEl = document.getElementById('edit-vacuum');
     const payload = {
         id: parseInt(id, 10) || id,
         quantity: qty,
@@ -15883,13 +16205,20 @@ async function submitEditInventory(e, id, productId) {
         expiry_date: expiry,
         unit,
         product_id: parseInt(productId, 10) || productId,
-        vacuum_sealed: document.getElementById('edit-vacuum')?.checked ? 1 : 0,
-        expiry_user_set: _expiryUserSetPayload('edit-expiry'),
+        vacuum_sealed: isMedEdit ? 0 : (vacuumEl && vacuumEl.type === 'checkbox' ? (vacuumEl.checked ? 1 : 0) : 0),
+        expiry_user_set: isMedEdit ? 1 : _expiryUserSetPayload('edit-expiry'),
     };
     
-    if (unit === 'conf') {
+    if (!isMedEdit && unit === 'conf') {
         payload.package_unit = document.getElementById('edit-conf-unit')?.value || '';
         payload.package_size = parseFloat(document.getElementById('edit-conf-size')?.value) || 0;
+    }
+    if (isMedEdit) {
+        const pack = parseFloat(document.getElementById('edit-med-pack')?.value);
+        if (pack > 0) {
+            payload.package_size = pack;
+            payload.default_quantity = pack;
+        }
     }
     
     try {
@@ -15903,13 +16232,32 @@ async function submitEditInventory(e, id, productId) {
                 category: prev.category || '',
                 image_url: prev.image_url || '',
                 unit: unit || prev.unit || 'pz',
-                default_quantity: prev.default_quantity ?? 1,
+                default_quantity: isMedEdit
+                    ? (parseFloat(document.getElementById('edit-med-pack')?.value) || prev.default_quantity || 1)
+                    : (prev.default_quantity ?? 1),
                 package_unit: unit === 'conf' ? (payload.package_unit || prev.package_unit || '') : (prev.package_unit || ''),
                 barcode: prev.barcode || null,
                 notes: prev.notes || '',
             });
             if (prodSave && prodSave.success === false) {
                 showToast(prodSave.message || prodSave.error || t('error.generic'), 'error');
+                return;
+            }
+        }
+
+        if (isMedEdit) {
+            const tags = Array.from(document.querySelectorAll('#edit-med-cats input:checked')).map(i => i.value);
+            const ingredient = String(document.getElementById('edit-med-ingredient')?.value || '').trim();
+            const pao = Number(document.getElementById('edit-med-pao')?.value) || 0;
+            const classified = await api('med_classify', {}, 'POST', {
+                product_id: payload.product_id,
+                tags,
+                ingredient,
+                pao_days: pao,
+                atc: String(prev.med_atc || ''),
+            }).catch(() => null);
+            if (classified && classified.success === false) {
+                showToast(classified.error || t('medical.classify_error'), 'error');
                 return;
             }
         }
@@ -15929,9 +16277,15 @@ async function submitEditInventory(e, id, productId) {
             unit,
             vacuum_sealed: payload.vacuum_sealed,
         };
-        if (unit === 'conf') {
-            patch.package_unit = payload.package_unit;
-            patch.default_quantity = payload.package_size;
+        if (unit === 'conf' || (isMedEdit && payload.package_size)) {
+            patch.package_unit = payload.package_unit || prev.package_unit || '';
+            patch.default_quantity = payload.package_size || payload.default_quantity;
+        }
+        if (isMedEdit) {
+            patch.med_tags = Array.from(document.querySelectorAll('#edit-med-cats input:checked')).map(i => i.value).join(',');
+            patch.med_ingredient = String(document.getElementById('edit-med-ingredient')?.value || '').trim();
+            patch.med_pao_days = Number(document.getElementById('edit-med-pao')?.value) || 0;
+            patch.is_medical = 1;
         }
         _patchLiveInventoryItem(payload.id, patch);
         // Also patch other inventory rows of the same product (same barcode title)
@@ -16171,7 +16525,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029q';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -16181,7 +16535,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261029n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029q';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19427,7 +19781,7 @@ const _MED_EXPIRY_YEARS_AHEAD = 12;
  * prefix: when the two disagree the `<select>` stays EMPTY and the date is never written —
  * exactly the bug `_medExpiryFillPickers()` now warns about instead of failing silently.
  */
-const _MED_EXPIRY_FORM_PREFIXES = ['pf-med', 'add'];
+const _MED_EXPIRY_FORM_PREFIXES = ['pf-med', 'add', 'edit-med', 'action-edit-med'];
 
 /**
  * The twelve month options of a printed expiry, in the UI language.
@@ -20654,7 +21008,7 @@ function showProductAction() {
                 </button>
                 <button type="button" class="btn btn-huge btn-throw" id="btn-action-throw" onclick="showThrowForm()">
                     <span class="btn-icon">🗑️</span>
-                    <span class="btn-text">${t('action.throw_btn')}<br><small>${t('action.throw_sub')}</small></span>
+                    <span class="btn-text">${actionIsMedical ? t('medical.discard') : t('action.throw_btn')}<br><small>${actionIsMedical ? t('medical.discard_title') : t('action.throw_sub')}</small></span>
                 </button>
                 <button class="btn btn-huge btn-edit" onclick="openInventoryEdit()">
                     <span class="btn-icon">✏️</span>
@@ -20875,6 +21229,15 @@ function openInventoryEdit() {
 function editActionInventoryItem(inventoryId) {
     const item = _actionInventoryItems.find(i => i.id === inventoryId);
     if (!item) return;
+
+    // Medicine edit is one dedicated sheet (no vacuum / food unit chrome).
+    if (_isMedicalRow(item) || _isMedicalRow(currentProduct)) {
+        if (!currentInventory.some(i => i.id == item.id)) {
+            currentInventory = [...(currentInventory || []), item];
+        }
+        editInventoryItem(item.id);
+        return;
+    }
     
     const isConf = (item.unit || 'pz') === 'conf';
     const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
@@ -21017,14 +21380,15 @@ async function deleteActionInventoryItem(id) {
 
 // === THROW AWAY FORM ===
 function showThrowForm() {
-    // Open a modal to ask how much to throw away
+    // Open a modal to ask how much to throw away / smaltire
     api('inventory_list').then(data => {
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
         if (items.length === 0) {
             showToast(t('error.not_in_inventory'), 'error');
             return;
         }
-        
+
+        const isMed = _isMedicalRow(currentProduct) || items.some(_isMedicalRow);
         const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
         const unit = items[0].unit || 'pz';
         const defQty = items[0].default_quantity || 0;
@@ -21038,13 +21402,13 @@ function showThrowForm() {
         
         document.getElementById('modal-content').innerHTML = `
             <div class="modal-header">
-                <h3>${t('use.throw_title')}</h3>
+                <h3>${isMed ? t('medical.discard_title') : t('use.throw_title')}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div class="product-preview-small" style="margin-bottom:12px;position:relative">
                 ${currentProduct.image_url ?
                     `<img src="${escapeHtml(currentProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
-                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦'}</span>`
+                    `<span style="font-size:2rem">${_productCatIconHtml(currentProduct)}</span>`
                 }
                 <div class="product-preview-info">
                     <h3>${escapeHtml(currentProduct.name)}</h3>
@@ -21052,15 +21416,16 @@ function showThrowForm() {
                 </div>
                 ${items[0] ? `<button type="button" class="btn-edit-inline" onclick="editInventoryItem(${items[0].id})" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
             </div>
+            ${isMed ? `<p class="settings-hint">${escapeHtml(t('medical.discard_hint'))}</p>` : ''}
             <div class="inventory-status-bar" style="margin-bottom:16px">
                 <div class="inv-status-items">${locOptionsHtml}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px">
                 <button class="btn btn-large btn-danger full-width" onclick="throwAll()">
-                    ${t('use.throw_all', { qty: qtyDisplay })}
+                    ${isMed ? t('medical.discard_all', { qty: qtyDisplay }) : t('use.throw_all', { qty: qtyDisplay })}
                 </button>
-                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${t('use.throw_qty_hint')}</div>
-                <div class="form-group">
+                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${isMed ? t('medical.discard_qty_hint') : t('use.throw_qty_hint')}</div>
+                <div class="form-group"${isMed && items.length === 1 ? ' hidden' : ''}>
                     <label>${t('use.location_label')}</label>
                     <div class="location-selector" id="throw-location-selector">
                         ${items.map((inv, idx) => {
@@ -21071,7 +21436,7 @@ function showThrowForm() {
                     <input type="hidden" id="throw-location" value="${items[0].location}">
                 </div>
                 <div class="form-group">
-                    <label>${t('use.throw_qty_label')}</label>
+                    <label>${isMed ? t('medical.discard_qty_label') : t('use.throw_qty_label')}</label>
                     <div class="qty-control-with-unit">
                         <div class="qty-control">
                             <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
@@ -21082,7 +21447,7 @@ function showThrowForm() {
                     </div>
                 </div>
                 <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
-                    ${t('use.throw_partial_btn')}
+                    ${isMed ? t('medical.discard_partial_btn') : t('use.throw_partial_btn')}
                 </button>
             </div>
         `;
@@ -22678,11 +23043,54 @@ function showUseForm() {
     // Reset location buttons
     document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('#page-use .loc-btn').classList.add('active');
+
+    // Medicine branch: no scale, no vacuum/recipe, cabinet-only — insert-time facts stay visible.
+    const pageUse = document.getElementById('page-use');
+    const isMed = _isMedicalRow(currentProduct);
+    if (pageUse) pageUse.classList.toggle('is-medical-use', !!isMed);
+    const titleEl = document.querySelector('#page-use .page-header h2');
+    if (titleEl) {
+        titleEl.setAttribute('data-i18n', isMed ? 'medical.use_title' : 'use.title');
+        titleEl.textContent = isMed ? t('medical.use_title') : t('use.title');
+    }
+    const submitBtn = document.getElementById('btn-use-submit');
+    if (submitBtn) {
+        submitBtn.setAttribute('data-i18n', isMed ? 'medical.use_confirm' : 'use.submit');
+        submitBtn.textContent = isMed ? t('medical.use_confirm') : t('use.submit');
+    }
+    const useAllBtn = document.querySelector('#page-use .use-all-btn');
+    if (useAllBtn) {
+        useAllBtn.setAttribute('data-i18n', isMed ? 'medical.use_all' : 'use.use_all');
+        useAllBtn.textContent = isMed ? t('medical.use_all') : t('use.use_all');
+    }
+    const partialHint = document.getElementById('use-partial-hint');
+    if (partialHint) {
+        partialHint.setAttribute('data-i18n', isMed ? 'medical.use_qty_label' : 'use.partial_hint');
+        partialHint.textContent = isMed ? t('medical.use_qty_label') : t('use.partial_hint');
+    }
+    const medSum = document.getElementById('use-med-summary');
+    if (medSum) {
+        if (isMed) {
+            medSum.hidden = false;
+            medSum.innerHTML = _itemDetailMedSummaryHtml(currentProduct || {});
+            if (!medSum.innerHTML.trim()) medSum.hidden = true;
+        } else {
+            medSum.hidden = true;
+            medSum.innerHTML = '';
+        }
+    }
     
     loadUseInventoryInfo();
     showPage('use');
     updateScaleReadButtons();
     syncUseQtyUnitBadge();
+    if (isMed) {
+        // Force-hide scale chrome even if a prior food unit left it visible.
+        const liveBox = document.getElementById('scale-live-box');
+        if (liveBox) liveBox.style.display = 'none';
+        const btnScale = document.getElementById('btn-scale-use');
+        if (btnScale) btnScale.style.display = 'none';
+    }
 }
 
 function renderUsePreview() {
@@ -31141,7 +31549,8 @@ function startCookingMode() {
     if (wheelEl) setTimeout(() => wheelEl.focus(), 20);
     try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
-    _cookingVoiceStart();
+    // No always-on mic in cooking: Chrome's SpeechRecognition restart chime
+    // (bip-bip-bip) was louder than any hands-free gain. TTS + wheel/taps stay.
     if (_cookingTTS) {
         const text = _stepStr((_cookingRecipe.steps || [])[_cookingStep]);
         speakCookingStep(text);
@@ -32850,60 +33259,18 @@ function addCookingTimer(seconds, label) {
     toggleCookingTimerById(id); // auto-start
 }
 
-/** Hands-free cooking: "Shelfy, avanti / avvia timer / rileggi". Opt-in while overlay is open; taps still work. */
+/**
+ * Cooking hands-free mic was removed: a continuous SpeechRecognition session
+ * restarts every few seconds and Chrome plays its start chime (bip-bip-bip)
+ * over the TTS. Wheel / buttons / TTS remain; SHELFY capture is a separate tap.
+ */
 let _cookingVoice = null;
-let _cookingVoiceBusy = false;
 
 function _cookingVoiceStop() {
     const v = _cookingVoice;
     _cookingVoice = null;
     if (!v) return;
     try { v.onresult = null; v.onend = null; v.onerror = null; v.stop(); } catch (_) { /* ignore */ }
-}
-
-function _cookingVoiceStart() {
-    _cookingVoiceStop();
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    // Don't fight the capture sheet mic
-    if (document.getElementById('capture-sheet')?.classList.contains('is-open')) return;
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = (typeof _captureSpeechLang === 'function') ? _captureSpeechLang() : (navigator.language || 'it-IT');
-    rec.onresult = (ev) => {
-        if (_cookingVoiceBusy) return;
-        if (!document.body.classList.contains('cooking-mode-active')) return;
-        let text = '';
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            text += ' ' + (ev.results[i][0]?.transcript || '');
-        }
-        const said = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (!/\bshelfy\b/.test(said) && !/\bshelfie\b/.test(said) && !/\bselfy\b/.test(said)) return;
-        let cmd = null;
-        if (/\b(avanti|successivo|next|weiter|suivant|siguiente|xiayibu|xia yi bu)\b/.test(said)) cmd = 'next';
-        else if (/\b(timer|avvia\s+timer|start\s+timer|compte\s+a\s+rebours)\b/.test(said)) cmd = 'timer';
-        else if (/\b(rileggi|ripeti|reread|repeat|nochmal|relis|repite)\b/.test(said)) cmd = 'reread';
-        if (!cmd) return;
-        _cookingVoiceBusy = true;
-        setTimeout(() => { _cookingVoiceBusy = false; }, 1800);
-        if (cmd === 'next') navigateCookingStep(1);
-        else if (cmd === 'timer') {
-            if (_cookingSuggestedSeconds > 0) addSuggestedCookingTimer();
-            else showToast(t('cooking.timer'), 'info');
-        } else if (cmd === 'reread') {
-            const steps = _cookingRecipe?.steps || [];
-            speakCookingStep(_stepStr(steps[_cookingStep]));
-        }
-    };
-    rec.onend = () => {
-        if (_cookingVoice !== rec) return;
-        if (!document.body.classList.contains('cooking-mode-active')) return;
-        try { rec.start(); } catch (_) { /* already started */ }
-    };
-    rec.onerror = () => { /* keep listening via onend restart */ };
-    _cookingVoice = rec;
-    try { rec.start(); } catch (_) { _cookingVoice = null; }
 }
 
 function removeCookingTimer(id) {

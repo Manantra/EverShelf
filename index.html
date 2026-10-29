@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261029n">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261029n">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261029n">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261029q">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261029q">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261029q">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261029n">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261029n">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261029q">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261029q">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261029n"></script>
-    <script src="assets/js/core/auth.js?v=20261029n"></script>
-    <script src="assets/js/core/med.js?v=20261029n"></script>
+    <script src="assets/js/core/dom.js?v=20261029q"></script>
+    <script src="assets/js/core/auth.js?v=20261029q"></script>
+    <script src="assets/js/core/med.js?v=20261029q"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261029n"></script>
+    <script src="assets/js/med/italy.js?v=20261029q"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261029n"></script>
+    <script src="assets/js/core/support.js?v=20261029q"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261029n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261029q';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029n';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029q';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261029n"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261029q"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -120,7 +120,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.2</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.3</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -189,7 +189,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.2</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.3</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -742,6 +742,7 @@
         </div>
         <div class="product-preview-small" id="use-product-preview"></div>
         <div class="use-inventory-info" id="use-inventory-info"></div>
+        <div id="use-med-summary" class="use-med-summary" hidden></div>
         <div id="use-expiry-hint" style="display:none"></div>
         <form class="form" onsubmit="submitUse(event)">
             <div class="form-group" id="use-location-group">
@@ -770,11 +771,8 @@
                     <button type="button" class="use-unit-btn" id="use-unit-conf" onclick="switchUseUnit('conf')" data-i18n="units.boxes">Confezioni</button>
                 </div>
                 <div class="use-options">
-                    <button type="button" class="btn btn-large btn-danger full-width use-all-btn" onclick="submitUseAll()" data-i18n="use.use_all">
-                        🗑️ Usato TUTTO / Finito
-                    </button>
                     <div class="use-partial">
-                        <p id="use-partial-hint" data-i18n="use.partial_hint">Oppure specifica la quantità usata:</p>
+                        <p id="use-partial-hint" data-i18n="use.partial_hint">Quanto hai usato?</p>
                         <div class="qty-control-with-unit">
                             <div class="qty-control">
                                 <button type="button" class="qty-btn" id="use-qty-minus" onclick="adjustUseQty(-1)">−</button>
@@ -784,9 +782,13 @@
                             </div>
                             <span class="qty-unit-badge" id="use-quantity-unit" aria-live="polite">—</span>
                         </div>
-                        <button type="submit" id="btn-use-submit" class="btn btn-large btn-warning full-width mt-2 move-countdown-btn" data-i18n="use.submit">📤 Usa questa quantità</button>
+                        <div id="use-frac-row" class="item-detail-frac-row" hidden></div>
+                        <button type="submit" id="btn-use-submit" class="btn btn-large btn-primary full-width mt-2 move-countdown-btn use-confirm-btn" data-i18n="use.submit">📤 Usa questa quantità</button>
                         <p id="use-idle-hint" class="form-hint use-idle-hint" style="display:none" aria-live="polite"></p>
                     </div>
+                    <button type="button" class="btn btn-large btn-danger full-width use-all-btn" onclick="submitUseAll()" data-i18n="use.use_all">
+                        🗑️ Usato TUTTO / Finito
+                    </button>
                 </div>
             </div>
 
@@ -3451,15 +3453,15 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261029n"></script>
-<script src="assets/js/food_facts.generated.js?v=20261029n"></script>
-<script src="assets/js/free_apis.generated.js?v=20261029n"></script>
-<script src="assets/js/core/vocab.js?v=20261029n"></script>
-<script src="assets/js/app.js?v=20261029n"></script>
-<script src="assets/js/audit.js?v=20261029n"></script>
-<script src="assets/js/receipt.js?v=20261029n"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261029n"></script>
-<script src="assets/js/settings_search.js?v=20261029n"></script>
+<script src="assets/js/vocab.generated.js?v=20261029q"></script>
+<script src="assets/js/food_facts.generated.js?v=20261029q"></script>
+<script src="assets/js/free_apis.generated.js?v=20261029q"></script>
+<script src="assets/js/core/vocab.js?v=20261029q"></script>
+<script src="assets/js/app.js?v=20261029q"></script>
+<script src="assets/js/audit.js?v=20261029q"></script>
+<script src="assets/js/receipt.js?v=20261029q"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261029q"></script>
+<script src="assets/js/settings_search.js?v=20261029q"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>
