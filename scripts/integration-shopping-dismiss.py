@@ -98,7 +98,8 @@ def main():
 
     status, saved = api(base, "product_save", {
         "name": name, "lang": "de", "name_user_set": 1,
-        "category": "obst", "unit": "pz", "default_quantity": 1,
+        "category": "conserve", "unit": "conf", "default_quantity": 690,
+        "package_unit": "g",
     })
     check(status == 200 and saved.get("success") is True, "Synthetic unstocked product created")
     pid = int(saved["id"])
@@ -122,9 +123,13 @@ def main():
             "name": raw,
             "shopping_name": generic,
             "product_id": pid,
-            "unit": "pz",
-            "default_quantity": 1,
-            "package_unit": "pz",
+            "unit": "conf",
+            "default_qty": 690,
+            "package_unit": "g",
+            "edible_days": 14,
+            "suggested_qty": 24,  # stale pre-guard cache, never 24 jars on a trip
+            "suggested_unit": "conf",
+            "suggested_approx": True,
             "urgency": "critical",
             "current_qty": 0,
             "period_usage": 3,
@@ -143,6 +148,9 @@ def main():
         rows = list_matches(base, raw)
         check(len(rows) == 1, "Urgent item appears on the list exactly once")
         item = rows[0]
+        spec = str(item.get("specification", ""))
+        check("3 conf" in spec and "24 conf" not in spec,
+              "stale 24-pack forecast is capped to 14-day trip without changing quantity unit")
 
         status, removed = api(base, "shopping_remove", {
             "name": item["name"],

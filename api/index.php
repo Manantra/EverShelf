@@ -15980,7 +15980,7 @@ function shoppingSyncProductFromCache(PDO $db, int $productId): void {
     if (shoppingIsDismissed($db, (string)$genericName, (string)($si['name'] ?? ''))) {
         return;
     }
-    $spec = evershelfBuildShoppingSpec($si);
+    $spec = evershelfBuildShoppingSpec($si, $db);
 
     $existing = internalFindShoppingListRowByGeneric($db, $genericName, $si['name'] ?? $genericName);
     if ($existing) {
@@ -16463,7 +16463,7 @@ function internalShoppingAutoAddCritical(PDO $db): array {
         // the planning window is not covered — do not skip on family_qty > 0.
         $rawName = trim((string)($si['name'] ?? '')) ?: $name;
         $genKey = internalShoppingListGenericKey($db, $name, $rawName);
-        $spec = evershelfBuildShoppingSpec($si);
+        $spec = evershelfBuildShoppingSpec($si, $db);
         if (isset($onListKeys[$genKey])) {
             // Refresh qty/urgency on existing rows so anti-waste caps stay accurate
             $upd = $db->prepare("UPDATE shopping_list SET specification = ? WHERE lower(name) = lower(?)");

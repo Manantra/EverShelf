@@ -17,6 +17,10 @@ reproduced upstream. Do not deploy experimental changes to a household instance.
 - Follow `AGENTS.md`, including the codebase navigation indexes; avoid loading
   the giant application/router files unnecessarily.
 - Do not add user-facing features in this initiative.
+- **Mandatory for every future change:** follow [STABILITY-COMPATIBILITY.md](STABILITY-COMPATIBILITY.md).
+  Enumerate affected Settings, modes, integration transports, manual overrides,
+  units and persistence/sync paths; test intended alternatives before modifying
+  shared behavior. Document untested combinations and do not silently alter defaults.
 
 ## R1: Product rename must persist (priority: high)
 

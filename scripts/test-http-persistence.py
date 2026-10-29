@@ -110,7 +110,7 @@ def main():
 
     generic = f"Quinoa audit {tag}"
     status, added = request(base, "shopping_add", {"items": [
-        {"name": generic, "rawName": f"Quinoa audit {tag} roh", "specification": "Test-only"}
+        {"name": generic, "rawName": f"Quinoa audit {tag} roh", "specification": "24 conf (manuell)"}
     ]})
     check(status == 200 and added.get("success") is True and added.get("added", 0) >= 1,
           "HTTP adds shopping-list row")
@@ -121,6 +121,8 @@ def main():
                (str(r.get("name", "")) + " " + str(r.get("rawName", ""))).lower()]
     check(bool(matches), "new shopping row survives independent reload")
     item = matches[0]
+    check(item.get("specification") == "24 conf (manuell)",
+          "manually chosen 24-pack note is not clamped by automatic shopping guard")
 
     status, removed = request(base, "shopping_remove", {
         "name": item["name"], "rawName": item.get("rawName", ""), "purchased": False
