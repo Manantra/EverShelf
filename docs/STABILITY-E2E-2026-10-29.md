@@ -149,3 +149,10 @@ integrity still `ok`.
 runs in the CI's isolated HTTP/SQLite job. This verifies one representative
 critical/depleted family; multiple products, partial inventory, multi-device
 conflicts and full five-minute cron schedule remain future coverage.
+
+**Repeatability improvement:** shopping-family names in the new integration
+fixture now use a random alphabetic token plus a specific suffix, so the
+generic `name` and specific `raw_name` differ, mimicking the original
+`Passierte` / `Passierte Tomaten` mismatch. Each run receives a unique
+family, so an earlier run's intentional dismissal cannot suppress the next
+run's otherwise valid auto-add. Repeated local runs both passed.

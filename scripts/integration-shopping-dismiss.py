@@ -8,10 +8,11 @@ Usage: python3 scripts/integration-shopping-dismiss.py
 """
 import argparse
 import json
+import secrets
+import string
 import sqlite3
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlparse
@@ -92,8 +93,8 @@ def main():
         parser.error("Requires internal shopping mode")
 
     base = args.base_url.rstrip("/")
-    tag = uuid.uuid4().hex[:10]
-    name = f"Avocado Hass Audit {tag}"
+    tag = "".join(secrets.choice(string.ascii_lowercase) for _ in range(18))
+    name = f"Auditvorrat{tag} Sorte"
 
     status, saved = api(base, "product_save", {
         "name": name, "lang": "de", "name_user_set": 1,
@@ -107,6 +108,8 @@ def main():
     raw = product["name"]
     generic = product.get("shopping_name") or raw
     check(generic != "", "Server produced a usable shopping name")
+    check(generic.casefold() != raw.casefold(),
+          "Generic shopping title intentionally differs from specific rawName")
 
     cache_file = root / "data/smart_shopping_cache.json"
     original_cache = cache_file.read_bytes() if cache_file.is_file() else None
