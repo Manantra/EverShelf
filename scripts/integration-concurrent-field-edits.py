@@ -36,11 +36,17 @@ def api(base, action, payload=None):
 def check_single_winner(results, kind):
     accepted = [(code, value) for code, value in results
                 if code == 200 and value.get("success") is True]
-    rejected = [(code, value) for code, value in results
-                if code == 409 and value.get("success") is False
-                and value.get("error") == kind]
-    assert len(accepted) == 1 and len(rejected) == len(results) - 1, (
-        kind, len(accepted), len(rejected), results
+    conflicts = [(code, value) for code, value in results
+                 if code == 409 and value.get("success") is False
+                 and value.get("error") == kind]
+    busy = [(code, value) for code, value in results
+            if code == 503 and value.get("success") is False
+            and value.get("error") == "database_busy"]
+    # SQLite may reject a contender before obtaining BEGIN IMMEDIATE. This is
+    # a valid *zero-side-effect* rejection, not a lost acknowledgement. The
+    # following direct SQL/ledger checks detect even one partial write.
+    assert len(accepted) == 1 and len(conflicts) + len(busy) == len(results) - 1, (
+        kind, len(accepted), len(conflicts), len(busy), results
     )
 
 
