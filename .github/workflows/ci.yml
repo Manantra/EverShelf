@@ -83,6 +83,17 @@ jobs:
           python3 scripts/test-http-persistence.py --sandbox-root . --base-url http://127.0.0.1:18080
           python3 scripts/integration-shopping-dismiss.py --sandbox-root . --base-url http://127.0.0.1:18080
           python3 scripts/integration-restock-settings.py --sandbox-root . --base-url http://127.0.0.1:18080 --mode both
+          # Separate PHP workers on the same disposable WAL DB, not a mock.
+          php -S 127.0.0.1:18081 -t . > /tmp/evershelf-e2e-php-second.log 2>&1 &
+          second_pid=$!
+          trap 'kill "$server_pid" "$second_pid" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl --fail --silent 'http://127.0.0.1:18081/api/index.php?action=ping' > /dev/null; then
+              break
+            fi
+            sleep 0.5
+          done
+          python3 scripts/integration-concurrent-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
           php api/cron_smart_shopping.php
           python3 -c "import sqlite3; db=sqlite3.connect('data/evershelf.db'); assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'"
 

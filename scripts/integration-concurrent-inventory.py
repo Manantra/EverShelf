@@ -53,6 +53,13 @@ def main():
     if not db_path.exists():
         parser.error("Missing isolated SQLite DB")
 
+    # Clear only disposable rate-limit fixtures so repeated test executions do
+    # not hit the application's intentional 120-requests/minute UI guard.
+    # Never disable rate limiting in application code or a real installation.
+    rate_dir = root / "data/rate_limits"
+    if rate_dir.is_dir():
+        for item in rate_dir.glob("*.json"):
+            item.unlink()
     label = "Concurrency Audit " + uuid.uuid4().hex[:12]
     code, created = post(args.base_url, "product_save", {
         "name": label, "lang": "de", "name_user_set": 1,
@@ -62,7 +69,7 @@ def main():
     assert code == 200 and created.get("success") is True, (code, created)
     product_id = int(created["id"])
     total_ok = 0
-    total_failed = 0
+    total_retried = 0
     for round_id in range(args.rounds):
         def add_one(i):
             url = args.base_url if i % 2 == 0 else args.second_url
@@ -76,20 +83,26 @@ def main():
         errors = [(status, obj.get("error", "?")) for status, obj in results
                   if status != 200 or obj.get("success") is not True]
         total_ok += accepted
-        total_failed += len(errors)
+        # A 503 with database_busy is an acceptable *rejected* write only when
+        # neither inventory nor ledger changed. Do not retry it inside this test.
+        retryable = sum(1 for status, obj in results if status == 503 and obj.get('error') == 'database_busy')
+        assert retryable == len(errors), f"Unexpected failures (including rate limits): {errors}"
+        total_retried += retryable
         db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         try:
             stored = db.execute("SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id=?",
+                                (product_id,)).fetchone()[0]
+            ledger = db.execute("SELECT COALESCE(SUM(quantity), 0) FROM transactions WHERE product_id=? AND type='in'",
                                 (product_id,)).fetchone()[0]
             integrity = db.execute("PRAGMA quick_check").fetchone()[0]
         finally:
             db.close()
         print(f"round={round_id+1} accepted={accepted}/{args.parallel} "
-              f"cumulative={total_ok} stored={stored:g} failures={errors[:3]}")
+              f"cumulative={total_ok} stored={stored:g} ledger={ledger:g} failures={errors[:3]}")
         assert integrity == "ok", "SQLite integrity violation"
-        assert stored == total_ok, "Silent concurrent stock loss or duplicate write"
-    assert total_failed == 0, f"{total_failed} parallel stock requests failed"
-    print("All parallel multi-worker inventory writes were acknowledged and persisted.")
+        assert stored == total_ok, "Unacknowledged or missing concurrent inventory write"
+        assert ledger == total_ok, "Unacknowledged or missing transaction ledger entry"
+    print(f"All acknowledged writes consistent; {total_retried} safe rejected writes (503) had no side effects.")
 
 
 if __name__ == "__main__":

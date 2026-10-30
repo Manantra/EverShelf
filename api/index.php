@@ -5088,6 +5088,15 @@ function addToInventory(PDO $db): void {
     }
 
     
+    // SQLite must commit the inventory change and its transaction ledger
+    // together. Acquiring BEGIN IMMEDIATE before the first write prevents two
+    // devices from computing a new quantity from the same old row. Retry ONLY
+    // lock acquisition; never replay a partially committed stock write.
+    $inventoryTxnOpen = false;
+    try {
+        dbWithRetry(static function () use ($db): void { dbBeginImmediate($db); });
+        $inventoryTxnOpen = true;
+
     // If a different unit was specified, update the product's unit.
     // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
     // do NOT overwrite it here. It is managed via product_save / the edit form.
@@ -5173,8 +5182,39 @@ function addToInventory(PDO $db): void {
     $stmt->execute([$productId, $quantity, $location]);
 
     clearFinishedDismissed($db, $productId);
-    
-    $restock = shoppingHandleRestockAfterAdd($db, $productId, $quantity, $effectiveUnit);
+    dbCommit($db);
+    $inventoryTxnOpen = false;
+    } catch (Throwable $e) {
+        if ($inventoryTxnOpen) dbRollback($db);
+        EverLog::exception($e, 'inventory_add');
+        $busy = $e instanceof PDOException && str_contains($e->getMessage(), 'database is locked');
+        http_response_code($busy ? 503 : 500);
+        echo json_encode(['success' => false,
+            'error' => $busy ? 'database_busy' : 'inventory_add_failed']);
+        return;
+    }
+
+    // Stock+ledger are now durable. Shopping-list reconciliation (including
+    // optional Bring! network calls) must never make the caller think that a
+    // committed stock write failed and should be submitted again.
+    $restock = ['removed' => false, 'removed_names' => [], 'shopping_kept' => false, 'remaining' => null];
+    $shoppingSyncPending = false;
+    try {
+        $restock = shoppingHandleRestockAfterAdd($db, $productId, $quantity, $effectiveUnit);
+        if (!empty($restock['removed'])) {
+            bringMarkPurchasedForProduct($db, $productId);
+            shoppingClearDismissedForProduct($db, $productId);
+        }
+    } catch (Throwable $e) {
+        $shoppingSyncPending = true;
+        EverLog::exception($e, 'inventory_add_shopping_sync');
+    }
+    try {
+        invalidateSmartShoppingCache();
+    } catch (Throwable $e) {
+        $shoppingSyncPending = true;
+        EverLog::exception($e, 'inventory_add_smart_cache');
+    }
 
     echo json_encode([
         'success' => true,
@@ -5191,6 +5231,7 @@ function addToInventory(PDO $db): void {
         'catalog_merged' => $catalogMerged,
         'inventory_id' => $inventoryId,
         'new_row' => $newRow,
+        'shopping_sync_pending' => $shoppingSyncPending,
         'expiry_date' => $expiry,
         'location' => $location,
     ]);
@@ -5203,13 +5244,6 @@ function addToInventory(PDO $db): void {
         'remaining_need' => $restock['remaining']['need_base'] ?? null,
         'removed_names' => $restock['removed_names'] ?? [],
     ]);
-    // Only blocklist when the shopping need is fully covered
-    if (!empty($restock['removed'])) {
-        bringMarkPurchasedForProduct($db, $productId);
-        // …and a previous "non lo compro" is over: the household just bought it.
-        shoppingClearDismissedForProduct($db, $productId);
-    }
-    invalidateSmartShoppingCache();
 }
 
 /** Waste transaction notes use format Buttato|reason_key (legacy: plain "Buttato"). */

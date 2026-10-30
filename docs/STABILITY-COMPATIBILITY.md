@@ -163,9 +163,9 @@ network latency distributions. These need isolated browser/device validation
 before any rollout to the household instance. The native browser `offline`
 event and the independent UI network overlay retain their existing behavior.
 
-## Multi-worker inventory concurrency (2026-10-30) — OPEN
+## Multi-worker inventory concurrency (2026-10-30) — CORE WRITE FIXED
 
-**Confirmed on isolated loopback servers, NOT fixed yet.** With two separate
+**Confirmed on isolated loopback servers before the fix.** With two separate
 PHP web-server processes sharing a disposable WAL-mode SQLite file, parallel
 `inventory_add` requests can intermittently return HTTP 500 with
 `SQLSTATE[HY000]: General error: 5 database is locked`.
@@ -182,22 +182,62 @@ python3 scripts/integration-concurrent-inventory.py \
   --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
 ```
 
-**Observed before any source change:** 2 of 36 concurrent adds returned 500.
-All 34 acknowledged successful adds were present in inventory (34 packages),
-and SQLite `quick_check` was `ok`. Repeating with the connection's SQLite
-busy-timeout and WAL pragmas reordered still produced 2 failed requests out
-of 60; the attempted configuration edit was **reverted**, because it did not
-solve the concurrency problem. No silent stock loss was observed in these
-particular runs, but other races, such as partial transactions or conflicting
-product edits, were **not** excluded by this experiment.
+**Baseline:** 2 of 36 concurrent adds returned 500. All 34 successful
+acknowledgements were reflected in stock in that run. Reordering SQLite
+busy-timeout and WAL pragmas still yielded 2 errors out of 60; this trial
+change was **reverted**, as it did not fix the lock failures.
 
-The current `addToInventory()` performs multiple separate database changes
-(product unit, inventory row, transaction ledger, shopping-list cleanup) without
-a single all-or-nothing transaction boundary. A durable fix needs to address
-atomicity and safe lock retries; blindly retrying the entire request may double
-count partially committed changes. Preserve existing expiry-date/location merge
-semantics, weight and package conversions, shopping modes and side-effect hooks.
+**Critical additional observation:** a subsequent isolated run had 33 successful
+HTTP acknowledgements yet **35 units persisted in stock**, while 2 other
+requests returned HTTP 500. This is a failed-after-write case: a user/client
+retry of the reported error could double-count the stock. The result demonstrates
+that partial writes must be considered an actual failure mode, not only a
+hypothetical concern. SQLite `quick_check` alone cannot detect such logical
+inconsistency. The stress test now also checks the corresponding transaction
+ledger against the number of acknowledged requests.
 
-**The stress test is not part of required CI yet:** it intentionally fails
-against the current code and uses two independent PHP worker processes. Add it
-as a CI gate once a narrow, idempotent transactional fix has been verified.
+**Root cause confirmed:** a failed transaction-ledger INSERT occurred **after**
+the inventory UPDATE had already committed. In a test-only diagnostic wrapper,
+the relevant lock errors were on the inventory UPDATE and on the INSERT into
+`transactions`. A 500 error after the stock UPDATE could mislead the caller
+into resubmitting and double-counting the inventory.
+
+**Fix:** the `inventory_add` action now acquires a SQLite `BEGIN IMMEDIATE` lock
+(using EverShelf's existing `dbWithRetry` for *lock acquisition only*).
+Product unit changes, the inventory row/quantity and its transaction ledger
+entry are committed together or rolled back together. After that commit,
+shopping-list reconciliation and optional Bring! I/O run separately, so a
+postcommit failure does not imply that the original purchase failed. Such a
+response remains `success:true` for **persisted stock** and includes
+`shopping_sync_pending:true`; a rejected core transaction returns HTTP 503
+`database_busy` and cannot have changed inventory or ledger.
+
+**Verified using two independent PHP workers:**
+
+- 60/60 concurrent stock requests succeeded with exactly 60 inventory
+  increments and 60 ledger units.
+- In another 60-request run, 59 succeeded and one returned a clean 503;
+  **inventory and ledger both counted precisely 59**. No unacknowledged stock
+  additions occurred in the reruns.
+- Deliberately throwing an exception from the shopping-sync function *after*
+  the stock transaction returned HTTP 200 `success:true` with
+  `shopping_sync_pending:true`, while SQLite held one stock unit and one
+  transaction-ledger entry.
+- The existing 52 PHP regression tests and HTTP persistence, shopping dismiss,
+  plan/trip partial-buy, heartbeat, and JavaScript tests all passed.
+
+**Compatibility:** database schema unchanged; existing SQLite WAL/busy timeout,
+rate limiter, expiry/location row merging, unit conversions, shopping modes,
+manual edits and feature switches preserved. The stress script resets the
+**disposable sandbox's** rate-limit fixtures before each run (because its
+60 test requests otherwise exceed the intentional 120/minute guard over
+repeated invocations). The production rate limiter is not modified.
+
+**Limits / remaining risks:** a simultaneous duplicate-product consolidation
+before the main stock transaction is not covered by this atomicity guarantee;
+real Bring! integration, power-loss recovery, multiple-instance deployments,
+and same-field stale edits from two browser tabs still need separate work.
+External shopping sync after commit can remain pending and must be reconciled
+via its normal later sync mechanism. The two-worker test is now required CI;
+HTTP 503 is allowed only when the write was fully rejected and no quantity or
+ledger entry was persisted.
