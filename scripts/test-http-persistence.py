@@ -94,6 +94,33 @@ def main():
     check(status == 200 and found.get("product", {}).get("name") == renamed,
           "fresh HTTP read returns exact user capitalization")
 
+    # Two browser tabs both loaded the same version before any writes.
+    # The second must not silently overwrite the first tab's manual rename.
+    first_editor = renamed + " Alpha"
+    second_editor = renamed + " Beta"
+    status, first = request(base, "product_save", {
+        **body, "name": first_editor, "expected_name": renamed,
+    })
+    check(status == 200 and first.get("success") is True,
+          "first manual editor saves against its original title")
+    status, stale = request(base, "product_save", {
+        **body, "name": second_editor, "expected_name": renamed,
+        "default_quantity": 999,
+    })
+    check(status == 409 and stale.get("error") == "product_conflict"
+          and stale.get("success") is False,
+          "second stale editor receives an explicit 409 conflict")
+    status, latest = request(base, "product_get", query=f"&id={pid}")
+    check(status == 200 and latest.get("product", {}).get("name") == first_editor
+          and float(latest["product"]["default_quantity"]) == 1.0,
+          "rejected rename cannot overwrite title or unrelated package settings")
+    status, resolved = request(base, "product_save", {
+        **body, "name": second_editor, "expected_name": first_editor,
+    })
+    check(status == 200 and resolved.get("success") is True,
+          "editor can save after explicitly refreshing its expected title")
+    renamed = second_editor
+
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         row = conn.execute(

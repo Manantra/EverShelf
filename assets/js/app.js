@@ -11188,6 +11188,7 @@ function editInventoryItem(id, _retried) {
     
     window._editingProduct = {
         name: item.name,
+        _originalName: item.name, // snapshot for manual rename conflict detection
         category: item.category || '',
         _isOpened: !!item.opened_at,
         _prevUnit: item.unit || 'pz',
@@ -11420,6 +11421,7 @@ async function submitEditInventory(e, id, productId) {
                 name,
                 brand,
                 name_user_set: 1,
+                expected_name: window._editingProduct?._originalName ?? prev.name,
                 category: prev.category || '',
                 image_url: prev.image_url || '',
                 unit: unit || prev.unit || 'pz',
@@ -11428,9 +11430,11 @@ async function submitEditInventory(e, id, productId) {
                 barcode: prev.barcode || null,
                 notes: prev.notes || '',
             });
-            if (prodSave && prodSave.success === false) {
-                showToast(prodSave.message || prodSave.error || t('error.generic'), 'error');
-                return;
+            if (!prodSave?.success) {
+                showToast(prodSave?.error === 'product_conflict'
+                    ? t('error.product_conflict')
+                    : (prodSave?.message || prodSave?.error || t('error.generic')), 'error');
+                return; // Do not also submit inventory_update after rejected rename.
             }
         }
 
@@ -13355,6 +13359,7 @@ function showProductAction() {
         </div>
     `;
     editInfoEl.style.display = isUnknown ? 'block' : 'none';
+    editInfoEl.dataset.originalName = currentProduct.name || '';
     // Do not autofocus edit-action-name for unknown products — soft keyboard would cover the action buttons.
     
     // Show extra product info section below preview
@@ -14022,6 +14027,10 @@ async function saveEditedProductInfo() {
             default_quantity: currentProduct.default_quantity || 1,
             notes: notes,
             name_user_set: 1,
+            ...(currentProduct.id ? {
+                expected_name: document.getElementById('action-edit-info')?.dataset.originalName
+                    ?? currentProduct.name,
+            } : {}),
         });
         showLoading(false);
         if (result.success) {
@@ -14033,6 +14042,8 @@ async function saveEditedProductInfo() {
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_updated'), result.merged ? 'info' : 'success');
             // Refresh the action page with updated data
             showProductAction();
+        } else if (result.error === 'product_conflict') {
+            showToast(t('error.product_conflict'), 'error');
         } else if (result.error === 'barcode_already_used' && result.existing_id) {
             const full = await api('product_get', { id: result.existing_id }).catch(() => null);
             if (full?.product) {

@@ -133,10 +133,21 @@ foreach (['.edit-subtitle-tap {', '.edit-subtitle-empty {', '.edit-brand-input {
 $keys = ['product.edit_name_brand', 'edit.label_name', 'product.brand_label',
          'product.brand_placeholder', 'product.name_required', 'toast.product_saved', 'error.save'];
 foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
-    foreach ($keys as $key) {
+    foreach ([...$keys, 'error.product_conflict'] as $key) {
         assert_true(i18n_has($loc, $key), "{$loc}: '{$key}' is translated");
     }
 }
+
+$inventoryEditor = slice_from($js, 'async function submitEditInventory(e, id, productId) {', 5800);
+assert_true(str_contains($inventoryEditor, 'expected_name: window._editingProduct?._originalName'),
+    'inventory editor sends the original product title, not a mutable refreshed cache');
+assert_true(str_contains($inventoryEditor, "t('error.product_conflict')"),
+    'inventory editor displays a localized optimistic conflict message');
+$actionEditor = slice_from($js, 'async function saveEditedProductInfo() {', 2400);
+assert_true(str_contains($actionEditor, 'expected_name:'),
+    'product info editor opts into optimistic concurrency on manual product edits');
+assert_true(str_contains($actionEditor, "t('error.product_conflict')"),
+    'product info editor localizes a stale edit error');
 assert_true(substr_count($js, "t('product.edit_name_brand')") >= 4,
     'app.js: both tap targets (preview + AI card) carry the translated tooltip');
 

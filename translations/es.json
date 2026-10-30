@@ -1982,6 +1982,7 @@
     "search": "Error de búsqueda. Inténtalo de nuevo.",
     "search_short": "Error de búsqueda",
     "save": "Error al guardar",
+    "product_conflict": "Este producto se modificó en otro dispositivo. Vuelve a abrir el editor y revisa la versión actual.",
     "connection": "Error de conexión",
     "camera": "No se puede acceder a la cámara",
     "bring_add": "Error al añadir a Bring!",

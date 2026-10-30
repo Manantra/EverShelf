@@ -1983,6 +1983,7 @@
     "search": "Errore nella ricerca. Riprova.",
     "search_short": "Errore nella ricerca",
     "save": "Errore nel salvataggio",
+    "product_conflict": "Questo prodotto è stato modificato su un altro dispositivo. Riapri la modifica e controlla la versione aggiornata.",
     "connection": "Errore di connessione",
     "camera": "Impossibile accedere alla fotocamera",
     "bring_add": "Errore nell'aggiunta a Bring!",

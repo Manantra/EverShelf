@@ -4410,6 +4410,43 @@ function saveProduct(PDO $db): void {
     $id = !empty($input['id']) ? (int)$input['id'] : 0;
     $merged = false;
 
+    // Optional optimistic concurrency guard for manual product editors.
+    // Never require it from scanner, catalog, import, or legacy API clients.
+    // Comparing exact names (not updated_at with second-level resolution)
+    // also detects two edits saved within the very same second.
+    $expectedName = null;
+    if ($id && array_key_exists('expected_name', $input)) {
+        if (!is_string($input['expected_name']) || trim($input['expected_name']) === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_expected_name']);
+            return;
+        }
+        $expectedName = $input['expected_name'];
+        $seen = loadProductRow($db, $id);
+        if (!$seen) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'product_not_found']);
+            return;
+        }
+        if ((string)$seen['name'] !== $expectedName) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'product_conflict',
+                'current_name' => (string)$seen['name']]);
+            return;
+        }
+        // The opt-in editing flow must never merge another product before its
+        // conditional UPDATE has checked for a stale version.
+        if ($barcode !== null) {
+            $owner = findDuplicateProductId($db, $input['name'],
+                $input['brand'] ?? '', $barcode, $id);
+            if ($owner && $owner !== $id) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'error' => 'product_conflict']);
+                return;
+            }
+        }
+    }
+
     if ($barcode !== null) {
         $barcodeOwner = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $barcode, $id ?: null);
         if ($barcodeOwner && (!$id || $barcodeOwner !== $id)) {
@@ -4446,7 +4483,16 @@ function saveProduct(PDO $db): void {
 
     try {
         if ($id) {
-            executeProductUpdate($db, $fields, $id);
+            if (!executeProductUpdate($db, $fields, $id, $expectedName)) {
+                // Atomic WHERE name=? prevents a stale editor from winning even
+                // if another request changed the product after our first read.
+                $latest = loadProductRow($db, $id);
+                http_response_code($latest ? 409 : 404);
+                echo json_encode(['success' => false,
+                    'error' => $latest ? 'product_conflict' : 'product_not_found',
+                    'current_name' => $latest['name'] ?? null]);
+                return;
+            }
             applyPieceProductInventoryRepair($db, $id, $existing, $invConvert);
             $consolidated = safeConsolidateDuplicateProducts($db, $id);
             if ($consolidated['merged']) {
@@ -4470,6 +4516,11 @@ function saveProduct(PDO $db): void {
         }
         echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged]);
     } catch (PDOException $e) {
+        if ($expectedName !== null && str_contains($e->getMessage(), 'UNIQUE constraint failed: products.barcode')) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'product_conflict']);
+            return;
+        }
         if (str_contains($e->getMessage(), 'UNIQUE constraint failed: products.barcode') && $fields['barcode'] !== null) {
             $owner = findDuplicateProductId($db, $fields['name'], $fields['brand'], $fields['barcode'], $id ?: null);
             if ($owner) {
@@ -6819,14 +6870,20 @@ function productSaveParams(array $fields): array {
     ];
 }
 
-function executeProductUpdate(PDO $db, array $fields, int $id): void {
-    $stmt = $db->prepare('
+function executeProductUpdate(PDO $db, array $fields, int $id, ?string $expectedName = null): bool {
+    $sql = '
         UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
         nutriments_json=?, kind=?, name_user_set=?,
-        updated_at=CURRENT_TIMESTAMP WHERE id=?
-    ');
-    $stmt->execute([...productSaveParams($fields), $id]);
+        updated_at=CURRENT_TIMESTAMP WHERE id=?';
+    $params = [...productSaveParams($fields), $id];
+    if ($expectedName !== null) {
+        $sql .= ' AND name=?';
+        $params[] = $expectedName;
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->rowCount() > 0;
 }
 
 function normalizeProductName(string $name): string {

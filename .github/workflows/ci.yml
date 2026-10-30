@@ -63,6 +63,9 @@ jobs:
       - name: Verify heartbeat state, timeout and reconnect logic
         run: node scripts/test-heartbeat.js
 
+      - name: Verify both product editing screens handle stale writes
+        run: node scripts/test-product-conflict-ui.js
+
       - name: Verify localization references
         run: python3 scripts/i18n-audit.py
 
@@ -94,6 +97,7 @@ jobs:
             sleep 0.5
           done
           python3 scripts/integration-concurrent-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
+          python3 scripts/integration-concurrent-product-edit.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           php api/cron_smart_shopping.php
           python3 -c "import sqlite3; db=sqlite3.connect('data/evershelf.db'); assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'"
 

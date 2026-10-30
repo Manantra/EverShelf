@@ -241,3 +241,48 @@ External shopping sync after commit can remain pending and must be reconciled
 via its normal later sync mechanism. The two-worker test is now required CI;
 HTTP 503 is allowed only when the write was fully rejected and no quantity or
 ledger entry was persisted.
+
+
+## Concurrent manual product title edits (2026-10-30)
+
+**Reproduced:** Two tabs opened the same product; tab A saved a renamed
+title, then tab B submitted its earlier snapshot. Previously both
+`product_save` requests returned HTTP 200, and the last title silently won.
+
+**Fix:** manual name edit flows now explicitly supply `expected_name`,
+the *exact* title from when their editor was opened. The server checks
+it and performs the actual update with an atomic `WHERE id=? AND name=?`
+condition; an intervening rename returns HTTP 409 with
+`{success:false,error:"product_conflict"}`. No other product or inventory
+fields are written for a rejected stale edit. The modal stays open and
+shows a translated instruction to reopen/review the current product.
+The inventory edit modal does not continue to `inventory_update` after
+its product rename was rejected.
+
+**Compatibility:** Opt-in only. Existing scan, import, barcode lookup,
+AI enrichment and third-party clients omitting `expected_name` retain
+their original merge/rename behavior, including product kind prefixes,
+manual title locks and optional product variants. No new .env setting
+or database migration is required. The guard rejects a barcode conflict
+before attempting a duplicate-product merge when a manual editor provided
+a snapshot, avoiding side effects before the atomic rename check.
+All six languages have the new conflict notification.
+
+**Tests:** The actual HTTP/SQLite persistence suite covers a stale
+second editor, a deliberately changed package quantity that must not
+persist on rejection, refreshing the expected title and saving again.
+The two-worker concurrent HTTP test sends eight different renames against
+the same original title: precisely one succeeds; the other seven return
+409. The JS handler tests verify the two edit windows show a localized
+error, and that a failed rename cannot trigger `inventory_update`.
+
+**Remaining limitations:** This first guard detects title conflicts
+only. Two simultaneous edits to *other* product fields that keep the
+same title, or two concurrent edits to the *same inventory row's quantity*,
+may still follow existing last-write-wins semantics. Protect these using
+field-aware expected snapshots or an appropriate row revision mechanism,
+after reviewing all scanners, apps, catalog imports and offline operations.
+Clients without the new parameter retain last-write-wins by design.
+This patch does not claim full multi-user conflict resolution or tested
+iPhone Safari/PWA execution; the browser test covers the real handlers
+with a simulated DOM and the separate HTTP tests cover the database.

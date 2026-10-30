@@ -1983,6 +1983,7 @@
     "search": "Suchfehler. Nochmal versuchen.",
     "search_short": "Suchfehler",
     "save": "Fehler beim Speichern",
+    "product_conflict": "Dieses Produkt wurde inzwischen auf einem anderen Gerät geändert. Öffne die Bearbeitung erneut und prüfe den aktuellen Stand.",
     "connection": "Verbindungsfehler",
     "camera": "Kamera nicht verfügbar",
     "bring_add": "Fehler beim Hinzufügen zu Bring!",
