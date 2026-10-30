@@ -110,7 +110,7 @@ patch is **not** part of the fork.
   guesswork.
 
 **Code landmarks:** `assets/js/app.js` `_runHeartbeat()`,
-`_setServerOffline()`.
+`_setServerOffline()`. Implemented and regression-tested on the fork; real Safari/PWA testing remains pending.
 
 ## First investigation sequence
 

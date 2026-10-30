@@ -132,3 +132,33 @@ devices racing, real PWA/offline storage, locale coverage of UI text and
 mixed mass/volume shopping family conversion are outside the validated
 scope of this quantity patch. Treat them as separate test gaps, not as
 permission to change the corresponding behavior casually.
+
+## Heartbeat / offline state (2026-10-30)
+
+The heartbeat is **not** controlled by .env and introduces no new user-facing
+setting. Its previous one-failure/7-second network-ping threshold caused false
+blocking overlays behind slower SSO/reverse proxies. The fork uses a
+15-second request deadline and requires two consecutive ping failures to
+change server state; the first failure is rechecked at the **existing 5-second
+retry interval**, normal success at **20 seconds**. There is only one in-flight
+ping, preventing a manual retry and periodic check from racing each other.
+
+Contracts preserved and checked in `scripts/test-heartbeat.js`:
+
+- A single failed HTTP response or timeout never blocks the app, while a
+  sustained outage still calls `_showNetworkOverlay()` exactly once.
+- A successful ping restores online mode, clears the failure counter, and
+  calls `_handleServerRestored()` **once** per offline→online transition.
+  That handler still triggers the existing offline write-queue replay path.
+- If the user intentionally entered `_offlineMode`, the heartbeat must not
+  cover the locally cached offline UI with an additional full-screen overlay.
+- Background and manual checks cannot run concurrently or leave duplicated
+  polling timers.
+- All 17 app-shell resource version stamps and the PWA Service Worker cache
+  key change together, so clients can fetch the new code on subsequent visits.
+
+**Not yet validated:** real iPhone Safari/PWA and Pangolin SSO end-to-end,
+WebView sleep/wake suspension, background-tab timer throttling, and actual
+network latency distributions. These need isolated browser/device validation
+before any rollout to the household instance. The native browser `offline`
+event and the independent UI network overlay retain their existing behavior.

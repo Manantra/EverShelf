@@ -60,6 +60,9 @@ jobs:
       - name: Check failed write acknowledgements
         run: node scripts/test-write-acknowledgements.js
 
+      - name: Verify heartbeat state, timeout and reconnect logic
+        run: node scripts/test-heartbeat.js
+
       - name: Verify localization references
         run: python3 scripts/i18n-audit.py
 

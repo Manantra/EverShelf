@@ -29111,20 +29111,34 @@ let _serverOffline = false;
 let _heartbeatTimer = null;
 const _HB_INTERVAL_ONLINE  = 20_000; // ms — normal polling interval
 const _HB_INTERVAL_OFFLINE =  5_000; // ms — faster retry when unreachable
+const _HB_REQUEST_TIMEOUT  = 15_000; // ms — tolerate slow reverse proxies/SSO
+const _HB_FAILURE_THRESHOLD = 2;     // a single slow/failed ping is not an outage
+let _heartbeatFailures = 0;
+let _heartbeatInFlight = false;
 
 async function _runHeartbeat() {
+    // A network-online event or the manual Retry button can arrive while the
+    // periodic ping is pending. Overlapping probes must not reorder UI state.
+    if (_heartbeatInFlight) return;
+    clearTimeout(_heartbeatTimer);
+    _heartbeatTimer = null;
+    _heartbeatInFlight = true;
     const ac = new AbortController();
-    const tid = setTimeout(() => ac.abort(), 7000); // 7 s hard timeout
+    const tid = setTimeout(() => ac.abort(), _HB_REQUEST_TIMEOUT);
+    let healthy = false;
     try {
         const res = await fetch(`${API_BASE}?action=ping`, {
             cache: 'no-store',
             signal: ac.signal,
         });
+        healthy = res.ok;
+    } catch (_) {
+        // Abort and transient network errors are both counted as failed probes.
+    } finally {
         clearTimeout(tid);
-        _setServerOffline(!res.ok);
-    } catch (e) {
-        clearTimeout(tid);
-        _setServerOffline(true);
+        _heartbeatInFlight = false;
+        _heartbeatFailures = healthy ? 0 : Math.min(_heartbeatFailures + 1, _HB_FAILURE_THRESHOLD);
+        _setServerOffline(_heartbeatFailures >= _HB_FAILURE_THRESHOLD);
     }
 }
 
@@ -29132,7 +29146,7 @@ function _setServerOffline(offline) {
     if (offline === _serverOffline) {
         // State unchanged — reschedule at the appropriate interval and return
         _heartbeatTimer = setTimeout(_runHeartbeat,
-            offline ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
+            (offline || _heartbeatFailures > 0) ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
         return;
     }
     _serverOffline = offline;
@@ -29148,7 +29162,7 @@ function _setServerOffline(offline) {
         _handleServerRestored();
     }
     _heartbeatTimer = setTimeout(_runHeartbeat,
-        offline ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
+        (offline || _heartbeatFailures > 0) ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
 }
 
 /** Flush log messages and error reports that were buffered while offline. */
