@@ -1984,6 +1984,7 @@
     "search_short": "Suchfehler",
     "save": "Fehler beim Speichern",
     "product_conflict": "Dieses Produkt wurde inzwischen auf einem anderen Gerät geändert. Öffne die Bearbeitung erneut und prüfe den aktuellen Stand.",
+    "inventory_conflict": "Dieser Bestand wurde auf einem anderen Gerät geändert. Öffne die Bearbeitung erneut und prüfe die aktuelle Menge.",
     "connection": "Verbindungsfehler",
     "camera": "Kamera nicht verfügbar",
     "bring_add": "Fehler beim Hinzufügen zu Bring!",

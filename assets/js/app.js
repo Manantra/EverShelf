@@ -11186,9 +11186,21 @@ function editInventoryItem(id, _retried) {
     const scaleEditReady = s.scale_enabled && s.scale_gateway_url && _scaleConnected &&
         (effectiveUnit === 'g' || effectiveUnit === 'ml');
     
+    window._editingInventorySnapshot = {
+        quantity: Number(item.quantity),
+        location: item.location,
+        expiry_date: item.expiry_date || null,
+        vacuum_sealed: Number(item.vacuum_sealed) || 0,
+        expiry_user_set: Number(item.expiry_user_set) || 0,
+    };
     window._editingProduct = {
         name: item.name,
         _originalName: item.name, // snapshot for manual rename conflict detection
+        _expectedFields: Object.fromEntries([
+            'brand', 'category', 'notes', 'image_url', 'unit',
+            'default_quantity', 'package_unit', 'barcode',
+        ].filter(k => Object.prototype.hasOwnProperty.call(item, k))
+         .map(k => [k, item[k]])),
         category: item.category || '',
         _isOpened: !!item.opened_at,
         _prevUnit: item.unit || 'pz',
@@ -11406,6 +11418,9 @@ async function submitEditInventory(e, id, productId) {
         product_id: parseInt(productId, 10) || productId,
         vacuum_sealed: document.getElementById('edit-vacuum')?.checked ? 1 : 0,
         expiry_user_set: _expiryUserSetPayload('edit-expiry'),
+        ...(window._editingInventorySnapshot
+            ? { expected_inventory: { ...window._editingInventorySnapshot } }
+            : {}),
     };
     
     if (unit === 'conf') {
@@ -11422,6 +11437,9 @@ async function submitEditInventory(e, id, productId) {
                 brand,
                 name_user_set: 1,
                 expected_name: window._editingProduct?._originalName ?? prev.name,
+                ...(Object.keys(window._editingProduct?._expectedFields || {}).length
+                    ? { expected_fields: window._editingProduct._expectedFields }
+                    : {}),
                 category: prev.category || '',
                 image_url: prev.image_url || '',
                 unit: unit || prev.unit || 'pz',
@@ -11440,8 +11458,10 @@ async function submitEditInventory(e, id, productId) {
 
         const res = await api('inventory_update', {}, 'POST', payload);
         if (!res?.success) {
-            showToast(res?.message || res?.error || t('error.generic'), 'error');
-            return;
+            showToast(res?.error === 'inventory_conflict'
+                ? t('error.inventory_conflict')
+                : (res?.message || res?.error || t('error.generic')), 'error');
+            return; // Keep unsaved values when another device changed this row.
         }
         const savedQty = res.quantity !== undefined ? parseFloat(res.quantity) : qty;
         const patch = {
@@ -13360,6 +13380,15 @@ function showProductAction() {
     `;
     editInfoEl.style.display = isUnknown ? 'block' : 'none';
     editInfoEl.dataset.originalName = currentProduct.name || '';
+    editInfoEl._editorSnapshot = {
+        brand: currentProduct.brand || '',
+        notes: currentProduct.notes || '',
+        category: currentProduct.category || '',
+        image_url: currentProduct.image_url || '',
+        unit: currentProduct.unit || 'pz',
+        default_quantity: Number(currentProduct.default_quantity ?? 1),
+        barcode: currentProduct.barcode || null,
+    };
     // Do not autofocus edit-action-name for unknown products — soft keyboard would cover the action buttons.
     
     // Show extra product info section below preview
@@ -14030,6 +14059,9 @@ async function saveEditedProductInfo() {
             ...(currentProduct.id ? {
                 expected_name: document.getElementById('action-edit-info')?.dataset.originalName
                     ?? currentProduct.name,
+                ...(document.getElementById('action-edit-info')?._editorSnapshot
+                    ? { expected_fields: document.getElementById('action-edit-info')._editorSnapshot }
+                    : {}),
             } : {}),
         });
         showLoading(false);

@@ -121,6 +121,36 @@ def main():
           "editor can save after explicitly refreshing its expected title")
     renamed = second_editor
 
+    # A stale editor can overwrite brand/notes even when the title is unchanged.
+    status, first_fields = request(base, "product_save", {
+        **body, "id": pid, "name": renamed, "brand": "Brand One",
+        "notes": "First note", "expected_fields": {"brand": "", "notes": ""},
+    })
+    check(status == 200 and first_fields.get("success") is True,
+          "first notes/brand editor saves against matching field snapshot")
+    status, stale_fields = request(base, "product_save", {
+        **body, "id": pid, "name": renamed, "brand": "Brand Two",
+        "notes": "Stale note", "expected_fields": {"brand": "", "notes": ""},
+    })
+    check(status == 409 and stale_fields.get("error") == "product_conflict",
+          "stale brand/notes edit is rejected even without a title change")
+    status, field_row = request(base, "product_get", query=f"&id={pid}")
+    check(status == 200 and field_row["product"]["brand"] == "Brand One"
+          and field_row["product"]["notes"] == "First note",
+          "rejected stale field edit leaves brand and notes unchanged")
+    status, fresh_fields = request(base, "product_save", {
+        **body, "id": pid, "name": renamed, "brand": "Brand Two",
+        "notes": "Second note",
+        "expected_fields": {"brand": "Brand One", "notes": "First note"},
+    })
+    check(status == 200 and fresh_fields.get("success") is True,
+          "brand and notes save after refreshing the expected field snapshot")
+    status, invalid_fields = request(base, "product_save", {
+        **body, "id": pid, "name": renamed, "expected_fields": {"DROP TABLE": "x"},
+    })
+    check(status == 400 and invalid_fields.get("success") is False,
+          "unknown expected-fields key cannot enter SQL")
+
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         row = conn.execute(
@@ -173,12 +203,94 @@ def main():
         "product_id": pid, "quantity": 2, "location": "dispensa", "unit": "conf",
     })
     check(status == 200 and stock.get("success") is True, "HTTP adds two packages to inventory")
+    status, pantry = request(base, "inventory_list")
+    matched_pantry = [row for row in pantry.get("inventory", []) if row.get("product_id") == pid]
+    check(status == 200 and len(matched_pantry) == 1
+          and matched_pantry[0].get("notes") == "Second note",
+          "inventory editor receives current product notes rather than clearing them on rename")
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         qty = conn.execute(
             "SELECT COALESCE(SUM(quantity),0) FROM inventory WHERE product_id=?", (pid,)
         ).fetchone()[0]
         check(abs(qty - 2) < 1e-9, "separate SQLite connection confirms inventory quantity")
+    finally:
+        conn.close()
+
+    # Simulate two inventory screens loaded when this row held two packages.
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        inv_id = conn.execute(
+            "SELECT id FROM inventory WHERE product_id=? ORDER BY id DESC LIMIT 1", (pid,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    expected = {"quantity": 2, "location": "dispensa"}
+    status, inv_first = request(base, "inventory_update", {
+        "id": inv_id, "quantity": 3, "expected_inventory": expected,
+    })
+    check(status == 200 and inv_first.get("success") is True,
+          "first quantity editor successfully saves with its snapshot")
+    status, inv_stale = request(base, "inventory_update", {
+        "id": inv_id, "quantity": 5, "expected_inventory": expected,
+    })
+    check(status == 409 and inv_stale.get("error") == "inventory_conflict",
+          "second stale quantity editor is rejected")
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        current_qty = conn.execute("SELECT quantity FROM inventory WHERE id=?", (inv_id,)).fetchone()[0]
+        check(current_qty == 3, "failed inventory edit did not overwrite committed quantity")
+    finally:
+        conn.close()
+    status, inv_fresh = request(base, "inventory_update", {
+        "id": inv_id, "quantity": 4,
+        "expected_inventory": {"quantity": 3, "location": "dispensa"},
+    })
+    check(status == 200 and inv_fresh.get("success") is True,
+          "inventory editor can save after refreshing its snapshot")
+    status, invalid_inv = request(base, "inventory_update", {
+        "id": inv_id, "quantity": 99, "expected_inventory": {"__invalid__": "x"},
+    })
+    check(status == 400 and invalid_inv.get("success") is False,
+          "unknown inventory snapshot keys are rejected without writes")
+
+    status, move = request(base, "inventory_update", {
+        "id": inv_id, "location": "frigo",
+        "expected_inventory": {"quantity": 4, "location": "dispensa"},
+    })
+    check(status == 200 and move.get("success") is True,
+          "first location editor saves its new location")
+    status, stale_loc = request(base, "inventory_update", {
+        "id": inv_id, "quantity": 12,
+        "expected_inventory": {"quantity": 4, "location": "dispensa"},
+    })
+    check(status == 409 and stale_loc.get("error") == "inventory_conflict",
+          "stale location prevents an unrelated quantity overwrite")
+    status, dated = request(base, "inventory_update", {
+        "id": inv_id, "expiry_date": "2026-12-15",
+        "expected_inventory": {"expiry_date": None, "location": "frigo"},
+    })
+    check(status == 200 and dated.get("success") is True,
+          "first expiry-date editor saves its date")
+    status, stale_date = request(base, "inventory_update", {
+        "id": inv_id, "expiry_date": "2027-01-01",
+        "expected_inventory": {"expiry_date": None, "location": "frigo"},
+    })
+    check(status == 409 and stale_date.get("error") == "inventory_conflict",
+          "stale expiry date cannot overwrite an existing manual date")
+    status, old_client = request(base, "inventory_update", {
+        "id": inv_id, "quantity": 5,
+    })
+    check(status == 200 and old_client.get("success") is True,
+          "legacy inventory client without snapshot retains compatibility")
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        location, expiry, qty = conn.execute(
+            "SELECT location, expiry_date, quantity FROM inventory WHERE id=?",
+            (inv_id,)
+        ).fetchone()
+        check((location, expiry, qty) == ("frigo", "2026-12-15", 5),
+              "legacy quantity edit does not alter location or expiry date")
     finally:
         conn.close()
 

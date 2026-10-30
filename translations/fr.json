@@ -1983,6 +1983,7 @@
     "search_short": "Erreur de recherche",
     "save": "Erreur d'enregistrement",
     "product_conflict": "Ce produit a été modifié sur un autre appareil. Rouvrez l’éditeur et vérifiez la version actuelle.",
+    "inventory_conflict": "Ce stock a été modifié sur un autre appareil. Rouvrez l’éditeur et vérifiez la quantité actuelle.",
     "connection": "Erreur de connexion",
     "camera": "Impossible d'accéder à la caméra",
     "bring_add": "Erreur d'ajout à Bring !",

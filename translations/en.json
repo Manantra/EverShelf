@@ -1984,6 +1984,7 @@
     "search_short": "Search error",
     "save": "Error saving",
     "product_conflict": "This product was changed on another device. Reopen the editor and review the latest version before saving.",
+    "inventory_conflict": "This inventory item was changed on another device. Reopen the editor and review the current quantity.",
     "connection": "Connection error",
     "camera": "Cannot access camera",
     "bring_add": "Error adding to Bring!",

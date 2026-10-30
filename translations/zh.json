@@ -1984,6 +1984,7 @@
     "search_short": "搜索错误",
     "save": "保存时出错",
     "product_conflict": "此商品已在另一台设备上修改。请重新打开编辑界面，检查最新内容后再保存。",
+    "inventory_conflict": "该库存记录已在另一台设备上修改。请重新打开编辑界面，检查当前数量。",
     "connection": "连接错误",
     "camera": "无法访问摄像头",
     "bring_add": "添加到 Bring! 时出错",

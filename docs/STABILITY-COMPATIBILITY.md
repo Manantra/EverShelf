@@ -286,3 +286,70 @@ Clients without the new parameter retain last-write-wins by design.
 This patch does not claim full multi-user conflict resolution or tested
 iPhone Safari/PWA execution; the browser test covers the real handlers
 with a simulated DOM and the separate HTTP tests cover the database.
+
+
+## Additional field and inventory conflicts (2026-10-30)
+
+**Previously open:** manual editors could silently overwrite another device's
+changes to brand, product notes, category, package information, inventory
+quantity, location, vacuum status or expiry even when the product name itself
+had not changed. The product-name-only `expected_name` guard was insufficient.
+
+**Guarded product edits (opt-in):** `product_save` now also accepts
+`expected_fields`, a map of original persisted field values from when the
+editor opened. The server checks an explicit whitelist of permitted columns
+(`name`, `brand`, `category`, `notes`, `image_url`, `unit`,
+`default_quantity`, `package_unit`, `barcode`) using SQLite's NULL-safe
+`IS` comparisons directly in the SQL `UPDATE` predicate. A stale field
+causes HTTP 409 `product_conflict`, with **no saved changes** to that product.
+Invalid snapshot keys are rejected with HTTP 400. The existing
+`expected_name` guard still works, and the regular scanner, imports,
+catalog sync and legacy API requests without snapshots remain compatible.
+
+Both manual product editing screens now send original field snapshots. The
+inventory listing also now includes `p.notes`: previously the inventory
+rename form could submit empty notes simply because the listing omitted them,
+silently clearing an existing product note. The new listing field keeps the
+manual editor from losing that user data and allows it to guard the note.
+They continue to show the translated conflict message and keep the form open.
+We intentionally use a *conservative* complete editor snapshot rather than
+silently writing unrelated fields from a stale form.
+
+**Guarded inventory edit (opt-in):** `inventory_update` now accepts a map
+`expected_inventory` covering quantity, location, expiry date, vacuum seal
+and manual-expiry flag. Under SQLite `BEGIN IMMEDIATE`, the current row is
+**read again** before modification. A mismatch returns HTTP 409
+`inventory_conflict` and rolls back the entire transaction, including
+quantity, move and adjustment ledger changes. Missing rows return 404.
+The refresh of the baseline inside the lock also makes the adjustment ledger
+consistent for older clients which omit the new parameter. A blank expiry
+and a SQL NULL expiry are treated alike. Existing rate limiting, shelf-life
+learning, HA hooks, and stock-to-shopping sync retain their original paths.
+
+The inventory edit modal captures its snapshot when the editor opens and
+shows a localized conflict message on 409 without closing the form or
+patching the local stock cache. All six supported locales have the message.
+No new database column, migration or feature setting is required.
+
+**Actual regression evidence:** The isolated HTTP suite tests rejected
+brand/notes overwrites, malicious snapshot columns, quantity conflicts,
+location changes, expiry-date conflicts, refreshing a stale editor and
+legacy updates without snapshots. A second integration suite runs two
+independent PHP processes against the same synthetic SQLite WAL database.
+Five simultaneous note edits yield exactly one success and four rejections;
+five simultaneous quantity edits do likewise. The test also checks that the
+transaction ledger contains precisely one quantity correction and that
+`PRAGMA quick_check` succeeds. A real-browser Safari/PWA test remains
+outstanding, but actual UI handlers are exercised in Node with a DOM stub.
+
+**Scope limits / known behavior:** The opt-in guard is a per-row conflict
+detector, **not** a general merge or retry engine. Different fields edited
+in parallel can still require a manual refresh if the form sends the full
+original snapshot. A combined edit changing *both* a product name and an
+inventory row still uses two HTTP calls; if the first saves and the second
+hits a conflict, the earlier product change may already have persisted.
+This multi-entity atomicity is a separate future issue, not fixed by this
+change. Offline queued writes and third-party clients without snapshots
+retain the existing last-write-wins behavior; no silent switch to a new
+offline conflict policy was made. Product variants, true Bring! transport,
+simultaneous deletion/merge and iOS Safari remain only partially tested.

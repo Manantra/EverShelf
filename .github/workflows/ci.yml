@@ -98,6 +98,7 @@ jobs:
           done
           python3 scripts/integration-concurrent-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
           python3 scripts/integration-concurrent-product-edit.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          python3 scripts/integration-concurrent-field-edits.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           php api/cron_smart_shopping.php
           python3 -c "import sqlite3; db=sqlite3.connect('data/evershelf.db'); assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'"
 

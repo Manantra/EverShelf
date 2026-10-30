@@ -133,7 +133,7 @@ foreach (['.edit-subtitle-tap {', '.edit-subtitle-empty {', '.edit-brand-input {
 $keys = ['product.edit_name_brand', 'edit.label_name', 'product.brand_label',
          'product.brand_placeholder', 'product.name_required', 'toast.product_saved', 'error.save'];
 foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
-    foreach ([...$keys, 'error.product_conflict'] as $key) {
+    foreach ([...$keys, 'error.product_conflict', 'error.inventory_conflict'] as $key) {
         assert_true(i18n_has($loc, $key), "{$loc}: '{$key}' is translated");
     }
 }

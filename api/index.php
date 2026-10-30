@@ -4397,6 +4397,25 @@ function _barcodeLookupGemini(string $barcode, string $apiKey): ?array {
     ];
 }
 
+/**
+ * Optional field-by-field optimistic compare for manual product editing.
+ * Values are snapshots from editor open, not values after a refresh.
+ * Automated catalog and legacy clients can omit this parameter entirely.
+ */
+function productExpectedFields(mixed $raw): ?array {
+    if ($raw === null) return null;
+    if (!is_array($raw) || array_is_list($raw) || count($raw) === 0) return null;
+    $allowed = ['name', 'brand', 'category', 'notes', 'image_url',
+        'unit', 'default_quantity', 'package_unit', 'barcode'];
+    foreach ($raw as $key => $value) {
+        if (!in_array($key, $allowed, true)
+            || (!is_string($value) && !is_numeric($value) && $value !== null)) {
+            return null;
+        }
+    }
+    return $raw;
+}
+
 function saveProduct(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || empty($input['name'])) {
@@ -4414,6 +4433,15 @@ function saveProduct(PDO $db): void {
     // Never require it from scanner, catalog, import, or legacy API clients.
     // Comparing exact names (not updated_at with second-level resolution)
     // also detects two edits saved within the very same second.
+    $expectedFields = null;
+    if ($id && array_key_exists('expected_fields', $input)) {
+        $expectedFields = productExpectedFields($input['expected_fields']);
+        if ($expectedFields === null) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_expected_fields']);
+            return;
+        }
+    }
     $expectedName = null;
     if ($id && array_key_exists('expected_name', $input)) {
         if (!is_string($input['expected_name']) || trim($input['expected_name']) === '') {
@@ -4444,6 +4472,15 @@ function saveProduct(PDO $db): void {
                 echo json_encode(['success' => false, 'error' => 'product_conflict']);
                 return;
             }
+        }
+    }
+
+    if ($id && $expectedFields !== null && $expectedName === null && $barcode !== null) {
+        $other = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $barcode, $id);
+        if ($other && $other !== $id) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'product_conflict']);
+            return;
         }
     }
 
@@ -4483,7 +4520,7 @@ function saveProduct(PDO $db): void {
 
     try {
         if ($id) {
-            if (!executeProductUpdate($db, $fields, $id, $expectedName)) {
+            if (!executeProductUpdate($db, $fields, $id, $expectedName, $expectedFields)) {
                 // Atomic WHERE name=? prevents a stale editor from winning even
                 // if another request changed the product after our first read.
                 $latest = loadProductRow($db, $id);
@@ -4516,7 +4553,8 @@ function saveProduct(PDO $db): void {
         }
         echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged]);
     } catch (PDOException $e) {
-        if ($expectedName !== null && str_contains($e->getMessage(), 'UNIQUE constraint failed: products.barcode')) {
+        if (($expectedName !== null || $expectedFields !== null)
+            && str_contains($e->getMessage(), 'UNIQUE constraint failed: products.barcode')) {
             http_response_code(409);
             echo json_encode(['success' => false, 'error' => 'product_conflict']);
             return;
@@ -4911,7 +4949,7 @@ function listInventory(PDO $db): void {
     // hides "crumb" rows via isInventoryDepleted (≤20 g / ≤20 ml).
     $includeDepleted = !empty($_GET['include_depleted']) || !empty($_GET['for_recipe']);
     $query = "
-        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
+        SELECT i.*, p.name, p.brand, p.category, p.notes, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name, COALESCE(p.kind, '') as kind,
                COALESCE(p.is_favorite, 0) as is_favorite
         FROM inventory i
@@ -6273,6 +6311,27 @@ function updateInventory(PDO $db): void {
         return;
     }
 
+    // Optional editor-open snapshot for conflict-safe manual inventory updates.
+    // Legacy and automated clients may omit it. Only these persisted fields
+    // participate in this row's compare, not timestamps or unrelated products.
+    $expected = $input['expected_inventory'] ?? null;
+    if (array_key_exists('expected_inventory', $input)) {
+        $allowed = ['quantity', 'location', 'expiry_date', 'vacuum_sealed', 'expiry_user_set'];
+        if (!is_array($expected) || array_is_list($expected) || !$expected) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_expected_inventory']);
+            return;
+        }
+        foreach ($expected as $field => $value) {
+            if (!in_array($field, $allowed, true)
+                || (!is_scalar($value) && $value !== null)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'invalid_expected_inventory']);
+                return;
+            }
+        }
+    }
+
     // Read current state before update (needed for transaction reconciliation + shelf learning)
     $prev = $db->prepare("SELECT quantity, location, product_id, added_at, expiry_date, expiry_user_set FROM inventory WHERE id = ?");
     $prev->execute([$id]);
@@ -6296,9 +6355,28 @@ function updateInventory(PDO $db): void {
 
     // Wrap all writes in a single IMMEDIATE transaction; retry on SQLITE_BUSY.
     try {
-        dbWithRetry(function () use ($db, $fields, $params, $input, $prevRow, $id): void {
+        dbWithRetry(function () use ($db, $fields, $params, $input, &$prevRow, $id, $expected): void {
             dbBeginImmediate($db);
             try {
+                // The original read occurred before this write lock. Refresh
+                // it while holding BEGIN IMMEDIATE to avoid stale ledger deltas
+                // and reject explicitly guarded multi-device edits.
+                $locked = $db->prepare("SELECT quantity, location, product_id, added_at, expiry_date, expiry_user_set, vacuum_sealed FROM inventory WHERE id=?");
+                $locked->execute([$id]);
+                $current = $locked->fetch(PDO::FETCH_ASSOC);
+                if (!$current) throw new DomainException('inventory_not_found');
+                if ($expected !== null) {
+                    foreach ($expected as $field => $value) {
+                        $actual = $current[$field] ?? null;
+                        $equal = in_array($field, ['quantity', 'vacuum_sealed', 'expiry_user_set'], true)
+                            ? ($actual !== null && $value !== null && (float)$actual == (float)$value)
+                            : ($field === 'expiry_date'
+                                ? (($actual ?: null) === ($value ?: null))
+                                : ($actual === $value));
+                        if (!$equal) throw new DomainException('inventory_conflict');
+                    }
+                }
+                $prevRow = $current;
                 $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
                 $stmt->execute($params);
 
@@ -6360,6 +6438,12 @@ function updateInventory(PDO $db): void {
                 throw $e;
             }
         });
+    } catch (DomainException $e) {
+        http_response_code($e->getMessage() === 'inventory_not_found' ? 404 : 409);
+        echo json_encode(['success' => false,
+            'error' => $e->getMessage() === 'inventory_not_found'
+                ? 'inventory_not_found' : 'inventory_conflict']);
+        return;
     } catch (PDOException $e) {
         if (str_contains($e->getMessage(), 'database is locked')) {
             http_response_code(503);
@@ -6870,7 +6954,7 @@ function productSaveParams(array $fields): array {
     ];
 }
 
-function executeProductUpdate(PDO $db, array $fields, int $id, ?string $expectedName = null): bool {
+function executeProductUpdate(PDO $db, array $fields, int $id, ?string $expectedName = null, ?array $expectedFields = null): bool {
     $sql = '
         UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
@@ -6880,6 +6964,15 @@ function executeProductUpdate(PDO $db, array $fields, int $id, ?string $expected
     if ($expectedName !== null) {
         $sql .= ' AND name=?';
         $params[] = $expectedName;
+    }
+    if ($expectedFields !== null) {
+        foreach ($expectedFields as $field => $value) {
+            // Whitelisted above. SQLite IS is NULL-safe and performs numeric
+            // equality for REAL default_quantity. Guard is part of UPDATE,
+            // so another writer cannot slip in between read and write.
+            $sql .= ' AND ' . $field . ' IS ?';
+            $params[] = $value;
+        }
     }
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
