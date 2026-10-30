@@ -162,3 +162,42 @@ WebView sleep/wake suspension, background-tab timer throttling, and actual
 network latency distributions. These need isolated browser/device validation
 before any rollout to the household instance. The native browser `offline`
 event and the independent UI network overlay retain their existing behavior.
+
+## Multi-worker inventory concurrency (2026-10-30) — OPEN
+
+**Confirmed on isolated loopback servers, NOT fixed yet.** With two separate
+PHP web-server processes sharing a disposable WAL-mode SQLite file, parallel
+`inventory_add` requests can intermittently return HTTP 500 with
+`SQLSTATE[HY000]: General error: 5 database is locked`.
+
+A reproducible, opt-in stress test is in
+`scripts/integration-concurrent-inventory.py`. Start two independent local
+PHP servers on ports 18080 and 18081, both pointing to the same disposable
+sandbox whose `.env` contains `EVERSHELF_SANDBOX=1`, then run:
+
+```bash
+python3 scripts/integration-concurrent-inventory.py \
+  --sandbox-root /path/to/disposable/sandbox \
+  --base-url http://127.0.0.1:18080 \
+  --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
+```
+
+**Observed before any source change:** 2 of 36 concurrent adds returned 500.
+All 34 acknowledged successful adds were present in inventory (34 packages),
+and SQLite `quick_check` was `ok`. Repeating with the connection's SQLite
+busy-timeout and WAL pragmas reordered still produced 2 failed requests out
+of 60; the attempted configuration edit was **reverted**, because it did not
+solve the concurrency problem. No silent stock loss was observed in these
+particular runs, but other races, such as partial transactions or conflicting
+product edits, were **not** excluded by this experiment.
+
+The current `addToInventory()` performs multiple separate database changes
+(product unit, inventory row, transaction ledger, shopping-list cleanup) without
+a single all-or-nothing transaction boundary. A durable fix needs to address
+atomicity and safe lock retries; blindly retrying the entire request may double
+count partially committed changes. Preserve existing expiry-date/location merge
+semantics, weight and package conversions, shopping modes and side-effect hooks.
+
+**The stress test is not part of required CI yet:** it intentionally fails
+against the current code and uses two independent PHP worker processes. Add it
+as a CI gate once a narrow, idempotent transactional fix has been verified.
