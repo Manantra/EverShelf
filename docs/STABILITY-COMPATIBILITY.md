@@ -401,3 +401,76 @@ Bring! network behavior, semantic product-family consolidation under a
 simultaneous rename, and multiple-device UI interleavings that a synthetic
 HTTP test cannot reproduce. No configuration switch, database migration,
 or production deployment was performed.
+
+
+## Safari / installed PWA offline-write conflicts (2026-10-31)
+
+**Real issues reproduced from the old code:** the queue silently discarded its
+oldest unsent change after 100 entries; Safari/localStorage quota, denial, and
+JSON corruption were swallowed, so the UI could optimistically report success
+although no write was queued. Replay rewrote the entire old array *after*
+network requests, potentially deleting new operations queued meanwhile and
+replaying already-acknowledged requests after iOS background suspension.
+An offline-created stock row was assigned a UI-only negative ID; later edits
+could not resolve that ID, partly because the real `inventory_add` API reports
+`inventory_id`, **not** `id`.
+
+**Current behavior (opt-in offline mode, not a config change):**
+
+- A queue remains capped at 100 but never evicts unsent data: the 101st write
+  fails *visibly* without an optimistic cache change. Corrupted/blocked storage
+  fails closed; Safari quota/private-mode errors are not suppressed.
+- Queue mutations and network replay use the Web Locks API when available,
+  including when separate PWA tabs queue simultaneously. No lock support
+  (e.g. Safari Lockdown Mode / older WebKit) falls back to per-tab serial
+  locking only; **cross-tab writes are not guaranteed in that fallback**.
+- Each queued op gets an ID; successful server acknowledgements are removed
+  and persisted **immediately**. A suspended page can resume without resending
+  earlier acknowledged operations. Legacy queue entries without IDs are
+  supported; if storage is too full to migrate IDs, they can still drain.
+- Offline-created inventory rows keep the *same negative ID* in their UI cache
+  and queue; after `inventory_add` returns `inventory_id`, dependent edits
+  are remapped to the real database ID before sending.
+- An HTTP 409 product/inventory conflict, a 200 response with
+  `shopping_remove: removed=0`, or an **ambiguous network/server response**
+  stays queued with `_needsReview`. A later edit to the same row cannot
+  overtake that failed operation. Confirmed database_busy 503 may retry.
+- A visible banner remains even after reconnect for unsynced operations.
+  The review modal shows pending actions and lets the user copy them, or
+  explicitly discard/authorize retry **after** checking live stock. A missing
+  HTTP response can mean the server actually committed, so a retry warning
+  explains that an inventory addition could be counted twice.
+- The original online API paths, settings, auto shopping, internal/Bring!
+  modes, scanning, unit conversions, product variants, and existing legacy
+  saved queue format are not intentionally changed. No database migration.
+
+**Verification:** `scripts/test-pwa-offline-queue.js` runs the actual JS
+queue, offline API and replay in isolated JS contexts with a simulated
+Safari storage quota failure, corrupted storage, 100+ entries, two simultaneous
+tabs using Web Locks, suspension mid-sync, ack-storage failure, 409 conflicts,
+legacy queue migration under quota and clean-review banner. A second test
+(`scripts/integration-offline-replay-conflicts.js`) uses the **real HTTP API
+and disposable SQLite DB**: an offline stale update cannot overwrite an online
+winner, a PWA reload cannot replay its 409, unrelated items still sync, new
+inventory rows and dependent edits resolve through `inventory_id`, and a
+server-committed `inventory_add` with a deliberately lost network response
+is *not automatically repeated* on reload. These are required CI checks.
+
+**Important limits (not claimed as solved):** These are **simulated** Safari
+tab/lifecycle tests, not a physical iPhone, Safari Web Inspector trace or
+real background WebKit suspension. The user's device must be tested for
+Home-Screen PWA and normal Safari, quota/eviction, offline cache startup,
+Lockdown Mode, relaunch, and actual Wi-Fi switching. Safari may evict local
+data; the application cannot recover a queue already removed by the browser.
+A request that commits on the server but whose reply disappears is now
+held for human review (rather than automatically duplicated); full
+automatic exactly-once processing of such requests still requires an
+idempotency key enforced by the server. If Safari fails to persist the
+queue *after* receiving a successful reply, the tab stops replay but a
+later restart can remain ambiguous. Do not represent this as guaranteed
+exactly-once delivery or guaranteed persistence on an iPhone.
+
+References:
+- WebKit storage rules: https://webkit.org/blog/14403/updates-to-storage-policy/
+- WebKit ITP Home-Screen exemption: https://webkit.org/tracking-prevention/
+- Web Locks support and Safari exceptions: https://web-platform-dx.github.io/web-features-explorer/features/web-locks/

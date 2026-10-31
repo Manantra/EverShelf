@@ -34,11 +34,19 @@ const removeSource = extract(
 );
 
 async function runReplay(ops, apiImpl) {
-    let remaining;
-    const calls = [];
+    let remaining = JSON.parse(JSON.stringify(ops));
+    const calls = [], toasts = [];
+    let sequence = 0;
     const context = {
-        _offlineQueueGet: () => ops,
-        _offlineQueueSet: q => { remaining = q; },
+        _offlineWithQueueLock: task => task(),
+        _offlineQueueReadStrict: () => JSON.parse(JSON.stringify(remaining)),
+        _offlineQueueSet: q => { remaining = JSON.parse(JSON.stringify(q)); },
+        _offlineNewOpId: () => 'test-' + ++sequence,
+        _offlineQueueStorageBlocked: false,
+        _offlineQueueReadError: false,
+        _renderOfflineBanner: () => {},
+        showToast: (...args) => toasts.push(args),
+        t: key => key,
         api: async (action, params, method, body) => {
             calls.push({ action, body });
             return apiImpl(action, body, calls.length);
@@ -46,7 +54,7 @@ async function runReplay(ops, apiImpl) {
     };
     const run = vm.runInNewContext(replaySource + '\n_syncOfflineQueue;', context);
     const synced = await run();
-    return { synced, remaining, calls };
+    return { synced, remaining, calls, toasts };
 }
 
 async function testReplay() {
@@ -103,6 +111,27 @@ async function testReplay() {
     const retried = await runReplay(r.remaining, async () => ({ success: true }));
     assert.equal(retried.synced, 1, 'Persisted real ID must replay on the next attempt');
     assert.equal(retried.remaining.length, 0);
+
+    // An offline edit based on a stale snapshot must remain queued, with a
+    // durable conflict marker. Later edits of the same row must not overtake.
+    r = await runReplay([
+        { action: 'inventory_update', body: { id: 7, quantity: 3,
+            expected_inventory: { quantity: 2 } } },
+        { action: 'inventory_update', body: { id: 7, quantity: 4,
+            expected_inventory: { quantity: 3 } } },
+        { action: 'inventory_update', body: { id: 8, quantity: 9 } },
+    ], async (_, body) => body.id === 7
+        ? { success: false, error: 'inventory_conflict' }
+        : { success: true });
+    assert.equal(r.synced, 1, 'Unrelated inventory rows may still sync');
+    assert.equal(r.remaining.length, 2, 'Both conflicting dependent edits remain queued');
+    assert.equal(r.remaining[0]._needsReview, true, 'First edit has a persistent review marker');
+    assert.equal(r.calls.length, 2, 'Second edit of conflicting row was not sent');
+    const paused = await runReplay(r.remaining, async () => {
+        throw new Error('Conflict must not replay automatically');
+    });
+    assert.equal(paused.calls.length, 0, 'Review-required edits never auto-replay on startup');
+    assert.equal(paused.remaining.length, 2);
 }
 
 async function runRemove(reply) {

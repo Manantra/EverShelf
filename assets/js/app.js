@@ -26420,11 +26420,69 @@ function _offlineSearchBarcode(barcode) {
     }
     return { found: false, _offline: true };
 }
+const _OFFLINE_QUEUE_LIMIT = 100;
+let _offlineQueueLocalLock = Promise.resolve();
+let _offlineQueueStorageBlocked = false;
+let _offlineQueueReadError = false;
+function _offlineNewTempInventoryId() {
+    // Negative safe integer with extremely low collision risk between Safari
+    // tabs. The same ID is used in both the optimistic cache and queued add.
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const parts = new Uint32Array(2);
+        crypto.getRandomValues(parts);
+        return -((parts[0] * 2097152 + (parts[1] & 2097151)) || 1);
+    }
+    return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+}
+function _offlineNewOpId() {
+    // Safari and modern browsers have crypto.randomUUID; the fallback stays
+    // unique across tabs even when a device's clock moves after sleep.
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(36).slice(2)
+            + '-' + Math.random().toString(36).slice(2);
+}
+
+/** Read strictly before a write: corrupted/blocked Safari storage must never
+ * look like an empty queue and thereby erase old unsent operations. */
+function _offlineQueueReadStrict() {
+    const stored = localStorage.getItem(_OFFLINE_QUEUE_KEY);
+    if (stored === null) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) throw new Error('offline_queue_corrupt');
+    return parsed;
+}
 function _offlineQueueGet() {
-    try { return JSON.parse(localStorage.getItem(_OFFLINE_QUEUE_KEY)) || []; } catch { return []; }
+    try {
+        const queue = _offlineQueueReadStrict();
+        _offlineQueueReadError = false;
+        return queue;
+    } catch (_) {
+        // Used by read-only screens. A corrupt queue is NOT treated as empty
+        // by any write or replay path, both of which read strictly.
+        _offlineQueueReadError = true;
+        return [];
+    }
 }
 function _offlineQueueSet(q) {
-    try { localStorage.setItem(_OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
+    // Do NOT swallow QuotaExceededError, SecurityError or Safari private-mode
+    // storage failures. The caller must not acknowledge unpersisted writes.
+    const encoded = JSON.stringify(q);
+    localStorage.setItem(_OFFLINE_QUEUE_KEY, encoded);
+    if (localStorage.getItem(_OFFLINE_QUEUE_KEY) !== encoded) {
+        throw new Error('offline_queue_write_failed');
+    }
+}
+/** Serialize queue mutations across Safari/PWA tabs when Web Locks is available.
+ * The local fallback avoids same-tab races; cross-tab fallback remains limited
+ * on older/Lockdown-mode WebKit (documented in compatibility matrix). */
+function _offlineWithQueueLock(work) {
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+        return navigator.locks.request('evershelf-offline-queue', { mode: 'exclusive' }, work);
+    }
+    const scheduled = _offlineQueueLocalLock.catch(() => {}).then(work);
+    _offlineQueueLocalLock = scheduled.catch(() => {});
+    return scheduled;
 }
 
 function _offlineShoppingCacheGet() {
@@ -26458,16 +26516,36 @@ function toggleShoppingSection(secKey) {
     _shoppingSectionsCollapsedSet(m);
     renderShoppingItems();
 }
-function _offlineQueuePush(action, body) {
-    const q = _offlineQueueGet();
-    if (q.length >= 100) q.shift(); // cap at 100
-    q.push({ action, body: body ? { ...body } : null, ts: Date.now() });
-    _offlineQueueSet(q);
-    _renderOfflineBanner();
+async function _offlineQueuePush(action, body) {
+    try {
+        return await _offlineWithQueueLock(async () => {
+        if (_offlineQueueStorageBlocked) {
+            return { success: false, error: 'offline_storage_unavailable' };
+        }
+        try {
+            const q = _offlineQueueReadStrict();
+            if (q.length >= _OFFLINE_QUEUE_LIMIT) {
+                return { success: false, error: 'offline_queue_full' };
+            }
+            // Copy at queue time so form changes while offline cannot mutate
+            // an already acknowledged queued request.
+            q.push({ action, body: body == null ? null : JSON.parse(JSON.stringify(body)),
+                ts: Date.now(), _opId: _offlineNewOpId() });
+            _offlineQueueSet(q);
+        } catch (_) {
+            return { success: false, error: 'offline_storage_unavailable' };
+        }
+        _renderOfflineBanner();
+        return { success: true };
+        });
+    } catch (_) {
+        // Web Locks may reject in Safari Lockdown/restricted contexts.
+        return { success: false, error: 'offline_storage_unavailable' };
+    }
 }
 
 // ─── Offline API handler: called by api() when _offlineMode is true ─────────
-function _handleOfflineApi(action, params, body) {
+async function _handleOfflineApi(action, params, body) {
     // ─── Reads: computed from or served directly from local cache ────────────
     if (action === 'inventory_list') {
         let inv = _offlineCacheGet() || [];
@@ -26577,9 +26655,17 @@ function _handleOfflineApi(action, params, body) {
                        'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost',
                        'shopping_remove', 'shopping_add', 'spend_add'];
     if (QUEUEABLE.includes(action)) {
-        _offlineQueuePush(action, body);
-        _applyOptimisticUpdate(action, body);
-        _applyShoppingOptimisticUpdate(action, body);
+        const pendingBody = action === 'inventory_add' && body
+            && !(typeof body.id === 'number' && body.id < 0)
+            ? { ...body, id: _offlineNewTempInventoryId() } : body;
+        const queued = await _offlineQueuePush(action, pendingBody);
+        if (!queued.success) {
+            showToast(t('error.' + (queued.error === 'offline_storage_unavailable'
+                ? 'offline_write_not_queued' : queued.error)), 'error');
+            return { success: false, error: queued.error, _offline: true, _queued: false };
+        }
+        _applyOptimisticUpdate(action, pendingBody);
+        _applyShoppingOptimisticUpdate(action, pendingBody);
         return { success: true, _offline: true, _queued: true };
     }
     // Everything else (AI, Bring!, etc.): return offline error
@@ -26610,7 +26696,10 @@ function _applyOptimisticUpdate(action, body) {
         const idx = cache.findIndex(i => i.id === body.id);
         if (idx >= 0) { cache.splice(idx, 1); changed = true; }
     } else if (action === 'inventory_add') {
-        cache.push({ ...body, id: -(Date.now()), _offline: true });
+        cache.push({ ...body,
+            id: typeof body.id === 'number' && body.id < 0
+                ? body.id : _offlineNewTempInventoryId(),
+            _offline: true });
         changed = true;
     }
     if (changed) _offlineCacheSet(cache);
@@ -26665,8 +26754,13 @@ async function _exitOfflineMode() {
             refreshCurrentPage();
         }
     }
-    const banner = document.getElementById('offline-banner');
-    if (banner) banner.style.display = 'none';
+    if (_offlineQueueGet().length > 0 || _offlineQueueStorageBlocked || _offlineQueueReadError) {
+        _renderOfflineBanner();
+        showToast(t('error.offline_ops_pending').replace('{n}', _offlineQueueGet().length), 'warning');
+    } else {
+        const banner = document.getElementById('offline-banner');
+        if (banner) banner.style.display = 'none';
+    }
 }
 
 function _renderOfflineBanner(loading = false) {
@@ -26674,8 +26768,13 @@ function _renderOfflineBanner(loading = false) {
     const textEl = banner ? banner.querySelector('.offline-banner-text') : null;
     if (!banner || !textEl) return;
     const q = _offlineQueueGet();
-    if (q.length > 0) {
-        textEl.innerHTML = t('error.offline_ops_pending').replace('{n}', q.length);
+    const conflicts = q.filter(op => op._needsReview).length;
+    if (_offlineQueueStorageBlocked || _offlineQueueReadError) {
+        textEl.textContent = t('error.offline_storage_unavailable');
+    } else if (conflicts > 0) {
+        textEl.textContent = t('error.offline_conflicts_pending').replace('{n}', conflicts);
+    } else if (q.length > 0) {
+        textEl.textContent = t('error.offline_ops_pending').replace('{n}', q.length);
     } else if (loading) {
         textEl.innerHTML = `<span class="offline-banner-dot"></span>${t('error.offline_reading_cache')}`;
     } else {
@@ -26683,43 +26782,232 @@ function _renderOfflineBanner(loading = false) {
         const msg = t('error.offline_cache_ready').replace('{n}', n);
         textEl.innerHTML = msg;
     }
+    const retry = banner.querySelector('.offline-banner-retry');
+    if (retry) {
+        const review = !_offlineMode && (q.length > 0 || _offlineQueueReadError || _offlineQueueStorageBlocked);
+        retry.textContent = review ? t('error.offline_review') : t('error.server_retry');
+        retry.onclick = review ? _offlineReviewQueue : _heartbeatRetry;
+    }
     banner.style.display = '';
 }
 
-async function _syncOfflineQueue() {
-    const q = _offlineQueueGet();
-    if (q.length === 0) return 0;
-    let synced = 0;
-    const failed = [];
-    const tempIdMap = {}; // negative temp id → real server id
-    for (const op of q) {
-        if (!op.action) continue;
-        let body = op.body ? { ...op.body } : {};
-        // A queued edit of a locally-created item cannot run until its create
-        // has been acknowledged and its temporary ID has been resolved.
-        if (op.action !== 'inventory_add' && typeof body.id === 'number' && body.id < 0) {
-            if (!tempIdMap[body.id]) { failed.push(op); continue; }
-            body = { ...body, id: tempIdMap[body.id] };
-        }
-        try {
-            const result = await api(op.action, {}, 'POST', body);
-            // api() returns JSON errors instead of throwing for HTTP 4xx/5xx.
-            // Never lose a queued write unless the server explicitly confirmed it.
-            if (!result || result.success !== true || result._offline) {
-                // Preserve the resolved server ID for the next replay attempt.
-                // Otherwise a successful add followed by a failed edit leaves
-                // an orphaned negative ID that can never be retried.
-                failed.push({ ...op, body });
-                continue;
+/** Show unsent actions; never remove a conflict without explicit consent.
+ * This is deliberately a review surface, not an automatic conflict merge. */
+async function _offlineReviewQueue() {
+    let pending;
+    try {
+        pending = await _offlineWithQueueLock(async () => {
+            const ops = _offlineQueueReadStrict();
+            if (ops.some(op => !op._opId)) {
+                const migrated = ops.map(op => ({ ...op, _opId: op._opId || _offlineNewOpId() }));
+                _offlineQueueSet(migrated);
+                return migrated;
             }
-            if (op.action === 'inventory_add' && result.id && op.body?.id < 0) {
-                tempIdMap[op.body.id] = result.id;
-            }
-            synced++;
-        } catch(_) { failed.push({ ...op, body }); }
+            return ops;
+        });
+    } catch (_) {
+        showToast(t('error.offline_storage_unavailable'), 'error');
+        return;
     }
-    _offlineQueueSet(failed);
-    return synced;
+    const content = document.getElementById('modal-content');
+    const overlay = document.getElementById('modal-overlay');
+    if (!content || !overlay) return;
+    const entries = pending.map(op => {
+        const details = [op.action || '?', op.body?.name || op.body?.product_edit?.name
+            || op.body?.items?.[0]?.name || op.body?.id || op.body?.product_id || ''];
+        const label = details.filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
+        const status = op._needsReview ? t('error.offline_conflicts_pending').replace('{n}', '1')
+            : op._syncError || t('error.offline_ops_pending').replace('{n}', '1');
+        return '<li class="offline-queued-op">' + label +
+            ' <small>' + escapeHtml(status) + '</small> ' +
+            '<button type="button" class="btn btn-secondary" data-offline-retry="' +
+            escapeHtml(String(op._opId)) + '">' + escapeHtml(t('error.offline_retry')) +
+            '</button> ' +
+            '<button type="button" class="btn btn-secondary" data-offline-discard="' +
+            escapeHtml(String(op._opId)) + '">' + escapeHtml(t('error.offline_discard')) +
+            '</button></li>';
+    }).join('');
+    content.innerHTML =
+        '<div class="modal-header"><h3>' + escapeHtml(t('error.offline_review')) +
+        '</h3><button class="modal-close" onclick="closeModal()">✕</button></div>' +
+        '<p class="settings-hint">' + escapeHtml(t('error.offline_review_hint')) + '</p>' +
+        '<ol class="offline-pending-list">' + entries + '</ol>' +
+        '<button type="button" class="btn btn-secondary" id="offline-copy-pending">' +
+        escapeHtml(t('error.offline_copy')) + '</button>';
+    content.querySelectorAll('[data-offline-retry]').forEach(button => {
+        button.addEventListener('click', () => _offlineRetryQueuedOp(button.dataset.offlineRetry));
+    });
+    content.querySelectorAll('[data-offline-discard]').forEach(button => {
+        button.addEventListener('click', () => _offlineDiscardQueuedOp(button.dataset.offlineDiscard));
+    });
+    content.querySelector('#offline-copy-pending')?.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(pending, null, 2));
+        } catch (_) {
+            showToast(t('error.copy_failed'), 'error');
+        }
+    });
+    overlay.style.display = 'flex';
+}
+
+async function _offlineRetryQueuedOp(opId) {
+    // The user must first compare against the server: a missing HTTP response
+    // does NOT prove the previous write was rolled back.
+    if (!confirm(t('error.offline_retry_confirm'))) return;
+    try {
+        await _offlineWithQueueLock(async () => {
+            const queue = _offlineQueueReadStrict();
+            const index = queue.findIndex(op => op._opId === opId);
+            if (index < 0) return;
+            queue[index] = { ...queue[index], _needsReview: false, _syncError: null };
+            _offlineQueueSet(queue);
+        });
+        if (!_offlineMode) await _syncOfflineQueue();
+        _renderOfflineBanner();
+        await _offlineReviewQueue();
+    } catch (_) {
+        showToast(t('error.offline_storage_unavailable'), 'error');
+    }
+}
+
+async function _offlineDiscardQueuedOp(opId) {
+    if (!confirm(t('error.offline_discard_confirm'))) return;
+    try {
+        await _offlineWithQueueLock(async () => {
+            const q = _offlineQueueReadStrict();
+            if (!q.some(op => op._opId === opId)) return;
+            _offlineQueueSet(q.filter(op => op._opId !== opId));
+        });
+        _renderOfflineBanner();
+        await _offlineReviewQueue();
+    } catch (_) {
+        showToast(t('error.offline_storage_unavailable'), 'error');
+    }
+}
+
+async function _syncOfflineQueue() {
+    // Holding the Web Lock through replay makes two Safari/PWA tabs submit
+    // the same operation at most once in supported browsers.
+    try {
+        return await _offlineWithQueueLock(async () => {
+        let ops;
+        try {
+            if (_offlineQueueStorageBlocked) throw new Error('offline_storage_unavailable');
+            ops = _offlineQueueReadStrict();
+            if (ops.length === 0) return 0;
+            // Migrate old list entries in place, preserving order and payload.
+            // IDs allow each acknowledgement to be checkpointed independently.
+            if (ops.some(op => !op._opId)) {
+                // Previous EverShelf versions stored ops without IDs. Attempt
+                // to migrate, but a quota-full Safari origin may not fit the
+                // larger JSON until an acknowledged operation is removed.
+                // In that case replay legacy entries by their original body
+                // and timestamp; only write a smaller queue after success.
+                ops = ops.map(op => ({ ...op, _opId: op._opId || _offlineNewOpId() }));
+                try { _offlineQueueSet(ops); } catch (_) { /* legacy fallback */ }
+            }
+        } catch (_) {
+            _offlineQueueReadError = true;
+            showToast(t('error.offline_storage_unavailable'), 'error');
+            return 0;
+        }
+
+        let synced = 0;
+        const tempIdMap = {};
+        const blockedTargets = new Set();
+        for (const op of ops) {
+            if (!op.action) continue;
+            const rawBody = op.body ? { ...op.body } : {};
+            const target = op.action.startsWith('inventory_')
+                ? ('inv:' + String(rawBody.id ?? rawBody.product_id ?? ''))
+                : op.action.startsWith('shopping_')
+                    ? ('shopping:' + String(rawBody.name || rawBody.items?.[0]?.name || ''))
+                    : '';
+            if (target && blockedTargets.has(target)) continue;
+            if (op._needsReview) {
+                if (target) blockedTargets.add(target);
+                continue; // unresolved conflict must not permit a later stale edit
+            }
+
+            let body = rawBody;
+            if (op.action !== 'inventory_add' && typeof body.id === 'number' && body.id < 0) {
+                if (!tempIdMap[body.id]) {
+                    if (target) blockedTargets.add(target);
+                    continue;
+                }
+                body = { ...body, id: tempIdMap[body.id] };
+            }
+            let response = null;
+            let error = 'network_unavailable';
+            try {
+                // Network errors, HTTP conflicts and timeouts must never count
+                // as an acknowledgement. A delayed iPhone resume is allowed.
+                response = await api(op.action, {}, 'POST', body, {}, 15000);
+                error = response?.error || 'sync_unconfirmed';
+            } catch (_) {}
+            const removed = response?.removed;
+            const deleteConfirmed = op.action !== 'shopping_remove'
+                || removed === true
+                || (typeof removed === 'number' && removed > 0);
+            const confirmed = response?.success === true
+                && !response?._offline && deleteConfirmed;
+            if (response?.success === true && !deleteConfirmed) {
+                error = 'shopping_remove_noop';
+            }
+            try {
+                // Re-read rather than saving an old array: preserve any writes
+                // arriving via another tab/version while a request was pending.
+                const latest = _offlineQueueReadStrict();
+                const index = latest.findIndex(x => x._opId === op._opId
+                    || (!x._opId && x.action === op.action
+                        && x.ts === op.ts
+                        && JSON.stringify(x.body) === JSON.stringify(op.body)));
+                if (index < 0) continue;
+                if (confirmed) {
+                    // inventory_add returns inventory_id; id remains a legacy
+                    // alias for older API providers. Never map to a product ID.
+                    const savedInventoryId = Number(response.inventory_id ?? response.id);
+                    if (op.action === 'inventory_add' && savedInventoryId > 0 && rawBody.id < 0) {
+                        tempIdMap[rawBody.id] = savedInventoryId;
+                        for (const later of latest) {
+                            if (later._opId !== op._opId && later.body?.id === rawBody.id) {
+                                later.body = { ...later.body, id: savedInventoryId };
+                            }
+                        }
+                    }
+                    latest.splice(index, 1);
+                    // Persist acknowledgement immediately: a suspended/crashed
+                    // PWA cannot replay prior successful operations on restart.
+                    _offlineQueueSet(latest);
+                    synced++;
+                } else {
+                    latest[index] = { ...latest[index], body,
+                        _syncError: error,
+                        // Only a confirmed SQLite busy rejection is certainly
+                        // safe to retry. Network loss may have occurred AFTER
+                        // the server committed: do not double-add inventory.
+                        _needsReview: error !== 'database_busy' };
+                    _offlineQueueSet(latest);
+                    // A rejected edit must block later writes for that same row
+                    // until the user resolves the earlier conflict.
+                    if (target) blockedTargets.add(target);
+                }
+            } catch (_) {
+                // We no longer know whether an acknowledged operation was
+                // durably removed. Stop replay to avoid cascading duplicates.
+                _offlineQueueStorageBlocked = true;
+                showToast(t('error.offline_storage_unavailable'), 'error');
+                break;
+            }
+        }
+        _renderOfflineBanner();
+        return synced;
+        });
+    } catch (_) {
+        // Browser rejected the lock; do not claim or erase queued operations.
+        showToast(t('error.offline_storage_unavailable'), 'error');
+        return 0;
+    }
 }
 
 // ─── Overlay show / hide ────────────────────────────────────────────────────
@@ -29723,6 +30011,11 @@ async function _initApp() {
     // were queued — the queue survives in localStorage but _offlineMode is false.
     (() => {
         const startupQueue = _offlineQueueGet();
+        if (_offlineQueueReadError) {
+            _renderOfflineBanner();
+            showToast(t('error.offline_storage_unavailable'), 'error');
+            return;
+        }
         if (startupQueue.length === 0) return;
         setTimeout(async () => {
             const synced = await _syncOfflineQueue();
