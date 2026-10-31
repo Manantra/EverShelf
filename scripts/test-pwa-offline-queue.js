@@ -302,6 +302,75 @@ async function testOfflineBannerSurvivesConflicts() {
     await ctx.testUi.exit();
     assert.equal(banner.style.display, 'none',
         'Banner disappears only when all queued operations are gone');
+    // The real bug: discard calls _renderOfflineBanner() directly, not
+    // _exitOfflineMode(). The empty queue must hide the previous banner.
+    banner.style.display = '';
+    ctx.testUi.render();
+    assert.equal(banner.style.display, 'none',
+        'An online render hides an old banner after the final discard');
+    // On the other hand, a storage failure should stay visible even if
+    // no queue entries could be read.
+    ctx._offlineQueueStorageBlocked = true;
+    ctx.testUi.render();
+    assert.equal(banner.style.display, '',
+        'A blocked Safari storage write still keeps the warning visible');
+}
+
+async function testLastConflictDiscardClosesReviewModal() {
+    const reviewSource = extract(
+        'async function _offlineReviewQueue() {',
+        'async function _syncOfflineQueue() {'
+    );
+    const st = storage();
+    st.setItem('test-queue', JSON.stringify([{
+        action: 'inventory_update', body: { id: 42, quantity: 7 },
+        _needsReview: true, _opId: 'stale-iphone-conflict',
+    }]));
+    const overlay = { style: { display: 'none' } };
+    const content = {
+        innerHTML: '',
+        querySelectorAll: () => [],
+        querySelector: () => null,
+    };
+    let closes = 0;
+    let renders = 0;
+    let confirmations = 0;
+    const ctx = {
+        _offlineMode: false,
+        _offlineQueueStorageBlocked: false,
+        _offlineQueueReadError: false,
+        _offlineWithQueueLock: async fn => fn(),
+        _offlineQueueReadStrict: () => JSON.parse(st.getItem('test-queue') || '[]'),
+        _offlineQueueSet: q => st.setItem('test-queue', JSON.stringify(q)),
+        _offlineNewOpId: () => 'migrated',
+        _renderOfflineBanner: () => { renders++; },
+        document: { getElementById: id => ({
+            'modal-content': content, 'modal-overlay': overlay,
+        })[id] },
+        navigator: { clipboard: { writeText: async () => {} } },
+        escapeHtml: value => String(value),
+        showToast: () => {},
+        confirm: () => { confirmations++; return true; },
+        closeModal: () => { closes++; overlay.style.display = 'none'; },
+        t: key => key,
+    };
+    vm.createContext(ctx);
+    vm.runInContext(reviewSource + '\nthis.reviewTest = { review: _offlineReviewQueue, discard: _offlineDiscardQueuedOp };', ctx);
+    await ctx.reviewTest.review();
+    assert.equal(overlay.style.display, 'flex', 'Conflict can be reviewed before user acts');
+    assert(content.innerHTML.includes('data-offline-discard'),
+        'The review includes the discard control for the pending operation');
+    assert.equal(closes, 0, 'An actual conflict must never close itself');
+    await ctx.reviewTest.discard('stale-iphone-conflict');
+    assert.equal(confirmations, 1, 'Discarding a pending operation requires explicit confirmation');
+    assert.equal(queued(st).length, 0, 'Only the explicitly discarded conflict is removed');
+    assert.equal(closes, 1, 'Discarding the last conflict automatically closes its review modal');
+    assert.equal(overlay.style.display, 'none');
+    assert(renders >= 2, 'The online pending banner is updated after final discard');
+    await ctx.reviewTest.review();
+    assert.equal(overlay.style.display, 'none',
+        'Opening the empty review must not show a misleading copy-only modal');
+    assert.equal(queued(st).length, 0);
 }
 
 async function testSafariLockDenied() {
@@ -335,6 +404,7 @@ async function testFallbackWithinOneTab() {
     await testNoopShoppingRemovalNotAck();
     await testLegacyQueueAtQuota();
     await testOfflineBannerSurvivesConflicts();
+    await testLastConflictDiscardClosesReviewModal();
     await testSafariLockDenied();
     await testFallbackWithinOneTab();
     console.log('All Safari/PWA offline queue, suspension and multi-tab simulations passed.');

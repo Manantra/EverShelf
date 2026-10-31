@@ -554,3 +554,22 @@ and duplicate restore suppression, plus Safari `pageshow` and
 `visibilitychange` event callbacks. No data or offline queue is cleared.
 The new cache version is published only to the isolated HTTPS staging app
 after the branch's tests pass; no production update.
+
+
+## Offline review popup after final conflict discard (2026-10-31)
+
+An iPhone PWA conflict against an online Mac writer correctly preserved the
+Mac's stock quantity, but resolving the only queued conflict exposed a UI bug:
+the discard flow immediately re-opened the review dialog even though the
+queue was empty. The leftover modal showed only the harmless diagnostic
+"copy pending changes" button. Independently, _renderOfflineBanner always
+showed an online banner, even after the queue was emptied.
+
+The review dialog now closes automatically when a successful verified read
+has no pending operations. The online banner is hidden for an empty readable
+queue, while genuine unreadable/blocked Safari storage remains visibly
+flagged. No automatic retries, data discards or stock updates were added.
+The regression script simulates the exact final-conflict discard sequence and
+asserts the modal closes and the banner disappears. A user-confirmation is
+still required to discard any actual pending action. This is a staging-only
+browser update; real inventory and production stay unchanged.

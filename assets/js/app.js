@@ -26768,6 +26768,14 @@ function _renderOfflineBanner(loading = false) {
     const textEl = banner ? banner.querySelector('.offline-banner-text') : null;
     if (!banner || !textEl) return;
     const q = _offlineQueueGet();
+    // Discarding the final reviewed action can call this while already
+    // online. A previously opened offline banner must not linger with an
+    // empty queue (or show a misleading "server retry" button).
+    if (!_offlineMode && q.length === 0 && !_offlineQueueReadError
+        && !_offlineQueueStorageBlocked) {
+        banner.style.display = 'none';
+        return;
+    }
     const conflicts = q.filter(op => op._needsReview).length;
     if (_offlineQueueStorageBlocked || _offlineQueueReadError) {
         textEl.textContent = t('error.offline_storage_unavailable');
@@ -26812,6 +26820,14 @@ async function _offlineReviewQueue() {
     const content = document.getElementById('modal-content');
     const overlay = document.getElementById('modal-overlay');
     if (!content || !overlay) return;
+    if (pending.length === 0 && !_offlineQueueStorageBlocked) {
+        // The final action was successfully discarded/acknowledged.
+        // Dismissing the now-empty dialog avoids a misleading copy-only
+        // "pending changes" window. Do not conceal storage failures.
+        closeModal();
+        _renderOfflineBanner();
+        return;
+    }
     const entries = pending.map(op => {
         const details = [op.action || '?', op.body?.name || op.body?.product_edit?.name
             || op.body?.items?.[0]?.name || op.body?.id || op.body?.product_id || ''];
