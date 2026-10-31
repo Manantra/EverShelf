@@ -531,3 +531,26 @@ Catalog product consolidation runs before the inventory transaction on the
 original path; it is not newly made part of this receipt atomicity guarantee.
 A manual iPhone Safari/Home-Screen PWA test is still outstanding; see
 `docs/STABILITY-SAFARI-MANUAL-TEST.md`. No production installation changed.
+
+
+## Safari cached-offline view can stay stuck after a live reconnect (2026-10-31)
+
+Reproduced a specific state mismatch: Safari can fire its browser-native
+offline event, and the delayed network overlay enters the cached PWA UI
+(`_offlineMode=true`) *before* the API heartbeat reaches the server-offline
+failure threshold (`_serverOffline=false`). When the user reconnects, the
+heartbeat's first successful ping was previously an online→online no-op and
+never called `_exitOfflineMode()`. The PWA remained in cache mode despite
+a healthy server. The state-unchanged branch now calls restore only on an
+**actually successful** heartbeat (`_heartbeatFailures===0`) and an active
+cached offline UI. Failed first-attempt pings must not force premature
+reconnect. Safari background/foreground and `pageshow` events trigger an
+immediate connectivity check when needed, rather than relying solely on
+potentially suspended timers or the browser's `online` event.
+
+Regression coverage: `scripts/test-heartbeat.js` exercises native
+offline-before-heartbeat, failed retry threshold, successful unchanged state
+and duplicate restore suppression, plus Safari `pageshow` and
+`visibilitychange` event callbacks. No data or offline queue is cleared.
+The new cache version is published only to the isolated HTTPS staging app
+after the branch's tests pass; no production update.

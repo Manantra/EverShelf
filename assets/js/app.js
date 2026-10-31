@@ -27113,6 +27113,15 @@ window.addEventListener('online',  () => {
     clearTimeout(_offlineBannerTimer); // don't auto-enter offline mode if we just came back
     _networkPingOnce();
 });
+// iOS Safari may suspend JS timers while the screen is locked / app is in
+// background, and returning through Tailscale does not always emit 'online'.
+// Resume the actual server check when the page becomes visible again.
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (_offlineMode || _serverOffline)) _heartbeatRetry();
+});
+window.addEventListener('pageshow', () => {
+    if (_offlineMode || _serverOffline) _heartbeatRetry();
+});
 
 // ===== SCREENSAVER & INACTIVITY AUTO-REFRESH =====
 let _inactivityTimer = null;
@@ -29469,7 +29478,13 @@ async function _runHeartbeat() {
 
 function _setServerOffline(offline) {
     if (offline === _serverOffline) {
-        // State unchanged — reschedule at the appropriate interval and return
+        // Safari can fire a native offline event and enter the cached PWA
+        // before the heartbeat has marked _serverOffline=true. When a later
+        // ping succeeds, online->online is still a REAL recovery for the
+        // user-facing offline cache mode. Do not leave the UI stuck forever.
+        if (!offline && _offlineMode && _heartbeatFailures === 0) {
+            _handleServerRestored();
+        }
         _heartbeatTimer = setTimeout(_runHeartbeat,
             (offline || _heartbeatFailures > 0) ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
         return;

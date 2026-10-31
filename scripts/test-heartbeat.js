@@ -37,7 +37,10 @@ function harness(fetchHandler, { offlineMode = false } = {}) {
             } },
         },
         _showNetworkOverlay: () => { calls.overlays++; },
-        _handleServerRestored: () => { calls.restored++; },
+        _handleServerRestored: () => {
+            calls.restored++;
+            scope._offlineMode = false; // actual restore handler exits cache mode
+        },
         setTimeout: (fn, ms) => {
             const id = ++nextId;
             timers.set(id, { fn, ms });
@@ -145,6 +148,56 @@ async function testIntentionalOfflineCacheMode() {
     assert.equal(h.calls.overlays, 0, 'Never cover a deliberately activated offline cache UI');
 }
 
+async function testSafariNativeOfflineWhileHeartbeatWasOnline() {
+    // On iOS, a browser 'offline' event may show the cache before the
+    // heartbeat detects an outage. The heartbeat remains online->online, but
+    // a healthy ping must still exit the cached offline UI.
+    const h = harness(async () => ({ ok: true }), { offlineMode: true });
+    await h.run();
+    assert.equal(h.offline(), false, 'Server heartbeat was never offline');
+    assert.equal(h.calls.restored, 1,
+        'Healthy ping must exit Safari cached offline mode even if server status never flipped');
+    h.fire(20000);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(h.calls.restored, 1, 'Recovery does not loop once cache mode exited');
+}
+
+async function testSafariVisibilityAndPageshowRecovery() {
+    // Safari background suspension can suppress timers and the 'online'
+    // event. Verify the installed real event listeners proactively ping.
+    const start = src.indexOf('// Browser-native online/offline events');
+    const end = src.indexOf('// ===== SCREENSAVER', start);
+    assert(start >= 0 && end > start);
+    const handlers = {};
+    let pings = 0;
+    const doc = {
+        hidden: true,
+        addEventListener: (event, fn) => { handlers['document:' + event] = fn; },
+    };
+    const ctx = {
+        window: { addEventListener: (event, fn) => { handlers['window:' + event] = fn; } },
+        document: doc,
+        _offlineMode: true,
+        _serverOffline: false,
+        _offlineBannerTimer: null,
+        clearTimeout: () => {},
+        _showNetworkOverlay: () => {},
+        _networkPingOnce: () => {},
+        _heartbeatRetry: () => { pings++; },
+    };
+    vm.runInNewContext(src.slice(start, end), ctx);
+    handlers['document:visibilitychange']();
+    assert.equal(pings, 0, 'A hidden page must not start network requests');
+    doc.hidden = false;
+    handlers['document:visibilitychange']();
+    handlers['window:pageshow']();
+    assert.equal(pings, 2, 'A newly visible offline PWA resumes server connectivity probes');
+    ctx._offlineMode = false;
+    handlers['document:visibilitychange']();
+    handlers['window:pageshow']();
+    assert.equal(pings, 2, 'Healthy online foreground app avoids redundant resume probes');
+}
+
 async function testInFlightRetry() {
     let release;
     const h = harness(() => new Promise(resolve => { release = resolve; }));
@@ -166,6 +219,8 @@ async function testInFlightRetry() {
     await testSlowButSuccessfulPing();
     await testConsecutiveHttpErrors();
     await testIntentionalOfflineCacheMode();
+    await testSafariNativeOfflineWhileHeartbeatWasOnline();
+    await testSafariVisibilityAndPageshowRecovery();
     await testInFlightRetry();
     console.log('All heartbeat state/timeout/retry regression tests passed.');
 })().catch(err => {
