@@ -141,6 +141,10 @@ foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
 $inventoryEditor = slice_from($js, 'async function submitEditInventory(e, id, productId) {', 5800);
 assert_true(str_contains($inventoryEditor, 'expected_name: window._editingProduct?._originalName'),
     'inventory editor sends the original product title, not a mutable refreshed cache');
+assert_true(str_contains($inventoryEditor, 'payload.product_edit = {'),
+    'inventory editor includes its rename inside the inventory transaction');
+assert_true(!str_contains($inventoryEditor, "api('product_save'"),
+    'inventory editor does not commit its title before the stock transaction');
 assert_true(str_contains($inventoryEditor, "t('error.product_conflict')"),
     'inventory editor displays a localized optimistic conflict message');
 $actionEditor = slice_from($js, 'async function saveEditedProductInfo() {', 2400);

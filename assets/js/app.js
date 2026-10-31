@@ -11429,43 +11429,32 @@ async function submitEditInventory(e, id, productId) {
     }
     
     try {
-        // Persist renamed title on the product catalog (locked so barcode rescans keep it)
+        // A manual rename and stock correction must commit together. One
+        // guarded inventory_update transaction also preserves the selected
+        // unit, expiry and location on failures or multi-device conflicts.
+        // Ordinary stock edits (no rename) preserve their previous API path.
         if (name !== (prev.name || '').trim()) {
-            const prodSave = await api('product_save', {}, 'POST', {
-                id: payload.product_id,
+            payload.product_edit = {
                 name,
-                brand,
-                name_user_set: 1,
                 expected_name: window._editingProduct?._originalName ?? prev.name,
                 ...(Object.keys(window._editingProduct?._expectedFields || {}).length
                     ? { expected_fields: window._editingProduct._expectedFields }
                     : {}),
-                category: prev.category || '',
-                image_url: prev.image_url || '',
-                unit: unit || prev.unit || 'pz',
-                default_quantity: prev.default_quantity ?? 1,
-                package_unit: unit === 'conf' ? (payload.package_unit || prev.package_unit || '') : (prev.package_unit || ''),
-                barcode: prev.barcode || null,
-                notes: prev.notes || '',
-            });
-            if (!prodSave?.success) {
-                showToast(prodSave?.error === 'product_conflict'
-                    ? t('error.product_conflict')
-                    : (prodSave?.message || prodSave?.error || t('error.generic')), 'error');
-                return; // Do not also submit inventory_update after rejected rename.
-            }
+            };
         }
 
         const res = await api('inventory_update', {}, 'POST', payload);
         if (!res?.success) {
-            showToast(res?.error === 'inventory_conflict'
-                ? t('error.inventory_conflict')
-                : (res?.message || res?.error || t('error.generic')), 'error');
+            showToast(res?.error === 'product_conflict'
+                ? t('error.product_conflict')
+                : (res?.error === 'inventory_conflict'
+                    ? t('error.inventory_conflict')
+                    : (res?.message || res?.error || t('error.generic'))), 'error');
             return; // Keep unsaved values when another device changed this row.
         }
         const savedQty = res.quantity !== undefined ? parseFloat(res.quantity) : qty;
         const patch = {
-            name,
+            name: res.product_name || name,
             brand,
             quantity: savedQty,
             location: loc,
@@ -11483,7 +11472,7 @@ async function submitEditInventory(e, id, productId) {
             if (!Array.isArray(arr)) return;
             arr.forEach(i => {
                 if (i.product_id == payload.product_id) {
-                    i.name = name;
+                    i.name = res.product_name || name;
                     i.brand = brand;
                 }
             });

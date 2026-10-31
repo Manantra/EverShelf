@@ -345,11 +345,59 @@ outstanding, but actual UI handlers are exercised in Node with a DOM stub.
 **Scope limits / known behavior:** The opt-in guard is a per-row conflict
 detector, **not** a general merge or retry engine. Different fields edited
 in parallel can still require a manual refresh if the form sends the full
-original snapshot. A combined edit changing *both* a product name and an
-inventory row still uses two HTTP calls; if the first saves and the second
-hits a conflict, the earlier product change may already have persisted.
-This multi-entity atomicity is a separate future issue, not fixed by this
-change. Offline queued writes and third-party clients without snapshots
-retain the existing last-write-wins behavior; no silent switch to a new
-offline conflict policy was made. Product variants, true Bring! transport,
+original snapshot. The manual inventory editor's combined title-and-quantity
+operation is now atomic on this fork (see section below). Offline queued
+writes and third-party clients without snapshots retain the existing
+last-write-wins behavior; no silent switch to a new offline conflict policy
+was made. Product variants, true Bring! transport,
 simultaneous deletion/merge and iOS Safari remain only partially tested.
+
+
+## Atomic manual inventory editor: product title + stock (2026-10-31)
+
+**Previous confirmed risk:** the inventory editor sent `product_save` to rename
+the product and then `inventory_update` to change stock. If the second request
+failed or rejected a stale snapshot, the product title persisted but stock did
+not. Retrying blindly could produce unexpected partial changes.
+
+**Narrow new opt-in path:** `inventory_update` accepts an optional
+`product_edit: {name, expected_name, expected_fields?}`. The existing manual
+inventory editor now sends **one** inventory_update request with this block
+when renaming while changing stock, plus its existing
+`expected_inventory` snapshot. Every combined request must provide that
+stock snapshot. SQLite's existing `BEGIN IMMEDIATE` covers the product's
+rename, title-derived `shopping_name` and `kind`, stock change, associated
+movement/quantity ledger, and unit/package update. A stale product or
+inventory edit returns HTTP 409 and rolls the transaction back. Busy errors
+continue to be clean HTTP 503 rejections without any partial commit.
+
+For manual titles, the new path reuses the normal
+`mergeIncomingProductFields()` normalization (user-locked casing and genre,
+shopping title, category and language switches). It updates *only*
+title-derived columns; brand/notes/other metadata remain untouched, while the
+usual inventory_update code applies stock/packaging/expiry semantics.
+
+**Structural merge protection:** the ordinary catalog product_save action
+can merge duplicate IDs; this cross-product reconciliation must not run
+incidentally inside a stock correction. The combined manual editor **rejects
+a potential duplicate name with HTTP 409** instead of deleting/reparenting
+other inventory rows. Standalone product_save/scanner/catalog workflows retain
+their previous merge logic, as does the separate product-info editor.
+
+**Tested (disposable SQLite, two real PHP servers):** simultaneous edits of
+the same product/stock pair commit only once and leave a matching name,
+quantity and transaction ledger. A forced SQLite trigger abort *after the
+product rename UPDATE, before the inventory UPDATE* proves the title is
+rolled back too. Stale-product, stale-stock, mismatched-product-ID and
+missing-snapshot requests leave every record unchanged; legacy inventory
+clients without the new block continue to work. The actual JS editor
+handlers are tested for single-request success and translated conflict
+errors. All relevant unit/expiry, shopping mode and multi-client regression
+tests continue running in required CI. PWA asset stamp and service-worker
+cache key were versioned together.
+
+**Unverified:** an actual iPhone Safari background-offline replay, external
+Bring! network behavior, semantic product-family consolidation under a
+simultaneous rename, and multiple-device UI interleavings that a synthetic
+HTTP test cannot reproduce. No configuration switch, database migration,
+or production deployment was performed.

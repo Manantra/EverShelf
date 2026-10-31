@@ -50,11 +50,80 @@ async function inventoryEditorConflict() {
         '// ===== SCAN DEBUG LOG ====='
     ) + '\nsubmitEditInventory;', context);
     await submit({ preventDefault() {} }, 51, 14);
-    assert.deepEqual(calls.map(x => x.action), ['product_save'],
-        'Rejected stale title MUST NOT proceed to inventory_update');
-    assert.equal(calls[0].payload.expected_name, openedName);
-    assert.equal(calls[0].payload.name_user_set, 1);
+    assert.deepEqual(calls.map(x => x.action), ['inventory_update'],
+        'Combined editor must submit exactly one atomic API request');
+    assert.equal(calls[0].payload.product_edit.expected_name, openedName);
+    assert.equal(calls[0].payload.product_edit.name, 'Passierte TOMATEN');
+    assert.equal(calls[0].payload.quantity, 1);
     assert.deepEqual(toasts, [{ message: 'TRANSLATED:error.product_conflict', severity: 'error' }]);
+}
+
+async function inventoryCombinedSuccess() {
+    const calls = [], toasts = [], cacheUpdates = [];
+    const oldName = 'Passierte Tomaten';
+    const newName = 'Passierte Tomaten Bio';
+    const fields = {
+        'edit-product-name': { value: newName, style: { display: 'block' } },
+        'edit-title-display': { textContent: oldName },
+        'edit-qty': { value: '3' },
+        'edit-loc': { value: 'frigo' },
+        'edit-expiry': { value: '' },
+        'edit-unit': { value: 'conf' },
+        'edit-conf-size': { value: '690' },
+        'edit-conf-unit': { value: 'g' },
+        'edit-vacuum': { checked: false },
+    };
+    const cache = [{ id: 51, product_id: 14, name: oldName, quantity: 2 }];
+    const context = {
+        window: {
+            _editingProduct: {
+                _originalName: oldName,
+                _expectedFields: { notes: 'Keep me', brand: '' },
+            },
+            _editingInventorySnapshot: {
+                quantity: 2, location: 'dispensa',
+                expiry_date: null, vacuum_sealed: 0, expiry_user_set: 0,
+            },
+        },
+        _findInventoryItem: () => ({
+            name: oldName, brand: '', category: 'conserve', notes: 'Keep me',
+            unit: 'conf', package_unit: 'g', default_quantity: 690,
+        }),
+        currentInventory: cache,
+        _allInventoryCache: cache,
+        _inventorySearchQuery: '',
+        _bannerEditPending: false,
+        document: { getElementById: id => fields[id] || null },
+        _expiryUserSetPayload: () => 0,
+        t: key => 'TRANSLATED:' + key,
+        _patchLiveInventoryItem: (id, patch) => cacheUpdates.push({ id, patch }),
+        renderInventory: () => {},
+        loadInventory: async () => {},
+        closeModal: () => {},
+        showToast: (msg, severity) => toasts.push({ msg, severity }),
+        api: async (action, args, method, payload) => {
+            calls.push({ action, payload });
+            return {
+                success: true, id: 51, product_id: 14,
+                product_name: newName, quantity: 3,
+            };
+        },
+    };
+    const submit = vm.runInNewContext(extract(
+        'async function submitEditInventory(e, id, productId) {',
+        '// ===== SCAN DEBUG LOG ====='
+    ) + '\nsubmitEditInventory;', context);
+    await submit({ preventDefault() {} }, 51, 14);
+    assert.deepEqual(calls.map(x => x.action), ['inventory_update'],
+        'Rename + stock adjustment uses a single API request');
+    assert.equal(calls[0].payload.product_edit.expected_name, oldName);
+    assert.equal(calls[0].payload.product_edit.name, newName);
+    assert.equal(calls[0].payload.product_edit.expected_fields.notes, 'Keep me');
+    assert.equal(calls[0].payload.expected_inventory.quantity, 2);
+    assert.equal(calls[0].payload.quantity, 3);
+    assert.equal(cacheUpdates.length, 1);
+    assert.equal(cacheUpdates[0].patch.name, newName);
+    assert.deepEqual(toasts, [{ msg: 'TRANSLATED:toast.updated', severity: 'success' }]);
 }
 
 async function inventoryQuantityConflict() {
@@ -193,6 +262,7 @@ async function productActionConflict() {
 
 (async () => {
     await inventoryEditorConflict();
+    await inventoryCombinedSuccess();
     await inventoryQuantityConflict();
     await productActionFieldConflict();
     await productActionConflict();

@@ -6301,6 +6301,59 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
     invalidateSmartShoppingCache();
 }
 
+/**
+ * Optional manual rename performed *within* inventory_update's IMMEDIATE
+ * transaction. Unlike product_save, this path must not merge product IDs:
+ * merging a product is a separate operation that can invalidate an inventory
+ * row. Instead ask the editor to refresh on a potential duplicate.
+ *
+ * Only title-derived fields are written; brand, notes, unit and package
+ * settings are managed by their existing editing paths.
+ */
+function inventoryApplyManualProductRename(PDO $db, int $productId, array $edit): string {
+    $existing = loadProductRow($db, $productId);
+    if (!$existing) throw new DomainException('product_not_found');
+    if ((string)$existing['name'] !== $edit['expected_name']) {
+        throw new DomainException('product_conflict');
+    }
+    $expected = $edit['expected_fields'] ?? null;
+    if ($expected !== null) {
+        foreach ($expected as $key => $value) {
+            $actual = $existing[$key] ?? null;
+            $matches = $key === 'default_quantity'
+                ? ($actual !== null && $value !== null && (float)$actual == (float)$value)
+                : ($actual === $value);
+            if (!$matches) throw new DomainException('product_conflict');
+        }
+    }
+
+    $incoming = array_merge($existing, [
+        'name' => $edit['name'],
+        'name_user_set' => 1,
+    ]);
+    $merged = mergeIncomingProductFields(
+        $existing, $incoming, normalizeProductBarcode($existing['barcode'] ?? null)
+    );
+    $title = (string)$merged['name'];
+
+    // The original product_save path may consolidate duplicated families.
+    // This combined editor intentionally refuses such a structural merge,
+    // rather than deleting/reparenting an inventory row within a stock edit.
+    if (findDuplicateProductId($db, $title, (string)$existing['brand'], null, $productId)) {
+        throw new DomainException('product_conflict');
+    }
+    $stmt = $db->prepare(
+        'UPDATE products SET name=?, shopping_name=?, kind=?, name_user_set=1, ' .
+        'updated_at=CURRENT_TIMESTAMP WHERE id=? AND name=?'
+    );
+    $stmt->execute([
+        $title, $merged['shopping_name'], $merged['kind'],
+        $productId, $edit['expected_name'],
+    ]);
+    if ($stmt->rowCount() !== 1) throw new DomainException('product_conflict');
+    return $title;
+}
+
 function updateInventory(PDO $db): void {
     EverLog::info('updateInventory');
     $input = json_decode(file_get_contents('php://input'), true);
@@ -6332,6 +6385,30 @@ function updateInventory(PDO $db): void {
         }
     }
 
+    // The editor sends product + inventory edits as ONE optional operation.
+    // Validate before locking or writing. API/scan clients without this field
+    // continue using the original inventory_update behavior.
+    $productEdit = $input['product_edit'] ?? null;
+    if (array_key_exists('product_edit', $input)) {
+        $valid = is_array($productEdit)
+            && !empty($productEdit['name']) && is_string($productEdit['name'])
+            && !empty($productEdit['expected_name'])
+            && is_string($productEdit['expected_name'])
+            // A combined edit MUST guard both records. Legacy unguarded stock
+            // updates (without product_edit) remain allowed as before.
+            && $expected !== null;
+        if ($valid && array_key_exists('expected_fields', $productEdit)) {
+            $parsed = productExpectedFields($productEdit['expected_fields']);
+            $valid = $parsed !== null;
+            if ($valid) $productEdit['expected_fields'] = $parsed;
+        }
+        if (!$valid) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_product_edit']);
+            return;
+        }
+    }
+
     // Read current state before update (needed for transaction reconciliation + shelf learning)
     $prev = $db->prepare("SELECT quantity, location, product_id, added_at, expiry_date, expiry_user_set FROM inventory WHERE id = ?");
     $prev->execute([$id]);
@@ -6355,7 +6432,8 @@ function updateInventory(PDO $db): void {
 
     // Wrap all writes in a single IMMEDIATE transaction; retry on SQLITE_BUSY.
     try {
-        dbWithRetry(function () use ($db, $fields, $params, $input, &$prevRow, $id, $expected): void {
+        $renamedProduct = null;
+        dbWithRetry(function () use ($db, $fields, $params, $input, &$prevRow, $id, $expected, $productEdit, &$renamedProduct): void {
             dbBeginImmediate($db);
             try {
                 // The original read occurred before this write lock. Refresh
@@ -6377,6 +6455,15 @@ function updateInventory(PDO $db): void {
                     }
                 }
                 $prevRow = $current;
+                if ($productEdit !== null) {
+                    if (isset($input['product_id'])
+                        && (int)$input['product_id'] !== (int)$current['product_id']) {
+                        throw new DomainException('inventory_conflict');
+                    }
+                    $renamedProduct = inventoryApplyManualProductRename(
+                        $db, (int)$current['product_id'], $productEdit
+                    );
+                }
                 $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
                 $stmt->execute($params);
 
@@ -6439,10 +6526,12 @@ function updateInventory(PDO $db): void {
             }
         });
     } catch (DomainException $e) {
-        http_response_code($e->getMessage() === 'inventory_not_found' ? 404 : 409);
-        echo json_encode(['success' => false,
-            'error' => $e->getMessage() === 'inventory_not_found'
-                ? 'inventory_not_found' : 'inventory_conflict']);
+        $reason = $e->getMessage();
+        $missing = in_array($reason, ['inventory_not_found', 'product_not_found'], true);
+        http_response_code($missing ? 404 : 409);
+        echo json_encode(['success' => false, 'error' =>
+            in_array($reason, ['product_conflict', 'product_not_found'], true)
+                ? $reason : ($missing ? 'inventory_not_found' : 'inventory_conflict')]);
         return;
     } catch (PDOException $e) {
         if (str_contains($e->getMessage(), 'database is locked')) {
@@ -6501,6 +6590,7 @@ function updateInventory(PDO $db): void {
         'expiry_date'    => $row['expiry_date'],
         'vacuum_sealed'  => (int)$row['vacuum_sealed'],
         'product_id'     => (int)$row['product_id'],
+        'product_name'   => $renamedProduct,
     ], JSON_UNESCAPED_UNICODE);
 }
 
