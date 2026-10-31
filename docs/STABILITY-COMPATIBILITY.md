@@ -474,3 +474,60 @@ References:
 - WebKit storage rules: https://webkit.org/blog/14403/updates-to-storage-policy/
 - WebKit ITP Home-Screen exemption: https://webkit.org/tracking-prevention/
 - Web Locks support and Safari exceptions: https://web-platform-dx.github.io/web-features-explorer/features/web-locks/
+
+
+## Server-enforced idempotency for offline inventory additions (2026-10-31)
+
+**Priority/compatibility:** Only replayed `inventory_add` calls that opt in via
+`_offline_op_id` are deduplicated. Scanner, catalog, Bring!, internal shopping
+`plan` and `trip`, and legacy API clients omitting the key retain existing
+semantics. Existing tables are unchanged; the startup migration creates one
+small `offline_write_receipts` table, without any user setting or feature
+toggle. Each receipt stores an opaque operation key, action name, SHA-256
+request fingerprint, and a small response JSON. There is no silent expiry,
+because an iPhone could reconnect after months offline.
+
+**Atomicity:** The receipt INSERT is in the *same SQLite BEGIN IMMEDIATE
+transaction* as the inventory row, product unit/packaging and transaction
+ledger changes. A committed receipt proves one completed core write.
+The second same-key request reads the stored successful response (including
+the same `inventory_id`), adding `idempotent_replay:true`. A reused key with
+different request fields returns 409 `idempotency_conflict` and does no
+new inventory write. Invalid IDs return 400. A cheap early receipt lookup
+avoids catalog consolidation on normal replays; an obligatory lookup **under
+the write lock** guarantees deduplication when multiple clients arrive
+simultaneously. Existing requests without `_offline_op_id` are unchanged.
+
+**Postcommit external synchronization:** Bring!/shopping reconciliation still
+happens after the inventory transaction, so a network failure cannot make
+an already committed stock addition look rejected. Receipts are first saved
+with `shopping_sync_pending:true` in the atomic commit; after reconciliation
+the stored response is best-effort refreshed. An abrupt crash between core
+commit and external sync means the receipt protects stock against duplication,
+**but it cannot guarantee that the Bring! network reconciliation completed**.
+
+**Client:** Offline PWA adds send their persisted `_opId` as the
+`_offline_op_id` request field; other offline actions omit it. Ambiguous
+responses still remain in the visible review queue for backward compatibility
+with older API deployments. Once users compare server state and intentionally
+retry, the same operation key safely returns the stored receipt rather than
+another stock increment. A successful replay still resolves its negative
+temporary row ID from `inventory_id`.
+
+**Regression evidence:** `scripts/integration-idempotent-offline-add.py`
+uses two independent PHP servers and a disposable shared SQLite database.
+Sequential and eight-way parallel same-ID replays create exactly one stock
+increment and one ledger entry; changing quantity with a reused key yields
+409. A test-only SQLite trigger failing the receipt INSERT **after stock
+and ledger writes** verifies both of those writes roll back, too. The real
+PWA-replay HTTP integration test also simulates a successful server commit
+followed by loss of the response and verifies an intentional identical
+retry returns `idempotent_replay:true` without duplicating inventory.
+
+**Explicit limits:** `inventory_update`, `inventory_use`, delete, spend
+and shopping writes are not yet server-deduplicated. They remain conflict-
+reviewed on ambiguous network outcomes rather than automatically resubmitted.
+Catalog product consolidation runs before the inventory transaction on the
+original path; it is not newly made part of this receipt atomicity guarantee.
+A manual iPhone Safari/Home-Screen PWA test is still outstanding; see
+`docs/STABILITY-SAFARI-MANUAL-TEST.md`. No production installation changed.

@@ -5101,9 +5101,73 @@ function applyAutoProductRules(PDO $db): void {
     ]);
 }
 
+/** Request identity is supplied only by the offline client as a stable UUID.
+ * A reused key with different parameters is a hard conflict, not a replay.
+ */
+function inventoryOfflineReceiptIdentity(array $input): ?array {
+    if (!array_key_exists('_offline_op_id', $input)) return null;
+    $key = $input['_offline_op_id'];
+    if (!is_string($key) || !preg_match('/^[a-zA-Z0-9_-]{12,128}$/D', $key)) {
+        return ['invalid' => true];
+    }
+    $payload = $input;
+    unset($payload['_offline_op_id']);
+    // The negative temporary row ID is a local UI handle, never a write
+    // parameter. It must not change the semantic identity of an addition.
+    if (isset($payload['id']) && is_numeric($payload['id']) && (int)$payload['id'] < 0) {
+        unset($payload['id']);
+    }
+    ksort($payload);
+    return ['key' => $key,
+        'hash' => hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION))];
+}
+
+/** Null on first submission, stored response for a confirmed replay, false
+ * when an operation ID was reused for a different action or payload.
+ */
+function inventoryOfflineReceiptRead(PDO $db, array $identity): array|false|null {
+    $stmt = $db->prepare('SELECT action, request_hash, response_json
+        FROM offline_write_receipts WHERE operation_id=?');
+    $stmt->execute([$identity['key']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return null;
+    if ($row['action'] !== 'inventory_add' || !hash_equals($row['request_hash'], $identity['hash'])) {
+        return false;
+    }
+    $result = json_decode($row['response_json'], true);
+    if (!is_array($result) || ($result['success'] ?? null) !== true) {
+        throw new RuntimeException('Invalid persisted inventory receipt');
+    }
+    return $result + ['idempotent_replay' => true];
+}
+
+function inventoryOfflineReceiptReply(array|false $receipt): void {
+    if ($receipt === false) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'idempotency_conflict']);
+    } else {
+        echo json_encode(array_merge($receipt, ['idempotent_replay' => true]));
+    }
+}
+
 function addToInventory(PDO $db): void {
     EverLog::info('addToInventory');
-    $input = json_decode(file_get_contents('php://input'), true);
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $receiptIdentity = inventoryOfflineReceiptIdentity($input);
+    if (isset($receiptIdentity['invalid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_offline_op_id']);
+        return;
+    }
+    // Early read avoids even a catalog consolidation on the common replay
+    // path. The required second check UNDER BEGIN IMMEDIATE closes races.
+    if ($receiptIdentity !== null) {
+        $existingReceipt = inventoryOfflineReceiptRead($db, $receiptIdentity);
+        if ($existingReceipt !== null) {
+            inventoryOfflineReceiptReply($existingReceipt);
+            return;
+        }
+    }
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (float)($input['quantity'] ?? 1);
     $location = $input['location'] ?? 'dispensa';
@@ -5185,6 +5249,15 @@ function addToInventory(PDO $db): void {
     try {
         dbWithRetry(static function () use ($db): void { dbBeginImmediate($db); });
         $inventoryTxnOpen = true;
+        if ($receiptIdentity !== null) {
+            $existingReceipt = inventoryOfflineReceiptRead($db, $receiptIdentity);
+            if ($existingReceipt !== null) {
+                dbRollback($db);
+                $inventoryTxnOpen = false;
+                inventoryOfflineReceiptReply($existingReceipt);
+                return;
+            }
+        }
 
     // If a different unit was specified, update the product's unit.
     // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
@@ -5271,6 +5344,37 @@ function addToInventory(PDO $db): void {
     $stmt->execute([$productId, $quantity, $location]);
 
     clearFinishedDismissed($db, $productId);
+    $coreReceipt = [
+        'success' => true,
+        'new_qty' => $newQty,
+        'total_qty' => $totalQty,
+        'unit' => $prodInfo['unit'] ?? 'pz',
+        'default_quantity' => (float)($prodInfo['default_quantity'] ?? 0),
+        'package_unit' => $prodInfo['package_unit'] ?? null,
+        'removed_from_bring' => false,
+        'removed_names' => [],
+        'shopping_kept' => false,
+        'remaining_need' => null,
+        'canonical_product_id' => $productId,
+        'catalog_merged' => $catalogMerged,
+        'inventory_id' => $inventoryId,
+        'new_row' => $newRow,
+        // External shopping synchronization runs after commit. A crash
+        // between commit and HTTP response must still return a receipt,
+        // but cannot claim the external network call definitely completed.
+        'shopping_sync_pending' => true,
+        'expiry_date' => $expiry,
+        'location' => $location,
+    ];
+    if ($receiptIdentity !== null) {
+        $record = $db->prepare('INSERT INTO offline_write_receipts
+            (operation_id, action, request_hash, response_json)
+            VALUES (?, ?, ?, ?)');
+        $record->execute([
+            $receiptIdentity['key'], 'inventory_add', $receiptIdentity['hash'],
+            json_encode($coreReceipt, JSON_UNESCAPED_UNICODE),
+        ]);
+    }
     dbCommit($db);
     $inventoryTxnOpen = false;
     } catch (Throwable $e) {
@@ -5305,25 +5409,27 @@ function addToInventory(PDO $db): void {
         EverLog::exception($e, 'inventory_add_smart_cache');
     }
 
-    echo json_encode([
-        'success' => true,
-        'new_qty' => $newQty,
-        'total_qty' => $totalQty,
-        'unit' => $prodInfo['unit'] ?? 'pz',
-        'default_quantity' => (float)($prodInfo['default_quantity'] ?? 0),
-        'package_unit' => $prodInfo['package_unit'] ?? null,
+    $finalReceipt = array_merge($coreReceipt, [
         'removed_from_bring' => !empty($restock['removed']),
         'removed_names' => $restock['removed_names'] ?? [],
         'shopping_kept' => !empty($restock['shopping_kept']),
         'remaining_need' => $restock['remaining'] ?? null,
-        'canonical_product_id' => $productId,
-        'catalog_merged' => $catalogMerged,
-        'inventory_id' => $inventoryId,
-        'new_row' => $newRow,
         'shopping_sync_pending' => $shoppingSyncPending,
-        'expiry_date' => $expiry,
-        'location' => $location,
     ]);
+    if ($receiptIdentity !== null) {
+        try {
+            $db->prepare('UPDATE offline_write_receipts SET response_json=?
+                WHERE operation_id=?')->execute([
+                json_encode($finalReceipt, JSON_UNESCAPED_UNICODE),
+                $receiptIdentity['key'],
+            ]);
+        } catch (Throwable $e) {
+            // Core inventory and its receipt are already committed. A receipt
+            // refresh failure must never trigger a full stock write retry.
+            EverLog::exception($e, 'inventory_add_receipt_refresh');
+        }
+    }
+    echo json_encode($finalReceipt);
     EverLog::info('inventory_add ok', [
         'product_id' => $productId,
         'qty' => $quantity,

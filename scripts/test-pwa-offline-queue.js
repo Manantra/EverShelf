@@ -214,6 +214,7 @@ async function testOfflineNewRowDependencies() {
     });
     assert.equal(added._queued, true);
     const tempId = queued(st)[0].body.id;
+    const queuedOpId = queued(st)[0]._opId;
     assert.equal(typeof tempId, 'number');
     assert(tempId < 0, 'Offline added row gets a temporary negative ID');
     assert.equal(h.optimistic[0][1].id, tempId,
@@ -224,6 +225,8 @@ async function testOfflineNewRowDependencies() {
     assert.equal(await h.sync(), 2);
     assert.equal(actions[1].body.id, 9191,
         'Dependent edit uses server-issued ID after acknowledged inventory creation');
+    assert.equal(actions[0].body._offline_op_id, queuedOpId,
+        'Inventory add carries its persisted queue identifier as server receipt key');
     assert.equal(queued(st).length, 0);
 }
 

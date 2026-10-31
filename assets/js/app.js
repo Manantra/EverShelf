@@ -26942,7 +26942,12 @@ async function _syncOfflineQueue() {
             try {
                 // Network errors, HTTP conflicts and timeouts must never count
                 // as an acknowledgement. A delayed iPhone resume is allowed.
-                response = await api(op.action, {}, 'POST', body, {}, 15000);
+                // Stable receipt key for inventory additions: the server
+                // persists it in the same SQLite transaction as stock/ledger.
+                // It must survive a lost response and even a PWA restart.
+                const requestBody = op.action === 'inventory_add'
+                    ? { ...body, _offline_op_id: op._opId } : body;
+                response = await api(op.action, {}, 'POST', requestBody, {}, 15000);
                 error = response?.error || 'sync_unconfirmed';
             } catch (_) {}
             const removed = response?.removed;

@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { execFileSync } = require('node:child_process');
+const { randomUUID } = require('node:crypto');
 
 const rootArg = process.argv.indexOf('--sandbox-root');
 const urlArg = process.argv.indexOf('--base-url');
@@ -71,7 +72,7 @@ function browser(afterServerReply = null) {
     const logs = [];
     const ctx = {
         localStorage, navigator,
-        crypto: { randomUUID: () => 'e2e-op-' + ++nextOp },
+        crypto: { randomUUID },
         _renderOfflineBanner: () => {},
         showToast: (message, type) => logs.push({ message, type }),
         t: key => key,
@@ -238,5 +239,19 @@ function sql(productId, inventoryId) {
         'A PWA restart must not automatically duplicate an uncertain add');
     [code, other] = await request('inventory_list');
     assert.equal(other.inventory.find(row => row.product_id === uncertainPid).quantity, 1);
-    console.log('Actual HTTP/SQLite offline conflicts, lost acknowledgements and PWA reload passed.');
+    // A user-approved retry uses the persisted operation key. Even though
+    // the FIRST call really committed, this must return its receipt instead
+    // of adding another package.
+    const retryOp = retryAfterReload.get().find(op => op.body.product_id === uncertainPid);
+    assert(retryOp && retryOp._opId);
+    [code, other] = await request('inventory_add', {
+        ...retryOp.body, _offline_op_id: retryOp._opId,
+    });
+    assert.equal(code, 200);
+    assert.equal(other.success, true);
+    assert.equal(other.idempotent_replay, true);
+    [code, other] = await request('inventory_list');
+    assert.equal(other.inventory.find(row => row.product_id === uncertainPid).quantity, 1,
+        'Retrying same offline operation ID does not add stock twice');
+    console.log('Actual HTTP/SQLite offline conflicts, lost replies, and idempotent user retry passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

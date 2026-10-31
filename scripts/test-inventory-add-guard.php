@@ -61,7 +61,7 @@ function i18n_has(string $locale, string $dotted): bool
 }
 
 // ── the API answers with a stable key, and logs an event ────────────────────
-$add = slice_from($api, 'function addToInventory(PDO $db): void {', 1200);
+$add = slice_from($api, 'function addToInventory(PDO $db): void {', 3000);
 assert_true($add !== '', 'api: addToInventory() exists');
 assert_true(str_contains($add, "'error_key' => 'error.product_id_required'"),
     'api: a missing product_id answers with the stable error_key');
