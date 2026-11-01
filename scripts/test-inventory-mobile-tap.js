@@ -7,6 +7,7 @@ const vm = require('node:vm');
 
 const src = fs.readFileSync(path.join(__dirname, '../assets/js/app.js'), 'utf8');
 const mobile = fs.readFileSync(path.join(__dirname, '../assets/css/mobile.css'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '../assets/css/style.css'), 'utf8');
 function extract(start, end) {
     const a = src.indexOf(start), b = src.indexOf(end, a + start.length);
     assert(a >= 0 && b > a, [start, end]);
@@ -116,6 +117,11 @@ async function gestureSuite() {
         'Phone pantry label will not break Vorratskammer mid-word');
     assert(src.includes("t('units.conf_short') + ' (' + t('units.conf') + ')'"),
         'Edit unit select uses localized Pkg (Packung), not Packung (Packungen)');
+    const leftBg = css.match(/\.inv-swipe-bg-left\s*\{([^}]+)\}/)?.[1] || '';
+    const rightBg = css.match(/\.inv-swipe-bg-right\s*\{([^}]+)\}/)?.[1] || '';
+    assert(leftBg.includes('rgba(245, 158, 11, 0.2)')
+        && rightBg.includes('rgba(239, 68, 68, 0.18)'),
+        'Consume swipe is amber, disposal swipe is red rather than edit blue');
     assert(!src.includes('function showInvActionChooser('),
         'The obsolete two-action swipe chooser is no longer reachable');
     const detail = extract('function showItemDetail(inventoryId, productId) {',

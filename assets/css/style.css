@@ -1732,18 +1732,21 @@ body.server-offline .bottom-nav {
     pointer-events: none;
 }
 
+/* Swipe backgrounds describe the action revealed on each side:
+   left gesture = consumption (amber), right = disposal (red).
+   Both gestures still open a confirmation form, never a direct write. */
 .inv-swipe-bg-left {
     left: 0;
     justify-content: flex-end;
-    background: rgba(239, 68, 68, 0.18);
-    color: #b91c1c;
+    background: rgba(245, 158, 11, 0.2);
+    color: #92400e;
 }
 
 .inv-swipe-bg-right {
     right: 0;
     justify-content: flex-start;
-    background: rgba(59, 130, 246, 0.16);
-    color: #1d4ed8;
+    background: rgba(239, 68, 68, 0.18);
+    color: #b91c1c;
 }
 
 .inventory-item.swipe-left .inv-swipe-bg-left,
