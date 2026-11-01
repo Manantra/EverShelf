@@ -707,3 +707,15 @@ Regressions: scripts/integration-usage-waste-stats.py uses real HTTP and
 SQLite to test actual use, reasoned disposal, positive/negative correction,
 transfer and undone operations. scripts/test-compact-package-badges.js
 tests the unit badge renderer, accessibility and mobile CSS. Both run in CI.
+
+
+### CI integration rate-limit isolation (2026-11-01)
+
+The new stats integration test adds legitimate HTTP requests to the same
+loopback IP used by all CI suites. A later concurrent-edit race test then
+received HTTP 429 under the application's normal 120-request/minute limit,
+where its contract expects a 409 product conflict. No stock or PWA test
+failed. CI now explicitly clears only the disposable sandbox's file-based
+rate-limit bucket, after verifying EVERSHELF_SANDBOX=1, before the remaining
+concurrency suites. Production rate limiting is unchanged; no data,
+settings, ledgers or receipts are cleared.

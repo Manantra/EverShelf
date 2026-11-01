@@ -107,6 +107,15 @@ jobs:
           python3 scripts/integration-offline-conflict-resolution.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           python3 scripts/integration-recent-actual-use.py --sandbox-root . --base-url http://127.0.0.1:18080
           python3 scripts/integration-usage-waste-stats.py --sandbox-root . --base-url http://127.0.0.1:18080
+          # CI uses a single disposable loopback IP and a shared 120 req/min
+          # bucket for every unrelated integration suite. This test alone adds
+          # legitimate API traffic, making later concurrency assertions see
+          # an incidental 429 rather than the intended version-conflict 409.
+          # Clear ONLY the synthetic sandbox limiter here; never production.
+          grep -qx 'EVERSHELF_SANDBOX=1' .env
+          if [ -d data/rate_limits ]; then
+            find data/rate_limits -maxdepth 1 -type f -name '*.json' -delete
+          fi
           python3 scripts/integration-concurrent-product-edit.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           python3 scripts/integration-concurrent-field-edits.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           python3 scripts/integration-atomic-product-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
