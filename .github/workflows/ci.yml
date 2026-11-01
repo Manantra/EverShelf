@@ -69,6 +69,9 @@ jobs:
       - name: Verify phone inventory tap, swipe and package size display
         run: node scripts/test-inventory-mobile-tap.js
 
+      - name: Verify iPhone swipe transient API errors and centered labels
+        run: node scripts/test-inventory-transient-errors.js
+
       - name: Verify product-detail disposal and inventory-only removal stay separate
         run: node scripts/test-disposal-entrypoints.js
 

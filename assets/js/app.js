@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101j'; // bump when translations change
+const _I18N_VERSION = '20261101k'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6632,7 +6632,10 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
         break;
     }
     // Keep local caches fresh for offline use (only ever written when server responds successfully)
-    if (action === 'inventory_list' && data && Array.isArray(data.inventory)) {
+    // Only the complete pantry may populate the offline cache. A filtered
+    // location response must never hide stock in another location offline.
+    if (action === 'inventory_list' && !params?.location
+        && data?.success !== false && Array.isArray(data?.inventory)) {
         _offlineCacheSet(data.inventory);
     }
     if (action === 'get_settings' && data && data.success !== false) {
@@ -6753,10 +6756,11 @@ function showPage(pageId, param = null, options = {}) {
             break;
         case 'inventory':
             if (param !== null) {
-                currentLocation = param;
+                // filterLocation already refreshes this tab; do not duplicate.
                 filterLocation(param);
+            } else {
+                loadInventory();
             }
-            loadInventory();
             break;
         case 'scan':
             closeScanNameSearch();
@@ -10055,20 +10059,19 @@ async function loadInventory() {
     const requestId = ++loadInventory._requestId;
     try {
         _restoreInventorySearchInput();
-        const [locData, allData] = await Promise.all([
-            api('inventory_list', currentLocation ? { location: currentLocation } : {}),
-            currentLocation ? api('inventory_list', {}) : null,
-        ]);
-        // A rate-limit / error answer is a JSON object without `inventory`: never replace
-        // the visible pantry with an empty list in that case (the household would think
-        // everything is gone). Keep what is on screen and try again on the next refresh.
+        // One full-inventory request serves the entire pantry and each tab.
+        // Two simultaneous reads per refresh used twice the rate-limit budget.
+        const data = await api('inventory_list');
+        // A 429 or failed response is never a legitimate empty pantry.
         if (requestId !== loadInventory._requestId) return;
-        const locItems = Array.isArray(locData?.inventory) ? locData.inventory : null;
-        if (locItems === null) throw new Error('inventory_list: no payload');
-        currentInventory = _inventoryVisibleItems(locItems);
-        _allInventoryCache = currentLocation
-            ? _inventoryVisibleItems(allData?.inventory || [])
-            : currentInventory;
+        if (data?.success === false || !Array.isArray(data?.inventory)) {
+            throw new Error('inventory_list: ' + (data?.error || 'invalid_payload'));
+        }
+        const allItems = _inventoryVisibleItems(data.inventory);
+        _allInventoryCache = allItems;
+        currentInventory = currentLocation
+            ? allItems.filter(i => i.location === currentLocation)
+            : allItems;
         const q = (_inventorySearchQuery || document.getElementById('inventory-search')?.value || '').trim();
         if (q) {
             filterInventory();
@@ -10949,7 +10952,10 @@ async function _openUsePage(productId, location) {
 
         // Swiping/tapping a particular row must select that exact location.
         _requestedUseEntryLocation = location;
-        await loadUseInventoryInfo();
+        const inventoryLoaded = await loadUseInventoryInfo();
+        // A rate-limited inventory GET must not open a stale Use form,
+        // and definitely must not label the product as exhausted.
+        if (inventoryLoaded === false) return;
         showPage('use', null, { skipHistory: false });
     } catch (err) {
         console.error('_openUsePage error:', err);
@@ -10978,7 +10984,8 @@ async function quickThrowFromInv(productId, location, invId) {
         package_unit: item?.package_unit || '',
     };
     // Enrich with full product if inventory row had sparse data
-    if (!currentProduct.name || !currentProduct.image_url) {
+    // A missing image is perfectly normal, not a reason for another GET.
+    if (!currentProduct.name) {
         try {
             const data = await api('product_get', { id: productId });
             if (data?.product) {
@@ -11644,7 +11651,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101j';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101k';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11654,7 +11661,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261101j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261101k';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -13756,11 +13763,25 @@ async function deleteActionInventoryItem(id) {
 }
 
 // === THROW AWAY FORM ===
+let _throwFormRequestId = 0;
 function showThrowForm(preferredLocation = null) {
     // All disposal entry points share this form, including product detail,
     // swipe-left and the action page. Default to the selected inventory row.
+    // Capture identity before the request: a subsequent swipe can change
+    // the global currentProduct while this API call is in flight.
+    const requestedProduct = { ...currentProduct };
+    const requestedProductId = Number(requestedProduct.id);
+    const requestId = ++_throwFormRequestId;
     api('inventory_list').then(data => {
-        const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        if (requestId !== _throwFormRequestId
+            || Number(currentProduct?.id) !== requestedProductId) return;
+        // Rate-limits, server errors or missing JSON are NOT 'no stock'.
+        // Only a successful, valid inventory list can prove absence.
+        if (data?.success === false || !Array.isArray(data?.inventory)) {
+            showToast(data?.error || t('error.loading'), 'error');
+            return;
+        }
+        const items = data.inventory.filter(i => Number(i.product_id) === requestedProductId);
         if (items.length === 0) {
             showToast(t('error.not_in_inventory'), 'error');
             return;
@@ -13784,12 +13805,12 @@ function showThrowForm(preferredLocation = null) {
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div class="product-preview-small" style="margin-bottom:12px;position:relative">
-                ${currentProduct.image_url ?
-                    `<img src="${escapeHtml(currentProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
-                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦'}</span>`
+                ${requestedProduct.image_url ?
+                    `<img src="${escapeHtml(requestedProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
+                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(requestedProduct.category, requestedProduct.name)] || '📦'}</span>`
                 }
                 <div class="product-preview-info">
-                    <h3>${escapeHtml(currentProduct.name)}</h3>
+                    <h3>${escapeHtml(requestedProduct.name)}</h3>
                     <p>${escapeHtml(t('inventory.label_quantity').replace(/^📦\s*/, ''))}: <strong>${qtyDisplay}</strong></p>
                 </div>
                 ${items[0] ? `<button type="button" class="btn-edit-inline" onclick="editInventoryItem(${items[0].id})" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
@@ -13830,6 +13851,11 @@ function showThrowForm(preferredLocation = null) {
         `;
         setQtyInputUnitLabel('throw-quantity', selected.unit || 'pz');
         document.getElementById('modal-overlay').style.display = 'flex';
+    }).catch(err => {
+        if (requestId !== _throwFormRequestId
+            || Number(currentProduct?.id) !== requestedProductId) return;
+        console.warn('[Dispose] Inventory load failed:', err);
+        showToast(t('error.connection'), 'error');
     });
 }
 
@@ -15430,9 +15456,15 @@ function _locationHasOpenedPackage(items, location) {
 }
 
 async function loadUseInventoryInfo() {
+    const requestedProductId = Number(currentProduct?.id);
     try {
         const data = await api('inventory_list');
-        const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        if (Number(currentProduct?.id) !== requestedProductId) return false;
+        if (data?.success === false || !Array.isArray(data?.inventory)) {
+            showToast(data?.error || t('error.loading'), 'error');
+            return false;
+        }
+        const items = data.inventory.filter(i => Number(i.product_id) === requestedProductId);
         _useCurrentItems = items; // cache for submitUseAll context detection
         const infoEl = document.getElementById('use-inventory-info');
         const unitSwitch = document.getElementById('use-unit-switch');
@@ -15445,7 +15477,7 @@ async function loadUseInventoryInfo() {
             _useCurrentItems = [];
             document.getElementById('use-expiry-hint').style.display = 'none';
             clearUseFormIdleCountdown();
-            return;
+            return true;
         }
 
         // ── Hero card meta: expiry badge + qty pill ──────────────────
@@ -15590,8 +15622,11 @@ async function loadUseInventoryInfo() {
             syncUseQtyUnitBadge();
         }
         _maybeStartUseFormIdleCountdown();
+        return true;
     } catch(e) {
-        console.error(e);
+        console.error('[Use] Inventory loading failed:', e);
+        showToast(t('error.connection'), 'error');
+        return false;
     }
 }
 

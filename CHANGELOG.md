@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.19] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
+
+### False not-in-inventory warning and centered swipe labels (Fixes #4)
+
+- Staging phone logs showed real HTTP 429 rate-limit responses on inventory
+  reads. The disposal screen misread failed requests as an empty stock.
+- Consumption and disposal screens now distinguish errors from a genuine,
+  successfully retrieved empty inventory; server rate limits remain enabled.
+- One full pantry GET per refresh, local location filtering, no redundant
+  second refresh on navigation; filtered results cannot overwrite offline
+  cache for all locations.
+- Late disposal responses cannot replace a newer modal, and a missing product
+  picture no longer causes an unnecessary product read.
+- Both action labels are centered in their visible 100px swipe strips.
+  Directions remain LEFT dispose/red and RIGHT consume/amber.
+- Regression test covers 429, valid recovery, actual zero stock, network
+  error, stale response and centered swipe labels.
+
 ## [1.16.18] - 2026-11-01 (proposed staging PR #3, not yet released)
 
 ### Correct mobile swipe direction (Fixes #1)

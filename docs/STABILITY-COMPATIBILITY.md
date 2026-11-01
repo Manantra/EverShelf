@@ -861,3 +861,29 @@ regression tests, cache stamps and app SemVer together. Neither gesture
 writes stock until the opened form is completed/confirmed. The draft PR
 remains unmerged against stability/reliability-baseline, and production is
 untouched.
+
+
+## v1.16.19 / Issue #4: HTTP 429 versus actual missing inventory
+
+Staging logs (2026-11-01 at 13:01) confirmed a 120-requests/minute
+rate-limit response for iPhone inventory_list and product_get.
+Previously the disposal dialog interpreted failed responses without an
+inventory array as a genuinely empty list, incorrectly reporting that
+the product was missing even while the demo contained 14 packages.
+
+The pantry now uses one full inventory GET per refresh, filtering the
+location client-side; switching to the pantry no longer starts an extra
+duplicate load. Only successful, unfiltered inventory reads may refresh
+the full offline cache. Failed reads cannot clear the visible pantry.
+The app's server-side security limit is unchanged.
+
+Consumption and disposal views now treat a failed API read as an error,
+never zero stock. The disposal dialog binds each async response to the
+product and the latest request to ignore stale responses. A missing
+image no longer causes an unnecessary extra product_get. No SQLite,
+inventory, ledger, offline queue or production changes.
+
+Both action texts are centered in the 100px revealed swipe strip:
+LEFT disposal/red, RIGHT consume/amber. Real JS routine tests simulate
+429, success after recovery, genuine absence, network failure, stale
+same-product replies, single full-inventory reads and centering.

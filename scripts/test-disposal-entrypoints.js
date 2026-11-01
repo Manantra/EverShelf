@@ -56,7 +56,7 @@ async function testDetailAndSwipeRouteToOneWasteForm() {
 }
 
 async function testPreferredLocationIsPreserved() {
-    const source = code('function showThrowForm(preferredLocation = null) {',
+    const source = code('let _throwFormRequestId = 0;',
         'function selectThrowLocation(');
     const rows = [
         { id: 11, product_id: 42, name: 'Demo', location: 'dispensa',

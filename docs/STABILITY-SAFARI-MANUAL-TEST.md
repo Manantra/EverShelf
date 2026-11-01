@@ -179,3 +179,15 @@ arrows. This section supersedes the earlier v1.16.17 directions above.
 Check on iPhone Safari staging and the Home Screen PWA after loading the
 new version online. Swipe each way, then cancel without confirming, and
 verify the sample still has 14 packages.
+
+
+## v1.16.19 / Issue #4: iPhone rapid-swipe / no false no-stock warning
+
+Open the isolated Safari staging online, then relaunch the Home Screen
+PWA. The version must be v1.16.19. Do not clear any pending offline
+operations. Swipe LEFT and cancel the disposal form, then swipe RIGHT
+and leave the consumption form; repeat a few times without confirming.
+Both texts must appear centered inside their respective red/amber reveal
+strips. A temporary server rate limit must NOT say the product is missing
+or already exhausted. After any temporary error the UI must recover.
+Demo stock should stay at exactly 14 packages.

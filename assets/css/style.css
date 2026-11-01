@@ -1720,10 +1720,15 @@ body.server-offline .bottom-nav {
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 100%;
+    /* The revealed strip is 100px wide; center the full label INSIDE it.
+       Centering in a full-width background hid the label behind the row. */
+    width: 100px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
-    padding: 0 18px;
+    justify-content: center;
+    text-align: center;
+    padding: 0 4px;
     font-size: 0.85rem;
     font-weight: 600;
     opacity: 0;
@@ -1735,15 +1740,13 @@ body.server-offline .bottom-nav {
 /* Swipe-left disposal is red; swipe-right consumption is amber.
    Both open forms and never execute a stock write automatically. */
 .inv-swipe-bg-left {
-    left: 0;
-    justify-content: flex-end;
+    right: 0;
     background: rgba(239, 68, 68, 0.18);
     color: #b91c1c;
 }
 
 .inv-swipe-bg-right {
-    right: 0;
-    justify-content: flex-start;
+    left: 0;
     background: rgba(245, 158, 11, 0.2);
     color: #92400e;
 }
