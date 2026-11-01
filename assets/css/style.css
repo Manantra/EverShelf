@@ -2429,6 +2429,9 @@ body.server-offline .bottom-nav {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
+.qty-unit-compact { display: none; }
+.qty-unit-full { display: inline; }
+
 .qty-unit-badge.qty-unit-muted {
     background: var(--bg-card);
     color: var(--primary);

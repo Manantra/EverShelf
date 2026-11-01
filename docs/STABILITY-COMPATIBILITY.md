@@ -677,3 +677,33 @@ Regression: php scripts/test-use-form-layout.php verifies the form's
 DOM order, safe form semantics, full-stock confirmation, fast fractional
 controls, translated German packaging and all six locale strings.
 No production data or settings are changed. Test first in isolated PWA.
+
+## Compact package units; genuine consumption versus disposal statistics (2026-11-01)
+
+The full localized package name (German: Packung/Packungen) remains on
+product cards, lists and selection buttons. At <=440px wide, only small
+quantity badges show a localized short label (German: Pkg.); the full
+description remains in accessibility attributes and tooltips. The persisted
+unit code 'conf' and all conversions remain unchanged. A disposal modal
+uses the same unit-badge helper. Cache and i18n versions are advanced.
+
+Actual use/consume saves a transaction with type=out. Throw/dispose first
+asks for a reason, then sends notes=Buttato|reason_key; the server detects
+this and saves type=waste. A manual stock correction saves an in/out
+ledger entry with the note [Manual correction]; transfers, inventory
+deletions, reconciliation and undone entries are also separate from use.
+
+Previously the monthly consumed counters mixed out and waste, and the
+monthly/30-day trends counted some manual corrections as consumption.
+Shared genuine-consumption/restock SQL predicates now separate actual use,
+waste and housekeeping in stats, monthly_stats and recent/popular products.
+A waste-only month no longer disappears from the monthly panel. Historical
+ledger records and the reasons for waste are retained unchanged.
+
+Shopping forecast consumption heuristics are intentionally NOT altered by
+this change; their business logic should receive a separate dedicated
+audit to distinguish consumption, disposal and stock corrections.
+Regressions: scripts/integration-usage-waste-stats.py uses real HTTP and
+SQLite to test actual use, reasoned disposal, positive/negative correction,
+transfer and undone operations. scripts/test-compact-package-badges.js
+tests the unit badge renderer, accessibility and mobile CSS. Both run in CI.

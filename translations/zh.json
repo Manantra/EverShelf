@@ -136,6 +136,7 @@
   "units": {
     "pz": "件",
     "conf": "包",
+    "conf_short": "包",
     "g": "g",
     "ml": "ml",
     "pieces": "件",

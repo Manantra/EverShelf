@@ -136,6 +136,7 @@
   "units": {
     "pz": "pz",
     "conf": "conf",
+    "conf_short": "conf.",
     "g": "g",
     "ml": "ml",
     "pieces": "Pezzi",

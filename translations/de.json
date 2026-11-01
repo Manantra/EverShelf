@@ -136,6 +136,7 @@
   "units": {
     "pz": "Stk",
     "conf": "Packung",
+    "conf_short": "Pkg.",
     "g": "g",
     "ml": "ml",
     "pieces": "Stück",

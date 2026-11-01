@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101c'; // bump when translations change
+const _I18N_VERSION = '20261101d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7352,7 +7352,10 @@ function _nutrScoreBar(label, val, color) {
 function _renderMonthlyStatsSection(data) {
     const section = document.getElementById('monthly-stats-section');
     if (!section) return;
-    if (!data || !data.success || data.items_consumed === 0) {
+    // A month with waste but zero consumption still deserves a visible
+    // waste statistic; do not hide its panel just because nothing was used.
+    if (!data || !data.success || (
+        data.items_consumed === 0 && data.items_wasted === 0 && data.items_added === 0)) {
         section.innerHTML = '';
         section.style.display = 'none';
         return;
@@ -9921,9 +9924,25 @@ function ensureQtyUnitBadge(inputId) {
 function setQtyInputUnitLabel(inputId, unit, muted = false) {
     const badge = ensureQtyUnitBadge(inputId) || document.getElementById(inputId + '-unit');
     if (!badge) return;
-    badge.textContent = getUnitDisplayLabel(unit);
+    const fullLabel = getUnitDisplayLabel(unit);
+    badge.replaceChildren();
+    if (unit === 'conf') {
+        // Keep the full accessible word, but on a narrow phone show a short,
+        // *localized* label so the amount input never gets pushed off-screen.
+        const full = document.createElement('span');
+        full.className = 'qty-unit-full';
+        full.textContent = fullLabel;
+        const short = document.createElement('span');
+        short.className = 'qty-unit-compact';
+        short.setAttribute('aria-hidden', 'true');
+        short.textContent = t('units.conf_short');
+        badge.append(full, short);
+    } else {
+        badge.textContent = fullLabel;
+    }
+    badge.setAttribute('aria-label', fullLabel);
     badge.classList.toggle('qty-unit-muted', !!muted);
-    badge.title = (t('qty.unit_for_input')) + ': ' + badge.textContent;
+    badge.title = (t('qty.unit_for_input')) + ': ' + fullLabel;
 }
 
 /**
@@ -13894,6 +13913,7 @@ function showThrowForm() {
                 </button>
             </div>
         `;
+        setQtyInputUnitLabel('throw-quantity', items[0]?.unit || 'pz');
         document.getElementById('modal-overlay').style.display = 'flex';
     });
 }

@@ -136,6 +136,7 @@
   "units": {
     "pz": "pcs",
     "conf": "pkg",
+    "conf_short": "emb.",
     "g": "g",
     "ml": "ml",
     "pieces": "Pièces",

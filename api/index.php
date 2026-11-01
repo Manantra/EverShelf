@@ -8598,18 +8598,49 @@ function dismissInventoryAnomaly(): void {
     echo json_encode(['success' => true]);
 }
 
+/**
+ * Genuine household consumption for user-facing usage statistics.
+ * Ledger housekeeping can have type='out' for arithmetic reasons; it is
+ * not the same as the user explicitly consuming a food product.
+ */
+function statsGenuineConsumptionSql(string $alias = 't'): string {
+    return "({$alias}.type = 'out' AND COALESCE({$alias}.undone, 0) = 0
+        AND ({$alias}.notes IS NULL OR (
+            {$alias}.notes NOT LIKE '[Manual correction]%'
+            AND {$alias}.notes NOT LIKE '[Spostamento]%'
+            AND {$alias}.notes NOT LIKE '[Eliminazione inventario]%'
+            AND {$alias}.notes NOT LIKE '[Reconciliation]%'
+            AND {$alias}.notes NOT LIKE '[Finished]%'
+            AND {$alias}.notes NOT LIKE '[Undone]%'
+            AND {$alias}.notes NOT LIKE '[Annullato]%'
+        )))";
+}
+
+/** Actual restocking, not a manual stock correction or location transfer. */
+function statsGenuineRestockSql(string $alias = 't'): string {
+    return "({$alias}.type = 'in' AND COALESCE({$alias}.undone, 0) = 0
+        AND ({$alias}.notes IS NULL OR (
+            {$alias}.notes NOT LIKE '[Manual correction]%'
+            AND {$alias}.notes NOT LIKE '[Spostamento]%'
+            AND {$alias}.notes NOT LIKE '[Undone]%'
+            AND {$alias}.notes NOT LIKE '[Annullato]%'
+        )))";
+}
+
 function getStats(PDO $db): void {
     EverLog::info('getStats');
-    // Consolidated summary query: totals + 7-day activity in a single round-trip
+    // Consolidated summary query: exclude corrections/undone entries from use.
+    $realUse = statsGenuineConsumptionSql('t');
+    $realAdd = statsGenuineRestockSql('t');
     $summary = $db->query("
         SELECT
             (SELECT COUNT(*) FROM products)                              AS total_products,
             (SELECT COALESCE(SUM(quantity),0) FROM inventory)           AS total_items,
             (SELECT COUNT(DISTINCT location) FROM inventory)            AS total_locations,
-            (SELECT COUNT(*) FROM transactions
-             WHERE type='in'  AND created_at >= datetime('now','-7 days')) AS recent_in,
-            (SELECT COUNT(*) FROM transactions
-             WHERE type='out' AND created_at >= datetime('now','-7 days')) AS recent_out
+            (SELECT COUNT(*) FROM transactions t
+             WHERE {$realAdd} AND t.created_at >= datetime('now','-7 days')) AS recent_in,
+            (SELECT COUNT(*) FROM transactions t
+             WHERE {$realUse} AND t.created_at >= datetime('now','-7 days')) AS recent_out
     ")->fetch(PDO::FETCH_ASSOC);
     $totalProducts = (int)$summary['total_products'];
     $totalItems    = (float)$summary['total_items'];
@@ -8772,14 +8803,15 @@ function getStats(PDO $db): void {
         return $da <=> $db2;
     });
 
-    // Waste vs consumption trend (3 × 30-day buckets)
+    // Waste and actual consumption are separate (never count stock corrections).
     $wasteStats3m = $db->query("
         SELECT type,
             SUM(CASE WHEN created_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS m0,
             SUM(CASE WHEN created_at >= datetime('now', '-60 days') AND created_at < datetime('now', '-30 days') THEN 1 ELSE 0 END) AS m1,
             SUM(CASE WHEN created_at >= datetime('now', '-90 days') AND created_at < datetime('now', '-60 days') THEN 1 ELSE 0 END) AS m2
-        FROM transactions
-        WHERE type IN ('out', 'waste') AND created_at >= datetime('now', '-90 days')
+        FROM transactions t
+        WHERE (({$realUse}) OR (t.type = 'waste' AND COALESCE(t.undone,0) = 0))
+          AND t.created_at >= datetime('now', '-90 days')
         GROUP BY type
     ")->fetchAll();
     $used30 = 0; $wasted30 = 0;
@@ -8890,19 +8922,21 @@ function getMonthlyStats(PDO $db): void {
     $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
     $lastMonthEnd   = date('Y-m-01'); // exclusive upper bound for prev month
 
-    // Totals: consumed + added + wasted this month vs previous calendar month
+    // Distinguish real use, waste, and stock correction/ledger maintenance.
+    $realUse = statsGenuineConsumptionSql('t');
+    $realAdd = statsGenuineRestockSql('t');
     $totals = $db->query("
         SELECT
             SUM(CASE WHEN created_at >= '{$thisMonthStart}'
-                      AND type IN ('out','waste') AND undone=0 THEN 1 ELSE 0 END) AS this_out,
+                      AND {$realUse} THEN 1 ELSE 0 END) AS this_out,
             SUM(CASE WHEN created_at >= '{$lastMonthStart}' AND created_at < '{$lastMonthEnd}'
-                      AND type IN ('out','waste') AND undone=0 THEN 1 ELSE 0 END) AS prev_out,
+                      AND {$realUse} THEN 1 ELSE 0 END) AS prev_out,
             SUM(CASE WHEN created_at >= '{$thisMonthStart}'
-                      AND type = 'in' AND undone=0 THEN 1 ELSE 0 END) AS this_in,
+                      AND {$realAdd} THEN 1 ELSE 0 END) AS this_in,
             SUM(CASE WHEN created_at >= '{$thisMonthStart}'
                       AND type = 'waste' AND undone=0 THEN 1 ELSE 0 END) AS this_wasted
-        FROM transactions
-        WHERE created_at >= '{$lastMonthStart}'
+        FROM transactions t
+        WHERE t.created_at >= '{$lastMonthStart}'
     ")->fetch(PDO::FETCH_ASSOC);
 
     $thisOut   = (int)($totals['this_out']    ?? 0);
@@ -8915,7 +8949,7 @@ function getMonthlyStats(PDO $db): void {
         SELECT COALESCE(NULLIF(TRIM(p.category), ''), 'altro') AS cat, COUNT(*) AS cnt
         FROM transactions t
         JOIN products p ON t.product_id = p.id
-        WHERE t.type IN ('out','waste') AND t.undone = 0
+        WHERE {$realUse}
           AND t.created_at >= '{$thisMonthStart}'
         GROUP BY cat
         ORDER BY cnt DESC
@@ -8944,7 +8978,7 @@ function getMonthlyStats(PDO $db): void {
         SELECT p.name, COUNT(*) AS cnt
         FROM transactions t
         JOIN products p ON t.product_id = p.id
-        WHERE t.type IN ('out','waste') AND t.undone = 0
+        WHERE {$realUse}
           AND t.created_at >= '{$thisMonthStart}'
         GROUP BY t.product_id
         ORDER BY cnt DESC
@@ -9241,15 +9275,7 @@ function recentPopularProducts(PDO $db): void {
     // appear under "Recently used" or inflate "Most used".
     // Keep real inventory_use (empty notes or recipe/use notes), excluding
     // undone actions and system-generated ledger maintenance entries.
-    $realUse = "AND COALESCE(t.undone, 0) = 0
-        AND (t.notes IS NULL OR (
-            t.notes NOT IN ('[Manual correction]', '[Eliminazione inventario]')
-            AND t.notes NOT LIKE '[Spostamento]%'
-            AND t.notes NOT LIKE '[Reconciliation]%'
-            AND t.notes NOT LIKE '[Finished]%'
-            AND t.notes NOT LIKE '[Undone]%'
-            AND t.notes NOT LIKE '[Annullato]%'
-        ))";
+    $realUse = statsGenuineConsumptionSql('t');
     // Last 4 distinct products actually consumed (type='out'), newest first
     $recentStmt = $db->query("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
@@ -9258,8 +9284,7 @@ function recentPopularProducts(PDO $db): void {
                          WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
-        WHERE t.type = 'out'
-          {$realUse}
+        WHERE {$realUse}
         GROUP BY t.product_id
         ORDER BY last_used DESC
         LIMIT 4
@@ -9275,8 +9300,7 @@ function recentPopularProducts(PDO $db): void {
                          WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
-        WHERE t.type = 'out'
-          {$realUse}
+        WHERE {$realUse}
           AND t.created_at >= datetime('now', '-90 days')
         GROUP BY t.product_id
         ORDER BY usage_count DESC

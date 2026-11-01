@@ -194,3 +194,13 @@
         max-width: 40%;
     }
 }
+
+
+/* Phone quantity controls: full unit remains in aria-label and tooltip,
+   but compact labels avoid wrapping a 50px number control + two +/- keys. */
+@media (max-width: 440px) {
+    .qty-unit-badge .qty-unit-full { display: none; }
+    .qty-unit-badge .qty-unit-compact { display: inline; }
+    .qty-control-with-unit { column-gap: 6px; }
+    .qty-unit-badge { min-width: 52px; padding-inline: 8px; }
+}

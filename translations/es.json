@@ -136,6 +136,7 @@
   "units": {
     "pz": "uds",
     "conf": "paq",
+    "conf_short": "paq.",
     "g": "g",
     "ml": "ml",
     "pieces": "Unidades",
