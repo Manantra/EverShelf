@@ -165,3 +165,17 @@ for this UI walkthrough. Current staging demo starts with 14 packs of 690g.
 Do not clear Safari website data or reinstall the Home Screen PWA if unsent
 offline changes exist. Production remains untouched until PR review and
 manual acceptance; the PR is intentionally a draft for the first test.
+
+
+## v1.16.18 direction change, follow-up to PR #3 (2026-11-01)
+
+The user explicitly reversed the two gestures: swipe **RIGHT** opens the
+**Verbrauchen** quantity form (amber background), and swipe **LEFT** opens
+**Entsorgen** with quantity and mandatory reason (red background). Neither
+swipe immediately writes stock. Tap opens details as before; Edit is in the
+product-detail actions. Both gesture help banners must display the revised
+arrows. This section supersedes the earlier v1.16.17 directions above.
+
+Check on iPhone Safari staging and the Home Screen PWA after loading the
+new version online. Swipe each way, then cancel without confirming, and
+verify the sample still has 14 packages.

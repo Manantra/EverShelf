@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.18] - 2026-11-01 (proposed staging PR #3, not yet released)
+
+### Correct mobile swipe direction (Fixes #1)
+
+- **Swipe RIGHT to open Verbrauchen** (amber), **LEFT to open Entsorgen**
+  (red), per manual iPhone feedback. Both gestures open forms only and do
+  not write inventory until the quantity/reason is confirmed.
+- Updated the swipe UI, all six languages, PWA caching and gesture tests.
+  The single stock summary, detail editing and other v1.16.17 work remain.
+
 ## [1.16.17] - 2026-11-01 (proposed staging PR, not yet released)
 
 ### Direct pantry gestures and a single stock overview (Fixes #1)

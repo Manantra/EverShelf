@@ -76,15 +76,15 @@ async function gestureSuite() {
     emit('pointerdown', 120, 150);
     emit('pointermove', 40, 151);
     emit('pointerup', 40, 151);
-    assert.deepEqual(calls.splice(0), [['use-form', 42, 'dispensa']],
-        'Left swipe opens the consumption form without submitting a write');
+    assert.deepEqual(calls.splice(0), [['disposal-form', 42, 'dispensa', 71]],
+        'Left swipe opens reasoned disposal without submitting a write');
 
     row.dataset.invSwipeDone = '';
     emit('pointerdown', 40, 150);
     emit('pointermove', 140, 150);
     emit('pointerup', 140, 150);
-    assert.deepEqual(calls.splice(0), [['disposal-form', 42, 'dispensa', 71]],
-        'Right swipe opens reasoned disposal, without submitting a write');
+    assert.deepEqual(calls.splice(0), [['use-form', 42, 'dispensa']],
+        'Right swipe opens the consumption form without submitting a write');
 
     row.dataset.invSwipeDone = '';
     emit('pointerdown', 120, 150);
@@ -119,9 +119,9 @@ async function gestureSuite() {
         'Edit unit select uses localized Pkg (Packung), not Packung (Packungen)');
     const leftBg = css.match(/\.inv-swipe-bg-left\s*\{([^}]+)\}/)?.[1] || '';
     const rightBg = css.match(/\.inv-swipe-bg-right\s*\{([^}]+)\}/)?.[1] || '';
-    assert(leftBg.includes('rgba(245, 158, 11, 0.2)')
-        && rightBg.includes('rgba(239, 68, 68, 0.18)'),
-        'Consume swipe is amber, disposal swipe is red rather than edit blue');
+    assert(leftBg.includes('rgba(239, 68, 68, 0.18)')
+        && rightBg.includes('rgba(245, 158, 11, 0.2)'),
+        'Left disposal is red and right consumption is amber');
     assert(!src.includes('function showInvActionChooser('),
         'The obsolete two-action swipe chooser is no longer reachable');
     const detail = extract('function showItemDetail(inventoryId, productId) {',
@@ -132,7 +132,16 @@ async function gestureSuite() {
         'The duplicate full-consumption button was removed from details');
     assert(src.includes('function submitUseAll()'),
         'Safe complete-consumption action remains in the dedicated Use form');
-    console.log('PASS tap/left-use/right-disposal/scroll/keyboard and product-detail actions');
+    const expectedGuide = JSON.parse(fs.readFileSync(
+        path.join(__dirname, '../translations/de.json'), 'utf8')).inventory;
+    assert.equal(expectedGuide.swipe_guide, '← Entsorgen · → Verbrauchen · Tippen: Details');
+    assert.equal(expectedGuide.swipe_edge_use, 'Verbrauchen →');
+    assert.equal(expectedGuide.swipe_edge_edit, '← Entsorgen');
+    assert(src.includes('inv-swipe-bg-left') && src.includes("t('inventory.swipe_dispose')"),
+        'Left swipe background says dispose');
+    assert(src.includes('inv-swipe-bg-right') && src.includes("t('inventory.swipe_use')"),
+        'Right swipe background says use');
+    console.log('PASS tap/left-disposal/right-use/scroll/keyboard and product-detail actions');
 }
 function testWeightLabels() {
     const code = extract('function _formatUsePackageStock(count, perPackage, subUnit, showTotal = false) {',

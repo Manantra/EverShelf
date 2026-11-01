@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101i'; // bump when translations change
+const _I18N_VERSION = '20261101j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10125,7 +10125,7 @@ function renderInventoryItem(item, opts = {}) {
     
     return `
     <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" role="button" tabindex="0" aria-label="${escapeHtml((item.display_name || item.name) + ' – ' + t('inventory.item_detail_open'))}">
-        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_dispose'))}</div>
+        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_dispose'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_use'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
                 ${thumb}
@@ -10391,14 +10391,16 @@ function _initInventoryRowSwipe(container) {
 
         // Frequent actions on two gestures, no intermediate chooser and
         // NEVER a direct stock write: each opens its own confirmed form.
+        // LEFT swipe: disposal form with quantity and mandatory reason.
         if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            quickUse(productId, location);
+            quickThrowFromInv(productId, location, invId);
             return;
         }
+        // RIGHT swipe: consumption form; no write until explicit submission.
         if (dx >= 60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            quickThrowFromInv(productId, location, invId);
+            quickUse(productId, location);
             return;
         }
         // A stationary tap/click opens product details on BOTH touch and mouse.
@@ -11642,7 +11644,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11652,7 +11654,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261101i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261101j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

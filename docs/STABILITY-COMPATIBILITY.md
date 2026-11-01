@@ -850,3 +850,14 @@ SAME operation key. It still strictly asserts eight 200 receipts, exactly
 seven idempotent replays, precisely one stock/ledger movement, rejected
 key reuse and healthy SQLite. Other errors are never retried or ignored.
 No app/runtime/production rate limiting or persistence behavior changed.
+
+
+## Direction correction requested for PR #3, version 1.16.18
+
+Gestures are **right = consumption form (amber)**, **left = disposal form
+(red)**, reversed from initial PR v1.16.17. Update UI backgrounds, actual
+pointer handlers, all six translation hints, screenshots/manual test plan,
+regression tests, cache stamps and app SemVer together. Neither gesture
+writes stock until the opened form is completed/confirmed. The draft PR
+remains unmerged against stability/reliability-baseline, and production is
+untouched.
