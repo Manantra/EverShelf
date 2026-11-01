@@ -790,3 +790,24 @@ unit value remains conf in the database and request payloads.
 Test: node scripts/test-inventory-mobile-tap.js checks real swipe event
 handlers, taps, scroll/cancel/favorite, keyboard, responsive CSS and precise
 German per-pack/total quantity labels; CI executes it on every branch push.
+
+
+## Unified German disposal wording / package abbreviation (2026-11-01)
+
+On iPhone the product detail trash action was unreachable during the
+previous swipe-only phase, though the left-swipe action always offered
+disposal. Tap-to-open fixed access in the preceding revision. Both routes
+now call the *same* reasoned waste flow; the difference between
+"Wegwerfen" in the swipe chooser and "Entsorgen" in product details was
+copy only, not different ledger behavior. The German translation now
+uses "Entsorgen" consistently in clickable actions and disposal labels,
+including the swipe help, long-unused item CTA and dashboard. The swipe
+help was also stale about tap behavior and now explicitly says
+"Tippen = Details". Natural-language safety advice may still use
+"wegwerfen" as everyday prose; this is not a separate command.
+
+German 'units.conf_short' changes from "Pkg." to "Pkg", matching "Stk".
+Database/API conf, waste transaction types, reason codes, user
+settings, and package/quantity calculations are unchanged.
+scripts/test-disposal-entrypoints.js enforces matching actions and label
+copy, and the iOS PWA/i18n cache versions are updated.

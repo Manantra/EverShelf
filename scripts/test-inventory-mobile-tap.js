@@ -116,7 +116,7 @@ async function gestureSuite() {
         && mobile.includes('white-space: nowrap;'),
         'Phone pantry label will not break Vorratskammer mid-word');
     assert(src.includes("t('units.conf_short') + ' (' + t('units.conf') + ')'"),
-        'Edit unit select uses Pkg. (Packung), not Packung (Packungen)');
+        'Edit unit select uses localized Pkg (Packung), not Packung (Packungen)');
     console.log('PASS real inventory tap/swipe/scroll/keyboard and mobile location layout');
 }
 function testWeightLabels() {

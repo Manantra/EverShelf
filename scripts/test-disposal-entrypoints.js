@@ -152,7 +152,32 @@ async function testWasteWritesReasonButRemovalNeverDoes() {
     console.log('PASS disposal posts inventory_use with reason; explicit removal posts inventory_delete only');
 }
 
+function testConsistentGermanDisposalCopy() {
+    const dict = JSON.parse(fs.readFileSync(
+        path.join(__dirname, '../translations/de.json'), 'utf8'));
+    const labels = [
+        dict.inventory.item_detail_throw,
+        dict.inventory.swipe_chooser_throw.replace(/^🗑️\s*/, ''),
+        dict.dashboard.stale_throw,
+        dict.status.discard,
+    ];
+    assert.deepEqual(labels, Array(4).fill('Entsorgen'),
+        'Tap, swipe, long-unused quick action and status must use the same German verb');
+    assert.equal(dict.use.throw_qty_label, 'Wie viel entsorgen?');
+    assert.equal(dict.action.throw_sub, 'entsorgen');
+    assert.equal(dict.dashboard.trend_wasted, 'Entsorgte Produkte');
+    assert.equal(dict.units.conf_short, 'Pkg', 'German package abbreviation has no trailing dot');
+    assert.equal(dict.units.pz, 'Stk', 'Keep the existing unit abbreviation convention');
+    assert(dict.inventory.swipe_hint.includes('Tippen = Details'),
+        'The swipe guide must not falsely promise consumption on tap');
+    assert(dict.inventory.swipe_guide.includes('Entsorgen'));
+    assert(!dict.inventory.swipe_guide.includes('Wegwerfen'));
+    assert(js.includes('return quickThrowFromInv(item.product_id, item.location, inventoryId);'));
+    console.log('PASS same Entsorgen label across access paths; Pkg without dot');
+}
+
 (async () => {
+    testConsistentGermanDisposalCopy();
     await testDetailAndSwipeRouteToOneWasteForm();
     await testPreferredLocationIsPreserved();
     await testWasteWritesReasonButRemovalNeverDoes();

@@ -88,7 +88,7 @@ Work exclusively with synthetic staging inventory, never production:
    delete confirmation. If there are several storage locations, the tapped
    inventory row's location must be preselected. Tap X/cancel and verify
    quantities are unchanged.
-3. Swipe the same inventory row left and choose "Wegwerfen": the exact same
+3. Swipe the same inventory row left and choose "Entsorgen": the exact same
    disposal flow must appear. Pick a harmless amount only when explicitly
    testing a real waste transaction; the dialog must ask the reason first.
 4. Cancel the inventory-only removal confirmation: no operation is sent.
@@ -109,7 +109,7 @@ Work exclusively with synthetic staging inventory, never production:
    Cancel before saving. No bin icon is shown in the narrow inventory row.
 3. Swipe the same item left: Use/Dispose chooser still appears. Swipe right:
    edit modal still appears. Vertical scrolling does not trigger either.
-4. In edit modal the unit list must say "Pkg. (Packung)", not the duplicated
+4. In edit modal the unit list must say "Pkg (Packung)", not the duplicated
    "Packung (Packungen)". Leave quantity and unit untouched.
 5. In Use/Consume screen the demo at 14 packs of 690g per pack shows
    "14 Packungen (690 g je Packung)" under the item and
@@ -117,3 +117,20 @@ Work exclusively with synthetic staging inventory, never production:
    This is a labeling test; neither amount is a different stock quantity.
 6. Do not consume/dispose/remove the product during this visual check.
    Both Mac and phone must continue to show 14 packages.
+
+
+## Consistent disposal label + compact German package unit (2026-11-01)
+
+All visible German disposal actions (product-detail trash, swipe-left
+chooser, stale-stock CTA and status recommendation) must say "Entsorgen".
+Swipe hints also explain that a tap opens **Details** (rather than
+consuming automatically). The quantity form says "Wie viel entsorgen?",
+and the dashboard count labels disposed products consistently. This is
+purely localized copy: both entry points already go to the same
+reasoned-waste action, inventory_use with waste notes.
+
+In the product edit unit selector and in narrow quantity badges, the
+German abbreviation is now "Pkg" **without a period**, consistent with
+"Stk"; the internal stored unit remains "conf". Verify that after loading
+this version in Safari once, the installed iPhone PWA shows the new words.
+No stock mutation is needed for this UI test.
