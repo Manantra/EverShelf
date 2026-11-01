@@ -838,3 +838,15 @@ When package sizes differ, sum each row's real package content rather
 than assuming the size of the first row. Existing API, offline queue,
 versioned conflict resolution, disposal reasons, and production records
 remain unchanged.
+
+### CI race test: busy SQLite writer is retryable (v1.16.17 PR)
+
+Two disposable CI workers submit the same offline inventory_add operation ID
+eight times in parallel. Occasionally SQLite returns HTTP 503 database_busy
+for a rejected concurrent writer; this is a definitive non-write and is
+expected after a heavy concurrency suite. The integration test now retries
+ONLY that error, with a bounded 5-attempt exponential backoff using the
+SAME operation key. It still strictly asserts eight 200 receipts, exactly
+seven idempotent replays, precisely one stock/ledger movement, rejected
+key reuse and healthy SQLite. Other errors are never retried or ignored.
+No app/runtime/production rate limiting or persistence behavior changed.
