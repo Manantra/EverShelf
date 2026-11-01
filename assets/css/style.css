@@ -1940,6 +1940,25 @@ body.server-offline .bottom-nav {
 .item-detail-action--all { background: linear-gradient(135deg, var(--es-action-success), var(--success-light)); }
 .item-detail-action--recipe { background: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light)); }
 .item-detail-action--throw { background: var(--bg-card); color: var(--es-action-danger); border: 1.5px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+/* The explicitly non-waste inventory cleanup lives outside the four
+   primary household actions and is never marked with a trash-can icon. */
+.item-detail-remove-only {
+    display: block;
+    margin: 14px auto 0;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--es-radius-card);
+    background: transparent;
+    color: var(--text-muted);
+    text-align: center;
+    font: inherit;
+    font-size: .82rem;
+    cursor: pointer;
+}
+.item-detail-remove-only:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
 
 .use-idle-hint {
     margin-top: 8px;

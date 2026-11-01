@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101d'; // bump when translations change
+const _I18N_VERSION = '20261101e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10859,13 +10859,24 @@ function showItemDetail(inventoryId, productId) {
                     <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
                 </button>
             </div>
+            <button type="button" class="item-detail-remove-only" onclick="removeInventoryOnly(${inventoryId})">
+                <span aria-hidden="true">📋</span> ${escapeHtml(t('inventory.remove_only_action'))}
+            </button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
 function itemDetailThrow(inventoryId) {
-    deleteInventoryItem(inventoryId);
+    const item = _findInventoryItem(inventoryId);
+    if (!item) {
+        showToast(t('error.not_in_inventory'), 'error');
+        return;
+    }
+    // Waste must NEVER call inventory_delete: only the reasoned waste path
+    // writes type='waste' and contributes to household waste statistics.
+    closeModal();
+    return quickThrowFromInv(item.product_id, item.location, inventoryId);
 }
 
 async function itemDetailUseAll(productId, location) {
@@ -11006,7 +11017,7 @@ async function quickThrowFromInv(productId, location, invId) {
             }
         } catch (_) { /* showThrowForm still works with id */ }
     }
-    showThrowForm();
+    showThrowForm(location);
 }
 
 const WASTE_REASON_KEYS = ['expired', 'spoiled', 'wrong_location', 'kept_too_long', 'bought_too_much', 'forgotten', 'bad_quality', 'other'];
@@ -11056,95 +11067,30 @@ function _inventoryWaste(payload, productLabel) {
     });
 }
 
-async function deleteInventoryItem(id) {
-    const item = currentInventory.find(i => i.id == id);
-    const unit = item ? (item.unit || 'pz') : 'pz';
-    const qty  = item ? (parseFloat(item.quantity) || 0) : 0;
-    const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
-
-    if (!canDiscardOne) {
-        // Soft-delete with undo toast (24h transaction undo on the server).
-        if (!confirm(t('confirm.remove_item'))) return;
-        const snapshot = item ? { ...item } : null;
-        try {
-            await api('inventory_delete', {}, 'POST', { id });
-            closeModal();
-            showActionToast(t('toast.product_removed'), t('btn.undo') || 'Undo', async () => {
-                try {
-                    // Best-effort: re-add from snapshot if we still have it.
-                    if (snapshot && snapshot.product_id) {
-                        await api('inventory_add', {}, 'POST', {
-                            product_id: snapshot.product_id,
-                            quantity: snapshot.quantity,
-                            unit: snapshot.unit || 'pz',
-                            location: snapshot.location || 'dispensa',
-                            expiry_date: snapshot.expiry_date || '',
-                        });
-                    }
-                } catch (_) { /* ignore */ }
-                if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-            });
-            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-        } catch (e) {
-            showToast(t('error.connection'), 'error');
+/** Pure inventory removal is deliberately separate from disposal.
+ * It must never create a "waste" ledger entry or ask for a waste reason.
+ * Confirmation explicitly explains that this is NOT a usage/waste event.
+ */
+async function removeInventoryOnly(id) {
+    const item = _findInventoryItem(id);
+    if (!item) {
+        showToast(t('error.not_in_inventory'), 'error');
+        return false;
+    }
+    if (!confirm(t('inventory.remove_only_confirm'))) return false;
+    try {
+        const result = await api('inventory_delete', {}, 'POST', { id });
+        if (!result?.success && !result?._offline) {
+            showToast(result?.error || t('error.generic'), 'error');
+            return false;
         }
-        return;
-    }
-
-    // Show a choice modal: 1 piece vs everything
-    const qtyDisplay = formatQuantity(qty, unit, item.default_quantity, item.package_unit);
-    document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('use.throw_title')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(item.name)} · ${qtyDisplay}</p>
-        <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn btn-large btn-warning full-width" onclick="_discardOnePiece(${id})">
-                ${t('confirm.discard_one')}
-            </button>
-            <button class="btn btn-large btn-danger full-width" onclick="_discardAllFromModal(${id})">
-                ${t('use.throw_all', { qty: qtyDisplay })}
-            </button>
-            <button class="btn btn-secondary full-width" onclick="closeModal()">
-                ${t('confirm.cancel')}
-            </button>
-        </div>
-    `;
-    document.getElementById('modal-overlay').style.display = 'flex';
-}
-
-async function _discardOnePiece(inventoryId) {
-    const item = currentInventory.find(i => i.id == inventoryId);
-    if (!item) { closeModal(); return; }
-    closeModal();
-    try {
-        await _inventoryWaste({
-            product_id: item.product_id,
-            quantity: 1,
-            location: item.location,
-        }, item.name);
-        showToast(t('toast.thrown_away_partial', { qty: 1, unit: item.unit || 'pz', name: item.name }), 'success');
+        closeModal();
+        showToast(t('inventory.remove_only_done'), 'success');
         if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    } catch(e) {
+        return true;
+    } catch (_) {
         showToast(t('error.connection'), 'error');
-    }
-}
-
-async function _discardAllFromModal(inventoryId) {
-    const item = currentInventory.find(i => i.id == inventoryId);
-    if (!item) { closeModal(); return; }
-    closeModal();
-    try {
-        await _inventoryWaste({
-            product_id: item.product_id,
-            use_all: true,
-            location: item.location,
-        }, item.name);
-        showToast(t('toast.thrown_away', { name: item.name }), 'success');
-        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    } catch(e) {
-        showToast(t('error.connection'), 'error');
+        return false;
     }
 }
 
@@ -13770,7 +13716,7 @@ function editActionInventoryItem(inventoryId) {
             </div>
             <div class="modal-actions" style="margin-top:12px">
                 <button type="submit" class="btn btn-large btn-primary flex-1">${t('btn.save')}</button>
-                <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
+                <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px" title="${escapeHtml(t('inventory.remove_only_action'))}" aria-label="${escapeHtml(t('inventory.remove_only_action'))}">📋 ${escapeHtml(t('inventory.remove_only_action'))}</button>
             </div>
             <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
                 data-name="${escapeHtml(item.name || currentProduct?.name || '')}"
@@ -13834,17 +13780,16 @@ async function submitActionEditInventory(e, id, productId) {
 }
 
 async function deleteActionInventoryItem(id) {
-    if (confirm(t('confirm.remove_item'))) {
-        await api('inventory_delete', {}, 'POST', { id });
-        closeModal();
-        showToast(t('toast.product_removed'), 'success');
-        showProductAction(); // Refresh the action page
+    // Refresh the action page only if the confirmed removal actually happened.
+    if (await removeInventoryOnly(id)) {
+        if (typeof showProductAction === 'function') showProductAction();
     }
 }
 
 // === THROW AWAY FORM ===
-function showThrowForm() {
-    // Open a modal to ask how much to throw away
+function showThrowForm(preferredLocation = null) {
+    // All disposal entry points share this form, including product detail,
+    // swipe-left and the action page. Default to the selected inventory row.
     api('inventory_list').then(data => {
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
         if (items.length === 0) {
@@ -13852,6 +13797,7 @@ function showThrowForm() {
             return;
         }
         
+        const selected = items.find(i => i.location === preferredLocation) || items[0];
         const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
         const unit = items[0].unit || 'pz';
         const defQty = items[0].default_quantity || 0;
@@ -13890,12 +13836,12 @@ function showThrowForm() {
                 <div class="form-group">
                     <label>${t('use.location_label')}</label>
                     <div class="location-selector" id="throw-location-selector">
-                        ${items.map((inv, idx) => {
+                        ${items.map(inv => {
                             const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
+                            return `<button type="button" class="loc-btn ${inv.location === selected.location ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
                         }).join('')}
                     </div>
-                    <input type="hidden" id="throw-location" value="${items[0].location}">
+                    <input type="hidden" id="throw-location" value="${selected.location}">
                 </div>
                 <div class="form-group">
                     <label>${t('use.throw_qty_label')}</label>
@@ -13905,7 +13851,7 @@ function showThrowForm() {
                             <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
                             <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
                         </div>
-                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz'))}</span>
+                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(selected.unit || 'pz'))}</span>
                     </div>
                 </div>
                 <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
@@ -13913,7 +13859,7 @@ function showThrowForm() {
                 </button>
             </div>
         `;
-        setQtyInputUnitLabel('throw-quantity', items[0]?.unit || 'pz');
+        setQtyInputUnitLabel('throw-quantity', selected.unit || 'pz');
         document.getElementById('modal-overlay').style.display = 'flex';
     });
 }

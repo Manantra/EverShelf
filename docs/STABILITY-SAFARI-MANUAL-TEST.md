@@ -76,3 +76,25 @@ Use ONLY the separate HTTPS Safari staging instance and the synthetic demo:
 6. If a confirmation loses its network reply, reopen the review and use the
    confirm/recheck button. The saved receipt key must be reused. Do not wipe
    storage, delete the PWA or send a second, new stock write.
+
+## Product detail "Dispose" versus "Remove from inventory" (2026-11-01)
+
+Work exclusively with synthetic staging inventory, never production:
+
+1. Open the demo item from the pantry (tap the inventory row). The detail
+   shows "Entsorgen" (trash icon) among four primary actions, plus a separate,
+   smaller "Aus Inventar entfernen (keine Entsorgung)" control beneath.
+2. Tap the trash icon. The disposal quantity selector appears, not a generic
+   delete confirmation. If there are several storage locations, the tapped
+   inventory row's location must be preselected. Tap X/cancel and verify
+   quantities are unchanged.
+3. Swipe the same inventory row left and choose "Wegwerfen": the exact same
+   disposal flow must appear. Pick a harmless amount only when explicitly
+   testing a real waste transaction; the dialog must ask the reason first.
+4. Cancel the inventory-only removal confirmation: no operation is sent.
+   When testing confirmed removal, use a separate disposable test row (not
+   the user's sample stock); "Aus Inventar entfernen" must not ask for a
+   waste reason, and use/waste statistics must not increase.
+5. Verify both on installed Home Screen PWA and Safari online. For offline
+   use, confirm the selected waste reason persists in the local queue
+   before syncing; never clear website data while an operation is pending.

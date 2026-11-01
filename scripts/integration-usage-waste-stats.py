@@ -132,4 +132,18 @@ verify(after_move, after_undone, monthly_add=0, monthly_use=0, monthly_waste=0,
 with sqlite3.connect(dbpath) as c:
     assert c.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
 print('PASS undo markers never re-enter the statistics')
+
+# An explicit inventory-only removal must not be counted as discarded food.
+# The removed row is reconciled by the inventory_delete endpoint, not by
+# the disposal route requiring a reason and type='waste'.
+code, deleted = request('inventory_delete', {'id': iid})
+assert code == 200 and deleted['success'], (code, deleted)
+after_delete = metrics()
+verify(after_undone, after_delete, monthly_add=0, monthly_use=0, monthly_waste=0,
+       trend_use=0, trend_waste=0)
+with sqlite3.connect(dbpath) as c:
+    assert c.execute('SELECT COUNT(*) FROM transactions WHERE product_id=? AND type=?',
+                     (pid, 'waste')).fetchone()[0] == 2, (
+        'Inventory delete must not create a third waste event')
+print('PASS inventory-only removal does not count as consumption or disposal')
 print('All real HTTP/SQLite consumption vs disposal statistics tests passed.')

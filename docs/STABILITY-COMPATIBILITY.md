@@ -719,3 +719,37 @@ failed. CI now explicitly clears only the disposable sandbox's file-based
 rate-limit bucket, after verifying EVERSHELF_SANDBOX=1, before the remaining
 concurrency suites. Production rate limiting is unchanged; no data,
 settings, ledgers or receipts are cleared.
+
+## Product-detail disposal versus inventory-only removal (2026-11-01)
+
+The product detail modal's visible trash-can button (t('inventory.item_detail_throw'))
+previously called deleteInventoryItem, a misleading mixed behavior: for rows
+with <=1 package it executed inventory_delete (not counted as waste), while
+for larger piece/package quantities it offered dedicated waste controls.
+The swipe-left and product action page already used showThrowForm with a waste
+reason, so the same "Dispose" command had inconsistent semantics.
+
+The detail trash-can button now enters the same quickThrowFromInv ->
+showThrowForm -> _inventoryWaste flow as the inventory swipe. Only after
+choosing a disposal quantity and a reason does it submit inventory_use with
+notes=Buttato|reason_key, which the server records as type=waste. The location
+of the selected row is now preselected, even when the same product exists
+in multiple storage locations. Canceling the modal or reason picker does not
+change stock.
+
+Pure inventory removal is now a separate, subdued, explicitly labeled
+"Remove from inventory (not disposal)" action in the detail modal and the
+product's edit form. It asks for confirmation explaining that it is neither
+consumption nor disposal, and posts inventory_delete for the selected row.
+It has no trash-can symbol, never asks for a waste reason and never affects
+other location rows. The legacy misleading mixed-mode deleteInventoryItem
+and the no-longer-used special one-piece/all helpers are removed.
+Existing transaction history and all other user settings are unchanged.
+
+Tests: scripts/test-disposal-entrypoints.js runs actual JavaScript detail,
+swipe, location-selection, waste-reason, and explicit inventory removal
+functions with a mock DOM, distinguishing inventory_use vs inventory_delete.
+The real HTTP/SQLite integration-usage-waste-stats.py additionally asserts
+that deleting one inventory row does not change monthly use/waste metrics.
+Translations for the new action, confirmation and success message are present
+in de/en/it/es/fr/zh. The fix is staged only; no production files are changed.

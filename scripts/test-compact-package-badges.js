@@ -74,7 +74,7 @@ assert(css.includes('.qty-unit-compact { display: none; }'));
 assert(mobile.includes('@media (max-width: 440px)'));
 assert(mobile.includes('.qty-unit-badge .qty-unit-compact { display: inline; }'));
 assert(mobile.includes('.qty-unit-badge .qty-unit-full { display: none; }'));
-assert(js.includes("setQtyInputUnitLabel('throw-quantity', items[0]?.unit || 'pz');"),
+assert(js.includes("setQtyInputUnitLabel('throw-quantity', selected.unit || 'pz');"),
     'Disposal form uses identical responsive unit badges');
 assert(js.includes('data.items_consumed === 0 && data.items_wasted === 0 && data.items_added === 0'),
     'Waste-only monthly activity remains visible');

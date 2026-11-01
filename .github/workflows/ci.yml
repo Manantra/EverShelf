@@ -63,6 +63,9 @@ jobs:
       - name: Simulate Safari/PWA storage, suspended replay, and tab conflicts
         run: node scripts/test-pwa-offline-queue.js
 
+      - name: Verify product-detail disposal and inventory-only removal stay separate
+        run: node scripts/test-disposal-entrypoints.js
+
       - name: Verify compact localized package labels on narrow phones
         run: node scripts/test-compact-package-badges.js
 
