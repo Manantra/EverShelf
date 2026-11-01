@@ -493,6 +493,8 @@
     "weight_total": "total",
     "throw_title": "🗑️ Discard Product",
     "throw_all": "🗑️ Discard ALL ({qty})",
+    "throw_all_action": "🗑️ Discard everything",
+    "throw_all_scope": "Discard all stock from every storage location",
     "throw_qty_label": "How much to discard?",
     "throw_qty_hint": "or enter a quantity:",
     "throw_partial_btn": "🗑️ Discard this quantity",

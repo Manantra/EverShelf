@@ -493,6 +493,8 @@
     "weight_total": "insgesamt",
     "throw_title": "🗑️ Produkt entsorgen",
     "throw_all": "🗑️ ALLES entsorgen ({qty})",
+    "throw_all_action": "🗑️ Alles entsorgen",
+    "throw_all_scope": "Gesamten Bestand aus allen Lagerorten entsorgen",
     "throw_qty_label": "Wie viel entsorgen?",
     "throw_qty_hint": "oder Menge angeben:",
     "throw_partial_btn": "🗑️ Diese Menge entsorgen",

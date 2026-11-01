@@ -34,6 +34,7 @@ async function testDisposal429AndAuthoritativeAbsence() {
         escapeHtml: String, t: k => k,
         formatQuantity: q => String(q) + ' Pkg',
         getUnitDisplayLabel: () => 'Packung',
+        _renderUseStockSummary: () => '<div class="use-stock-summary">Bestand</div>',
         setQtyInputUnitLabel: () => {},
         console: { warn: () => {} },
     };
@@ -109,6 +110,7 @@ async function testLatestSwipeWinsForSameProduct() {
         },
         CATEGORY_ICONS:{}, mapToLocalCategory:()=>'',escapeHtml:String,
         t:k=>k, formatQuantity: q=>String(q), getUnitDisplayLabel:()=> 'Packung',
+        _renderUseStockSummary:()=>'<div class="use-stock-summary">Bestand</div>',
         setQtyInputUnitLabel:()=>{},
     };
     vm.createContext(ctx);

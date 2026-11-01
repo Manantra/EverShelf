@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101k'; // bump when translations change
+const _I18N_VERSION = '20261101l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11651,7 +11651,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11661,7 +11661,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261101k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261101l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -13788,53 +13788,41 @@ function showThrowForm(preferredLocation = null) {
         }
         
         const selected = items.find(i => i.location === preferredLocation) || items[0];
-        const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
-        const unit = items[0].unit || 'pz';
-        const defQty = items[0].default_quantity || 0;
-        const pkgUnit = items[0].package_unit || '';
-        const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit);
-        
-        let locOptionsHtml = items.map(inv => {
-            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)}</span></div>`;
+        // Reuse the exact same overview as Use: total, weight, location.
+        const stockSummary = _renderUseStockSummary(items);
+        const locations = [...new Set(items.map(i => i.location))];
+        const locButtons = locations.map(loc => {
+            const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
+            return `<button type="button" class="loc-btn ${loc === selected.location ? 'active' : ''}"
+                onclick="selectThrowLocation(this, '${loc}')">${locInfo.icon} ${escapeHtml(locInfo.label)}</button>`;
         }).join('');
-        
         document.getElementById('modal-content').innerHTML = `
             <div class="modal-header">
-                <h3>${t('use.throw_title')}</h3>
+                <h3>${escapeHtml(t('use.throw_title'))}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
-            <div class="product-preview-small" style="margin-bottom:12px;position:relative">
+            <div class="product-preview-small dispose-product-preview">
                 ${requestedProduct.image_url ?
                     `<img src="${escapeHtml(requestedProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
                     `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(requestedProduct.category, requestedProduct.name)] || '📦'}</span>`
                 }
                 <div class="product-preview-info">
                     <h3>${escapeHtml(requestedProduct.name)}</h3>
-                    <p>${escapeHtml(t('inventory.label_quantity').replace(/^📦\s*/, ''))}: <strong>${qtyDisplay}</strong></p>
                 </div>
-                ${items[0] ? `<button type="button" class="btn-edit-inline" onclick="editInventoryItem(${items[0].id})" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
             </div>
-            <div class="inventory-status-bar" style="margin-bottom:16px">
-                <div class="inv-status-items">${locOptionsHtml}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:10px">
-                <button class="btn btn-large btn-danger full-width" onclick="throwAll()">
-                    ${t('use.throw_all', { qty: qtyDisplay })}
-                </button>
-                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${t('use.throw_qty_hint')}</div>
+            <div class="dispose-stock-overview">${stockSummary}</div>
+            <div class="dispose-quantity-section">
+                ${locations.length > 1 ? `
                 <div class="form-group">
-                    <label>${t('use.location_label')}</label>
-                    <div class="location-selector" id="throw-location-selector">
-                        ${items.map(inv => {
-                            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${inv.location === selected.location ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
-                        }).join('')}
+                    <label>${escapeHtml(t('use.location_label'))}</label>
+                    <div class="location-selector" id="throw-location-selector" role="group"
+                        aria-label="${escapeHtml(t('use.location_label'))}">
+                        ${locButtons}
                     </div>
-                    <input type="hidden" id="throw-location" value="${selected.location}">
-                </div>
+                </div>` : ''}
+                <input type="hidden" id="throw-location" value="${escapeHtml(selected.location)}">
                 <div class="form-group">
-                    <label>${t('use.throw_qty_label')}</label>
+                    <label for="throw-quantity">${escapeHtml(t('use.throw_qty_label'))}</label>
                     <div class="qty-control-with-unit">
                         <div class="qty-control">
                             <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
@@ -13844,9 +13832,15 @@ function showThrowForm(preferredLocation = null) {
                         <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(selected.unit || 'pz'))}</span>
                     </div>
                 </div>
-                <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
-                    ${t('use.throw_partial_btn')}
+                <button type="button" class="btn btn-large btn-warning full-width" onclick="throwPartial()">
+                    ${escapeHtml(t('use.throw_partial_btn'))}
                 </button>
+                <div class="use-all-option dispose-all-option">
+                    <p class="form-hint">${escapeHtml(t('use.throw_all_scope'))}</p>
+                    <button type="button" class="btn btn-large btn-danger full-width use-all-btn" onclick="throwAll()">
+                        ${escapeHtml(t('use.throw_all_action'))}
+                    </button>
+                </div>
             </div>
         `;
         setQtyInputUnitLabel('throw-quantity', selected.unit || 'pz');
@@ -13866,73 +13860,28 @@ function selectThrowLocation(btn, loc) {
 }
 
 /**
- * Show a destructive-action confirmation modal with a 5-second auto-confirm countdown.
- * The user can tap "Annulla" to cancel or "Conferma" (or wait) to proceed.
- * @param {string}   title     — Modal title
- * @param {string}   msg       — Explanatory text
- * @param {Function} onConfirm — Called when confirmed (by user or countdown)
- * @param {string}   [confirmLabel] — Override confirm button label
+ * Full-stock disposal requires an explicit confirmation tap.
+ * No automatic countdown for an unattended PWA.
  */
 function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
-    const DURATION = 5000;
     const btnLabel = confirmLabel || t('confirm.proceed');
     const cancelLabel = t('confirm.cancel');
-    let rafHandle = null;
-    let timerHandle = null;
-    let resolved = false;
-
     const overlayEl = document.getElementById('modal-overlay');
     const contentEl = document.getElementById('modal-content');
-    const confirmBtnId = '_destConfirmBtn_' + Date.now();
-    const barId       = '_destConfirmBar_' + Date.now();
-
     contentEl.innerHTML = `
-        <div class="modal-header">
-            <h3>${escapeHtml(title)}</h3>
-        </div>
-        <p style="margin:12px 0 18px;color:var(--text-muted);font-size:0.95rem">${escapeHtml(msg)}</p>
-        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:16px">
-            <div id="${barId}" style="height:100%;width:100%;background:var(--danger);transition:none"></div>
-        </div>
-        <div style="display:flex;gap:10px">
-            <button class="btn btn-secondary" style="flex:1" id="_destCancelBtn">${escapeHtml(cancelLabel)}</button>
-            <button class="btn btn-danger" style="flex:1" id="${confirmBtnId}">${escapeHtml(btnLabel)}</button>
+        <div class="modal-header"><h3>${escapeHtml(title)}</h3></div>
+        <p class="dispose-confirm-message">${escapeHtml(msg)}</p>
+        <div class="dispose-confirm-actions">
+            <button type="button" class="btn btn-secondary" id="_destCancelBtn">${escapeHtml(cancelLabel)}</button>
+            <button type="button" class="btn btn-danger" id="_destConfirmBtn">${escapeHtml(btnLabel)}</button>
         </div>
     `;
     overlayEl.style.display = 'flex';
-
-    function cleanup() {
-        if (rafHandle)   cancelAnimationFrame(rafHandle);
-        if (timerHandle) clearTimeout(timerHandle);
-        rafHandle = timerHandle = null;
-    }
-    function doConfirm() {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
+    document.getElementById('_destCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('_destConfirmBtn').addEventListener('click', () => {
         closeModal();
         onConfirm();
-    }
-    function doCancel() {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
-        closeModal();
-    }
-
-    document.getElementById(confirmBtnId).addEventListener('click', doConfirm);
-    document.getElementById('_destCancelBtn').addEventListener('click', doCancel);
-
-    // Countdown animation
-    const barEl = document.getElementById(barId);
-    const start = performance.now();
-    function tick() {
-        const pct = Math.min(100, (performance.now() - start) / DURATION * 100);
-        if (barEl) barEl.style.width = (100 - pct) + '%';
-        if (pct < 100) { rafHandle = requestAnimationFrame(tick); }
-    }
-    rafHandle = requestAnimationFrame(tick);
-    timerHandle = setTimeout(doConfirm, DURATION);
+    }, { once: true });
 }
 
 async function throwAll() {
@@ -13962,7 +13911,12 @@ async function throwAll() {
 }
 
 async function throwPartial() {
-    const qty = parseFloat(document.getElementById('throw-quantity').value) || 1;
+    const qty = Number(document.getElementById('throw-quantity').value);
+    if (!Number.isFinite(qty) || qty <= 0) {
+        showToast(t('use.error_qty_required'), 'error');
+        document.getElementById('throw-quantity').focus();
+        return;
+    }
     const loc = document.getElementById('throw-location').value;
     closeModal();
     try {

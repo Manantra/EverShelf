@@ -887,3 +887,35 @@ Both action texts are centered in the 100px revealed swipe strip:
 LEFT disposal/red, RIGHT consume/amber. Real JS routine tests simulate
 429, success after recovery, genuine absence, network failure, stale
 same-product replies, single full-inventory reads and centering.
+
+## v1.16.20 / Issue #5 — compact disposal layout, explicit full-stock consent
+
+Disposal previously repeated the same stock on the product preview, in
+a separate blue inventory status bar, and beside each location choice.
+"Discard ALL" appeared at the top, above the ordinary amount selection.
+The iPhone user requested the same concise arrangement as the Use form.
+
+The existing read-only _renderUseStockSummary now also renders the
+disposal screen: one available total, the per-package amount when uniform,
+weighted total mass, and one badge per location. A quantity is displayed
+again per location only when stock exists at multiple locations. The
+location selector appears only for more than one distinct location;
+it carries only location names, with the swiped row preselected. The
+quantity input and "Dispose this quantity" remain the default action.
+
+The separate "Discard everything" button is visually separated at the
+very bottom. A translated scope hint states explicitly that this is
+the entire stock across ALL storage locations (inventory_use with
+use_all=true and location=__all__). Most importantly, the previous
+five-second AUTO-CONFIRM countdown is removed. Only an explicit tap on
+the confirmation button can advance to the mandatory disposal-reason
+selection; leaving it open or tapping Cancel never books stock. For
+partial disposal, invalid, zero or blank quantities are rejected instead
+of silently becoming one pack.
+
+No server endpoint, inventory unit, transaction semantics, offline queue,
+reason classifier or production database is modified. Regressions in
+scripts/test-disposal-layout.js verify the actual rendered JS for one/
+multiple locations, heterogeneous pack sizes, single quantity display,
+last-position full-disposal button, explicit confirmation and invalid
+quantities. Existing transient 429 and waste-ledger tests are preserved.

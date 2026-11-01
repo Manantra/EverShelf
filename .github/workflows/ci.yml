@@ -75,6 +75,9 @@ jobs:
       - name: Verify product-detail disposal and inventory-only removal stay separate
         run: node scripts/test-disposal-entrypoints.js
 
+      - name: Verify compact disposal form and explicit full-disposal confirmation
+        run: node scripts/test-disposal-layout.js
+
       - name: Verify compact localized package labels on narrow phones
         run: node scripts/test-compact-package-badges.js
 

@@ -493,6 +493,8 @@
     "weight_total": "en total",
     "throw_title": "🗑️ Desechar producto",
     "throw_all": "🗑️ Desechar TODO ({qty})",
+    "throw_all_action": "🗑️ Desechar todo",
+    "throw_all_scope": "Desechar todas las existencias de todas las ubicaciones",
     "throw_qty_label": "¿Cuánto desechar?",
     "throw_qty_hint": "o introduce una cantidad:",
     "throw_partial_btn": "🗑️ Desechar esta cantidad",

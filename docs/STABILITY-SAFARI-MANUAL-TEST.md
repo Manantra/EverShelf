@@ -191,3 +191,27 @@ Both texts must appear centered inside their respective red/amber reveal
 strips. A temporary server rate limit must NOT say the product is missing
 or already exhausted. After any temporary error the UI must recover.
 Demo stock should stay at exactly 14 packages.
+
+## v1.16.20 (Issue #5): redesigned iPhone disposal dialog
+
+Only on isolated staging, with the demo still at 14 x 690g:
+
+1. Swipe LEFT on the demo. The dialog has a concise product identity and
+   ONE available-stock summary: 14 packages, 690g per pack, 9,660g total,
+   Vorratskammer. No second blue stock bar or repeated stock count.
+2. As there is only one storage location, no location-selection buttons
+   appear. If another disposable sample has two locations, the storage
+   selector appears once, without duplicate quantities, and remembers
+   the tapped item's location.
+3. "Wie viel entsorgen?" and "Diese Menge entsorgen" are above the
+   separated, bottom "Alles entsorgen" destructive action. A caption
+   explains that full disposal affects EVERY location.
+4. Tap "Alles entsorgen" but do not confirm. A confirmation dialog
+   opens and must remain until Cancel or explicit confirmation (no
+   five-second automatic acceptance). Tap Cancel and verify 14 packs.
+5. Enter zero or erase the quantity in the normal field and try
+   "Diese Menge entsorgen". A validation error should appear; stock
+   must remain 14. Close the dialog.
+6. Do not actually confirm a disposal or reason on the sample product.
+   Reopen from both swipe and detail and inspect on Home Screen PWA.
+7. No production files or database migrations are part of this change.

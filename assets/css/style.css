@@ -2505,6 +2505,17 @@ body.server-offline .bottom-nav {
     font-size: 1rem;
 }
 
+/* Disposal mirrors the compact Use summary with its own bottom danger. */
+.dispose-product-preview { margin-bottom: 10px; position: relative; }
+.dispose-stock-overview { margin-bottom: 16px; }
+.dispose-quantity-section { display: flex; flex-direction: column; gap: 10px; }
+.dispose-quantity-section .form-group { margin-bottom: 2px; }
+.dispose-all-option { margin-top: 10px; }
+.dispose-all-option .form-hint { margin: 0 0 12px; text-align: center; color: var(--text-muted); }
+.dispose-confirm-message { margin: 12px 0 18px; color: var(--text-muted); font-size: .95rem; }
+.dispose-confirm-actions { display: flex; gap: 10px; }
+.dispose-confirm-actions .btn { flex: 1; min-width: 0; }
+
 /* —— Use-all safety confirm (checkbox + slide) —— */
 .use-all-safety {
     display: flex;

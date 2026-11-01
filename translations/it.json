@@ -493,6 +493,8 @@
     "weight_total": "in totale",
     "throw_title": "🗑️ Butta Prodotto",
     "throw_all": "🗑️ Butta TUTTO ({qty})",
+    "throw_all_action": "🗑️ Butta tutto",
+    "throw_all_scope": "Butta tutte le scorte da ogni posizione",
     "throw_qty_label": "Quanto butti?",
     "throw_qty_hint": "oppure specifica la quantità:",
     "throw_partial_btn": "🗑️ Butta questa quantità",

@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.20] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
+
+### Compact, safer disposal screen (Fixes #5)
+
+- Disposal now reuses the single stock summary from the Use screen: one
+  available total, unit/pack size and overall weight, and location labels.
+  The product header no longer shows the same stock again. The location
+  chooser is displayed only if multiple storage locations exist, without
+  repeating the quantity.
+- The normal amount-to-dispose input and its action are first. A separated
+  bottom button "Discard everything" clearly warns that it targets all
+  locations.
+- Full disposal no longer auto-confirms after five seconds: it requires
+  an explicit confirmation tap, followed by the existing required disposal
+  reason. Cancellation and empty/zero quantity do not write inventory.
+- Existing offline writes, waste reasons and accounting are unchanged.
+  Frontend version/cache and localized strings are updated together.
+
 ## [1.16.19] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
 
 ### False not-in-inventory warning and centered swipe labels (Fixes #4)

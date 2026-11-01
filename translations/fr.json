@@ -493,6 +493,8 @@
     "weight_total": "au total",
     "throw_title": "🗑️ Jeter le produit",
     "throw_all": "🗑️ Tout jeter ({qty})",
+    "throw_all_action": "🗑️ Tout jeter",
+    "throw_all_scope": "Jeter tout le stock de tous les lieux de stockage",
     "throw_qty_label": "Quelle quantité jeter ?",
     "throw_qty_hint": "ou entrez une quantité :",
     "throw_partial_btn": "🗑️ Jeter cette quantité",
