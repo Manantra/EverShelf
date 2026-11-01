@@ -26731,8 +26731,11 @@ function _enterOfflineMode() {
     _offlineMode = true;
     clearTimeout(_offlineBannerTimer);
     clearTimeout(_continueBtnTimer);
-    // Hide the full overlay (no "restored" animation)
-    _hideNetworkOverlay(false);
+    // On manual "Continue offline" the overlay is still above everything
+    // (z-index 300000). Hide it synchronously before revealing the banner;
+    // waiting for the 450 ms fade can make the cache seem banner-less on iOS.
+    // The automatic timeout must take this same path.
+    _hideNetworkOverlay(false, true);
     // Unblock the UI and show a subtle offline indicator
     document.body.classList.add('offline-mode');
     _renderOfflineBanner(true); // loading state
@@ -27299,7 +27302,7 @@ function _showNetworkOverlay() {
     }, _OFFLINE_MODE_DELAY_MS);
 }
 
-function _hideNetworkOverlay(showRestoredMsg) {
+function _hideNetworkOverlay(showRestoredMsg, immediate = false) {
     clearTimeout(_continueBtnTimer);
     clearTimeout(_offlineBannerTimer);
     _networkDown      = false;
@@ -27308,6 +27311,13 @@ function _hideNetworkOverlay(showRestoredMsg) {
     const contBtn = document.getElementById('net-error-continue-btn');
     if (contBtn) { contBtn.style.display = 'none'; contBtn.classList.remove('visible'); }
     if (!el) return;
+    if (immediate) {
+        // Entering offline cache mode must expose its banner immediately.
+        // Only a *reconnection* uses the deliberate restored/fade animation.
+        el.classList.remove('visible', 'restored', 'checking');
+        el.style.display = 'none';
+        return;
+    }
     if (showRestoredMsg) {
         el.classList.add('restored');
         el.classList.remove('checking');

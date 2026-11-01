@@ -379,6 +379,125 @@ async function testLastConflictDiscardClosesReviewModal() {
     assert.equal(queued(st).length, 0);
 }
 
+async function testManualAndAutomaticOfflineBannerAreIdentical() {
+    // Execute the real overlay, offline-entry and banner functions. The iOS
+    // bug surfaced only on clicking "Continue offline"; previously its
+    // full-screen z-index 300000 overlay lingered over the banner for 450 ms.
+    const uiSource = [
+        'let _offlineMode = false;',
+        'let _networkDown = false;',
+        'let _networkFailCount = 0;',
+        'let _offlineBannerTimer = null;',
+        'let _continueBtnTimer = null;',
+        'const _OFFLINE_MODE_DELAY_MS = 8000;',
+        extract('function _enterOfflineMode() {', 'async function _exitOfflineMode() {'),
+        extract('function _renderOfflineBanner(loading = false) {', '/** Show unsent actions;'),
+        extract('function _showNetworkOverlay() {', '// Ping the server;'),
+        'this.offlineEntryTest = { show: _showNetworkOverlay, enter: _enterOfflineMode,'
+            + ' offline: () => _offlineMode };',
+    ].join('\n');
+
+    function simulate(method) {
+        const timers = new Map(), classes = new Set();
+        let nextTimer = 0, refreshes = 0;
+        const overlay = {
+            style: { display: 'none' },
+            classList: {
+                add: (...args) => args.forEach(x => classes.add(x)),
+                remove: (...args) => args.forEach(x => classes.delete(x)),
+                contains: x => classes.has(x),
+            },
+        };
+        const continueBtn = { style: { display: 'none' },
+            classList: { add() {}, remove() {} }, textContent: '' };
+        const bannerText = { textContent: '', innerHTML: '' };
+        const bannerRetry = { textContent: '', onclick: null };
+        const banner = {
+            style: { display: 'none' },
+            querySelector: selector =>
+                selector === '.offline-banner-text' ? bannerText
+                    : selector === '.offline-banner-retry' ? bannerRetry : null,
+        };
+        const root = {
+            _offlineQueueGet: () => [],
+            _offlineQueueReadError: false,
+            _offlineQueueStorageBlocked: false,
+            _offlineCacheGet: () => [{ quantity: 13 }],
+            _heartbeatRetry: () => {},
+            t: key => ({
+                'error.offline_cache_ready': 'Offline — {n} Produkte im Cache',
+                'error.offline_reading_cache': 'Lese aus lokalem Cache',
+                'error.offline_continue': 'Offline fortfahren',
+            })[key] || key,
+            document: {
+                body: { classList: {
+                    add: x => classes.add('body:' + x),
+                    remove: x => classes.delete('body:' + x),
+                } },
+                getElementById: id => ({
+                    'network-error-overlay': overlay,
+                    'net-error-continue-btn': continueBtn,
+                    'offline-banner': banner,
+                    'net-error-title': { textContent: '' },
+                    'net-error-subtitle': { textContent: '' },
+                    'net-error-icon': { textContent: '' },
+                    'net-error-status': { textContent: '' },
+                })[id] || null,
+            },
+            refreshCurrentPage: () => { refreshes++; },
+            requestAnimationFrame: fn => fn(),
+            setTimeout: (fn, ms) => {
+                const id = ++nextTimer;
+                timers.set(id, { fn, ms });
+                return id;
+            },
+            clearTimeout: id => timers.delete(id),
+        };
+        vm.createContext(root);
+        vm.runInContext(uiSource, root);
+        root.offlineEntryTest.show();
+        assert.equal(overlay.style.display, 'flex');
+        if (method === 'manual') {
+            const timer = [...timers].find(([, x]) => x.ms === 3000);
+            assert(timer);
+            timers.delete(timer[0]);
+            timer[1].fn();
+            assert.equal(continueBtn.style.display, '',
+                'User can choose Continue offline after three seconds');
+            root.offlineEntryTest.enter();
+        } else {
+            const timer = [...timers].find(([, x]) => x.ms === 8000);
+            assert(timer);
+            timers.delete(timer[0]);
+            timer[1].fn();
+        }
+        assert.equal(root.offlineEntryTest.offline(), true,
+            method + ': entered cache mode');
+        assert.equal(overlay.style.display, 'none',
+            method + ': full-screen overlay removed synchronously');
+        assert.equal(classes.has('visible'), false,
+            method + ': no overlay transition may obscure cache banner');
+        assert.equal(banner.style.display, '',
+            method + ': banner immediately visible');
+        assert.equal(classes.has('body:offline-mode'), true,
+            method + ': body explicitly shows offline mode');
+        assert.equal(refreshes, 1, method + ': only one cache refresh');
+        const timer = [...timers].find(([, x]) => x.ms === 600);
+        assert(timer, method + ': deferred cache-ready label');
+        timers.delete(timer[0]);
+        timer[1].fn();
+        assert.equal(bannerText.innerHTML, 'Offline — 1 Produkte im Cache',
+            method + ': unambiguous offline status and correct cached count');
+        assert.equal(banner.style.display, '',
+            method + ': banner stays visible after cache refresh');
+        assert.equal([...timers.values()].some(x => x.ms === 450), false,
+            method + ': no delayed overlay hide after entering offline');
+        return { label: bannerText.innerHTML, visible: banner.style.display };
+    }
+    assert.deepEqual(simulate('manual'), simulate('automatic'),
+        'Manual and automatic offline entry must paint the same banner');
+}
+
 async function testQuantityResolutionSafetyGate() {
     const fn = extract('function _offlineQuantityResolutionPreview(op, current) {',
         '/** Show user-readable current-vs-offline values;');
@@ -555,6 +674,7 @@ async function testFallbackWithinOneTab() {
     await testLegacyQueueAtQuota();
     await testOfflineBannerSurvivesConflicts();
     await testLastConflictDiscardClosesReviewModal();
+    await testManualAndAutomaticOfflineBannerAreIdentical();
     await testQuantityResolutionSafetyGate();
     await testDependentWritesStayPendingAfterKeepServer();
     await testDurableConflictResolutionAfterLostResponse();

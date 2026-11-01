@@ -605,3 +605,23 @@ queue formats and manual review of unsupported actions remain supported.
 Tests include browser keep-server/no-POST checks, blocked dependent operations,
 mixed-field exclusions, lost HTTP replies, and real concurrent HTTP/SQLite
 ABA, receipt replay, forced receipt INSERT rollback and zero-stock snapshots.
+
+## Manual "Continue offline" vs automatic cache banner (2026-11-01)
+
+An iPhone Home Screen PWA user noticed that tapping **Continue offline** can
+appear to show only the cached-product count before the red **Offline** banner
+becomes visible; waiting for automatic offline entry looked different.
+
+Both paths already share _enterOfflineMode(), but it used
+_hideNetworkOverlay(false), whose 450 ms delayed removal left the full-screen
+network overlay (z-index 300000) over the banner (z-index 950). Offline
+inventory cache and durable operation queue were unaffected.
+
+Entering offline cache mode now dismisses the full-screen overlay
+**synchronously**, then paints the shared banner immediately. The separate
+server-restored confirmation animation retains its existing duration.
+No background synchronization, SQLite writes, API behavior, or local queue
+format changes. scripts/test-pwa-offline-queue.js runs the actual entry,
+overlay-dismiss and banner-rendering functions for both explicit button click
+and automatic 8-second timeout; it asserts identical visible banners and
+no deferred 450 ms overlay obstruction.
