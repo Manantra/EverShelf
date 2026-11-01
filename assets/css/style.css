@@ -2423,7 +2423,8 @@ body.server-offline .bottom-nav {
     font-size: 1rem;
     font-weight: 800;
     letter-spacing: 0.02em;
-    text-transform: lowercase;
+    /* Preserve case for localized words such as German 'Packung'. */
+    text-transform: none;
     white-space: nowrap;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
@@ -2465,9 +2466,16 @@ body.server-offline .bottom-nav {
     color: #fff;
 }
 
+/* Full depletion is a separate choice beneath the normal quantity action.
+   The existing acknowledge + slide safety confirmation remains required. */
+.use-all-option {
+    width: 100%;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+}
 .use-all-btn {
-    min-height: 70px;
-    font-size: 1.15rem;
+    min-height: 50px;
+    font-size: 1rem;
 }
 
 /* —— Use-all safety confirm (checkbox + slide) —— */

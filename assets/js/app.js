@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025a'; // bump when translations change
+const _I18N_VERSION = '20261101c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9843,11 +9843,19 @@ function alertQtyDisplay(item) {
     return stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
 }
 
+// 'conf' remains an internal DB/API code. The displayed noun should be
+// singular for a single/partial package and plural for multiple packages.
+function localizedPackageUnitLabel(count) {
+    const n = Number(count);
+    return n > 0 && n <= 1 ? t('units.conf') : t('units.boxes');
+}
+
 function formatQuantity(qty, unit, defaultQty, packageUnit) {
     if (!qty && qty !== 0) return '';
     const n = parseFloat(qty);
     const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml', 'conf': t('units.conf') };
-    const label = unitLabels[unit] || unit || t('units.pz');
+    const label = unit === 'conf' ? localizedPackageUnitLabel(n)
+        : (unitLabels[unit] || unit || t('units.pz'));
 
     // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
@@ -9856,11 +9864,11 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span>`;
+            return `${wholeConf} ${localizedPackageUnitLabel(wholeConf)} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span>`;
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
         if (wholeConf > 0) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
+            return `${wholeConf} ${localizedPackageUnitLabel(wholeConf)} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
         }
         return remainderText;
     }
@@ -9958,7 +9966,8 @@ function syncRecipeUseQtyUnitBadge() {
 function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
     const n = parseFloat(qty) || 0;
     const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml', 'conf': t('units.conf') };
-    const label = unitLabels[unit] || unit || t('units.pz');
+    const label = unit === 'conf' ? localizedPackageUnitLabel(n)
+        : (unitLabels[unit] || unit || t('units.pz'));
 
     // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
@@ -9967,11 +9976,11 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: '' };
+            return { mainQty: `${wholeConf}`, unitLabel: localizedPackageUnitLabel(wholeConf), packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: '' };
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
         if (wholeConf > 0) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
+            return { mainQty: `${wholeConf}`, unitLabel: localizedPackageUnitLabel(wholeConf), packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
         }
         return { mainQty: remainderText, unitLabel: '', packageDetail: '', fraction: '' };
     }
@@ -15510,7 +15519,7 @@ async function loadUseInventoryInfo() {
                 const confQty = parseFloat(i.quantity);
                 const subQty = Math.round(confQty * pkgSize);
                 const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
-                return `${loc.icon} ${loc.label}: ${confDisplay} conf (${subQty}${subLabel})`;
+                return `${loc.icon} ${loc.label}: ${confDisplay} ${localizedPackageUnitLabel(confQty)} (${subQty} ${subLabel})`;
             }).join(' · ');
 
             // Show unit switch
@@ -15534,10 +15543,10 @@ async function loadUseInventoryInfo() {
             confFracDiv.innerHTML = `<div class="fraction-btn-row">${
                 confFracs.filter(f => f <= _useConfMode.totalConf + 0.01).map(f => {
                     const label = f === 0.25 ? '¼' : f === 0.5 ? '½' : f;
-                    return `<button type="button" class="frac-btn${f === 1 ? ' active' : ''}" data-frac="${f}" onclick="setConfFraction(${f})">${label} ${t('units.conf') || 'conf'}</button>`;
+                    return `<button type="button" class="frac-btn${f === 1 ? ' active' : ''}" data-frac="${f}" onclick="setConfFraction(${f})">${label} ${localizedPackageUnitLabel(f)}</button>`;
                 }).join('')
             }</div>`;
-            document.querySelector('#page-use .use-partial').appendChild(confFracDiv);
+            document.getElementById('btn-use-submit').before(confFracDiv);
 
             // Trigger a live-box refresh with the latest reading if on scale
             if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
@@ -15588,7 +15597,7 @@ async function loadUseInventoryInfo() {
                         <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾ ${t('use.piece')}</button>
                         <button type="button" class="frac-btn active" data-frac="1" onclick="setPzFraction(1)">${t('use.one_whole')}</button>
                     </div>`;
-                document.querySelector('#page-use .use-partial').appendChild(fracDiv);
+                document.getElementById('btn-use-submit').before(fracDiv);
             }
             syncUseQtyUnitBadge();
         }
@@ -15736,7 +15745,7 @@ function _appendUseWeightFractionButtons(stock, unit) {
             return `<button type="button" class="frac-btn${f === 0.5 ? ' active' : ''}" data-frac="${f}" onclick="setUseWeightFraction(${f})">${label} (${amt}${uLabel})</button>`;
         }).join('')
     }</div>`;
-    document.querySelector('#page-use .use-partial').appendChild(fracDiv);
+    document.getElementById('btn-use-submit').before(fracDiv);
 }
 
 function selectUseLocation(btn, loc) {

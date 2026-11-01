@@ -648,3 +648,32 @@ HTTP API and SQLite rows for conflict resolution 16 -> 14, moves, deletes,
 reconciliation, undone transactions, real use, and manual adjustment after use.
 The test refuses databases not explicitly marked EVERSHELF_SANDBOX=1, and is
 also executed by CI.
+
+## "Use / Consume" action ordering and localized packaging (2026-11-01)
+
+The Use form placed the destructive "Use ALL" button above the actual
+amount input and the "Use this quantity" button. This was confusing,
+especially on a phone when switching between grams and packages.
+The page now follows: select unit -> select/enter quantity -> ordinary
+quantity action -> visibly separated full-stock action at the bottom.
+Quarter/half/full package and weight fraction shortcuts, which were
+previously appended *after* the ordinary submit button by JS, now render
+above it. The optional recipe button remains a separate action.
+
+Full-stock depletion still uses the existing explicitly confirmed
+checkbox-plus-slide gesture (and disambiguation for opened packages);
+its API and record-writing logic are unchanged. The formerly misleading
+trash-can icon is removed from the consumption button. Its labels and
+the direct quantity hint are localized in all six languages.
+
+Internal unit code 'conf' (Italian 'confezione') is unchanged in stored
+SQLite rows and API payloads, for backward compatibility. German visible
+labels use 'Packung' / 'Packungen' instead of 'Pkg', and the formerly
+hard-coded '<N> conf' line on the Use page is localized. The quantity
+unit badge no longer forces lowercase on translated words.
+The i18n and PWA asset versions are bumped to refresh iOS cache.
+
+Regression: php scripts/test-use-form-layout.php verifies the form's
+DOM order, safe form semantics, full-stock confirmation, fast fractional
+controls, translated German packaging and all six locale strings.
+No production data or settings are changed. Test first in isolated PWA.
