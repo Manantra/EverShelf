@@ -753,3 +753,40 @@ The real HTTP/SQLite integration-usage-waste-stats.py additionally asserts
 that deleting one inventory row does not change monthly use/waste metrics.
 Translations for the new action, confirmation and success message are present
 in de/en/it/es/fr/zh. The fix is staged only; no production files are changed.
+
+
+## iPhone pantry row tap / storage label and pack-size clarity (2026-11-01)
+
+The existing pantry pointer handler deliberately disabled touch tap and routed
+a desktop mouse click straight to quick-use. With the recent detail-only
+"Dispose" control, this left iPhone users unable to open product details:
+only left/right swipe responded. Pantry row tap now opens showItemDetail on
+both phone and desktop; left swipe still displays Use/Dispose actions, right
+swipe still edits. A vertical scroll, favorite/tag tap or pointercancel never
+opens the detail. The row is keyboard-focusable with Enter/Space support and
+a localized accessible label. No stock operations occur on row tap.
+
+The longer localized unit label "Packungen" increased the space occupied by
+the right-hand quantity area of each flex row. On narrow iPhones that squeezed
+the middle column and split the location badge "Vorratskammer" across lines.
+The phone-only pantry layout now uses a three-column/two-row grid; favorite
+and stock amount share the end column vertically, reserving more width for
+product name and location. Location pills cannot break inside words. Dashboard
+compact rows remain unchanged. No trash icon is added to the already narrow
+pantry row: tap the row, then the detail's "Entsorgen" button.
+
+For the 690g-per-package demo, the Use screen previously showed
+"14 Packungen (von 690g)" above "14 Packungen (9660 g)": both values
+were mathematically correct but appeared contradictory without context.
+The hero now explicitly renders "14 Packungen (690 g je Packung)" and the
+available inventory displays "14 Packungen (insgesamt: 9.660 g)" in German.
+Other locales receive translated "per package" and "total" phrases.
+This is display-only: stored quantities, package weights, unit conversions,
+inventory booking and shopping forecasts are unchanged.
+
+The edit-unit selector now uses "Pkg. (Packung)" rather than the duplicate
+"Packung (Packungen)", matching "g (Gramm)" conventions. The technical
+unit value remains conf in the database and request payloads.
+Test: node scripts/test-inventory-mobile-tap.js checks real swipe event
+handlers, taps, scroll/cancel/favorite, keyboard, responsive CSS and precise
+German per-pack/total quantity labels; CI executes it on every branch push.

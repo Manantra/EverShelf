@@ -98,3 +98,22 @@ Work exclusively with synthetic staging inventory, never production:
 5. Verify both on installed Home Screen PWA and Safari online. For offline
    use, confirm the selected waste reason persists in the local queue
    before syncing; never clear website data while an operation is pending.
+
+
+## iPhone pantry tap and grams-per-package display (2026-11-01)
+
+1. On the isolated Safari staging PWA, inspect the demo item in Vorrat.
+   Its "Vorratskammer" pill must remain one unbroken word on iPhone.
+2. A **single short tap** on the item opens the product detail sheet. This
+   contains the visible trash-bin "Entsorgen", which opens the waste form.
+   Cancel before saving. No bin icon is shown in the narrow inventory row.
+3. Swipe the same item left: Use/Dispose chooser still appears. Swipe right:
+   edit modal still appears. Vertical scrolling does not trigger either.
+4. In edit modal the unit list must say "Pkg. (Packung)", not the duplicated
+   "Packung (Packungen)". Leave quantity and unit untouched.
+5. In Use/Consume screen the demo at 14 packs of 690g per pack shows
+   "14 Packungen (690 g je Packung)" under the item and
+   "Vorratskammer: 14 Packungen (insgesamt: 9.660 g)" under Verfügbar.
+   This is a labeling test; neither amount is a different stock quantity.
+6. Do not consume/dispose/remove the product during this visual check.
+   Both Mac and phone must continue to show 14 packages.

@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101e'; // bump when translations change
+const _I18N_VERSION = '20261101f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10124,7 +10124,7 @@ function renderInventoryItem(item, opts = {}) {
         : _invImageHtml(item.image_url, catIcon);
     
     return `
-    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
+    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" role="button" tabindex="0" aria-label="${escapeHtml((item.display_name || item.name) + ' – ' + t('inventory.item_detail_open'))}">
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
@@ -10299,7 +10299,7 @@ function _initInventoryRowSwipe(container) {
 
     const onStart = (e) => {
         if (e.type.startsWith('pointer') && e.button !== 0) return;
-        if (e.target.closest('.btn-inv-fav')) return;
+        if (e.target.closest('.btn-inv-fav, .inv-tag-pill, a, button, input, select')) return;
         const row = e.target.closest('.inventory-item');
         if (!row) return;
         const content = row.querySelector('.inv-row-content');
@@ -10365,6 +10365,12 @@ function _initInventoryRowSwipe(container) {
         swipeCtx = null;
         if (!ctx || ctx.abandoned) return;
         if (ctx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== ctx.pointerId) return;
+        // iOS/Android may emit pointercancel on a scroll or system gesture.
+        // Cancel must not be mistaken for a tap that opens product details.
+        if (e.type === 'pointercancel') {
+            resetRowVisual(ctx.row, ctx.content);
+            return;
+        }
 
         const { row, content } = ctx;
         const pt = pointFromEvent(e, true);
@@ -10394,14 +10400,29 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        // Mouse short click → Use. Touch: swipe only (no long-press — swipe already covers Use).
-        if (!ctx.isTouch && ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
+        // A stationary tap/click opens product details on BOTH touch and mouse.
+        // Swipe gestures still open their quick-action chooser or edit form.
+        // Vertical scrolling was already abandoned by onMove above.
+        if (ctx.maxDx < 12 && ctx.maxDy < 10
+            && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            quickUse(productId, location);
+            showItemDetail(invId, productId);
         }
     };
 
+    const onKeyDown = (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('.btn-inv-fav, .inv-tag-pill')) return;
+        const row = e.target.closest('.inventory-item');
+        if (!row || row !== e.target || row.dataset.invSwipeDone === '1') return;
+        e.preventDefault();
+        const invId = Number(row.dataset.invId);
+        const productId = Number(row.dataset.productId);
+        if (invId > 0 && productId > 0) showItemDetail(invId, productId);
+    };
+
     const bindings = [
+        ['keydown', onKeyDown],
         ['pointerdown', onStart, { passive: true }],
         ['pointermove', onMove, { passive: false }],
         ['pointerup', onEnd, { passive: true }],
@@ -11215,7 +11236,7 @@ function editInventoryItem(id, _retried) {
             <div class="form-group">
                 <label>${t('product.unit_label')}</label>
                 <select id="edit-unit" class="form-input" onchange="onEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf_short') + ' (' + t('units.conf') + ')' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
@@ -13679,7 +13700,7 @@ function editActionInventoryItem(inventoryId) {
             <div class="form-group">
                 <label>${t('product.unit_label')}</label>
                 <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf_short') + ' (' + t('units.conf') + ')' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="action-edit-conf-group" style="display:${isConf ? 'block' : 'none'}">
@@ -15266,6 +15287,24 @@ function openUseInventoryEdit() {
  * Fill the hero-card meta row with expiry badge + quantity pill.
  * Called from loadUseInventoryInfo() once inventory data is available.
  */
+/** Explicit distinction between pack size and total available sub-units.
+ * 14 packages of 690g = 9,660g total; they are not two stock quantities.
+ * Do not change storage units or the inventory adjustment calculations.
+ */
+function _formatUsePackageStock(count, perPackage, subUnit, showTotal = false) {
+    const qty = Number(count);
+    const size = Number(perPackage);
+    const num = value => new Intl.NumberFormat(_collationLocale(),
+        { maximumFractionDigits: 3 }).format(value);
+    if (!Number.isFinite(qty) || !Number.isFinite(size)
+        || qty < 0 || size <= 0 || !subUnit) return '';
+    const packLabel = localizedPackageUnitLabel(qty);
+    if (showTotal) {
+        return `${num(qty)} ${packLabel} (${t('use.weight_total')}: ${num(qty * size)} ${subUnit})`;
+    }
+    return `${num(qty)} ${packLabel} (${num(size)} ${subUnit} ${t('use.weight_per_package')})`;
+}
+
 function _updateUseHeroMeta(items) {
     const metaEl = document.getElementById('use-hero-meta');
     if (!metaEl) return;
@@ -15295,7 +15334,12 @@ function _updateUseHeroMeta(items) {
     if (items.length > 0) {
         const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
         const unit = items[0]?.unit;
-        const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
+        const qtyStr = unit === 'conf'
+            ? (_formatUsePackageStock(totalQty, items[0]?.default_quantity,
+                items[0]?.package_unit) || stripHtml(formatQuantity(totalQty, unit,
+                    items[0]?.default_quantity, items[0]?.package_unit)))
+            : stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity,
+                items[0]?.package_unit));
         const locCount = new Set(items.map(i => i.location)).size;
         const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short')}` : '';
         pills.push(`<span class="use-meta-pill use-pill-qty">${escapeHtml(qtyStr)}${locSuffix}</span>`);
@@ -15483,9 +15527,8 @@ async function loadUseInventoryInfo() {
             infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
                 const confQty = parseFloat(i.quantity);
-                const subQty = Math.round(confQty * pkgSize);
-                const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
-                return `${loc.icon} ${loc.label}: ${confDisplay} ${localizedPackageUnitLabel(confQty)} (${subQty} ${subLabel})`;
+                return `${loc.icon} ${loc.label}: ${_formatUsePackageStock(confQty,
+                    parseFloat(i.default_quantity) || pkgSize, i.package_unit || subLabel, true)}`;
             }).join(' · ');
 
             // Show unit switch
