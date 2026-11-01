@@ -573,3 +573,35 @@ The regression script simulates the exact final-conflict discard sequence and
 asserts the modal closes and the banner disappears. A user-confirmation is
 still required to discard any actual pending action. This is a staging-only
 browser update; real inventory and production stay unchanged.
+
+## Offline conflict decisions: keep-server default, versioned reconciliation (2026-11-01)
+
+A stale inventory_update stays on the device queue. The review dialog fetches
+the latest server snapshot, displaying current stock and the saved offline
+entry. The highlighted Keep server stock choice only removes that queued
+action after user confirmation. It makes no server stock write, no ledger
+transaction and changes no saved settings. Later dependent edits for the same
+inventory row are marked for manual review rather than replayed silently.
+
+For quantity-only edits with a recorded original quantity, the user can
+explicitly replace the server quantity or apply the offline difference. These
+choices are hidden for combined renames and changed non-quantity fields,
+including location, expiry, unit, package and vacuum state.
+
+The inventory revision is monotonic and advanced by a SQLite trigger for
+every writer, even legacy clients and A-B-A changes within one second.
+The opt-in inventory_conflict_resolve endpoint checks the requested revision
+under BEGIN IMMEDIATE, updates stock, inserts any compensating ledger entry
+and stores an idempotency receipt in the same SQLite transaction. Failed
+receipts or stale versions roll back. Postcommit shopping reconciliation and
+the existing shopping mode settings remain unchanged.
+
+The browser persists the selected mode, revision, input and stable operation
+receipt key before sending a write. An ambiguous network failure retains
+the exact operation for confirmation without a duplicated stock movement.
+A definite revision conflict requires a fresh comparison. Old API clients,
+queue formats and manual review of unsupported actions remain supported.
+
+Tests include browser keep-server/no-POST checks, blocked dependent operations,
+mixed-field exclusions, lost HTTP replies, and real concurrent HTTP/SQLite
+ABA, receipt replay, forced receipt INSERT rollback and zero-stock snapshots.

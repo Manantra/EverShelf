@@ -318,7 +318,7 @@ async function testOfflineBannerSurvivesConflicts() {
 
 async function testLastConflictDiscardClosesReviewModal() {
     const reviewSource = extract(
-        'async function _offlineReviewQueue() {',
+        'function _offlineQuantityResolutionPreview(op, current) {',
         'async function _syncOfflineQueue() {'
     );
     const st = storage();
@@ -341,8 +341,14 @@ async function testLastConflictDiscardClosesReviewModal() {
         _offlineQueueReadError: false,
         _offlineWithQueueLock: async fn => fn(),
         _offlineQueueReadStrict: () => JSON.parse(st.getItem('test-queue') || '[]'),
+        _offlineQueueGet: () => JSON.parse(st.getItem('test-queue') || '[]'),
         _offlineQueueSet: q => st.setItem('test-queue', JSON.stringify(q)),
         _offlineNewOpId: () => 'migrated',
+        api: async () => ({
+            success: true,
+            inventory: { id: 42, product_id: 3, quantity: 8, revision: 1,
+                name: 'Safari test', unit: 'conf', location: 'dispensa' },
+        }),
         _renderOfflineBanner: () => { renders++; },
         document: { getElementById: id => ({
             'modal-content': content, 'modal-overlay': overlay,
@@ -371,6 +377,150 @@ async function testLastConflictDiscardClosesReviewModal() {
     assert.equal(overlay.style.display, 'none',
         'Opening the empty review must not show a misleading copy-only modal');
     assert.equal(queued(st).length, 0);
+}
+
+async function testQuantityResolutionSafetyGate() {
+    const fn = extract('function _offlineQuantityResolutionPreview(op, current) {',
+        '/** Show user-readable current-vs-offline values;');
+    const ctx = {};
+    vm.createContext(ctx);
+    vm.runInContext(fn + '\nthis.preview = _offlineQuantityResolutionPreview;', ctx);
+    const current = {
+        id: 11, product_id: 9, quantity: 8, revision: 3,
+        location: 'dispensa', unit: 'conf', package_size: 690,
+        package_unit: 'g', expiry_date: null, vacuum_sealed: 0,
+        expiry_user_set: 0,
+    };
+    const op = {
+        action: 'inventory_update', _needsReview: true,
+        body: { id: 11, product_id: 9, quantity: 7, location: 'dispensa',
+            unit: 'conf', package_size: 690, package_unit: 'g',
+            expected_inventory: { quantity: 6, location: 'dispensa' } },
+    };
+    let preview = ctx.preview(op, current);
+    assert.equal(preview.original, 6);
+    assert.equal(preview.wanted, 7);
+    assert.equal(preview.latest, 8);
+    assert.equal(preview.combined, 9);
+    assert.equal(preview.canDelta, true);
+    assert.equal(ctx.preview({ ...op, body: { ...op.body,
+        product_edit: { name: 'Other' } } }, current), null,
+        'A combined rename cannot lose its non-quantity changes');
+    assert.equal(ctx.preview({ ...op, body: { ...op.body,
+        expiry_date: '2030-01-01' } }, current), null,
+        'An edited expiry cannot be silently dropped');
+    assert.equal(ctx.preview(op, { ...current, location: 'frigo' }), null,
+        'A server-side location move is not a simple quantity-only edit');
+    assert.equal(ctx.preview({ ...op, body: { ...op.body, quantity: 1,
+        expected_inventory: { quantity: 6, location: 'dispensa' } } },
+        { ...current, quantity: 3 }).canDelta, false,
+        'Negative rebasing is not offered');
+    assert.equal(ctx.preview({ ...op, body: { ...op.body,
+        package_size: 100 } }, current), null,
+        'Changed package settings are not silently dropped');
+}
+
+async function testDependentWritesStayPendingAfterKeepServer() {
+    const snippet = extract('function _offlineRemoveResolvedOp(queue, opId) {',
+        'async function _offlineDiscardQueuedOp(opId, keepServer = false) {');
+    const ctx = {};
+    vm.createContext(ctx);
+    vm.runInContext(snippet + '\nthis.remove = _offlineRemoveResolvedOp;', ctx);
+    const q = [
+        { _opId: 'first', action: 'inventory_update', body: { id: 42 } },
+        { _opId: 'second', action: 'inventory_update', body: { id: 42 } },
+        { _opId: 'unrelated', action: 'inventory_update', body: { id: 51 } },
+    ];
+    const remaining = ctx.remove(q, 'first');
+    assert.equal(remaining.length, 2);
+    assert.equal(remaining[0]._needsReview, true,
+        'Dependent later edit cannot silently replay against a new server base');
+    assert.equal(remaining[0]._syncError, 'dependent_conflict');
+    assert.equal(remaining[1]._needsReview, undefined,
+        'Unrelated product still can synchronize normally');
+}
+
+async function testDurableConflictResolutionAfterLostResponse() {
+    const reviewSource = extract(
+        'function _offlineQuantityResolutionPreview(op, current) {',
+        'async function _syncOfflineQueue() {'
+    );
+    const st = storage(), calls = [], toasts = [];
+    st.setItem('test-queue', JSON.stringify([{
+        action: 'inventory_update', _needsReview: true,
+        _syncError: 'inventory_conflict', _opId: 'offline-stale',
+        body: { id: 42, product_id: 3, quantity: 7,
+            expected_inventory: { quantity: 6, location: 'dispensa' },
+            location: 'dispensa', unit: 'conf' },
+    }]));
+    const snapshot = { id: 42, product_id: 3, quantity: 8, revision: 4,
+        name: 'Test', unit: 'conf', location: 'dispensa' };
+    const overlay = { style: { display: 'none' } };
+    const content = { innerHTML: '', querySelectorAll: () => [],
+        querySelector: () => null };
+    let committed = 0, postCount = 0, refreshCount = 0;
+    const ctx = {
+        _offlineMode: false, _offlineQueueStorageBlocked: false,
+        _offlineQueueReadError: false,
+        _offlineWithQueueLock: async fn => fn(),
+        _offlineQueueReadStrict: () => JSON.parse(st.getItem('test-queue') || '[]'),
+        _offlineQueueSet: q => st.setItem('test-queue', JSON.stringify(q)),
+        _offlineQueueGet: () => JSON.parse(st.getItem('test-queue') || '[]'),
+        _offlineNewOpId: () => 'durable-resolution-id',
+        _renderOfflineBanner: () => {},
+        document: { getElementById: id => ({
+            'modal-content': content, 'modal-overlay': overlay,
+        })[id] },
+        navigator: { clipboard: { writeText: async () => {} } },
+        escapeHtml: value => String(value),
+        showToast: (message, type) => toasts.push({ message, type }),
+        confirm: () => true,
+        closeModal: () => { overlay.style.display = 'none'; },
+        refreshCurrentPage: () => { refreshCount++; },
+        t: key => key,
+        api: async (action, params, method, payload) => {
+            if (action === 'inventory_conflict_snapshot') {
+                return { success: true, inventory: snapshot };
+            }
+            assert.equal(action, 'inventory_conflict_resolve');
+            assert.equal(method, 'POST');
+            postCount++;
+            calls.push(JSON.parse(JSON.stringify(payload)));
+            // The first POST has already committed, but the HTTP response is
+            // lost to iOS suspension. A second POST must carry the SAME key.
+            if (postCount === 1) { committed++; throw Error('response lost'); }
+            return { success: true, idempotent_replay: true,
+                quantity: 9, id: 42, revision: 5 };
+        },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(reviewSource
+        + '\nthis.testResolution = { resolve: _offlineResolveQueuedOp,'
+        + ' keep: _offlineDiscardQueuedOp };', ctx);
+    await ctx.testResolution.resolve('offline-stale', 'delta');
+    assert.equal(committed, 1);
+    assert.equal(queued(st).length, 1, 'Missing ACK must keep the pending change');
+    assert.equal(queued(st)[0]._resolution._offline_op_id, 'durable-resolution-id',
+        'Resolution intent/receipt key is saved BEFORE network POST');
+    await ctx.testResolution.resolve('offline-stale', 'delta');
+    assert.equal(postCount, 2);
+    assert.deepEqual(calls[0], calls[1],
+        'Only the original identical resolution is ever retried');
+    assert.equal(queued(st).length, 0, 'Confirmed replay removes only its queued operation');
+    assert.equal(refreshCount, 1);
+    assert.equal(committed, 1, 'Recovered response did not double-apply a stock delta');
+
+    // Keep-server is a local-only action, even after a conflict.
+    st.setItem('test-queue', JSON.stringify([{
+        action: 'inventory_update', _needsReview: true,
+        _syncError: 'inventory_conflict', _opId: 'keep-later',
+        body: { id: 42, product_id: 3, quantity: 7,
+            expected_inventory: { quantity: 6 } },
+    }]));
+    const callsBefore = postCount;
+    await ctx.testResolution.keep('keep-later', true);
+    assert.equal(queued(st).length, 0);
+    assert.equal(postCount, callsBefore, 'Keep server must not send any stock write');
 }
 
 async function testSafariLockDenied() {
@@ -405,6 +555,9 @@ async function testFallbackWithinOneTab() {
     await testLegacyQueueAtQuota();
     await testOfflineBannerSurvivesConflicts();
     await testLastConflictDiscardClosesReviewModal();
+    await testQuantityResolutionSafetyGate();
+    await testDependentWritesStayPendingAfterKeepServer();
+    await testDurableConflictResolutionAfterLostResponse();
     await testSafariLockDenied();
     await testFallbackWithinOneTab();
     console.log('All Safari/PWA offline queue, suspension and multi-tab simulations passed.');

@@ -12119,3 +12119,29 @@ body.offline-mode #smart-shopping {
     0%, 100% { background: transparent; }
     50% { background: rgba(46, 125, 50, 0.10); }
 }
+
+
+/* Offline conflict decisions: accessible on narrow iPhone PWA screens. */
+.offline-conflict-details {
+    margin: .6rem 0;
+    padding: .7rem;
+    border-radius: .5rem;
+    background: var(--surface-2, rgba(120, 120, 120, .09));
+    font-size: .9rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.offline-conflict-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+    margin-top: .55rem;
+}
+.offline-conflict-actions .btn {
+    white-space: normal;
+    text-align: center;
+}
+@media (max-width: 420px) {
+    .offline-conflict-actions .btn { flex: 1 1 100%; }
+}

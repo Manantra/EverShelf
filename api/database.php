@@ -258,6 +258,21 @@ function migrateDB(PDO $db): void {
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
 
+    // Monotonic row revision for conflict resolution. SQLite timestamps only
+    // have second precision, so they cannot protect a quick A -> B -> A edit.
+    // A trigger covers every writer (API, background jobs, legacy clients)
+    // without changing their existing UPDATE statements or settings.
+    if (!in_array('revision', $invColNames, true)) {
+        try { $db->exec("ALTER TABLE inventory ADD COLUMN revision INTEGER NOT NULL DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    $db->exec("CREATE TRIGGER IF NOT EXISTS inventory_revision_on_update
+        AFTER UPDATE ON inventory
+        FOR EACH ROW WHEN NEW.revision = OLD.revision
+        BEGIN
+            UPDATE inventory SET revision = OLD.revision + 1 WHERE id = NEW.id;
+        END");
+
     $db->exec("CREATE TABLE IF NOT EXISTS barcode_cache (
         barcode TEXT PRIMARY KEY,
         found INTEGER NOT NULL DEFAULT 0,

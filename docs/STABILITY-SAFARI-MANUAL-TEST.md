@@ -57,3 +57,22 @@ write must roll back stock and transaction ledger.
 Do not deploy until these real-device results are captured. WebKit may evict
 locally queued data under storage pressure; this procedure does not guarantee
 data recovery after the browser has already deleted local storage.
+
+## New manual test: conflict choices on two devices (2026-11-01)
+
+Use ONLY the separate HTTPS Safari staging instance and the synthetic demo:
+
+1. Confirm both Mac and Home Screen PWA show 8 packages of the demo product.
+2. Disconnect iPhone and Wi-Fi. Mac updates 8 to 10 online. iPhone changes
+   cached 8 to 9 offline and then reconnects via Tailscale.
+3. Open Review pending changes. The current server stock should read 10,
+   and the iPhone offline input 9. Select Keep server stock (recommended)
+   and confirm. The window and alert should close; both devices stay at 10.
+4. For a new quantity-only conflict, inspect both explicit preview choices
+   before deciding. Updating the Mac again before the decision must cause a
+   revision conflict, not overwrite its new value.
+5. Combined rename/expiry/location changes must NOT expose automatic quantity
+   rebase options. Unsupported operations remain for manual review.
+6. If a confirmation loses its network reply, reopen the review and use the
+   confirm/recheck button. The saved receipt key must be reused. Do not wipe
+   storage, delete the PWA or send a second, new stock write.

@@ -1006,6 +1006,12 @@ try {
         case 'inventory_update':
             updateInventory($db);
             break;
+        case 'inventory_conflict_snapshot':
+            inventoryConflictSnapshot($db);
+            break;
+        case 'inventory_conflict_resolve':
+            inventoryConflictResolve($db);
+            break;
         case 'inventory_delete':
             deleteInventory($db);
             break;
@@ -5125,13 +5131,13 @@ function inventoryOfflineReceiptIdentity(array $input): ?array {
 /** Null on first submission, stored response for a confirmed replay, false
  * when an operation ID was reused for a different action or payload.
  */
-function inventoryOfflineReceiptRead(PDO $db, array $identity): array|false|null {
+function inventoryOfflineReceiptReadAction(PDO $db, array $identity, string $action): array|false|null {
     $stmt = $db->prepare('SELECT action, request_hash, response_json
         FROM offline_write_receipts WHERE operation_id=?');
     $stmt->execute([$identity['key']]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) return null;
-    if ($row['action'] !== 'inventory_add' || !hash_equals($row['request_hash'], $identity['hash'])) {
+    if ($row['action'] !== $action || !hash_equals($row['request_hash'], $identity['hash'])) {
         return false;
     }
     $result = json_decode($row['response_json'], true);
@@ -5139,6 +5145,10 @@ function inventoryOfflineReceiptRead(PDO $db, array $identity): array|false|null
         throw new RuntimeException('Invalid persisted inventory receipt');
     }
     return $result + ['idempotent_replay' => true];
+}
+
+function inventoryOfflineReceiptRead(PDO $db, array $identity): array|false|null {
+    return inventoryOfflineReceiptReadAction($db, $identity, 'inventory_add');
 }
 
 function inventoryOfflineReceiptReply(array|false $receipt): void {
@@ -6458,6 +6468,194 @@ function inventoryApplyManualProductRename(PDO $db, int $productId, array $edit)
     ]);
     if ($stmt->rowCount() !== 1) throw new DomainException('product_conflict');
     return $title;
+}
+
+/**
+ * Read the *current* row even when it is depleted/hidden in inventory_list.
+ * The monotonic revision is advanced by SQLite on every inventory UPDATE,
+ * including writes from old API clients and background jobs.
+ */
+function inventoryConflictSnapshot(PDO $db): void {
+    $idRaw = $_GET['id'] ?? null;
+    if (!is_scalar($idRaw) || !preg_match('/^[0-9]+$/D', (string)$idRaw) || (int)$idRaw <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_inventory_id']);
+        return;
+    }
+    $stmt = $db->prepare('SELECT i.id, i.product_id, i.quantity, i.location,
+        i.revision, i.expiry_date, i.expiry_user_set, i.vacuum_sealed,
+        p.name, p.unit, p.default_quantity, p.package_unit
+        FROM inventory i JOIN products p ON p.id=i.product_id WHERE i.id=?');
+    $stmt->execute([(int)$idRaw]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'inventory_not_found']);
+        return;
+    }
+    echo json_encode(['success' => true, 'inventory' => [
+        'id' => (int)$row['id'],
+        'product_id' => (int)$row['product_id'],
+        'quantity' => (float)$row['quantity'],
+        'location' => $row['location'],
+        'revision' => (int)$row['revision'],
+        'name' => $row['name'],
+        'unit' => $row['unit'],
+        'expiry_date' => $row['expiry_date'],
+        'expiry_user_set' => (int)$row['expiry_user_set'],
+        'vacuum_sealed' => (int)$row['vacuum_sealed'],
+        'package_size' => (float)$row['default_quantity'],
+        'package_unit' => $row['package_unit'],
+    ]], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * An explicit user resolution of a stale quantity edit. Unlike replaying
+ * inventory_update, this has its own atomic compare-and-set contract:
+ *   - BEGIN IMMEDIATE, compare row revision and product identity under lock
+ *   - compute delta from the user's original offline baseline, or replace
+ *   - write stock, compensating ledger, and durable idempotency receipt
+ * All in the same SQLite transaction. In particular, keep-server is NOT
+ * a server action: the client deletes only its selected local queue item.
+ *
+ * No unit, expiry, location, product rename, shopping-mode setting or other
+ * unrelated field can be modified by this endpoint.
+ */
+function inventoryConflictResolve(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $allowed = ['id', 'product_id', 'revision', 'mode', 'quantity',
+        'base_quantity', '_offline_op_id'];
+    if (!is_array($input) || array_is_list($input)
+        || array_diff(array_keys($input), $allowed)
+        || !isset($input['id'], $input['product_id'], $input['revision'],
+            $input['mode'], $input['quantity'], $input['_offline_op_id'])
+        || !is_int($input['id']) || $input['id'] <= 0
+        || !is_int($input['product_id']) || $input['product_id'] <= 0
+        || !is_int($input['revision']) || $input['revision'] < 0
+        || !in_array($input['mode'], ['replace', 'delta'], true)
+        || !is_numeric($input['quantity'])
+        || !is_finite((float)$input['quantity'])
+        || (float)$input['quantity'] < 0
+        || (float)$input['quantity'] > 100000
+        || ($input['mode'] === 'delta'
+            && (!array_key_exists('base_quantity', $input)
+                || !is_numeric($input['base_quantity'])
+                || !is_finite((float)$input['base_quantity'])
+                || (float)$input['base_quantity'] < 0))
+    ) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_conflict_resolution']);
+        return;
+    }
+    $identity = inventoryOfflineReceiptIdentity($input);
+    if ($identity === null || isset($identity['invalid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_offline_op_id']);
+        return;
+    }
+
+    $receipt = null;
+    $changed = null;
+    $id = $input['id'];
+    try {
+        dbWithRetry(static function () use ($db, $input, $identity, &$receipt, &$changed): void {
+            dbBeginImmediate($db);
+            try {
+                $priorReceipt = inventoryOfflineReceiptReadAction($db, $identity, 'inventory_conflict_resolve');
+                if ($priorReceipt !== null) {
+                    if ($priorReceipt === false) throw new DomainException('idempotency_conflict');
+                    $receipt = $priorReceipt;
+                    dbRollback($db);
+                    return;
+                }
+                $stmt = $db->prepare('SELECT id, product_id, quantity, location, revision
+                    FROM inventory WHERE id=?');
+                $stmt->execute([$input['id']]);
+                $current = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$current) throw new DomainException('inventory_not_found');
+                if ((int)$current['product_id'] !== $input['product_id']
+                    || (int)$current['revision'] !== $input['revision']) {
+                    throw new DomainException('inventory_conflict');
+                }
+                $previous = (float)$current['quantity'];
+                $desired = (float)$input['quantity'];
+                if ($input['mode'] === 'delta') {
+                    $desired = $previous + ($desired - (float)$input['base_quantity']);
+                }
+                if (!is_finite($desired) || $desired < 0 || $desired > 100000) {
+                    throw new DomainException('invalid_resolved_quantity');
+                }
+                $desired = round($desired, 6);
+                $db->prepare('UPDATE inventory
+                    SET quantity=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+                    ->execute([$desired, $input['id']]);
+                $diff = round($desired - $previous, 6);
+                if (abs($diff) > 0.001) {
+                    $db->prepare("INSERT INTO transactions
+                        (product_id, type, quantity, location, notes)
+                        VALUES (?, ?, ?, ?, '[Manual correction]')")
+                        ->execute([
+                            (int)$current['product_id'],
+                            $diff > 0 ? 'in' : 'out', abs($diff),
+                            $current['location'],
+                        ]);
+                }
+                $fresh = $db->prepare('SELECT revision FROM inventory WHERE id=?');
+                $fresh->execute([$input['id']]);
+                $receipt = [
+                    'success' => true,
+                    'id' => (int)$input['id'],
+                    'quantity' => $desired,
+                    'revision' => (int)$fresh->fetchColumn(),
+                    'mode' => $input['mode'],
+                ];
+                $db->prepare('INSERT INTO offline_write_receipts
+                    (operation_id, action, request_hash, response_json)
+                    VALUES (?, ?, ?, ?)')->execute([
+                        $identity['key'], 'inventory_conflict_resolve', $identity['hash'],
+                        json_encode($receipt, JSON_UNESCAPED_UNICODE),
+                    ]);
+                $changed = ['product_id' => (int)$current['product_id'],
+                    'quantity' => $desired, 'location' => $current['location'],
+                    'changed' => abs($diff) > 0.001];
+                dbCommit($db);
+            } catch (Throwable $e) {
+                dbRollback($db);
+                throw $e;
+            }
+        });
+    } catch (DomainException $e) {
+        $reason = $e->getMessage();
+        http_response_code($reason === 'inventory_not_found' ? 404
+            : ($reason === 'invalid_resolved_quantity' ? 400 : 409));
+        echo json_encode(['success' => false, 'error' => $reason]);
+        return;
+    } catch (PDOException $e) {
+        $busy = str_contains($e->getMessage(), 'database is locked');
+        if (!$busy) EverLog::exception($e, 'inventory_conflict_resolve');
+        http_response_code($busy ? 503 : 500);
+        echo json_encode(['success' => false, 'error' => $busy ? 'database_busy' : 'resolution_failed']);
+        return;
+    } catch (Throwable $e) {
+        EverLog::exception($e, 'inventory_conflict_resolve');
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'resolution_failed']);
+        return;
+    }
+
+    // External sync is post-commit (no HTTP calls under SQLite write lock).
+    // Existing shopping settings are unchanged.
+    if ($changed !== null && $changed['changed']) {
+        try { bringSyncProductFromCache($db, $changed['product_id']); } catch (Throwable $e) {}
+        $nameStmt = $db->prepare('SELECT name FROM products WHERE id=?');
+        $nameStmt->execute([$changed['product_id']]);
+        _fireHaWebhook('stock_update', [
+            'item' => (string)$nameStmt->fetchColumn(),
+            'quantity' => $changed['quantity'],
+            'location' => $changed['location'],
+        ]);
+    }
+    echo json_encode($receipt, JSON_UNESCAPED_UNICODE);
 }
 
 function updateInventory(PDO $db): void {

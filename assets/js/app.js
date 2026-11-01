@@ -26801,6 +26801,55 @@ function _renderOfflineBanner(loading = false) {
 
 /** Show unsent actions; never remove a conflict without explicit consent.
  * This is deliberately a review surface, not an automatic conflict merge. */
+/** Only offer quantity-rebase when the queued edit changed no other fields.
+ * A stock+rename or stock+expiry change must stay for manual review, because
+ * silently discarding its additional fields would lose the user's intent.
+ */
+function _offlineQuantityResolutionPreview(op, current) {
+    if (!op || op.action !== 'inventory_update' || !op._needsReview
+        || !current || Number(op.body?.id) !== Number(current.id)
+        || Number(op.body?.product_id) !== Number(current.product_id)
+        || op.body?.product_edit || !op.body?.expected_inventory) return null;
+    const original = Number(op.body.expected_inventory.quantity);
+    const wanted = Number(op.body.quantity);
+    if (!Number.isFinite(original) || !Number.isFinite(wanted)
+        || original < 0 || wanted < 0 || wanted > 100000
+        || !Object.hasOwn(op.body.expected_inventory, 'quantity')) return null;
+    const allowed = ['id', 'product_id', 'quantity', 'expected_inventory', 'location',
+        'expiry_date', 'vacuum_sealed', 'expiry_user_set', 'unit',
+        'package_unit', 'package_size'];
+    if (Object.keys(op.body).some(field => !allowed.includes(field))) return null;
+    const baseline = op.body.expected_inventory;
+    const equal = (a, b, key) => {
+        if (key === 'vacuum_sealed' || key === 'expiry_user_set' || key === 'package_size') {
+            return Number(a || 0) === Number(b || 0);
+        }
+        return String(a ?? '') === String(b ?? '');
+    };
+    // If any other field changed *offline* or changed on the server, do not
+    // disguise a multi-field conflict as a simple quantity-only decision.
+    for (const field of ['location', 'expiry_date', 'vacuum_sealed', 'expiry_user_set']) {
+        if (Object.hasOwn(baseline, field)
+            && !equal(baseline[field], current[field], field)) return null;
+        if (Object.hasOwn(op.body, field)
+            && !equal(op.body[field], current[field], field)) return null;
+        if (Object.hasOwn(op.body, field) && Object.hasOwn(baseline, field)
+            && !equal(op.body[field], baseline[field], field)) return null;
+    }
+    for (const field of ['unit', 'package_unit', 'package_size']) {
+        if (Object.hasOwn(op.body, field)
+            && !equal(op.body[field], current[field], field)) return null;
+    }
+    const latest = Number(current.quantity);
+    if (!Number.isFinite(latest)) return null;
+    const combined = Math.round((latest + wanted - original) * 1000000) / 1000000;
+    return { original, wanted, latest, combined,
+        canDelta: combined >= 0 && combined <= 100000 };
+}
+
+/** Show user-readable current-vs-offline values; server keep is the default.
+ * Any request to apply the offline value is separately, explicitly confirmed.
+ */
 async function _offlineReviewQueue() {
     let pending;
     try {
@@ -26821,44 +26870,106 @@ async function _offlineReviewQueue() {
     const overlay = document.getElementById('modal-overlay');
     if (!content || !overlay) return;
     if (pending.length === 0 && !_offlineQueueStorageBlocked) {
-        // The final action was successfully discarded/acknowledged.
-        // Dismissing the now-empty dialog avoids a misleading copy-only
-        // "pending changes" window. Do not conceal storage failures.
         closeModal();
         _renderOfflineBanner();
         return;
     }
-    const entries = pending.map(op => {
+    // Read-only snapshots. Do NOT issue a stock update just to show a choice.
+    const live = await Promise.all(pending.map(async op => {
+        if (_offlineMode || op.action !== 'inventory_update' || !op._needsReview
+            || !(Number(op.body?.id) > 0)) return null;
+        try {
+            const result = await api('inventory_conflict_snapshot', { id: op.body.id },
+                'GET', null, {}, 8000);
+            return result?.success ? result.inventory : null;
+        } catch (_) { return null; }
+    }));
+    // A Safari tab may have discarded an action while snapshots were loaded.
+    // Never render controls against a stale copy of the durable queue.
+    const newest = _offlineQueueGet();
+    if (JSON.stringify(newest) !== JSON.stringify(pending)) {
+        await _offlineReviewQueue();
+        return;
+    }
+    const entries = pending.map((op, i) => {
         const details = [op.action || '?', op.body?.name || op.body?.product_edit?.name
             || op.body?.items?.[0]?.name || op.body?.id || op.body?.product_id || ''];
         const label = details.filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
         const status = op._needsReview ? t('error.offline_conflicts_pending').replace('{n}', '1')
             : op._syncError || t('error.offline_ops_pending').replace('{n}', '1');
-        return '<li class="offline-queued-op">' + label +
-            ' <small>' + escapeHtml(status) + '</small> ' +
-            '<button type="button" class="btn btn-secondary" data-offline-retry="' +
-            escapeHtml(String(op._opId)) + '">' + escapeHtml(t('error.offline_retry')) +
-            '</button> ' +
-            '<button type="button" class="btn btn-secondary" data-offline-discard="' +
-            escapeHtml(String(op._opId)) + '">' + escapeHtml(t('error.offline_discard')) +
-            '</button></li>';
+        const key = escapeHtml(String(op._opId));
+        const current = live[i];
+        const preview = _offlineQuantityResolutionPreview(op, current);
+        const quantityEdit = op.action === 'inventory_update' && op._needsReview;
+        const isConflict = op._needsReview
+            && ['inventory_conflict', 'product_conflict', 'idempotency_conflict',
+                'inventory_not_found', 'product_not_found'].includes(op._syncError);
+        const serverLabel = current ? (escapeHtml(String(current.name || '')) + ' · '
+            + escapeHtml(String(current.quantity)) + ' '
+            + escapeHtml(String(current.unit || ''))) : '';
+        const userLabel = op.body?.quantity !== undefined
+            ? escapeHtml(String(op.body.quantity)) : '';
+        const info = quantityEdit
+            ? '<div class="offline-conflict-details">'
+                + '<strong>' + escapeHtml(t('error.offline_current_server')) + '</strong> '
+                + (current ? serverLabel : escapeHtml(t('error.offline_server_unavailable')))
+                + '<div><strong>' + escapeHtml(t('error.offline_your_change')) + '</strong> '
+                + userLabel + '</div></div>' : '';
+        const keep = op._needsReview && current
+            ? '<button type="button" class="btn btn-primary" data-offline-keep="' + key
+                + '">' + escapeHtml(t('error.offline_keep_server')) + '</button> '
+            : '';
+        const resolveButtons = preview && !op._resolution
+            ? '<button type="button" class="btn btn-secondary" data-offline-resolve="replace" data-offline-op="'
+                + key + '">' + escapeHtml(t('error.offline_replace')) + ' ('
+                + escapeHtml(String(preview.wanted)) + ')</button> '
+                + (preview.canDelta
+                    ? '<button type="button" class="btn btn-secondary" data-offline-resolve="delta" data-offline-op="'
+                        + key + '">' + escapeHtml(t('error.offline_apply_delta')) + ' ('
+                        + escapeHtml(String(preview.combined)) + ')</button> ' : '')
+            : '';
+        const receiptRetry = op._resolution
+            ? '<button type="button" class="btn btn-secondary" data-offline-resolve="'
+                + escapeHtml(op._resolution.mode) + '" data-offline-op="' + key
+                + '">' + escapeHtml(t('error.offline_check_resolution')) + '</button> '
+            : '';
+        // Preserve the original manual retry/discard actions for unsupported
+        // operations. Do not offer re-sending an already rejected stale edit.
+        const retry = !isConflict && !op._resolution
+            ? '<button type="button" class="btn btn-secondary" data-offline-retry="'
+                + key + '">' + escapeHtml(t('error.offline_retry')) + '</button> ' : '';
+        const discard = '<button type="button" class="btn btn-secondary" data-offline-discard="'
+            + key + '">' + escapeHtml(t('error.offline_discard')) + '</button>';
+        return '<li class="offline-queued-op">' + label
+            + ' <small>' + escapeHtml(status) + '</small>'
+            + info + '<div class="offline-conflict-actions">'
+            + keep + resolveButtons + receiptRetry + retry + discard + '</div></li>';
     }).join('');
     content.innerHTML =
-        '<div class="modal-header"><h3>' + escapeHtml(t('error.offline_review')) +
-        '</h3><button class="modal-close" onclick="closeModal()">✕</button></div>' +
-        '<p class="settings-hint">' + escapeHtml(t('error.offline_review_hint')) + '</p>' +
-        '<ol class="offline-pending-list">' + entries + '</ol>' +
-        '<button type="button" class="btn btn-secondary" id="offline-copy-pending">' +
-        escapeHtml(t('error.offline_copy')) + '</button>';
+        '<div class="modal-header"><h3>' + escapeHtml(t('error.offline_review'))
+        + '</h3><button class="modal-close" onclick="closeModal()">✕</button></div>'
+        + '<p class="settings-hint">' + escapeHtml(t('error.offline_review_hint')) + '</p>'
+        + '<ol class="offline-pending-list">' + entries + '</ol>'
+        + '<button type="button" class="btn btn-secondary" id="offline-copy-pending">'
+        + escapeHtml(t('error.offline_copy')) + '</button>';
     content.querySelectorAll('[data-offline-retry]').forEach(button => {
         button.addEventListener('click', () => _offlineRetryQueuedOp(button.dataset.offlineRetry));
     });
     content.querySelectorAll('[data-offline-discard]').forEach(button => {
         button.addEventListener('click', () => _offlineDiscardQueuedOp(button.dataset.offlineDiscard));
     });
+    content.querySelectorAll('[data-offline-keep]').forEach(button => {
+        button.addEventListener('click', () => _offlineDiscardQueuedOp(button.dataset.offlineKeep, true));
+    });
+    content.querySelectorAll('[data-offline-resolve]').forEach(button => {
+        button.addEventListener('click', () => _offlineResolveQueuedOp(
+            button.dataset.offlineOp, button.dataset.offlineResolve));
+    });
     content.querySelector('#offline-copy-pending')?.addEventListener('click', async () => {
         try {
-            await navigator.clipboard.writeText(JSON.stringify(pending, null, 2));
+            // Read latest at click time; queued operations may have changed
+            // while the dialog was open in another Safari/PWA tab.
+            await navigator.clipboard.writeText(JSON.stringify(_offlineQueueReadStrict(), null, 2));
         } catch (_) {
             showToast(t('error.copy_failed'), 'error');
         }
@@ -26886,18 +26997,137 @@ async function _offlineRetryQueuedOp(opId) {
     }
 }
 
-async function _offlineDiscardQueuedOp(opId) {
-    if (!confirm(t('error.offline_discard_confirm'))) return;
+/** A keep-server decision is a local queue acknowledgement, NOT a server
+ * transaction. It cannot alter stock or ledger. Later dependent queued edits
+ * for the same row require separate manual review rather than stale replay.
+ */
+function _offlineRemoveResolvedOp(queue, opId) {
+    const index = queue.findIndex(op => op._opId === opId);
+    if (index < 0) return queue;
+    const discarded = queue[index];
+    if (discarded.action === 'inventory_update') {
+        const target = String(discarded.body?.id);
+        for (let i = index + 1; i < queue.length; i++) {
+            const later = queue[i];
+            if (later.action?.startsWith('inventory_')
+                && String(later.body?.id) === target) {
+                later._needsReview = true;
+                later._syncError = 'dependent_conflict';
+            }
+        }
+    }
+    return queue.filter(op => op._opId !== opId);
+}
+
+async function _offlineDiscardQueuedOp(opId, keepServer = false) {
+    if (!confirm(t(keepServer ? 'error.offline_keep_server_confirm'
+        : 'error.offline_discard_confirm'))) return;
     try {
         await _offlineWithQueueLock(async () => {
             const q = _offlineQueueReadStrict();
             if (!q.some(op => op._opId === opId)) return;
-            _offlineQueueSet(q.filter(op => op._opId !== opId));
+            _offlineQueueSet(_offlineRemoveResolvedOp(q, opId));
         });
         _renderOfflineBanner();
         await _offlineReviewQueue();
     } catch (_) {
         showToast(t('error.offline_storage_unavailable'), 'error');
+    }
+}
+
+/** Explicit replace/rebase: persist a stable receipt key BEFORE the POST.
+ * A lost response or Safari suspension can never produce a second delta.
+ * The server compares the selected monotonic row revision under BEGIN
+ * IMMEDIATE; a newer Mac edit returns 409 and forces a fresh review.
+ */
+async function _offlineResolveQueuedOp(opId, mode) {
+    if (_offlineMode || !['replace', 'delta'].includes(mode)) return;
+    try {
+        let op = _offlineQueueReadStrict().find(x => x._opId === opId);
+        if (!op || !op._needsReview || op.action !== 'inventory_update') return;
+        let requestBody = op._resolution || null;
+        if (requestBody && requestBody.mode !== mode) return;
+        if (!requestBody) {
+            const latest = await api('inventory_conflict_snapshot', { id: op.body?.id },
+                'GET', null, {}, 8000);
+            if (!latest?.success) {
+                showToast(t('error.offline_server_unavailable'), 'warning');
+                return;
+            }
+            const preview = _offlineQuantityResolutionPreview(op, latest.inventory);
+            if (!preview || (mode === 'delta' && !preview.canDelta)) {
+                showToast(t('error.offline_resolution_unavailable'), 'warning');
+                await _offlineReviewQueue();
+                return;
+            }
+            const expected = mode === 'delta' ? preview.combined : preview.wanted;
+            const prompt = t(mode === 'delta' ? 'error.offline_apply_delta_confirm'
+                : 'error.offline_replace_confirm')
+                .replace('{server}', String(preview.latest))
+                .replace('{result}', String(expected));
+            if (!confirm(prompt)) return;
+            requestBody = {
+                id: Number(latest.inventory.id),
+                product_id: Number(latest.inventory.product_id),
+                revision: Number(latest.inventory.revision),
+                mode,
+                quantity: preview.wanted,
+                ...(mode === 'delta' ? { base_quantity: preview.original } : {}),
+                _offline_op_id: _offlineNewOpId(),
+            };
+            await _offlineWithQueueLock(async () => {
+                const q = _offlineQueueReadStrict();
+                const target = q.find(x => x._opId === opId);
+                if (!target || !target._needsReview) return;
+                if (target._resolution) {
+                    requestBody = target._resolution;
+                    return;
+                }
+                target._resolution = requestBody;
+                _offlineQueueSet(q);
+            });
+            // A second tab may have deleted the action while we fetched.
+            op = _offlineQueueReadStrict().find(x => x._opId === opId);
+            if (!op?._resolution || op._resolution.mode !== mode) return;
+        }
+        // Only the same persisted body/key may ever be retried. Even if the
+        // server committed and the reply vanished, the durable receipt wins.
+        const response = await api('inventory_conflict_resolve', {}, 'POST',
+            requestBody, {}, 15000);
+        if (response?.success !== true || response?._offline) {
+            if (response?.error === 'inventory_conflict') {
+                // A *definitive* 409 means no transaction was accepted. The
+                // persisted intent can be discarded so the user can compare
+                // again against the newer revision. A timeout, 500, 503 or
+                // lost response MUST retain the same durable receipt key.
+                await _offlineWithQueueLock(async () => {
+                    const q = _offlineQueueReadStrict();
+                    const target = q.find(x => x._opId === opId);
+                    if (target && JSON.stringify(target._resolution) === JSON.stringify(requestBody)) {
+                        delete target._resolution;
+                        _offlineQueueSet(q);
+                    }
+                });
+            }
+            showToast(response?.error === 'inventory_conflict'
+                ? t('error.offline_revision_changed')
+                : t('error.offline_resolution_unconfirmed'), 'warning');
+            await _offlineReviewQueue();
+            return;
+        }
+        await _offlineWithQueueLock(async () => {
+            const q = _offlineQueueReadStrict();
+            const target = q.find(x => x._opId === opId);
+            // Never remove an entry if a different tab changed its intent.
+            if (!target || JSON.stringify(target._resolution) !== JSON.stringify(requestBody)) return;
+            _offlineQueueSet(_offlineRemoveResolvedOp(q, opId));
+        });
+        _renderOfflineBanner();
+        refreshCurrentPage();
+        await _offlineReviewQueue();
+    } catch (_) {
+        showToast(t('error.offline_resolution_unconfirmed'), 'warning');
+        await _offlineReviewQueue();
     }
 }
 
