@@ -164,3 +164,20 @@ Open an issue with the `enhancement` label. Describe:
 ## 📄 License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+
+
+## Change tracking and releases
+
+Create a GitHub Issue for each distinct set of changes (related small fixes
+may share an issue). Start a dedicated feature or fix branch from the current
+stable baseline, not a direct commit to that baseline. Open a Pull Request
+referencing the issue, including behavior, tests, risks and manual staging
+results. Merge only after green CI and iPhone staging acceptance. Never
+deploy a test branch to the production database.
+
+Every user-visible set of changes requires a SemVer patch/minor/major bump.
+Use scripts/bump-version.sh to synchronize manifest, app header, preloader,
+README badge, browser assets, i18n stamp and service-worker cache. The
+existing staging-only cache suffix must be preserved. Add a CHANGELOG section
+and a matching README release note, and run
+python3 scripts/test-version-consistency.py before opening a PR.

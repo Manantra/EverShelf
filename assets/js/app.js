@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101g'; // bump when translations change
+const _I18N_VERSION = '20261101l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6632,7 +6632,10 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
         break;
     }
     // Keep local caches fresh for offline use (only ever written when server responds successfully)
-    if (action === 'inventory_list' && data && Array.isArray(data.inventory)) {
+    // Only the complete pantry may populate the offline cache. A filtered
+    // location response must never hide stock in another location offline.
+    if (action === 'inventory_list' && !params?.location
+        && data?.success !== false && Array.isArray(data?.inventory)) {
         _offlineCacheSet(data.inventory);
     }
     if (action === 'get_settings' && data && data.success !== false) {
@@ -6753,10 +6756,11 @@ function showPage(pageId, param = null, options = {}) {
             break;
         case 'inventory':
             if (param !== null) {
-                currentLocation = param;
+                // filterLocation already refreshes this tab; do not duplicate.
                 filterLocation(param);
+            } else {
+                loadInventory();
             }
-            loadInventory();
             break;
         case 'scan':
             closeScanNameSearch();
@@ -10055,20 +10059,19 @@ async function loadInventory() {
     const requestId = ++loadInventory._requestId;
     try {
         _restoreInventorySearchInput();
-        const [locData, allData] = await Promise.all([
-            api('inventory_list', currentLocation ? { location: currentLocation } : {}),
-            currentLocation ? api('inventory_list', {}) : null,
-        ]);
-        // A rate-limit / error answer is a JSON object without `inventory`: never replace
-        // the visible pantry with an empty list in that case (the household would think
-        // everything is gone). Keep what is on screen and try again on the next refresh.
+        // One full-inventory request serves the entire pantry and each tab.
+        // Two simultaneous reads per refresh used twice the rate-limit budget.
+        const data = await api('inventory_list');
+        // A 429 or failed response is never a legitimate empty pantry.
         if (requestId !== loadInventory._requestId) return;
-        const locItems = Array.isArray(locData?.inventory) ? locData.inventory : null;
-        if (locItems === null) throw new Error('inventory_list: no payload');
-        currentInventory = _inventoryVisibleItems(locItems);
-        _allInventoryCache = currentLocation
-            ? _inventoryVisibleItems(allData?.inventory || [])
-            : currentInventory;
+        if (data?.success === false || !Array.isArray(data?.inventory)) {
+            throw new Error('inventory_list: ' + (data?.error || 'invalid_payload'));
+        }
+        const allItems = _inventoryVisibleItems(data.inventory);
+        _allInventoryCache = allItems;
+        currentInventory = currentLocation
+            ? allItems.filter(i => i.location === currentLocation)
+            : allItems;
         const q = (_inventorySearchQuery || document.getElementById('inventory-search')?.value || '').trim();
         if (q) {
             filterInventory();
@@ -10125,7 +10128,7 @@ function renderInventoryItem(item, opts = {}) {
     
     return `
     <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" role="button" tabindex="0" aria-label="${escapeHtml((item.display_name || item.name) + ' – ' + t('inventory.item_detail_open'))}">
-        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
+        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_dispose'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_use'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
                 ${thumb}
@@ -10389,19 +10392,22 @@ function _initInventoryRowSwipe(container) {
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
         };
 
-        // Swipe left → Use / Discard chooser; swipe right → Edit
+        // Frequent actions on two gestures, no intermediate chooser and
+        // NEVER a direct stock write: each opens its own confirmed form.
+        // LEFT swipe: disposal form with quantity and mandatory reason.
         if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            showInvActionChooser(productId, location, invId);
+            quickThrowFromInv(productId, location, invId);
             return;
         }
-        if (dx >= 60 && !isNaN(invId)) {
+        // RIGHT swipe: consumption form; no write until explicit submission.
+        if (dx >= 60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            editInventoryItem(invId);
+            quickUse(productId, location);
             return;
         }
         // A stationary tap/click opens product details on BOTH touch and mouse.
-        // Swipe gestures still open their quick-action chooser or edit form.
+        // Vertical scrolling was already abandoned by onMove above.
         // Vertical scrolling was already abandoned by onMove above.
         if (ctx.maxDx < 12 && ctx.maxDy < 10
             && !isNaN(invId) && !isNaN(productId)) {
@@ -10844,7 +10850,6 @@ function showItemDetail(inventoryId, productId) {
             <div class="modal-header item-detail-header">
                 <h3 class="item-detail-title">${escapeHtml(item.name)}</h3>
                 <div class="item-detail-header-actions">
-                    <button type="button" class="btn-icon-round" title="${escapeHtml(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
                     <button type="button" class="modal-close" onclick="closeModal()">✕</button>
                 </div>
             </div>
@@ -10867,17 +10872,17 @@ function showItemDetail(inventoryId, productId) {
                     <span class="item-detail-action-icon">📤</span>
                     <span>${escapeHtml(t('inventory.item_detail_use'))}</span>
                 </button>
-                <button type="button" class="item-detail-action item-detail-action--all" onclick="itemDetailUseAll(${item.product_id}, '${item.location}')">
-                    <span class="item-detail-action-icon">✅</span>
-                    <span>${escapeHtml(t('inventory.item_detail_use_all'))}</span>
+                <button type="button" class="item-detail-action item-detail-action--throw" onclick="itemDetailThrow(${inventoryId})">
+                    <span class="item-detail-action-icon">🗑️</span>
+                    <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
+                </button>
+                <button type="button" class="item-detail-action item-detail-action--edit" onclick="editInventoryItem(${inventoryId})">
+                    <span class="item-detail-action-icon">✏️</span>
+                    <span>${escapeHtml(t('inventory.item_detail_edit'))}</span>
                 </button>
                 <button type="button" class="item-detail-action item-detail-action--recipe" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     <span class="item-detail-action-icon">🍳</span>
                     <span>${escapeHtml(t('inventory.item_detail_recipe'))}</span>
-                </button>
-                <button type="button" class="item-detail-action item-detail-action--throw" onclick="itemDetailThrow(${inventoryId})">
-                    <span class="item-detail-action-icon">🗑️</span>
-                    <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
                 </button>
             </div>
             <button type="button" class="item-detail-remove-only" onclick="removeInventoryOnly(${inventoryId})">
@@ -10900,12 +10905,6 @@ function itemDetailThrow(inventoryId) {
     return quickThrowFromInv(item.product_id, item.location, inventoryId);
 }
 
-async function itemDetailUseAll(productId, location) {
-    closeModal();
-    await _openUsePage(productId, location);
-    submitUseAll();
-}
-
 function closeModal() {
     // Spesa spend prompt: only start/resume the camera AFTER the popup is gone
     // (starting under the dialog race-starts barcode decode and causes chaos).
@@ -10922,6 +10921,8 @@ function closeModal() {
 
     if (startSpesaAfterSpend) _spesaBeginScanning();
 }
+
+let _requestedUseEntryLocation = null;
 
 async function _openUsePage(productId, location) {
     showLoading(true);
@@ -10949,12 +10950,18 @@ async function _openUsePage(productId, location) {
             _scaleLatestWeight = null;
         }
 
-        await loadUseInventoryInfo();
+        // Swiping/tapping a particular row must select that exact location.
+        _requestedUseEntryLocation = location;
+        const inventoryLoaded = await loadUseInventoryInfo();
+        // A rate-limited inventory GET must not open a stale Use form,
+        // and definitely must not label the product as exhausted.
+        if (inventoryLoaded === false) return;
         showPage('use', null, { skipHistory: false });
     } catch (err) {
         console.error('_openUsePage error:', err);
         showToast(t('error.loading'), 'error');
     } finally {
+        _requestedUseEntryLocation = null;
         showLoading(false);
     }
 }
@@ -10962,59 +10969,6 @@ async function _openUsePage(productId, location) {
 async function quickUse(productId, location) {
     closeModal();
     await _openUsePage(productId, location);
-}
-
-/**
- * After swipe-left on an inventory row: choose Use vs Discard.
- * Mouse click on the row goes straight to Use; touch uses swipe only.
- */
-function showInvActionChooser(productId, location, invId) {
-    const item = (invId != null && !isNaN(invId)) ? _findInventoryItem(invId) : null;
-    const name = item?.name || '';
-    const brand = item?.brand || '';
-    const img = item?.image_url || '';
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item?.category || '', name)] || '📦';
-    const locInfo = LOCATIONS[location] || { icon: '📦', label: location };
-    // Plain text: this value is escaped into the modal markup below (escapeHtml) and shown
-    // in a <p>, so the <span class="conf-size-info"> produced by formatQuantity() for
-    // "conf" units would be printed as a literal tag instead of a quantity.
-    const qtyLabel = item
-        ? stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit))
-        : '';
-
-    document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('inventory.swipe_chooser_title')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <div class="product-preview-small" style="margin-bottom:16px">
-            ${img
-                ? `<img src="${escapeHtml(img)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">`
-                : `<span style="font-size:2rem">${catIcon}</span>`}
-            <div class="product-preview-info">
-                <h3>${escapeHtml(name || t('inventory.swipe_chooser_title'))}</h3>
-                <p>${brand ? escapeHtml(brand) + ' · ' : ''}${locInfo.icon} ${escapeHtml(locInfo.label)}${qtyLabel ? ' · <strong>' + escapeHtml(qtyLabel) + '</strong>' : ''}</p>
-            </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-            <button type="button" class="btn btn-large btn-warning full-width" id="inv-chooser-use">
-                ${t('inventory.swipe_chooser_use')}
-            </button>
-            <button type="button" class="btn btn-large btn-danger full-width" id="inv-chooser-throw">
-                ${t('inventory.swipe_chooser_throw')}
-            </button>
-            <button type="button" class="btn btn-secondary full-width" onclick="closeModal()">${t('btn.cancel')}</button>
-        </div>
-    `;
-    document.getElementById('modal-overlay').style.display = 'flex';
-    document.getElementById('inv-chooser-use')?.addEventListener('click', () => {
-        closeModal();
-        quickUse(productId, location);
-    });
-    document.getElementById('inv-chooser-throw')?.addEventListener('click', () => {
-        closeModal();
-        quickThrowFromInv(productId, location, invId);
-    });
 }
 
 async function quickThrowFromInv(productId, location, invId) {
@@ -11030,7 +10984,8 @@ async function quickThrowFromInv(productId, location, invId) {
         package_unit: item?.package_unit || '',
     };
     // Enrich with full product if inventory row had sparse data
-    if (!currentProduct.name || !currentProduct.image_url) {
+    // A missing image is perfectly normal, not a reason for another GET.
+    if (!currentProduct.name) {
         try {
             const data = await api('product_get', { id: productId });
             if (data?.product) {
@@ -11696,7 +11651,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261025a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11706,7 +11661,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261025a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261101l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -13808,64 +13763,66 @@ async function deleteActionInventoryItem(id) {
 }
 
 // === THROW AWAY FORM ===
+let _throwFormRequestId = 0;
 function showThrowForm(preferredLocation = null) {
     // All disposal entry points share this form, including product detail,
     // swipe-left and the action page. Default to the selected inventory row.
+    // Capture identity before the request: a subsequent swipe can change
+    // the global currentProduct while this API call is in flight.
+    const requestedProduct = { ...currentProduct };
+    const requestedProductId = Number(requestedProduct.id);
+    const requestId = ++_throwFormRequestId;
     api('inventory_list').then(data => {
-        const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        if (requestId !== _throwFormRequestId
+            || Number(currentProduct?.id) !== requestedProductId) return;
+        // Rate-limits, server errors or missing JSON are NOT 'no stock'.
+        // Only a successful, valid inventory list can prove absence.
+        if (data?.success === false || !Array.isArray(data?.inventory)) {
+            showToast(data?.error || t('error.loading'), 'error');
+            return;
+        }
+        const items = data.inventory.filter(i => Number(i.product_id) === requestedProductId);
         if (items.length === 0) {
             showToast(t('error.not_in_inventory'), 'error');
             return;
         }
         
         const selected = items.find(i => i.location === preferredLocation) || items[0];
-        const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
-        const unit = items[0].unit || 'pz';
-        const defQty = items[0].default_quantity || 0;
-        const pkgUnit = items[0].package_unit || '';
-        const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit);
-        
-        let locOptionsHtml = items.map(inv => {
-            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)}</span></div>`;
+        // Reuse the exact same overview as Use: total, weight, location.
+        const stockSummary = _renderUseStockSummary(items);
+        const locations = [...new Set(items.map(i => i.location))];
+        const locButtons = locations.map(loc => {
+            const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
+            return `<button type="button" class="loc-btn ${loc === selected.location ? 'active' : ''}"
+                onclick="selectThrowLocation(this, '${loc}')">${locInfo.icon} ${escapeHtml(locInfo.label)}</button>`;
         }).join('');
-        
         document.getElementById('modal-content').innerHTML = `
             <div class="modal-header">
-                <h3>${t('use.throw_title')}</h3>
+                <h3>${escapeHtml(t('use.throw_title'))}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
-            <div class="product-preview-small" style="margin-bottom:12px;position:relative">
-                ${currentProduct.image_url ?
-                    `<img src="${escapeHtml(currentProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
-                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦'}</span>`
+            <div class="product-preview-small dispose-product-preview">
+                ${requestedProduct.image_url ?
+                    `<img src="${escapeHtml(requestedProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
+                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(requestedProduct.category, requestedProduct.name)] || '📦'}</span>`
                 }
                 <div class="product-preview-info">
-                    <h3>${escapeHtml(currentProduct.name)}</h3>
-                    <p>${escapeHtml(t('inventory.label_quantity').replace(/^📦\s*/, ''))}: <strong>${qtyDisplay}</strong></p>
+                    <h3>${escapeHtml(requestedProduct.name)}</h3>
                 </div>
-                ${items[0] ? `<button type="button" class="btn-edit-inline" onclick="editInventoryItem(${items[0].id})" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
             </div>
-            <div class="inventory-status-bar" style="margin-bottom:16px">
-                <div class="inv-status-items">${locOptionsHtml}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:10px">
-                <button class="btn btn-large btn-danger full-width" onclick="throwAll()">
-                    ${t('use.throw_all', { qty: qtyDisplay })}
-                </button>
-                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${t('use.throw_qty_hint')}</div>
+            <div class="dispose-stock-overview">${stockSummary}</div>
+            <div class="dispose-quantity-section">
+                ${locations.length > 1 ? `
                 <div class="form-group">
-                    <label>${t('use.location_label')}</label>
-                    <div class="location-selector" id="throw-location-selector">
-                        ${items.map(inv => {
-                            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${inv.location === selected.location ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
-                        }).join('')}
+                    <label>${escapeHtml(t('use.location_label'))}</label>
+                    <div class="location-selector" id="throw-location-selector" role="group"
+                        aria-label="${escapeHtml(t('use.location_label'))}">
+                        ${locButtons}
                     </div>
-                    <input type="hidden" id="throw-location" value="${selected.location}">
-                </div>
+                </div>` : ''}
+                <input type="hidden" id="throw-location" value="${escapeHtml(selected.location)}">
                 <div class="form-group">
-                    <label>${t('use.throw_qty_label')}</label>
+                    <label for="throw-quantity">${escapeHtml(t('use.throw_qty_label'))}</label>
                     <div class="qty-control-with-unit">
                         <div class="qty-control">
                             <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
@@ -13875,13 +13832,24 @@ function showThrowForm(preferredLocation = null) {
                         <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(selected.unit || 'pz'))}</span>
                     </div>
                 </div>
-                <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
-                    ${t('use.throw_partial_btn')}
+                <button type="button" class="btn btn-large btn-warning full-width" onclick="throwPartial()">
+                    ${escapeHtml(t('use.throw_partial_btn'))}
                 </button>
+                <div class="use-all-option dispose-all-option">
+                    <p class="form-hint">${escapeHtml(t('use.throw_all_scope'))}</p>
+                    <button type="button" class="btn btn-large btn-danger full-width use-all-btn" onclick="throwAll()">
+                        ${escapeHtml(t('use.throw_all_action'))}
+                    </button>
+                </div>
             </div>
         `;
         setQtyInputUnitLabel('throw-quantity', selected.unit || 'pz');
         document.getElementById('modal-overlay').style.display = 'flex';
+    }).catch(err => {
+        if (requestId !== _throwFormRequestId
+            || Number(currentProduct?.id) !== requestedProductId) return;
+        console.warn('[Dispose] Inventory load failed:', err);
+        showToast(t('error.connection'), 'error');
     });
 }
 
@@ -13892,73 +13860,28 @@ function selectThrowLocation(btn, loc) {
 }
 
 /**
- * Show a destructive-action confirmation modal with a 5-second auto-confirm countdown.
- * The user can tap "Annulla" to cancel or "Conferma" (or wait) to proceed.
- * @param {string}   title     — Modal title
- * @param {string}   msg       — Explanatory text
- * @param {Function} onConfirm — Called when confirmed (by user or countdown)
- * @param {string}   [confirmLabel] — Override confirm button label
+ * Full-stock disposal requires an explicit confirmation tap.
+ * No automatic countdown for an unattended PWA.
  */
 function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
-    const DURATION = 5000;
     const btnLabel = confirmLabel || t('confirm.proceed');
     const cancelLabel = t('confirm.cancel');
-    let rafHandle = null;
-    let timerHandle = null;
-    let resolved = false;
-
     const overlayEl = document.getElementById('modal-overlay');
     const contentEl = document.getElementById('modal-content');
-    const confirmBtnId = '_destConfirmBtn_' + Date.now();
-    const barId       = '_destConfirmBar_' + Date.now();
-
     contentEl.innerHTML = `
-        <div class="modal-header">
-            <h3>${escapeHtml(title)}</h3>
-        </div>
-        <p style="margin:12px 0 18px;color:var(--text-muted);font-size:0.95rem">${escapeHtml(msg)}</p>
-        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:16px">
-            <div id="${barId}" style="height:100%;width:100%;background:var(--danger);transition:none"></div>
-        </div>
-        <div style="display:flex;gap:10px">
-            <button class="btn btn-secondary" style="flex:1" id="_destCancelBtn">${escapeHtml(cancelLabel)}</button>
-            <button class="btn btn-danger" style="flex:1" id="${confirmBtnId}">${escapeHtml(btnLabel)}</button>
+        <div class="modal-header"><h3>${escapeHtml(title)}</h3></div>
+        <p class="dispose-confirm-message">${escapeHtml(msg)}</p>
+        <div class="dispose-confirm-actions">
+            <button type="button" class="btn btn-secondary" id="_destCancelBtn">${escapeHtml(cancelLabel)}</button>
+            <button type="button" class="btn btn-danger" id="_destConfirmBtn">${escapeHtml(btnLabel)}</button>
         </div>
     `;
     overlayEl.style.display = 'flex';
-
-    function cleanup() {
-        if (rafHandle)   cancelAnimationFrame(rafHandle);
-        if (timerHandle) clearTimeout(timerHandle);
-        rafHandle = timerHandle = null;
-    }
-    function doConfirm() {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
+    document.getElementById('_destCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('_destConfirmBtn').addEventListener('click', () => {
         closeModal();
         onConfirm();
-    }
-    function doCancel() {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
-        closeModal();
-    }
-
-    document.getElementById(confirmBtnId).addEventListener('click', doConfirm);
-    document.getElementById('_destCancelBtn').addEventListener('click', doCancel);
-
-    // Countdown animation
-    const barEl = document.getElementById(barId);
-    const start = performance.now();
-    function tick() {
-        const pct = Math.min(100, (performance.now() - start) / DURATION * 100);
-        if (barEl) barEl.style.width = (100 - pct) + '%';
-        if (pct < 100) { rafHandle = requestAnimationFrame(tick); }
-    }
-    rafHandle = requestAnimationFrame(tick);
-    timerHandle = setTimeout(doConfirm, DURATION);
+    }, { once: true });
 }
 
 async function throwAll() {
@@ -13988,7 +13911,12 @@ async function throwAll() {
 }
 
 async function throwPartial() {
-    const qty = parseFloat(document.getElementById('throw-quantity').value) || 1;
+    const qty = Number(document.getElementById('throw-quantity').value);
+    if (!Number.isFinite(qty) || qty <= 0) {
+        showToast(t('use.error_qty_required'), 'error');
+        document.getElementById('throw-quantity').focus();
+        return;
+    }
     const loc = document.getElementById('throw-location').value;
     closeModal();
     try {
@@ -15305,6 +15233,61 @@ function _formatUsePackageStock(count, perPackage, subUnit, showTotal = false) {
     return `${num(qty)} ${packLabel} (${num(size)} ${subUnit} ${t('use.weight_per_package')})`;
 }
 
+/** One stock overview. Never repeat total stock in the hero or in the
+ * location selector; the input below is the AMOUNT TO USE, not another stock.
+ * Mixed pack sizes are not multiplied using a wrong first-row pack size.
+ */
+function _renderUseStockSummary(items) {
+    if (!Array.isArray(items) || !items.length) return '';
+    const first = items[0];
+    const quantity = items.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+    const num = value => new Intl.NumberFormat(_collationLocale(), {
+        maximumFractionDigits: 3,
+    }).format(value);
+    const qtyLabel = stripHtml(formatQuantity(quantity, first.unit,
+        first.default_quantity, first.package_unit)).replace(/\s*\([^)]*\)/g, '');
+    const locations = new Map();
+    for (const row of items) {
+        locations.set(row.location, (locations.get(row.location) || 0)
+            + (Number(row.quantity) || 0));
+    }
+
+    const meta = [];
+    if (first.unit === 'conf') {
+        const allUnits = new Set(items.map(row => row.package_unit || ''));
+        if (allUnits.size === 1 && first.package_unit) {
+            const unit = first.package_unit;
+            const sizes = items.map(row => Number(row.default_quantity));
+            if (sizes.every(size => Number.isFinite(size) && size > 0)) {
+                if (sizes.every(size => Math.abs(size - sizes[0]) < 0.0001)) {
+                    meta.push(`${num(sizes[0])} ${unit} ${t('use.weight_per_package')}`);
+                }
+                const total = items.reduce((sum, row, i) =>
+                    sum + Number(row.quantity || 0) * sizes[i], 0);
+                meta.push(`${num(total)} ${unit} ${t('use.weight_total')}`);
+            }
+        }
+    }
+    const locationRows = [...locations.entries()].map(([loc, qty]) => {
+        const info = LOCATIONS[loc] || { icon: '📦', label: loc };
+        const stockByLocation = locations.size > 1
+            ? ` <span class="use-stock-location-qty">${num(qty)} ${first.unit === 'conf'
+                ? localizedPackageUnitLabel(qty) : getUnitDisplayLabel(first.unit)}</span>`
+            : '';
+        return `<span class="use-stock-location">${info.icon} ${escapeHtml(info.label)}${stockByLocation}</span>`;
+    }).join('');
+    return `<div class="use-stock-summary" aria-label="${escapeHtml(t('use.available'))}">
+        <div class="use-stock-summary-main">
+            <span class="use-stock-summary-heading">${escapeHtml(t('use.available'))}</span>
+            <strong class="use-stock-summary-total">${escapeHtml(
+                first.unit === 'conf' ? `${num(quantity)} ${localizedPackageUnitLabel(quantity)}` : qtyLabel
+            )}</strong>
+        </div>
+        ${meta.length ? `<p class="use-stock-summary-meta">${meta.map(escapeHtml).join(' · ')}</p>` : ''}
+        <div class="use-stock-locations">${locationRows}</div>
+    </div>`;
+}
+
 function _updateUseHeroMeta(items) {
     const metaEl = document.getElementById('use-hero-meta');
     if (!metaEl) return;
@@ -15330,21 +15313,8 @@ function _updateUseHeroMeta(items) {
         pills.push(`<span class="use-meta-pill ${cls}">${label}</span>`);
     }
 
-    // ── Quantity + location count pill ────────────────────────────────
-    if (items.length > 0) {
-        const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
-        const unit = items[0]?.unit;
-        const qtyStr = unit === 'conf'
-            ? (_formatUsePackageStock(totalQty, items[0]?.default_quantity,
-                items[0]?.package_unit) || stripHtml(formatQuantity(totalQty, unit,
-                    items[0]?.default_quantity, items[0]?.package_unit)))
-            : stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity,
-                items[0]?.package_unit));
-        const locCount = new Set(items.map(i => i.location)).size;
-        const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short')}` : '';
-        pills.push(`<span class="use-meta-pill use-pill-qty">${escapeHtml(qtyStr)}${locSuffix}</span>`);
-    }
-
+    // Quantity lives ONLY in the single stock summary below the product.
+    // Keep the expiry pill here, but no duplicate total in the hero.
     metaEl.innerHTML = pills.join('');
 }
 
@@ -15440,9 +15410,15 @@ function _locationHasOpenedPackage(items, location) {
 }
 
 async function loadUseInventoryInfo() {
+    const requestedProductId = Number(currentProduct?.id);
     try {
         const data = await api('inventory_list');
-        const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        if (Number(currentProduct?.id) !== requestedProductId) return false;
+        if (data?.success === false || !Array.isArray(data?.inventory)) {
+            showToast(data?.error || t('error.loading'), 'error');
+            return false;
+        }
+        const items = data.inventory.filter(i => Number(i.product_id) === requestedProductId);
         _useCurrentItems = items; // cache for submitUseAll context detection
         const infoEl = document.getElementById('use-inventory-info');
         const unitSwitch = document.getElementById('use-unit-switch');
@@ -15455,7 +15431,7 @@ async function loadUseInventoryInfo() {
             _useCurrentItems = [];
             document.getElementById('use-expiry-hint').style.display = 'none';
             clearUseFormIdleCountdown();
-            return;
+            return true;
         }
 
         // ── Hero card meta: expiry badge + qty pill ──────────────────
@@ -15478,23 +15454,21 @@ async function loadUseInventoryInfo() {
 
         // Prefer the remembered location (if confirmed), else use the opened-package heuristic
         const prefLoc = _getPreferredUseLocation(currentProduct.id);
-        const activeLoc = (prefLoc && productLocations.includes(prefLoc)) ? prefLoc : firstLoc;
+        const activeLoc = (_requestedUseEntryLocation && productLocations.includes(_requestedUseEntryLocation))
+            ? _requestedUseEntryLocation
+            : (prefLoc && productLocations.includes(prefLoc)) ? prefLoc : firstLoc;
         document.getElementById('use-location').value = activeLoc;
 
         // Builder for the full set of location buttons
         const buildLocButtons = (active) => productLocations.map(loc => {
             const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
-            const locItems = items.filter(i => i.location === loc);
-            const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
-            const u = locItems[0].unit || 'pz';
-            const qtyLabel = formatQuantity(locQty, u, locItems[0].default_quantity, locItems[0].package_unit);
             const openedBadge = _locationHasOpenedPackage(items, loc)
                 ? ` <span class="loc-opened-badge">🔓 ${t('use.opened_badge')}</span>`
                 : '';
-            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label}${openedBadge}<br><small>${qtyLabel}</small></button>`;
+            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${escapeHtml(locInfo.label)}${openedBadge}</button>`;
         }).join('');
 
-        if (prefLoc && productLocations.includes(prefLoc) && productLocations.length > 1) {
+        if (!_requestedUseEntryLocation && prefLoc && productLocations.includes(prefLoc) && productLocations.length > 1) {
             // Confirmed preference → show collapsed row + hidden full picker
             const locInfo = LOCATIONS[prefLoc] || { icon: '📦', label: prefLoc };
             locSelector.innerHTML = `
@@ -15523,13 +15497,8 @@ async function loadUseInventoryInfo() {
 
             _useConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel };
 
-            // Show inventory info with sub-unit total
-            infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
-                const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
-                const confQty = parseFloat(i.quantity);
-                return `${loc.icon} ${loc.label}: ${_formatUsePackageStock(confQty,
-                    parseFloat(i.default_quantity) || pkgSize, i.package_unit || subLabel, true)}`;
-            }).join(' · ');
+            // Single summary: total, package size, total mass, location(s).
+            infoEl.innerHTML = _renderUseStockSummary(items);
 
             // Show unit switch
             unitSwitch.style.display = 'flex';
@@ -15568,11 +15537,7 @@ async function loadUseInventoryInfo() {
             // Trigger a live-box refresh with the latest reading if on scale
             if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
             
-            infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
-                const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
-                const qLabel = formatQuantity(parseFloat(i.quantity), i.unit, i.default_quantity, i.package_unit);
-                return `${loc.icon} ${loc.label}: ${qLabel}`;
-            }).join(' · ');
+            infoEl.innerHTML = _renderUseStockSummary(items);
             
             const qtyInput = document.getElementById('use-quantity');
             const activeLocQty = items.filter(i => i.location === activeLoc).reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
@@ -15611,8 +15576,11 @@ async function loadUseInventoryInfo() {
             syncUseQtyUnitBadge();
         }
         _maybeStartUseFormIdleCountdown();
+        return true;
     } catch(e) {
-        console.error(e);
+        console.error('[Use] Inventory loading failed:', e);
+        showToast(t('error.connection'), 'error');
+        return false;
     }
 }
 

@@ -811,3 +811,111 @@ Database/API conf, waste transaction types, reason codes, user
 settings, and package/quantity calculations are unchanged.
 scripts/test-disposal-entrypoints.js enforces matching actions and label
 copy, and the iOS PWA/i18n cache versions are updated.
+
+## Tracked v1.16.17 mobile actions and one stock summary (Issues #1 and #2)
+
+The first PR-first change uses a feature branch and a draft Pull Request
+against stability/reliability-baseline, with an isolated PWA deployment.
+This also enables GitHub Issues, previously disabled on the fork. The app
+version advances from 1.16.16 to 1.16.17 and scripts/bump-version.sh now
+handles both normal SW caches and stability-suffixed SW caches. CI checks the
+manifest, header, splash, README badge, changelog, SW cache, asset/i18n
+stamps for coherence.
+
+Left swipe now opens the normal Use form, right swipe opens the existing
+reasoned Disposal form, and tap still opens product details. NO swipe
+performs a direct quantity write. Editing has moved to a labelled action
+inside the product detail sheet, where it replaces the duplicate
+"All used" action; the real full-use flow and its double-confirmation
+remain in the Use form. Favorite interaction, vertical scrolling and
+keyboard activation are preserved.
+
+The Use screen now has ONE compact stock overview, with quantity and
+weight calculations and the storage location(s). The item hero keeps
+expiry/identity only. The location picker no longer repeats quantities.
+The quantity input is explicitly described as the amount to consume.
+When package sizes differ, sum each row's real package content rather
+than assuming the size of the first row. Existing API, offline queue,
+versioned conflict resolution, disposal reasons, and production records
+remain unchanged.
+
+### CI race test: busy SQLite writer is retryable (v1.16.17 PR)
+
+Two disposable CI workers submit the same offline inventory_add operation ID
+eight times in parallel. Occasionally SQLite returns HTTP 503 database_busy
+for a rejected concurrent writer; this is a definitive non-write and is
+expected after a heavy concurrency suite. The integration test now retries
+ONLY that error, with a bounded 5-attempt exponential backoff using the
+SAME operation key. It still strictly asserts eight 200 receipts, exactly
+seven idempotent replays, precisely one stock/ledger movement, rejected
+key reuse and healthy SQLite. Other errors are never retried or ignored.
+No app/runtime/production rate limiting or persistence behavior changed.
+
+
+## Direction correction requested for PR #3, version 1.16.18
+
+Gestures are **right = consumption form (amber)**, **left = disposal form
+(red)**, reversed from initial PR v1.16.17. Update UI backgrounds, actual
+pointer handlers, all six translation hints, screenshots/manual test plan,
+regression tests, cache stamps and app SemVer together. Neither gesture
+writes stock until the opened form is completed/confirmed. The draft PR
+remains unmerged against stability/reliability-baseline, and production is
+untouched.
+
+
+## v1.16.19 / Issue #4: HTTP 429 versus actual missing inventory
+
+Staging logs (2026-11-01 at 13:01) confirmed a 120-requests/minute
+rate-limit response for iPhone inventory_list and product_get.
+Previously the disposal dialog interpreted failed responses without an
+inventory array as a genuinely empty list, incorrectly reporting that
+the product was missing even while the demo contained 14 packages.
+
+The pantry now uses one full inventory GET per refresh, filtering the
+location client-side; switching to the pantry no longer starts an extra
+duplicate load. Only successful, unfiltered inventory reads may refresh
+the full offline cache. Failed reads cannot clear the visible pantry.
+The app's server-side security limit is unchanged.
+
+Consumption and disposal views now treat a failed API read as an error,
+never zero stock. The disposal dialog binds each async response to the
+product and the latest request to ignore stale responses. A missing
+image no longer causes an unnecessary extra product_get. No SQLite,
+inventory, ledger, offline queue or production changes.
+
+Both action texts are centered in the 100px revealed swipe strip:
+LEFT disposal/red, RIGHT consume/amber. Real JS routine tests simulate
+429, success after recovery, genuine absence, network failure, stale
+same-product replies, single full-inventory reads and centering.
+
+## v1.16.20 / Issue #5 — compact disposal layout, explicit full-stock consent
+
+Disposal previously repeated the same stock on the product preview, in
+a separate blue inventory status bar, and beside each location choice.
+"Discard ALL" appeared at the top, above the ordinary amount selection.
+The iPhone user requested the same concise arrangement as the Use form.
+
+The existing read-only _renderUseStockSummary now also renders the
+disposal screen: one available total, the per-package amount when uniform,
+weighted total mass, and one badge per location. A quantity is displayed
+again per location only when stock exists at multiple locations. The
+location selector appears only for more than one distinct location;
+it carries only location names, with the swiped row preselected. The
+quantity input and "Dispose this quantity" remain the default action.
+
+The separate "Discard everything" button is visually separated at the
+very bottom. A translated scope hint states explicitly that this is
+the entire stock across ALL storage locations (inventory_use with
+use_all=true and location=__all__). Most importantly, the previous
+five-second AUTO-CONFIRM countdown is removed. Only an explicit tap on
+the confirmation button can advance to the mandatory disposal-reason
+selection; leaving it open or tapping Cancel never books stock. For
+partial disposal, invalid, zero or blank quantities are rejected instead
+of silently becoming one pack.
+
+No server endpoint, inventory unit, transaction semantics, offline queue,
+reason classifier or production database is modified. Regressions in
+scripts/test-disposal-layout.js verify the actual rendered JS for one/
+multiple locations, heterogeneous pack sizes, single quantity display,
+last-position full-disposal button, explicit confirmation and invalid
+quantities. Existing transient 429 and waste-ledger tests are preserved.

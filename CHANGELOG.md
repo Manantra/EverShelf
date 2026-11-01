@@ -13,6 +13,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.20] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
+
+### Compact, safer disposal screen (Fixes #5)
+
+- Disposal now reuses the single stock summary from the Use screen: one
+  available total, unit/pack size and overall weight, and location labels.
+  The product header no longer shows the same stock again. The location
+  chooser is displayed only if multiple storage locations exist, without
+  repeating the quantity.
+- The normal amount-to-dispose input and its action are first. A separated
+  bottom button "Discard everything" clearly warns that it targets all
+  locations.
+- Full disposal no longer auto-confirms after five seconds: it requires
+  an explicit confirmation tap, followed by the existing required disposal
+  reason. Cancellation and empty/zero quantity do not write inventory.
+- Existing offline writes, waste reasons and accounting are unchanged.
+  Frontend version/cache and localized strings are updated together.
+
+## [1.16.19] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
+
+### False not-in-inventory warning and centered swipe labels (Fixes #4)
+
+- Staging phone logs showed real HTTP 429 rate-limit responses on inventory
+  reads. The disposal screen misread failed requests as an empty stock.
+- Consumption and disposal screens now distinguish errors from a genuine,
+  successfully retrieved empty inventory; server rate limits remain enabled.
+- One full pantry GET per refresh, local location filtering, no redundant
+  second refresh on navigation; filtered results cannot overwrite offline
+  cache for all locations.
+- Late disposal responses cannot replace a newer modal, and a missing product
+  picture no longer causes an unnecessary product read.
+- Both action labels are centered in their visible 100px swipe strips.
+  Directions remain LEFT dispose/red and RIGHT consume/amber.
+- Regression test covers 429, valid recovery, actual zero stock, network
+  error, stale response and centered swipe labels.
+
+## [1.16.18] - 2026-11-01 (proposed staging PR #3, not yet released)
+
+### Correct mobile swipe direction (Fixes #1)
+
+- **Swipe RIGHT to open Verbrauchen** (amber), **LEFT to open Entsorgen**
+  (red), per manual iPhone feedback. Both gestures open forms only and do
+  not write inventory until the quantity/reason is confirmed.
+- Updated the swipe UI, all six languages, PWA caching and gesture tests.
+  The single stock summary, detail editing and other v1.16.17 work remain.
+
+## [1.16.17] - 2026-11-01 (proposed staging PR, not yet released)
+
+### Direct pantry gestures and a single stock overview (Fixes #1)
+
+- Swipe LEFT to open Use, swipe RIGHT to open reasoned Disposal. Neither gesture books stock automatically; tap still opens details and scroll/favorites continue working.
+- Product detail Edit replaces the redundant All used button. Full stock consumption remains only in Use, with its strong confirmation.
+- One Use stock summary contains the full amount, package size, total weight and locations; multi-location choices no longer repeat the quantities. All six languages updated.
+
+### GitHub workflow and real SemVer (Relates to #2)
+
+- Enable Issues and develop on feature branches reviewed through PRs, testing in isolated staging before merging to the baseline.
+- Update patch version in manifest, header, preloader, README, changelog, asset/i18n stamps and isolated service-worker cache together.
+- Version bump script now understands the staging service-worker cache name, and CI checks for version drift.
+- New gesture, mixed package size and no-double-stock tests; no DB/API or production data changed.
+
 ## [1.16.16] - 2026-10-25
 
 ### The setup wizard obeys the server (not every new browser)

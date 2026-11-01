@@ -20,7 +20,7 @@ function code(start, end) {
 }
 
 async function testDetailAndSwipeRouteToOneWasteForm() {
-    const source = code('function itemDetailThrow(inventoryId) {', 'async function itemDetailUseAll(')
+    const source = code('function itemDetailThrow(inventoryId) {', 'function closeModal() {')
         + '\n' + code('async function quickThrowFromInv(productId, location, invId) {', 'const WASTE_REASON_KEYS');
     const item = {
         id: 71, product_id: 42, name: 'Demo', image_url: 'https://example.invalid/item.png',
@@ -56,7 +56,7 @@ async function testDetailAndSwipeRouteToOneWasteForm() {
 }
 
 async function testPreferredLocationIsPreserved() {
-    const source = code('function showThrowForm(preferredLocation = null) {',
+    const source = code('let _throwFormRequestId = 0;',
         'function selectThrowLocation(');
     const rows = [
         { id: 11, product_id: 42, name: 'Demo', location: 'dispensa',
@@ -73,6 +73,7 @@ async function testPreferredLocationIsPreserved() {
         mapToLocalCategory: () => 'conserve',
         formatQuantity: (qty, unit) => String(qty) + ' ' + unit,
         getUnitDisplayLabel: () => 'Packung',
+        _renderUseStockSummary: () => '<div class="use-stock-summary">Bestand</div>',
         setQtyInputUnitLabel: (id, unit) => {
             assert.equal(id, 'throw-quantity');
             assert.equal(unit, 'conf');
@@ -96,8 +97,8 @@ async function testPreferredLocationIsPreserved() {
     await new Promise(resolve => setImmediate(resolve));
     assert(modal.innerHTML.includes('id="throw-location" value="frigo"'),
         'The inventory row location, not the first location, must be selected');
-    assert(modal.innerHTML.includes('class="loc-btn active" onclick="selectThrowLocation(this, \'frigo\')"'));
-    assert(modal.innerHTML.includes('class="loc-btn " onclick="selectThrowLocation(this, \'dispensa\')"'));
+    assert(modal.innerHTML.includes('class="loc-btn active"') && modal.innerHTML.includes("selectThrowLocation(this, 'frigo')"));
+    assert(modal.innerHTML.includes('class="loc-btn "') && modal.innerHTML.includes("selectThrowLocation(this, 'dispensa')"));
     console.log('PASS disposal from selected inventory location preserves that location');
 }
 
@@ -168,7 +169,7 @@ function testConsistentGermanDisposalCopy() {
     assert.equal(dict.dashboard.trend_wasted, 'Entsorgte Produkte');
     assert.equal(dict.units.conf_short, 'Pkg', 'German package abbreviation has no trailing dot');
     assert.equal(dict.units.pz, 'Stk', 'Keep the existing unit abbreviation convention');
-    assert(dict.inventory.swipe_hint.includes('Tippen = Details'),
+    assert(dict.inventory.swipe_hint.includes('Tippen: Details'),
         'The swipe guide must not falsely promise consumption on tap');
     assert(dict.inventory.swipe_guide.includes('Entsorgen'));
     assert(!dict.inventory.swipe_guide.includes('Wegwerfen'));

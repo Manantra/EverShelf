@@ -1,8 +1,8 @@
 ## Description
 
-<!-- What does this PR do? Link the related issue: "Closes #123" or "Relates to #123" -->
+<!-- What does this PR do? Link the related issue: "Fixes #123" or "Relates to #123" -->
 
-Closes #
+Fixes #
 
 ---
 
@@ -31,7 +31,7 @@ Closes #
 
 ## Translation
 
-- [ ] New user-visible strings added → translation keys added to **all three** files: `translations/it.json`, `en.json`, `de.json`
+- [ ] New user-visible strings added → translation keys added to **all six** files: `translations/it.json`, `translations/en.json`, `translations/de.json`, `translations/fr.json`, `translations/es.json`, `translations/zh.json`
 - [ ] No user-visible strings changed
 
 ---
@@ -45,3 +45,13 @@ Closes #
 ## Screenshots / Video
 
 <!-- If this is a UI change, add before/after screenshots. Delete this section if not applicable. -->
+
+
+---
+
+## Release / staging gate
+
+- [ ] GitHub Issue linked and branch isolated from stable baseline
+- [ ] SemVer, manifest, preloader, header, README, CHANGELOG, SW and asset stamps aligned
+- [ ] Version-consistency check and Offline/Disposal/Inventory regression tests pass
+- [ ] Manual iPhone PWA staging acceptance recorded; production not altered
