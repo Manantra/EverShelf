@@ -9234,7 +9234,23 @@ function getMacroStats(PDO $db): void {
 // ===== RECENT & POPULAR PRODUCTS =====
 function recentPopularProducts(PDO $db): void {
     EverLog::debug('recentPopularProducts');
-    // Last 4 distinct products used (type='out'), most recent first
+    // Stock adjustments, transfers, inventory deletion and ledger repair all
+    // write type='out', but are NOT product consumption. In particular an
+    // explicit offline conflict decision (e.g. 16 -> 14) writes the durable
+    // '[Manual correction]' ledger entry and must never make the product
+    // appear under "Recently used" or inflate "Most used".
+    // Keep real inventory_use (empty notes or recipe/use notes), excluding
+    // undone actions and system-generated ledger maintenance entries.
+    $realUse = "AND COALESCE(t.undone, 0) = 0
+        AND (t.notes IS NULL OR (
+            t.notes NOT IN ('[Manual correction]', '[Eliminazione inventario]')
+            AND t.notes NOT LIKE '[Spostamento]%'
+            AND t.notes NOT LIKE '[Reconciliation]%'
+            AND t.notes NOT LIKE '[Finished]%'
+            AND t.notes NOT LIKE '[Undone]%'
+            AND t.notes NOT LIKE '[Annullato]%'
+        ))";
+    // Last 4 distinct products actually consumed (type='out'), newest first
     $recentStmt = $db->query("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
                MAX(t.created_at) as last_used,
@@ -9243,6 +9259,7 @@ function recentPopularProducts(PDO $db): void {
         FROM transactions t
         JOIN products p ON p.id = t.product_id
         WHERE t.type = 'out'
+          {$realUse}
         GROUP BY t.product_id
         ORDER BY last_used DESC
         LIMIT 4
@@ -9259,6 +9276,7 @@ function recentPopularProducts(PDO $db): void {
         FROM transactions t
         JOIN products p ON p.id = t.product_id
         WHERE t.type = 'out'
+          {$realUse}
           AND t.created_at >= datetime('now', '-90 days')
         GROUP BY t.product_id
         ORDER BY usage_count DESC

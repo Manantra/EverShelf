@@ -625,3 +625,26 @@ format changes. scripts/test-pwa-offline-queue.js runs the actual entry,
 overlay-dismiss and banner-rendering functions for both explicit button click
 and automatic 8-second timeout; it asserts identical visible banners and
 no deferred 450 ms overlay obstruction.
+
+## Recently used / Most used exclude stock corrections (2026-11-01)
+
+A real Mac + iPhone manual conflict test correctly replaced 16 packages with
+14. The endpoint logged the -2 correction as an 'out' ledger transaction with
+notes '[Manual correction]' (this ledger entry must be retained). The pantry's
+recentPopularProducts query incorrectly treated *all* 'out' transactions as
+consumption, making the synthetic demo article appear under "Recently used"
+and inflate "Most used" after a correction that did not represent actual use.
+
+Both read-only quick-access queries now exclude manual corrections, location
+transfers, inventory deletions, bookkeeping reconciliations, trace clearing,
+undone/reversed transactions, and entries marked undone=1. Actual inventory_use
+with empty/user/recipe notes continues to qualify. Nothing is deleted or
+rewritten in SQLite; all inventory, transactions, offline receipts and user
+settings remain unchanged. This fix changes only the API quick-access display.
+
+Regression: python3 scripts/integration-recent-actual-use.py --sandbox-root
+<isolated-root> --base-url http://127.0.0.1:<port>. Tests exercise the actual
+HTTP API and SQLite rows for conflict resolution 16 -> 14, moves, deletes,
+reconciliation, undone transactions, real use, and manual adjustment after use.
+The test refuses databases not explicitly marked EVERSHELF_SANDBOX=1, and is
+also executed by CI.

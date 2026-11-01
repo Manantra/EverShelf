@@ -102,6 +102,7 @@ jobs:
           python3 scripts/integration-concurrent-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
           python3 scripts/integration-idempotent-offline-add.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           python3 scripts/integration-offline-conflict-resolution.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          python3 scripts/integration-recent-actual-use.py --sandbox-root . --base-url http://127.0.0.1:18080
           python3 scripts/integration-concurrent-product-edit.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           python3 scripts/integration-concurrent-field-edits.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
           python3 scripts/integration-atomic-product-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
