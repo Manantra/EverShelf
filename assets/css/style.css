@@ -1937,7 +1937,7 @@ body.server-offline .bottom-nav {
 }
 
 .item-detail-action--use { background: linear-gradient(135deg, var(--es-action-use), var(--warning-light)); color: #1a1a1a; }
-.item-detail-action--all { background: linear-gradient(135deg, var(--es-action-success), var(--success-light)); }
+.item-detail-action--edit { background: color-mix(in srgb, var(--primary) 18%, var(--bg-card)); color: var(--text); border: 1.5px solid var(--border); }
 .item-detail-action--recipe { background: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light)); }
 .item-detail-action--throw { background: var(--bg-card); color: var(--es-action-danger); border: 1.5px solid color-mix(in srgb, var(--danger) 45%, transparent); }
 /* The explicitly non-waste inventory cleanup lives outside the four
@@ -5758,6 +5758,58 @@ body:has(#page-scan.active) .app-content {
     font-weight: 500;
 }
 
+/* One compact stock overview under the product; edit/expiry remains in hero.
+   Never place another copy of the stock under location-selection buttons. */
+.use-inventory-info {
+    padding: 0;
+    background: transparent;
+    color: var(--text);
+}
+.use-stock-summary {
+    padding: 12px 14px;
+    background: color-mix(in srgb, var(--primary) 7%, var(--bg-card));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.use-stock-summary-main {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 5px 12px;
+}
+.use-stock-summary-heading {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.use-stock-summary-total {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.use-stock-summary-meta {
+    margin: 4px 0 0;
+    font-size: 0.81rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.use-stock-locations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.use-stock-location {
+    font-size: 0.76rem;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    white-space: normal;
+}
+.use-stock-location-qty {
+    color: var(--text-muted);
+    margin-left: 4px;
+}
 #use-expiry-hint {
     background: #fef3c7;
     border: 1.5px solid #f59e0b;
@@ -11228,7 +11280,7 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .inventory-status-bar .inv-status-item  { color: #93c5fd; background: rgba(0,0,0,0.2); }
 
 /* ── Use inventory info ── */
-[data-theme="dark"] .use-inventory-info { background: #0c2a4e; color: #7dd3fc; }
+[data-theme="dark"] .use-inventory-info { background: transparent; color: var(--text); }
 [data-theme="dark"] #use-expiry-hint    { background: #2a1e00; border-color: #78350f; color: #fde68a; }
 [data-theme="dark"] #page-use .product-preview-small  { border-left-color: var(--primary); }
 [data-theme="dark"] #page-action .product-preview-small { border-left-color: var(--primary); }

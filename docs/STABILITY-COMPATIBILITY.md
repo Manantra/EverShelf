@@ -811,3 +811,30 @@ Database/API conf, waste transaction types, reason codes, user
 settings, and package/quantity calculations are unchanged.
 scripts/test-disposal-entrypoints.js enforces matching actions and label
 copy, and the iOS PWA/i18n cache versions are updated.
+
+## Tracked v1.16.17 mobile actions and one stock summary (Issues #1 and #2)
+
+The first PR-first change uses a feature branch and a draft Pull Request
+against stability/reliability-baseline, with an isolated PWA deployment.
+This also enables GitHub Issues, previously disabled on the fork. The app
+version advances from 1.16.16 to 1.16.17 and scripts/bump-version.sh now
+handles both normal SW caches and stability-suffixed SW caches. CI checks the
+manifest, header, splash, README badge, changelog, SW cache, asset/i18n
+stamps for coherence.
+
+Left swipe now opens the normal Use form, right swipe opens the existing
+reasoned Disposal form, and tap still opens product details. NO swipe
+performs a direct quantity write. Editing has moved to a labelled action
+inside the product detail sheet, where it replaces the duplicate
+"All used" action; the real full-use flow and its double-confirmation
+remain in the Use form. Favorite interaction, vertical scrolling and
+keyboard activation are preserved.
+
+The Use screen now has ONE compact stock overview, with quantity and
+weight calculations and the storage location(s). The item hero keeps
+expiry/identity only. The location picker no longer repeats quantities.
+The quantity input is explicitly described as the amount to consume.
+When package sizes differ, sum each row's real package content rather
+than assuming the size of the first row. Existing API, offline queue,
+versioned conflict resolution, disposal reasons, and production records
+remain unchanged.

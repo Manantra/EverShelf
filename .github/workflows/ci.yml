@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'stability/**']
+    branches: [main, develop, 'stability/**', 'feat/**', 'fix/**']
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 'stability/**']
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -36,6 +36,9 @@ jobs:
       - name: Check JS syntax
         run: |
           node -c assets/js/app.js
+
+      - name: Verify SemVer and PWA cache consistency
+        run: python3 scripts/test-version-consistency.py
 
   regression-tests:
     name: PHP and write-acknowledgement regression tests

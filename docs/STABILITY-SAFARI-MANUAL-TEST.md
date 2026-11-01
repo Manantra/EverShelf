@@ -134,3 +134,34 @@ German abbreviation is now "Pkg" **without a period**, consistent with
 "Stk"; the internal stored unit remains "conf". Verify that after loading
 this version in Safari once, the installed iPhone PWA shows the new words.
 No stock mutation is needed for this UI test.
+
+## v1.16.17 / Issues #1 and #2 — iPhone acceptance (2026-11-01)
+
+Use only the isolated staging URL, not production. No booking is necessary
+for this UI walkthrough. Current staging demo starts with 14 packs of 690g.
+
+1. Open staging online in Safari to load v1.16.17, then relaunch the installed
+   Home Screen PWA. Both header and preloader must display v1.16.17.
+2. On the pantry demo row, swipe LEFT. The background reads "Verbrauchen" and
+   the Use page opens directly. DO NOT submit anything. Back.
+3. Swipe RIGHT. The background reads "Entsorgen" and the disposal quantity
+   modal opens directly. Cancel; reason selection is required before a
+   disposal can be saved. Never interpret a swipe as consent to a write.
+4. Tap the demo row. The detail sheet contains Verbrauchen, Entsorgen,
+   Bearbeiten and Rezept erstellen, plus a separate, secondary
+   "Aus Inventar entfernen" action. "Alles aufgebraucht" must NOT appear here.
+   Tap Bearbeiten to check that the normal inventory edit opens; cancel.
+5. In the Use page the stock appears ONCE in a compact summary:
+   "Verfügbar — 14 Packungen" then "690 g je Packung · 9.660 g insgesamt",
+   and the storage location. Product hero keeps its expiry badge, not a
+   second stock number. The numeric input is explicitly labelled as the
+   AMOUNT TO USE; neither it nor the location selector is another stock list.
+6. If stock is in more than one location, the single summary lists quantities
+   per location; choose a location in the selector (without repeated totals).
+   Swiping a particular inventory row should select that row's location first.
+7. Inspect the German Pkg badge and the location name for mobile layout.
+   Mac, iPhone and staging database should retain 14 packs after canceling.
+
+Do not clear Safari website data or reinstall the Home Screen PWA if unsent
+offline changes exist. Production remains untouched until PR review and
+manual acceptance; the PR is intentionally a draft for the first test.

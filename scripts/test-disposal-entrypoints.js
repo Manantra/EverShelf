@@ -20,7 +20,7 @@ function code(start, end) {
 }
 
 async function testDetailAndSwipeRouteToOneWasteForm() {
-    const source = code('function itemDetailThrow(inventoryId) {', 'async function itemDetailUseAll(')
+    const source = code('function itemDetailThrow(inventoryId) {', 'function closeModal() {')
         + '\n' + code('async function quickThrowFromInv(productId, location, invId) {', 'const WASTE_REASON_KEYS');
     const item = {
         id: 71, product_id: 42, name: 'Demo', image_url: 'https://example.invalid/item.png',
@@ -168,7 +168,7 @@ function testConsistentGermanDisposalCopy() {
     assert.equal(dict.dashboard.trend_wasted, 'Entsorgte Produkte');
     assert.equal(dict.units.conf_short, 'Pkg', 'German package abbreviation has no trailing dot');
     assert.equal(dict.units.pz, 'Stk', 'Keep the existing unit abbreviation convention');
-    assert(dict.inventory.swipe_hint.includes('Tippen = Details'),
+    assert(dict.inventory.swipe_hint.includes('Tippen: Details'),
         'The swipe guide must not falsely promise consumption on tap');
     assert(dict.inventory.swipe_guide.includes('Entsorgen'));
     assert(!dict.inventory.swipe_guide.includes('Wegwerfen'));

@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.17] - 2026-11-01 (proposed staging PR, not yet released)
+
+### Direct pantry gestures and a single stock overview (Fixes #1)
+
+- Swipe LEFT to open Use, swipe RIGHT to open reasoned Disposal. Neither gesture books stock automatically; tap still opens details and scroll/favorites continue working.
+- Product detail Edit replaces the redundant All used button. Full stock consumption remains only in Use, with its strong confirmation.
+- One Use stock summary contains the full amount, package size, total weight and locations; multi-location choices no longer repeat the quantities. All six languages updated.
+
+### GitHub workflow and real SemVer (Relates to #2)
+
+- Enable Issues and develop on feature branches reviewed through PRs, testing in isolated staging before merging to the baseline.
+- Update patch version in manifest, header, preloader, README, changelog, asset/i18n stamps and isolated service-worker cache together.
+- Version bump script now understands the staging service-worker cache name, and CI checks for version drift.
+- New gesture, mixed package size and no-double-stock tests; no DB/API or production data changed.
+
 ## [1.16.16] - 2026-10-25
 
 ### The setup wizard obeys the server (not every new browser)
