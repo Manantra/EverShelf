@@ -8,6 +8,7 @@ import concurrent.futures
 import json
 import sqlite3
 import sys
+import time
 import uuid
 from pathlib import Path
 from urllib.error import HTTPError
@@ -29,6 +30,19 @@ def api(url, action, payload):
             exc.close()
 
 
+def replay_if_busy(url, payload):
+    # SQLite WAL can reject a racing writer with a definitive 503 database_busy.
+    # This is a safe non-write, not an idempotency failure. Retry the SAME
+    # operation ID with bounded backoff, as the offline client would. The
+    # returned 200 receipts and single ledger/stock write are asserted below.
+    for attempt in range(5):
+        code, reply = api(url, "inventory_add", payload)
+        if code != 503 or reply.get("error") != "database_busy":
+            return code, reply
+        time.sleep(0.12 * (2 ** attempt))
+    return code, reply
+
+
 def case(dbpath, urls, scenario):
     name = "Receipt Audit " + uuid.uuid4().hex[:16]
     code, product = api(urls[0], "product_save", {
@@ -43,7 +57,7 @@ def case(dbpath, urls, scenario):
     if scenario == "concurrent":
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             replies = list(pool.map(
-                lambda i: api(urls[i % 2], "inventory_add", payload), range(8)))
+                lambda i: replay_if_busy(urls[i % 2], payload), range(8)))
         assert len(replies) == 8
         assert all(status == 200 and result.get("success") for status, result in replies), replies
         assert sum(1 for _, result in replies if result.get("idempotent_replay")) == 7, replies

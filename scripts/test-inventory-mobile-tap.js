@@ -7,6 +7,7 @@ const vm = require('node:vm');
 
 const src = fs.readFileSync(path.join(__dirname, '../assets/js/app.js'), 'utf8');
 const mobile = fs.readFileSync(path.join(__dirname, '../assets/css/mobile.css'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '../assets/css/style.css'), 'utf8');
 function extract(start, end) {
     const a = src.indexOf(start), b = src.indexOf(end, a + start.length);
     assert(a >= 0 && b > a, [start, end]);
@@ -39,9 +40,8 @@ async function gestureSuite() {
     };
     const ctx = {
         showItemDetail: (invId, productId) => calls.push(['detail', invId, productId]),
-        quickUse: () => calls.push(['use']),
-        showInvActionChooser: (...a) => calls.push(['chooser', ...a]),
-        editInventoryItem: invId => calls.push(['edit', invId]),
+        quickUse: (...a) => calls.push(['use-form', ...a]),
+        quickThrowFromInv: (...a) => calls.push(['disposal-form', ...a]),
         setTimeout: () => 1,
     };
     vm.createContext(ctx);
@@ -76,15 +76,15 @@ async function gestureSuite() {
     emit('pointerdown', 120, 150);
     emit('pointermove', 40, 151);
     emit('pointerup', 40, 151);
-    assert.deepEqual(calls.splice(0), [['chooser', 42, 'dispensa', 71]],
-        'Left swipe still opens Use/Dispose chooser');
+    assert.deepEqual(calls.splice(0), [['disposal-form', 42, 'dispensa', 71]],
+        'Left swipe opens reasoned disposal without submitting a write');
 
     row.dataset.invSwipeDone = '';
     emit('pointerdown', 40, 150);
     emit('pointermove', 140, 150);
     emit('pointerup', 140, 150);
-    assert.deepEqual(calls.splice(0), [['edit', 71]],
-        'Right swipe still edits');
+    assert.deepEqual(calls.splice(0), [['use-form', 42, 'dispensa']],
+        'Right swipe opens the consumption form without submitting a write');
 
     row.dataset.invSwipeDone = '';
     emit('pointerdown', 120, 150);
@@ -117,7 +117,31 @@ async function gestureSuite() {
         'Phone pantry label will not break Vorratskammer mid-word');
     assert(src.includes("t('units.conf_short') + ' (' + t('units.conf') + ')'"),
         'Edit unit select uses localized Pkg (Packung), not Packung (Packungen)');
-    console.log('PASS real inventory tap/swipe/scroll/keyboard and mobile location layout');
+    const leftBg = css.match(/\.inv-swipe-bg-left\s*\{([^}]+)\}/)?.[1] || '';
+    const rightBg = css.match(/\.inv-swipe-bg-right\s*\{([^}]+)\}/)?.[1] || '';
+    assert(leftBg.includes('rgba(239, 68, 68, 0.18)')
+        && rightBg.includes('rgba(245, 158, 11, 0.2)'),
+        'Left disposal is red and right consumption is amber');
+    assert(!src.includes('function showInvActionChooser('),
+        'The obsolete two-action swipe chooser is no longer reachable');
+    const detail = extract('function showItemDetail(inventoryId, productId) {',
+        'function itemDetailThrow(');
+    assert(detail.includes('item-detail-action--edit') && detail.includes('editInventoryItem('),
+        'The detail contains a full-sized Edit action');
+    assert(!detail.includes('itemDetailUseAll('),
+        'The duplicate full-consumption button was removed from details');
+    assert(src.includes('function submitUseAll()'),
+        'Safe complete-consumption action remains in the dedicated Use form');
+    const expectedGuide = JSON.parse(fs.readFileSync(
+        path.join(__dirname, '../translations/de.json'), 'utf8')).inventory;
+    assert.equal(expectedGuide.swipe_guide, '← Entsorgen · → Verbrauchen · Tippen: Details');
+    assert.equal(expectedGuide.swipe_edge_use, 'Verbrauchen →');
+    assert.equal(expectedGuide.swipe_edge_edit, '← Entsorgen');
+    assert(src.includes('inv-swipe-bg-left') && src.includes("t('inventory.swipe_dispose')"),
+        'Left swipe background says dispose');
+    assert(src.includes('inv-swipe-bg-right') && src.includes("t('inventory.swipe_use')"),
+        'Right swipe background says use');
+    console.log('PASS tap/left-disposal/right-use/scroll/keyboard and product-detail actions');
 }
 function testWeightLabels() {
     const code = extract('function _formatUsePackageStock(count, perPackage, subUnit, showTotal = false) {',
@@ -138,10 +162,50 @@ function testWeightLabels() {
     assert.equal(ctx.formatPack(1, 690, 'g', true),
         '1 Packung (insgesamt: 690 g)');
     assert.equal(ctx.formatPack(14, 0, 'g'), '', 'Unknown package size is not invented');
-    assert(src.includes('_formatUsePackageStock(totalQty, items[0]?.default_quantity,'),
-        'Use-page product hero uses per-package label');
-    assert(src.includes('parseFloat(i.default_quantity) || pkgSize, i.package_unit || subLabel, true'),
-        'Available count uses per-row package size and computed total');
+    // Use summary now displays stock ONCE; the expiry chip may stay in hero.
+    const summary = extract('function _renderUseStockSummary(items) {',
+        'function _updateUseHeroMeta(items) {');
+    assert(summary.includes('use-stock-summary-total'));
+    assert(!src.slice(src.indexOf('function _updateUseHeroMeta(items) {'),
+        src.indexOf('// Conf-mode tracking for USE form')).includes('use-pill-qty'),
+        'Hero must not duplicate the total stock');
+    assert(src.includes('infoEl.innerHTML = _renderUseStockSummary(items);'),
+        'Use page renders exactly one stock overview for each unit mode');
+    assert(!src.includes('showInvActionChooser('));
+    const useLoader = extract('async function loadUseInventoryInfo() {', 'function switchUseUnit(mode) {');
+    assert(!useLoader.includes('<br><small>${qtyLabel}</small></button>'),
+        'Location buttons no longer repeat another copy of the stock');
+    const ctx2 = {
+        _collationLocale: () => 'de-DE',
+        localizedPackageUnitLabel: n => Number(n) === 1 ? 'Packung' : 'Packungen',
+        LOCATIONS: { dispensa: { icon: '🗄️', label: 'Vorratskammer' },
+            frigo: { icon: '🧊', label: 'Kühlschrank' } },
+        t: k => ({'use.available':'Verfügbar','use.weight_total':'insgesamt',
+            'use.weight_per_package':'je Packung'})[k] || k,
+        stripHtml: String,
+        formatQuantity: (n, unit) => unit === 'conf'
+            ? n + ' Packungen' : n + ' g',
+        getUnitDisplayLabel: String,
+        escapeHtml: String,
+    };
+    vm.createContext(ctx2);
+    vm.runInContext(summary + String.fromCharCode(10)
+        + 'this.renderSummary = _renderUseStockSummary;',ctx2);
+    const one = ctx2.renderSummary([{quantity:14,unit:'conf',default_quantity:690,
+        package_unit:'g',location:'dispensa'}]);
+    assert.equal((one.match(/14 Packungen/g)||[]).length, 1,
+        'Single-location summary has exactly one total quantity');
+    assert(one.includes('690 g je Packung · 9.660 g insgesamt'));
+    assert(one.includes('Vorratskammer') && !one.includes('14 Packungen</span></span>'),
+        'Location badge is a label, not another total');
+    const mixed = ctx2.renderSummary([
+        {quantity:2,unit:'conf',default_quantity:690,package_unit:'g',location:'dispensa'},
+        {quantity:3,unit:'conf',default_quantity:500,package_unit:'g',location:'frigo'},
+    ]);
+    assert(mixed.includes('2.880 g insgesamt'), 'Mixed pack sizes use weighted sum 2*690+3*500');
+    assert(!mixed.includes('690 g je Packung'), 'Mixed package sizes cannot claim identical pack size');
+    assert(mixed.includes('Kühlschrank') && mixed.includes('Vorratskammer'),
+        'Multiple locations remain visible in the single summary');
     console.log('PASS 14 × 690 g semantics: 690 g per pack vs 9,660 g total');
 }
 (async () => {
