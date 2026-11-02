@@ -12,6 +12,8 @@ function cut(start,end) {
     return src.slice(i,j);
 }
 const helpers=cut('function _renderUseStockSummary(items) {','function _updateUseHeroMeta(items) {');
+const productHeader=cut('function _renderProductStockIdentity(product, showUseControls = false) {',
+    'function renderUsePreview() {');
 const modalCode=cut('let _throwFormRequestId = 0;','function selectThrowLocation(');
 function setup(rows) {
     const events={},calls=[];
@@ -51,7 +53,7 @@ function setup(rows) {
         console:{warn:()=>{}},
     };
     vm.createContext(context);
-    vm.runInContext(helpers+'\n'+modalCode
+    vm.runInContext(productHeader+'\n'+helpers+'\n'+modalCode
         +'\nthis.openDispose=showThrowForm;',context);
     return {context,modal,overlay,quantity,loc,calls,events,elements};
 }
@@ -74,6 +76,18 @@ async function singleLocationLayout() {
         'One location means no redundant location chooser');
     assert(html.includes('id="throw-location" value="dispensa"'));
     assert(html.includes('dispose-stock-overview') && html.includes('use-stock-summary'));
+    assert(html.includes('class="product-preview-small dispose-product-preview product-stock-card"'),
+        'Disposal identity and stock must share exactly one outer product card');
+    assert.equal((html.match(/class="product-stock-identity"/g)||[]).length,1,
+        'Product identity must appear only once');
+    assert.equal((html.match(/class="use-stock-summary"/g)||[]).length,1,
+        'Available stock summary must appear only once');
+    const cardStart=html.indexOf('class="product-preview-small dispose-product-preview product-stock-card"');
+    const identityStart=html.indexOf('class="product-stock-identity"',cardStart);
+    const stockStart=html.indexOf('class="dispose-stock-overview product-stock-card-stock"',cardStart);
+    const formStart=html.indexOf('class="dispose-quantity-section"',cardStart);
+    assert(cardStart>=0 && identityStart>cardStart && stockStart>identityStart && formStart>stockStart,
+        'Single product card contains identity then stock, before the interactive form');
     assert(html.includes('Wie viel entsorgen?') || html.includes('use.throw_qty_label'));
     const partial=html.indexOf('onclick="throwPartial()"');
     const all=html.indexOf('onclick="throwAll()"');

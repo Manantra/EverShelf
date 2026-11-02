@@ -5774,6 +5774,74 @@ body:has(#page-scan.active) .app-content {
     font-weight: 500;
 }
 
+/* Shared Use + Dispose identity/stock card: a single accessible visual
+   surface on iPhone. Scope narrowly so action page and other themes keep
+   their existing product previews and stock cards. */
+#page-use #use-product-preview.product-stock-card,
+.product-preview-small.dispose-product-preview.product-stock-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+.product-stock-card .product-stock-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.product-stock-card .product-stock-image {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.product-stock-card .use-hero-icon {
+    width: 44px;
+    padding: 0;
+    font-size: 2rem;
+}
+.product-stock-card .use-hero-body {
+    flex: 1;
+    min-width: 0;
+}
+.product-stock-card .use-hero-name {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+}
+.product-stock-card .btn-edit-inline { flex-shrink: 0; }
+#page-use .product-stock-card .use-inventory-info,
+.product-stock-card .dispose-stock-overview {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    color: var(--text);
+    font-weight: inherit;
+}
+.product-stock-card .use-stock-summary {
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    margin-top: 10px;
+    padding: 10px 0 0;
+}
+.product-stock-card .use-stock-locations { margin-top: 6px; }
+/* Expose old theme-specific card decorations only on the OUTER card. */
+[data-theme="dark"] #page-use .product-stock-card .use-inventory-info {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
 /* One compact stock overview under the product; edit/expiry remains in hero.
    Never place another copy of the stock under location-selection buttons. */
 .use-inventory-info {

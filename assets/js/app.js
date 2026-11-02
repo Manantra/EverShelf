@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101l'; // bump when translations change
+const _I18N_VERSION = '20261102a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11651,7 +11651,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261102a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -11661,7 +11661,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261101l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261102a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -13801,16 +13801,10 @@ function showThrowForm(preferredLocation = null) {
                 <h3>${escapeHtml(t('use.throw_title'))}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
-            <div class="product-preview-small dispose-product-preview">
-                ${requestedProduct.image_url ?
-                    `<img src="${escapeHtml(requestedProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
-                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(requestedProduct.category, requestedProduct.name)] || '📦'}</span>`
-                }
-                <div class="product-preview-info">
-                    <h3>${escapeHtml(requestedProduct.name)}</h3>
-                </div>
+            <div class="product-preview-small dispose-product-preview product-stock-card">
+                ${_renderProductStockIdentity(requestedProduct)}
+                <div class="dispose-stock-overview product-stock-card-stock">${stockSummary}</div>
             </div>
-            <div class="dispose-stock-overview">${stockSummary}</div>
             <div class="dispose-quantity-section">
                 ${locations.length > 1 ? `
                 <div class="form-group">
@@ -15168,19 +15162,34 @@ function showUseForm() {
     syncUseQtyUnitBadge();
 }
 
-function renderUsePreview() {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct?.category, currentProduct?.name)] || '📦';
-    const imgHtml = currentProduct?.image_url
-        ? `<img src="${escapeHtml(currentProduct.image_url)}" alt="">`
-        : `<span class="use-hero-icon">${catIcon}</span>`;
-    document.getElementById('use-product-preview').innerHTML = `
-        ${imgHtml}
-        <div class="use-hero-body">
-            <div class="use-hero-name">${escapeHtml(currentProduct?.name || '')}</div>
-            ${currentProduct?.brand ? `<div class="use-hero-brand">${escapeHtml(currentProduct.brand)}</div>` : ''}
-            <div class="use-hero-meta" id="use-hero-meta"></div>
+/**
+ * Shared identity/header for Use and Dispose. Only action-specific controls
+ * differ; both screens embed their SINGLE stock summary below this identity.
+ * The edit action and expiry badge remain available on the Use screen.
+ */
+function _renderProductStockIdentity(product, showUseControls = false) {
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(product?.category, product?.name)] || '📦';
+    const imgHtml = product?.image_url
+        ? `<img src="${escapeHtml(product.image_url)}" alt="" class="product-stock-image">`
+        : `<span class="use-hero-icon" aria-hidden="true">${catIcon}</span>`;
+    return `
+        <div class="product-stock-identity">
+            ${imgHtml}
+            <div class="use-hero-body">
+                <div class="use-hero-name">${escapeHtml(product?.name || '')}</div>
+                ${product?.brand ? `<div class="use-hero-brand">${escapeHtml(product.brand)}</div>` : ''}
+                ${showUseControls ? '<div class="use-hero-meta" id="use-hero-meta"></div>' : ''}
+            </div>
+            ${showUseControls ? `<button type="button" class="btn-edit-inline" onclick="openUseInventoryEdit()" title="${escapeHtml(t('inventory.item_detail_edit'))}" aria-label="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
         </div>
-        <button type="button" class="btn-edit-inline" onclick="openUseInventoryEdit()" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>
+    `;
+}
+
+function renderUsePreview() {
+    const preview = document.getElementById('use-product-preview');
+    preview.innerHTML = `
+        ${_renderProductStockIdentity(currentProduct, true)}
+        <div class="use-inventory-info product-stock-card-stock" id="use-inventory-info"></div>
     `;
 }
 

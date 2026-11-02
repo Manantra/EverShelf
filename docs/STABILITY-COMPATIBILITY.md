@@ -919,3 +919,29 @@ scripts/test-disposal-layout.js verify the actual rendered JS for one/
 multiple locations, heterogeneous pack sizes, single quantity display,
 last-position full-disposal button, explicit confirmation and invalid
 quantities. Existing transient 429 and waste-ledger tests are preserved.
+
+
+## v1.16.21 / Issue #6 — combined product identity and availability card
+
+Both Use and Dispose now show the image/name, optional brand and a stock
+summary INSIDE ONE shared outer product card. Previously Use had separate
+sibling elements use-product-preview and use-inventory-info, and Dispose
+had two different containers for the product and available stock.
+
+The new _renderProductStockIdentity builds the same identity row for both.
+Use keeps the use-hero-meta element for the expiry pill and its accessible
+inline Edit action. Dispose shows the same name/brand without an unrelated
+edit control. Both still use _renderUseStockSummary for their one verified
+stock quantity, pack size, weighted total and per-location availability.
+
+The Use page creates the stock placeholder INSIDE the product preview;
+the disposal dialog places its summary inside its product card. CSS is
+scoped so the action page and the custom dark/elegant/corporate themes
+remain unchanged; no nested card shadow/border. Long names may wrap and
+the Edit pencil stays visible.
+
+Existing location selection, quantity validation, reasoned disposal,
+full-stock confirmation, offline queue and rate-limit handling are
+unchanged. The v1.16.21 stamp updates manifest, header, README, CHANGELOG
+and isolated PWA cache. A new JS regression executes the shared header and
+stock renderers; existing gesture and disposal tests remain active.

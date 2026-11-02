@@ -74,6 +74,7 @@ async function testPreferredLocationIsPreserved() {
         formatQuantity: (qty, unit) => String(qty) + ' ' + unit,
         getUnitDisplayLabel: () => 'Packung',
         _renderUseStockSummary: () => '<div class="use-stock-summary">Bestand</div>',
+        _renderProductStockIdentity: () => '<div class="product-stock-identity">Demo</div>',
         setQtyInputUnitLabel: (id, unit) => {
             assert.equal(id, 'throw-quantity');
             assert.equal(unit, 'conf');

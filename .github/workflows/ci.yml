@@ -78,6 +78,9 @@ jobs:
       - name: Verify compact disposal form and explicit full-disposal confirmation
         run: node scripts/test-disposal-layout.js
 
+      - name: Verify combined product and stock card on Use and Dispose
+        run: node scripts/test-combined-product-stock-card.js
+
       - name: Verify compact localized package labels on narrow phones
         run: node scripts/test-compact-package-badges.js
 

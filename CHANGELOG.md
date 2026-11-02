@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.21] - 2026-11-02 (staging PR #3, pending iPhone acceptance)
+
+### One shared product and stock card for Use and Dispose (Fixes #6)
+
+- Product name/photo and the available stock summary are now part of
+  ONE compact card in both workflows, instead of two stacked cards.
+- Shared product identity preserves brand, use-screen Edit pencil and
+  expiry badges. Long product names wrap on small phones.
+- Same stock math: total, per-pack size, weighted total and locations.
+- CSS scoped to the two forms, including dark and alternate theme
+  decorations. Offline/safety and bookkeeping remain unchanged.
+- New shared-card render and responsive layout tests in CI.
+
 ## [1.16.20] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
 
 ### Compact, safer disposal screen (Fixes #5)
