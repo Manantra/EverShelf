@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261115d'; // bump when translations change
+const _I18N_VERSION = '20261115e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -24111,15 +24111,19 @@ function _renderHaSensorYaml() {
     const el = document.getElementById('ha-sensor-yaml');
     if (!el) return;
     const base = (window.location.origin + window.location.pathname).replace(/\/$/, '').replace(/\/index\.html$/, '');
+    // Never put the API token itself into the copied YAML. Home Assistant
+    // resolves this reference from its own private secrets.yaml instead.
+    const authRequired = (typeof getApiToken === 'function' && !!getApiToken()) || !!window._apiTokenRequired;
+    const authHeader = authRequired ? '    headers:\n      Authorization: !secret evershelf_api_authorization\n' : '';
     el.textContent = `# Add to configuration.yaml (Home Assistant)
 # Restart HA after editing.
-
+${authRequired ? '# In HA secrets.yaml set: evershelf_api_authorization: "Bearer YOUR_EVERSHELF_API_TOKEN"\n# The API token is from EverShelf (NOT the Home Assistant HA_TOKEN). Keep it private.\n' : ''}
 sensor:
   - platform: rest
     name: "EverShelf Overview"
     unique_id: evershelf_overview
     resource: "${base}/api/?action=ha_sensor"
-    scan_interval: 300
+${authHeader}    scan_interval: 300
     value_template: "{{ value_json.state }}"
     json_attributes:
       - expiring_soon
@@ -24141,7 +24145,7 @@ sensor:
     name: "EverShelf Expired Items"
     unique_id: evershelf_expired
     resource: "${base}/api/?action=ha_sensor&sensor=expired"
-    scan_interval: 600
+${authHeader}    scan_interval: 600
     value_template: "{{ value_json.state }}"
     unit_of_measurement: "items"
 
@@ -24149,7 +24153,7 @@ sensor:
     name: "EverShelf Shopping Count"
     unique_id: evershelf_shopping
     resource: "${base}/api/?action=ha_sensor&sensor=shopping"
-    scan_interval: 180
+${authHeader}    scan_interval: 180
     value_template: "{{ value_json.state }}"
     unit_of_measurement: "items"
 
@@ -24158,7 +24162,7 @@ sensor:
     name: "EverShelf Products"
     unique_id: evershelf_products
     resource: "${base}/api/?action=ha_sensor&sensor=product"
-    scan_interval: 600
+${authHeader}    scan_interval: 600
     value_template: "{{ value_json.state }}"
     json_attributes:
       - items

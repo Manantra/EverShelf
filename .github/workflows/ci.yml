@@ -63,6 +63,12 @@ jobs:
       - name: Verify one-time API token generation and no-lockout upgrade policy
         run: python3 scripts/test-api-token-autogen.py
 
+      - name: Verify Home Assistant and native kiosk token migration
+        run: python3 scripts/test-ha-kiosk-token-migration.py
+
+      - name: Verify secure Home Assistant sensor YAML exports
+        run: node scripts/test-ha-sensor-auth-yaml.js
+
       - name: Check failed write acknowledgements
         run: node scripts/test-write-acknowledgements.js
 
@@ -146,6 +152,27 @@ jobs:
           node scripts/integration-offline-replay-conflicts.js --sandbox-root . --base-url http://127.0.0.1:18080
           php api/cron_smart_shopping.php
           python3 -c "import sqlite3; db=sqlite3.connect('data/evershelf.db'); assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'"
+
+  kiosk-compile:
+    name: Android kiosk Kotlin compile (no APK publish)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6.0.1
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.6'
+
+      - name: Compile native kiosk sources without signing or publishing
+        working-directory: evershelf-kiosk
+        run: gradle :app:compileDebugKotlin --no-daemon
 
   docker-build:
     name: Docker Build Test

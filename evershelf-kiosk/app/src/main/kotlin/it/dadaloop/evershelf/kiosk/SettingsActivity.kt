@@ -145,6 +145,7 @@ class SettingsActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             val screensaverOn = switchScreensaver.isChecked
+            val apiToken = prefs.getString("api_token", "") ?: ""
             prefs.edit()
                 .putString(KEY_URL, url)
                 .putBoolean(KEY_SCREENSAVER, screensaverOn)
@@ -160,17 +161,30 @@ class SettingsActivity : AppCompatActivity() {
                         setRequestProperty("Content-Type", "application/json")
                         // The API's CSRF guard requires this header on every POST.
                         setRequestProperty("X-EverShelf-Request", "1")
+                        // Pairing is stored in the same native preferences file.
+                        // Without this header save_settings returns HTTP 401.
+                        if (apiToken.isNotEmpty()) setRequestProperty("X-API-Token", apiToken)
                         connectTimeout = 5000
                         readTimeout    = 5000
                         doOutput = true
                     }
                     conn.outputStream.use { it.write(body.toByteArray()) }
-                    conn.inputStream.close()
+                    val status = conn.responseCode
+                    try { (if (status in 200..299) conn.inputStream else conn.errorStream)?.close() } catch (_: Exception) {}
                     conn.disconnect()
-                } catch (_: Exception) {}
+                    if (status !in 200..299) throw java.io.IOException("HTTP $status")
+                    runOnUiThread {
+                        Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                } catch (_: Exception) {
+                    // Local native preference is preserved, but the server did
+                    // NOT confirm it. Never show a false success / close here.
+                    runOnUiThread {
+                        Toast.makeText(this, getString(R.string.settings_server_save_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
             }.start()
-            Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
-            finish()
         }
     }
 
