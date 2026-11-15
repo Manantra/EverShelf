@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.23] - 2026-11-15 (settings synchronization, draft PR)
+
+### First Settings save after setup must not report success prematurely (Issue #10)
+
+- Serialize cross-device `user_prefs` SQLite updates by client revision; later
+  values cannot be overwritten by a delayed, earlier browser request.
+- A manual Settings save defers the preference write until `save_settings`
+  succeeds, then waits for acknowledgement from the SQLite settings endpoint.
+  Failed/queued/offline replies show an error instead of a false success.
+- Failed sync remains retryable; setup's stale `get_settings` response cannot
+  overwrite a newer edit; a partial failure does not acknowledge the checklist.
+- Added deterministic JavaScript regressions for delayed, stale, rejected,
+  retried and secondary settings writes. No stock, swipe, API or schema changes;
+  staging/iPhone acceptance is still required.
+
 ## [1.16.22] - 2026-11-15 (security hardening, draft PR, pending validation)
 
 ### Client settings API can no longer access internal configuration (Fixes #8)
