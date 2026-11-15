@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports server success after HTTP 2xx. Unprotected OTA metadata remains
   public as intended. Kiosk version advanced to 1.7.25 (code 26), but no APK
   is released here; the CI compiles Kotlin without publishing anything.
+- Raised the Android Gradle heap for release APK packaging and capped workers
+  after the disposable packaging check exposed an out-of-memory failure.
 - No changes to inventory, swipe, shopping, recipes or database schema.
   Physical iPhone staging and GitHub CI acceptance are required before merge.
 
