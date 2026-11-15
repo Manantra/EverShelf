@@ -14,6 +14,7 @@ require_once __DIR__ . '/lib/app_settings.php';
 require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
+require_once __DIR__ . '/lib/local_backup_integrity.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -14572,9 +14573,24 @@ function createLocalBackup(?PDO $db = null): array {
         @unlink($tmpPath);
         $made = @copy($dbFile, $tmpPath);
     }
-    if (!$made || !@rename($tmpPath, $destPath)) {
+    if (!$made) {
         @unlink($tmpPath);
         return ['success' => false, 'error' => 'Failed to copy database file', 'error_key' => 'error.backup_copy_failed'];
+    }
+
+    // A written file is not automatically a usable backup. Verify the
+    // temporary SQLite snapshot before publishing it (both VACUUM and fallback).
+    // An invalid candidate must not replace an older good backup or advance
+    // the last-backup timestamp / retention purge.
+    $publishStatus = evershelfValidateAndPublishLocalBackup($tmpPath, $destPath);
+    if ($publishStatus === 'integrity_failed') {
+        EverLog::error('Backup snapshot failed SQLite integrity check', [
+            'event' => 'backup_integrity_failed',
+        ]);
+        return ['success' => false, 'error' => 'Backup failed the integrity check', 'error_key' => 'error.backup_integrity'];
+    }
+    if ($publishStatus !== 'ok') {
+        return ['success' => false, 'error' => 'Failed to publish database backup', 'error_key' => 'error.backup_copy_failed'];
     }
 
     // Purge local backups older than retention

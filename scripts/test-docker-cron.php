@@ -37,6 +37,7 @@ $dockerfile = (string)file_get_contents($root . '/Dockerfile');
 $cronFile   = $root . '/docker/evershelf-cron';
 $cron       = is_file($cronFile) ? (string)file_get_contents($cronFile) : '';
 $api        = (string)file_get_contents($root . '/api/index.php');
+$backupModule = (string)file_get_contents($root . '/api/lib/local_backup_integrity.php');
 $cronScript = (string)file_get_contents($root . '/api/cron_smart_shopping.php');
 $appJs      = (string)file_get_contents($root . '/assets/js/app.js');
 $html       = (string)file_get_contents($root . '/index.html');
@@ -117,8 +118,11 @@ assert_true(str_contains($api, "'backup_last_ts' =>"), 'get_settings exposes bac
 assert_true(str_contains($api, "env('BACKUP_ENABLED', 'true') === 'true'"), 'backup_enabled defaults to true in get_settings');
 assert_true(str_contains($api, 'VACUUM INTO'), 'the in-app backup uses VACUUM INTO (consistent while the app writes)');
 assert_true(
-    str_contains($api, "\$tmpPath  = \$destPath . '.part';") && str_contains($api, '@rename($tmpPath, $destPath)'),
-    'the snapshot is written to a .part file and renamed (no half backups)'
+    str_contains($api, "\$tmpPath  = \$destPath . '.part';")
+    && str_contains($api, 'evershelfValidateAndPublishLocalBackup($tmpPath, $destPath)')
+    && str_contains($backupModule, 'PRAGMA quick_check')
+    && str_contains($backupModule, '@rename($candidate, $destination)'),
+    'the .part snapshot is integrity-checked before atomic rename (no half backups)'
 );
 
 // ── The UI tells the truth and warns ────────────────────────────────────────
