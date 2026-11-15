@@ -15,6 +15,8 @@ function section(start, end) {
 const source = section('let _settingsCache = null;', 'async function syncSettingsFromDB() {');
 const syncSource = section('async function syncSettingsFromDB() {', '/**\n * Keys the server always emits');
 const saveSource = section('async function saveSettings() {', '// ── Calendar (ICS expiry feed)');
+assert.ok(/async function loadSettingsUI\(\)[\s\S]*?_watchSettingsFormEdits\(\)/.test(app), 'the settings panel must watch user edits');
+assert.ok(/if \(_settingsFormLoadIsCurrent\(loadRevision, loadFormEditRevision\)\)/.test(app), 'late settings-panel responses must be guarded');
 
 function deferred() {
     let resolve, reject;
@@ -113,6 +115,40 @@ async function testSupersededQueuedValueIsDropped() {
     assert.deepEqual(writes, [5], 'obsolete pending snapshots should be skipped entirely');
 }
 
+async function testSavedSnapshotIgnoresLateCacheMutation() {
+    const h = harness(), writes = [];
+    h.respondWith((action, body) => {
+        writes.push(body.settings.user_prefs.default_persons);
+        return Promise.resolve({ success: true });
+    });
+    h.funcs.saveSettingsToStorage({ default_persons: 4, pref_veloce: false }, true);
+    // A stale settings-tab refresh modifies the shared cache after the click,
+    // while the server is still processing its earlier .env request.
+    h.funcs.getSettings().default_persons = 3;
+    h.funcs.getSettings().pref_veloce = true;
+    await h.funcs._flushUserPrefsSettings();
+    assert.deepEqual(writes, [4], 'SQLite must persist the values from the actual user click');
+}
+
+async function testPanelResponseRejectedAfterFormEdit() {
+    const h = harness(), listeners = {};
+    h.ctx.document = { getElementById: id => id === 'page-settings'
+        ? { addEventListener: (name, fn) => { listeners[name] = fn; } }
+        : null };
+    const watch = vm.runInContext('_watchSettingsFormEdits', h.ctx);
+    watch();
+    assert.equal(typeof listeners.input, 'function');
+    assert.equal(typeof listeners.change, 'function');
+    const isCurrent = vm.runInContext('_settingsFormLoadIsCurrent', h.ctx);
+    assert.equal(isCurrent(0, 0), true);
+    listeners.input();
+    assert.equal(isCurrent(0, 0), false, 'user input should invalidate an older settings-tab response');
+    const nowEdited = vm.runInContext('_settingsFormEditRevision', h.ctx);
+    assert.equal(isCurrent(0, nowEdited), true);
+    h.funcs.saveSettingsToStorage({ default_persons: 4 }, true);
+    assert.equal(isCurrent(0, nowEdited), false, 'saving also invalidates an older settings-tab response');
+}
+
 async function testOldInitializationCannotOverwriteEdit() {
     const h = harness(), older = deferred(), applied = [];
     h.ctx._applySyncedSettings = x => applied.push(x.default_persons);
@@ -196,6 +232,8 @@ async function testUiOnlyConfirmsAfterBothWrites() {
     await testFailedWriteCanRetry();
     await testOfflineAcknowledgementIsNotACommit();
     await testSupersededQueuedValueIsDropped();
+    await testSavedSnapshotIgnoresLateCacheMutation();
+    await testPanelResponseRejectedAfterFormEdit();
     await testOldInitializationCannotOverwriteEdit();
     await testUiOnlyConfirmsAfterBothWrites();
     console.log('PASS settings sync: serialized writes, retry, stale init and UI acknowledgements');

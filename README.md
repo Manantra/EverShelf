@@ -37,7 +37,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 <details>
 <summary><b>📰 What's new</b></summary>
 
-**v1.16.23** — serializes cross-device preference writes and waits for SQLite acknowledgements before confirming a Settings save (issue #10, draft).
+**v1.16.23** — serializes preference writes, guards against stale Settings-panel responses, and waits for SQLite acknowledgements before confirming a Settings save (issue #10, draft).
 
 **v1.16.22** — restrict client-synced app settings to reviewed keys, reject unsupported writes atomically, and add regression tests (issue #8, pending review).
 

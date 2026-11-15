@@ -19,14 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Serialize cross-device `user_prefs` SQLite updates by client revision; later
   values cannot be overwritten by a delayed, earlier browser request.
+- A late Settings-panel `get_settings` response cannot overwrite a form edit
+  made while the panel was loading. The SQLite payload is snapshotted at
+  save time, so an intervening async refresh cannot change the saved values.
 - A manual Settings save defers the preference write until `save_settings`
   succeeds, then waits for acknowledgement from the SQLite settings endpoint.
   Failed/queued/offline replies show an error instead of a false success.
 - Failed sync remains retryable; setup's stale `get_settings` response cannot
   overwrite a newer edit; a partial failure does not acknowledge the checklist.
 - Added deterministic JavaScript regressions for delayed, stale, rejected,
-  retried and secondary settings writes. No stock, swipe, API or schema changes;
-  staging/iPhone acceptance is still required.
+  retried and secondary settings writes. Fresh physical iPhone 17 Pro Max
+  staging verified first save, stale response, second save and reload. No
+  stock, swipe, API or schema changes; merge/deploy remains gated by approval.
 
 ## [1.16.22] - 2026-11-15 (security hardening, draft PR, pending validation)
 
