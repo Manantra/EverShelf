@@ -60,6 +60,9 @@ jobs:
             php "$test"
           done
 
+      - name: Verify one-time API token generation and no-lockout upgrade policy
+        run: python3 scripts/test-api-token-autogen.py
+
       - name: Check failed write acknowledgements
         run: node scripts/test-write-acknowledgements.js
 
@@ -100,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p data logs
-          printf 'EVERSHELF_SANDBOX=1\nAPP_LANG=de\nSHOPPING_MODE=internal\nAI_ENABLED=false\nBARCODE_OFFLINE_ENABLED=false\nREPORT_ENABLED=false\n' > .env
+          printf 'EVERSHELF_SANDBOX=1\nAPP_LANG=de\nSHOPPING_MODE=internal\nAI_ENABLED=false\nBARCODE_OFFLINE_ENABLED=false\nREPORT_ENABLED=false\nALLOW_OPEN_LAN=true\n' > .env
           php -S 127.0.0.1:18080 -t . > /tmp/evershelf-e2e-php.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT

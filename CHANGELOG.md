@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.24] - 2026-11-15 (safe automatic API token, draft PR)
+
+### Secure new installs without locking out existing devices (Issue #12)
+
+- First HTTP request to a new tokenless install now creates a 256-bit API token,
+  persists it in .env (or SQLite env overrides for a read-only/external .env),
+  creates a one-time pairing code, and enforces auth immediately.
+- A dedicated filesystem lock and marker protect parallel first boots and prevent
+  silent token rotation if someone removes a previously generated token.
+  Broken lock or credential persistence fails closed with HTTP 503.
+- Existing token, legacy SETTINGS_TOKEN, intentional ALLOW_OPEN_LAN, CLI and
+  demo installations remain unchanged. Existing tokenless households with an
+  established SQLite DB are warned but not locked out on upgrade; opt in with
+  API_TOKEN_AUTOGENERATE=true when integrations can be re-paired.
+- Added isolated HTTP and SQLite integration cases for fresh and missing .env,
+  read-only and external configs, concurrency, interrupted initialization,
+  failed persistence, opt-outs, upgrades and one-time code replay.
+  CI's disposable unprotected fixtures explicitly set ALLOW_OPEN_LAN=true.
+- No changes to inventory, swipe, shopping, recipes or database schema.
+  Physical iPhone staging and GitHub CI acceptance are required before merge.
+
 ## [1.16.23] - 2026-11-15 (settings synchronization, draft PR)
 
 ### First Settings save after setup must not report success prematurely (Issue #10)
