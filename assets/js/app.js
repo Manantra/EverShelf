@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261115e'; // bump when translations change
+const _I18N_VERSION = '20261115f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15003,6 +15003,7 @@ function _apiErrorText(data) {
     if (key === 'error.backup_no_dir') return t('error.backup_no_dir');
     if (key === 'error.backup_no_db') return t('error.backup_no_db');
     if (key === 'error.backup_copy_failed') return t('error.backup_copy_failed');
+    if (key === 'error.backup_integrity') return t('error.backup_integrity');
     if (key === 'error.backup_invalid_name') return t('error.backup_invalid_name');
     if (key === 'error.backup_not_found') return t('error.backup_not_found');
     if (key === 'error.backup_delete_failed') return t('error.backup_delete_failed');

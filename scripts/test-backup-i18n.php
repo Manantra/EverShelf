@@ -85,6 +85,7 @@ $errorKeys = [
     'error.backup_no_dir',
     'error.backup_no_db',
     'error.backup_copy_failed',
+    'error.backup_integrity',
     'error.backup_invalid_name',
     'error.backup_not_found',
     'error.backup_delete_failed',
