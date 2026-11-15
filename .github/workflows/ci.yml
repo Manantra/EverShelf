@@ -63,6 +63,9 @@ jobs:
       - name: Check failed write acknowledgements
         run: node scripts/test-write-acknowledgements.js
 
+      - name: Verify Settings writes wait for consistent SQLite acknowledgements
+        run: node scripts/test-settings-sync.js
+
       - name: Simulate Safari/PWA storage, suspended replay, and tab conflicts
         run: node scripts/test-pwa-offline-queue.js
 

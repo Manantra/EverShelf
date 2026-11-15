@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261115a'; // bump when translations change
+const _I18N_VERSION = '20261115c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4109,6 +4109,45 @@ async function enumerateCameras() {
 // ===== SETTINGS / CONFIG =====
 let _settingsCache = null;
 let _settingsDirty = false;
+let _settingsRevision = 0;
+let _settingsPersistedRevision = 0;
+let _settingsPendingRevision = -1;
+let _settingsPendingPromise = null;
+let _settingsWriteTail = Promise.resolve();
+let _settingsSyncSnapshot = null;
+let _settingsFormEditRevision = 0;
+let _settingsFormTrackingInstalled = false;
+
+/** User edits beat a late settings-panel refresh; form hydration is asynchronous. */
+function _watchSettingsFormEdits() {
+    if (_settingsFormTrackingInstalled) return;
+    const page = document.getElementById('page-settings');
+    if (!page) return;
+    const track = () => { _settingsFormEditRevision++; };
+    page.addEventListener('input', track, true);
+    page.addEventListener('change', track, true);
+    _settingsFormTrackingInstalled = true;
+}
+
+function _settingsFormLoadIsCurrent(revision, formEditRevision) {
+    return revision === _settingsRevision && formEditRevision === _settingsFormEditRevision;
+}
+
+function _sharedSettingsPreferences(s) {
+    return {
+        default_persons: s.default_persons,
+        pref_veloce: s.pref_veloce,
+        pref_pocafame: s.pref_pocafame,
+        pref_scadenze: s.pref_scadenze,
+        pref_healthy: s.pref_healthy,
+        pref_opened: s.pref_opened,
+        pref_zerowaste: s.pref_zerowaste,
+        pref_fuel: s.pref_fuel,
+        health_enabled: s.health_enabled,
+        dietary: s.dietary,
+        appliances: Array.isArray(s.appliances) ? [...s.appliances] : s.appliances,
+    };
+}
 
 function getSettings() {
     if (!_settingsCache) {
@@ -4131,14 +4170,20 @@ function getSettings() {
     return s;
 }
 
-function saveSettingsToStorage(settings) {
+function saveSettingsToStorage(settings, deferSync = false) {
     _settingsCache = settings;
     // Cache dark_mode in localStorage ONLY as a hint for the pre-render _earlyTheme() IIFE
     // (prevents flash before server fetch). Authoritative value is in server .env.
     try { localStorage.setItem('evershelf_dark_mode', settings.dark_mode || 'auto'); } catch(_) {}
-    // Persist user-prefs subset to DB
+    _settingsRevision++;
+    // Freeze the values at the moment the user asks to save, not after a
+    // potentially delayed server request or another async panel refresh.
+    _settingsSyncSnapshot = _sharedSettingsPreferences(settings);
     _settingsDirty = true;
-    _debouncedSyncSettings();
+    // The explicit Settings button first awaits the .env save; it then flushes
+    // and acknowledges the shared SQLite preferences before showing success.
+    if (deferSync) _debouncedSyncSettings.cancel();
+    else _debouncedSyncSettings();
 }
 
 /** Save one or more settings directly to server .env (partial update). */
@@ -4156,36 +4201,61 @@ async function _saveSettingToServer(data) {
     }
 }
 
+/** Serialize DB writes: a delayed older request must never overwrite a newer answer. */
+function _queueUserPrefsSync() {
+    const revision = _settingsRevision;
+    if (_settingsPendingRevision === revision) return _settingsPendingPromise;
+    if (!_settingsDirty || revision <= _settingsPersistedRevision) return Promise.resolve();
+
+    const task = _settingsWriteTail.then(async () => {
+        // When a newer edit arrived while this request was queued, skip the old snapshot.
+        if (revision !== _settingsRevision) return;
+        // This immutable snapshot was captured at save time; a late
+        // loadSettingsUI() reply must not change what reaches SQLite.
+        const shared = _settingsSyncSnapshot;
+        const result = await api('app_settings_save', {}, 'POST', { settings: { user_prefs: shared } });
+        if (!result || result.success !== true || result._offline || result._queued || result._demo) {
+            throw new Error(result?.error || 'settings_sync_failed');
+        }
+        _settingsPersistedRevision = revision;
+        if (revision === _settingsRevision) _settingsDirty = false;
+    });
+    _settingsPendingRevision = revision;
+    _settingsPendingPromise = task;
+    _settingsWriteTail = task.catch(() => {}); // keep the queue alive after an error
+    task.then(
+        () => { if (_settingsPendingRevision === revision) _settingsPendingRevision = -1; },
+        () => { if (_settingsPendingRevision === revision) _settingsPendingRevision = -1; }
+    );
+    return task;
+}
+
 const _debouncedSyncSettings = debounce(function() {
-    if (!_settingsDirty) return;
-    _settingsDirty = false;
-    const s = getSettings();
-    // Don't sync secrets or device-specific settings to shared DB
-    const shared = {
-        default_persons: s.default_persons,
-        pref_veloce: s.pref_veloce,
-        pref_pocafame: s.pref_pocafame,
-        pref_scadenze: s.pref_scadenze,
-        pref_healthy: s.pref_healthy,
-        pref_opened: s.pref_opened,
-        pref_zerowaste: s.pref_zerowaste,
-        pref_fuel: s.pref_fuel,
-        health_enabled: s.health_enabled,
-        dietary: s.dietary,
-        appliances: s.appliances,
-    };
-    api('app_settings_save', {}, 'POST', { settings: { user_prefs: shared } }).catch(() => {});
+    if (_settingsDirty) _queueUserPrefsSync().catch(() => {
+        // Keep dirty; the next explicit save can retry and show any failure.
+    });
 }, 1000);
 
+async function _flushUserPrefsSettings() {
+    _debouncedSyncSettings.cancel();
+    await _queueUserPrefsSync();
+    // A user may have changed another toggle during a slow request.
+    while (_settingsDirty) await _queueUserPrefsSync();
+}
+
 function debounce(fn, ms) {
-    let t; return function(...args) { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    let t;
+    const run = function(...args) { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    run.cancel = () => { clearTimeout(t); t = null; };
+    return run;
 }
 
 async function syncSettingsFromDB() {
+    const revisionAtStart = _settingsRevision;
     try {
-        // Primary: load from server .env (only when not already done via _applySyncedSettings)
+        // An old startup response must not undo an edit made while it was loading.
         const serverSettings = await api('get_settings');
-        _applySyncedSettings(serverSettings);
+        if (_settingsRevision === revisionAtStart) _applySyncedSettings(serverSettings);
         // Load all server-persisted user data from SQLite app_settings
         const res = await api('app_settings_get');
         if (res.success && res.settings) {
@@ -4887,6 +4957,7 @@ async function _submitBugReport() {
 }
 
 async function loadSettingsUI() {
+    _watchSettingsFormEdits();
     const s = getSettings();
     const aiEnEl = document.getElementById('setting-ai-enabled');
     if (aiEnEl) aiEnEl.checked = s.ai_enabled !== false;
@@ -5022,10 +5093,14 @@ async function loadSettingsUI() {
     const ttsExtraEl = document.getElementById('setting-tts-extra-fields');
     if (ttsExtraEl) ttsExtraEl.value = s.tts_extra_fields || '';
     
-    // Load server-side settings as primary source
+    // Load server-side settings as primary source, unless the user has changed
+    // or saved the form since the request started.
+    const loadRevision = _settingsRevision;
+    const loadFormEditRevision = _settingsFormEditRevision;
     try {
         const serverSettings = await api('get_settings');
-        // Merge all server settings into local cache (server wins)
+        if (_settingsFormLoadIsCurrent(loadRevision, loadFormEditRevision)) {
+        // Merge the response only while it is still current for this form.
         const serverKeys = ['bring_email',
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
@@ -5123,6 +5198,7 @@ async function loadSettingsUI() {
             _applyProductRuleSettingsUI(s);
             // HA settings (server merge)
             _applyHaSettingsUI(s);
+        }
         }
     } catch(e) { /* offline, use local */ }
     // Price settings
@@ -5972,12 +6048,13 @@ async function saveSettings() {
     if (gdriveClientIdEl && gdriveClientIdEl.value.trim()) s.gdrive_client_id = gdriveClientIdEl.value.trim();
     const gdriveClientSecretEl = document.getElementById('setting-gdrive-client-secret');
     if (gdriveClientSecretEl && gdriveClientSecretEl.value.trim()) s.gdrive_client_secret = gdriveClientSecretEl.value.trim();
-    saveSettingsToStorage(s);
-    
+    saveSettingsToStorage(s, true); // defer shared-DB sync until .env confirms the save
+
     // Save ALL settings to server .env
     // What was unconfigured before the save: the ones that become configured are
     // decisions, so they leave the checklist instead of coming back.
     const checklistPendingBefore = _checklistPendingBeforeSave();
+    let settingsFullySaved = false;
     try {
         const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || (typeof getApiToken === 'function' ? getApiToken() : '');
         if (settingsToken && typeof setApiToken === 'function') setApiToken(settingsToken);
@@ -6082,23 +6159,37 @@ async function saveSettings() {
             ...(document.getElementById('setting-mealie-token')?.value.trim()
                 ? { mealie_api_token: document.getElementById('setting-mealie-token').value.trim() } : {}),
         }, tokenHeader);
-        const statusEl = document.getElementById('settings-status');
-        if (result.success) {
-            statusEl.className = 'settings-status success';
-            statusEl.textContent = iconLabel('✅', 'settings.saved');
-        } else {
-            statusEl.className = 'settings-status error';
-            const errMsg = result.error === 'unauthorized'
-                ? t('error.invalid_token')
-                : iconLabel('⚠️', t('settings.saved_local_error').replace('{error}', result.error || ''));
-            statusEl.textContent = errMsg;
+        const envSaved = result?.success === true && !result._offline && !result._queued && !result._demo;
+        let syncError = null;
+        if (envSaved) {
+            try {
+                await _flushUserPrefsSettings();
+                // The meal plan and voice choice share the same acknowledgement rule.
+                const appData = {};
+                if (s.meal_plan) appData.meal_plan = s.meal_plan;
+                if (s.tts_voice) appData.tts_voice = s.tts_voice;
+                if (Object.keys(appData).length) {
+                    const dbResult = await api('app_settings_save', {}, 'POST', { settings: appData });
+                    if (!dbResult || dbResult.success !== true || dbResult._offline || dbResult._queued || dbResult._demo) {
+                        throw new Error(dbResult?.error || 'settings_sync_failed');
+                    }
+                }
+            } catch(e) { syncError = e; }
         }
+        const statusEl = document.getElementById('settings-status');
+        const fullySaved = envSaved && !syncError;
+        settingsFullySaved = fullySaved;
+        statusEl.className = fullySaved ? 'settings-status success' : 'settings-status error';
+        statusEl.textContent = fullySaved
+            ? iconLabel('✅', 'settings.saved')
+            : (result?.error === 'unauthorized' ? t('error.invalid_token')
+                : iconLabel('⚠️', t('error.save')) + ': ' + (syncError?.message || result?.error || 'settings_sync_failed'));
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     } catch(e) {
         const statusEl = document.getElementById('settings-status');
-        statusEl.className = 'settings-status success';
-        statusEl.textContent = iconLabel('✅', 'settings.saved_local');
+        statusEl.className = 'settings-status error';
+        statusEl.textContent = iconLabel('⚠️', t('error.save')) + ': ' + (e?.message || 'network_error');
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     }
@@ -6118,19 +6209,14 @@ async function saveSettings() {
             }
         }
     } catch(e) {}
-    // The save is an answer: drop the rows it decided on, then repaint the card.
-    _ackSavedChecklistItems(
-        checklistPendingBefore,
-        document.querySelector('.settings-tabs .settings-tab.active')?.dataset.tab || ''
-    );
+    if (settingsFullySaved) {
+        // A partial failure must not mark an unanswered checklist row as saved.
+        _ackSavedChecklistItems(
+            checklistPendingBefore,
+            document.querySelector('.settings-tabs .settings-tab.active')?.dataset.tab || ''
+        );
+    }
     _renderSettingsChecklist();
-    // Persist meal_plan and tts_voice to SQLite for cross-device sync
-    try {
-        const appData = {};
-        if (s.meal_plan) appData.meal_plan = s.meal_plan;
-        if (s.tts_voice)  appData.tts_voice  = s.tts_voice;
-        if (Object.keys(appData).length) await api('app_settings_save', {}, 'POST', { settings: appData });
-    } catch(e) {}
     // Re-init screensaver watcher in case it was just enabled
     initInactivityWatcher();
 }
