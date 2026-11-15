@@ -49,6 +49,29 @@ Add EverShelf pantry data as native HA sensor entities that update automatically
 
 In Settings → 🏠 Home Assistant → **REST Sensors** card, click **Copy YAML** to get a ready-to-paste `configuration.yaml` block that already contains your EverShelf URL.
 
+### API authentication after pairing or token migration
+
+**Fresh EverShelf installations require an API token.** An existing open-LAN
+installation stays open until you explicitly secure it. When EverShelf requires
+authentication, Home Assistant's REST sensors must authenticate too; otherwise
+they return HTTP 401 and become unavailable. The **Home Assistant long-lived
+access token** (`HA_TOKEN`, used by EverShelf when calling Home Assistant) is
+not the **EverShelf API token** (`API_TOKEN`, used by Home Assistant when
+calling EverShelf).
+
+On the Home Assistant server, add this to the private `secrets.yaml`:
+
+```yaml
+evershelf_api_authorization: "Bearer YOUR_EVERSHELF_API_TOKEN"
+```
+
+Replace the placeholder with your EverShelf `API_TOKEN` from your EverShelf
+server configuration. **Do not paste it into Git, ordinary YAML, screenshots or
+public support posts.** The button **Copy YAML** in EverShelf uses the
+`!secret` reference on a paired client; it never copies the token itself.
+Existing `ALLOW_OPEN_LAN=true` installations without an API token can omit
+the `headers:` block.
+
 ### Manual YAML example
 
 ```yaml
@@ -58,6 +81,8 @@ sensor:
     name: "EverShelf Overview"
     unique_id: evershelf_overview
     resource: "http://YOUR_EVERSHELF_URL/api/?action=ha_sensor"
+    headers:
+      Authorization: !secret evershelf_api_authorization
     scan_interval: 300        # seconds
     value_template: "{{ value_json.state }}"
     json_attributes:
@@ -79,6 +104,8 @@ sensor:
     name: "EverShelf Shopping Count"
     unique_id: evershelf_shopping
     resource: "http://YOUR_EVERSHELF_URL/api/?action=ha_sensor&sensor=shopping"
+    headers:
+      Authorization: !secret evershelf_api_authorization
     scan_interval: 180
     value_template: "{{ value_json.state }}"
     unit_of_measurement: "items"
@@ -88,6 +115,8 @@ sensor:
     name: "EverShelf Products"
     unique_id: evershelf_products
     resource: "http://YOUR_EVERSHELF_URL/api/?action=ha_sensor&sensor=product"
+    headers:
+      Authorization: !secret evershelf_api_authorization
     scan_interval: 600
     value_template: "{{ value_json.state }}"
     json_attributes:
