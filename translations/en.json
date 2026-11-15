@@ -1974,6 +1974,9 @@
     "badge_better": "less than avg"
   },
   "error": {
+    "settings_key_not_allowed": "Setting key not allowed. Nothing was saved.",
+    "settings_too_large": "The settings request is too large.",
+    "invalid_settings": "Invalid settings data.",
     "receipt_disabled": "Receipt scanning is switched off in the settings.",
     "receipt_failed": "I could not read the receipt.",
     "family_disabled": "Product families are switched off in the settings.",
