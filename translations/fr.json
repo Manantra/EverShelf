@@ -1974,6 +1974,9 @@
     "badge_better": "moins que la moy."
   },
   "error": {
+    "settings_key_not_allowed": "Clé de paramètre non autorisée. Aucune modification enregistrée.",
+    "settings_too_large": "La requête de paramètres est trop volumineuse.",
+    "invalid_settings": "Données de paramètres invalides.",
     "receipt_disabled": "La lecture de tickets est désactivée dans les paramètres.",
     "receipt_failed": "Je n'ai pas pu lire le ticket.",
     "family_disabled": "Les familles de produits sont désactivées dans les paramètres.",

@@ -1974,6 +1974,9 @@
     "badge_better": "menos que la media"
   },
   "error": {
+    "settings_key_not_allowed": "Clave de configuración no permitida. No se guardó ningún cambio.",
+    "settings_too_large": "La solicitud de ajustes es demasiado grande.",
+    "invalid_settings": "Datos de ajustes no válidos.",
     "receipt_disabled": "La lectura de tickets está desactivada en los ajustes.",
     "receipt_failed": "No he podido leer el ticket.",
     "family_disabled": "Las familias de productos están desactivadas en los ajustes.",
