@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit recovery error. A failed/busy backup never reports success or
   invalidates cache files.
 - Add localized errors for invalid backups, busy restores and unconfirmed
-  recovery in all six languages, and require PHP's sqlite3 extension in Docker.
+  recovery in all six languages. The official PHP Docker base already bundles
+  SQLite3, so the Docker build checks the required API instead of rebuilding it.
 - Add isolated PHP and real HTTP regression tests for corrupt/empty/truncated
   backups, unexpected schemas, invalid names, concurrent WAL writers,
   verified restore, repeated restore, forced rollback and recovery retention.

@@ -15,7 +15,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-ita \
     tesseract-ocr-eng \
-    && docker-php-ext-install pdo_sqlite sqlite3 curl mbstring gd zip intl \
+    && docker-php-ext-install pdo_sqlite curl mbstring gd zip intl \
+    && php -r 'if (!class_exists("SQLite3") || !method_exists("SQLite3", "backup")) {fwrite(STDERR, "SQLite3 backup API unavailable\\n"); exit(1);}' \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite and mod_headers

@@ -143,8 +143,9 @@ Out-of-scope issues:
 Restore is allowed only for a recognized EverShelf SQLite backup whose
 `PRAGMA quick_check` and essential table/column structure pass validation.
 The API uses PHP's **SQLite3 extension** and its atomic online backup method
-(`SQLite3::backup`), not `copy()` on an open database. Docker installs the
-extension automatically; manual installations must enable `php-sqlite3`.
+(`SQLite3::backup`), not `copy()` on an open database. The official PHP
+Docker base includes SQLite3; our Docker build and CI explicitly verify the
+API is available. Manual installations must enable `php-sqlite3`.
 
 The restore creates a **private pre-restore safety snapshot** and validates the
 result before responding success. On a post-restore failure it attempts
