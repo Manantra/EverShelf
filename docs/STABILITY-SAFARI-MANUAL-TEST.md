@@ -134,3 +134,84 @@ German abbreviation is now "Pkg" **without a period**, consistent with
 "Stk"; the internal stored unit remains "conf". Verify that after loading
 this version in Safari once, the installed iPhone PWA shows the new words.
 No stock mutation is needed for this UI test.
+
+## v1.16.17 / Issues #1 and #2 — iPhone acceptance (2026-11-01)
+
+Use only the isolated staging URL, not production. No booking is necessary
+for this UI walkthrough. Current staging demo starts with 14 packs of 690g.
+
+1. Open staging online in Safari to load v1.16.17, then relaunch the installed
+   Home Screen PWA. Both header and preloader must display v1.16.17.
+2. On the pantry demo row, swipe LEFT. The background reads "Verbrauchen" and
+   the Use page opens directly. DO NOT submit anything. Back.
+3. Swipe RIGHT. The background reads "Entsorgen" and the disposal quantity
+   modal opens directly. Cancel; reason selection is required before a
+   disposal can be saved. Never interpret a swipe as consent to a write.
+4. Tap the demo row. The detail sheet contains Verbrauchen, Entsorgen,
+   Bearbeiten and Rezept erstellen, plus a separate, secondary
+   "Aus Inventar entfernen" action. "Alles aufgebraucht" must NOT appear here.
+   Tap Bearbeiten to check that the normal inventory edit opens; cancel.
+5. In the Use page the stock appears ONCE in a compact summary:
+   "Verfügbar — 14 Packungen" then "690 g je Packung · 9.660 g insgesamt",
+   and the storage location. Product hero keeps its expiry badge, not a
+   second stock number. The numeric input is explicitly labelled as the
+   AMOUNT TO USE; neither it nor the location selector is another stock list.
+6. If stock is in more than one location, the single summary lists quantities
+   per location; choose a location in the selector (without repeated totals).
+   Swiping a particular inventory row should select that row's location first.
+7. Inspect the German Pkg badge and the location name for mobile layout.
+   Mac, iPhone and staging database should retain 14 packs after canceling.
+
+Do not clear Safari website data or reinstall the Home Screen PWA if unsent
+offline changes exist. Production remains untouched until PR review and
+manual acceptance; the PR is intentionally a draft for the first test.
+
+
+## v1.16.18 direction change, follow-up to PR #3 (2026-11-01)
+
+The user explicitly reversed the two gestures: swipe **RIGHT** opens the
+**Verbrauchen** quantity form (amber background), and swipe **LEFT** opens
+**Entsorgen** with quantity and mandatory reason (red background). Neither
+swipe immediately writes stock. Tap opens details as before; Edit is in the
+product-detail actions. Both gesture help banners must display the revised
+arrows. This section supersedes the earlier v1.16.17 directions above.
+
+Check on iPhone Safari staging and the Home Screen PWA after loading the
+new version online. Swipe each way, then cancel without confirming, and
+verify the sample still has 14 packages.
+
+
+## v1.16.19 / Issue #4: iPhone rapid-swipe / no false no-stock warning
+
+Open the isolated Safari staging online, then relaunch the Home Screen
+PWA. The version must be v1.16.19. Do not clear any pending offline
+operations. Swipe LEFT and cancel the disposal form, then swipe RIGHT
+and leave the consumption form; repeat a few times without confirming.
+Both texts must appear centered inside their respective red/amber reveal
+strips. A temporary server rate limit must NOT say the product is missing
+or already exhausted. After any temporary error the UI must recover.
+Demo stock should stay at exactly 14 packages.
+
+## v1.16.20 (Issue #5): redesigned iPhone disposal dialog
+
+Only on isolated staging, with the demo still at 14 x 690g:
+
+1. Swipe LEFT on the demo. The dialog has a concise product identity and
+   ONE available-stock summary: 14 packages, 690g per pack, 9,660g total,
+   Vorratskammer. No second blue stock bar or repeated stock count.
+2. As there is only one storage location, no location-selection buttons
+   appear. If another disposable sample has two locations, the storage
+   selector appears once, without duplicate quantities, and remembers
+   the tapped item's location.
+3. "Wie viel entsorgen?" and "Diese Menge entsorgen" are above the
+   separated, bottom "Alles entsorgen" destructive action. A caption
+   explains that full disposal affects EVERY location.
+4. Tap "Alles entsorgen" but do not confirm. A confirmation dialog
+   opens and must remain until Cancel or explicit confirmation (no
+   five-second automatic acceptance). Tap Cancel and verify 14 packs.
+5. Enter zero or erase the quantity in the normal field and try
+   "Diese Menge entsorgen". A validation error should appear; stock
+   must remain 14. Close the dialog.
+6. Do not actually confirm a disposal or reason on the sample product.
+   Reopen from both swipe and detail and inspect on Home Screen PWA.
+7. No production files or database migrations are part of this change.

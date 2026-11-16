@@ -36,9 +36,9 @@ $check(str_contains($js, "document.getElementById('btn-use-submit').before(confF
 $check(str_contains($js, 'function submitUseAll()')
     && str_contains($js, '_showUseAllSlideConfirm(name, qtyStr, _doSubmitUseAll);'),
     'Full-stock action retains mandatory slide confirmation');
-$check(str_contains($js, '_formatUsePackageStock(confQty,')
+$check(str_contains($js, '_renderUseStockSummary(items)')
     && !str_contains($js, 'confDisplay} conf'),
-    'Cached package amount uses localized singular/plural instead of raw conf');
+    'Use stock has a single localized overview rather than raw conf');
 $check(str_contains($css, '.use-all-option') && str_contains($css, 'border-top: 1px solid var(--border);'),
     'Destructive alternative has visible separation');
 foreach (['de', 'en', 'it', 'es', 'fr', 'zh'] as $locale) {

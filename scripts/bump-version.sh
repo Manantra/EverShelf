@@ -78,8 +78,23 @@ sed -i -E "s/(\?v=)[0-9]{8}[a-z]/\1${STAMP}/g" "$INDEX"
 # ── manifest.json: version field ────────────────────────────────────────────
 sed -i -E "s/(\"version\"[[:space:]]*:[[:space:]]*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\1${VERSION}\2/" "$MANIFEST"
 
-# ── sw.js: cache name (version + stamp letter) ──────────────────────────────
-sed -i -E "s/(const CACHE = 'evershelf-v)[0-9]+\.[0-9]+\.[0-9]+[a-z]?(')/\1${VERSION}${STAMP_LETTER}\2/" "$SW"
+# ── sw.js: preserve staging isolation AND update cache to new version ───────
+# Legacy cache: evershelf-v1.16.16a; isolated staging cache:
+# evershelf-v1.16.16-stability-20261101g. Both MUST be bumped.
+grep -qE "const CACHE = 'evershelf-v[0-9]+\.[0-9]+\.[0-9]+" "$SW" || {
+    echo "Error: service-worker cache name not recognized" >&2
+    exit 1
+}
+if grep -qE "const CACHE = 'evershelf-v[0-9]+\.[0-9]+\.[0-9]+-stability-" "$SW"; then
+    NEW_CACHE="evershelf-v${VERSION}-stability-${STAMP}"
+else
+    NEW_CACHE="evershelf-v${VERSION}${STAMP_LETTER}"
+fi
+sed -i -E "s/(const CACHE = ')[^']+(')/\1${NEW_CACHE}\2/" "$SW"
+grep -qF "const CACHE = '${NEW_CACHE}';" "$SW" || {
+    echo "Error: failed to bump service-worker cache" >&2
+    exit 1
+}
 
 # ── app.js: i18n cache buster + asset query strings ─────────────────────────
 sed -i -E "s/(_I18N_VERSION = ')[0-9]{8}[a-z](')/\1${STAMP}\2/" "$APPJS"
