@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type 'yes' to confirm you want to build the deprecated gateway APK"
+        description: "Type PUBLISH-LEGACY-SCALE to allow this deprecated release"
         required: true
 
 permissions:
@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'PUBLISH-LEGACY-SCALE' }}
     name: Build APK
     runs-on: ubuntu-latest
 

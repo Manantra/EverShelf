@@ -3,19 +3,21 @@ name: Build & Release Health Bridge APK
 # Publish only from main (avoids develop/main racing on the same release tags).
 # Node 20 deprecation warnings from action majors are harmless; failure was tag/release race.
 
+# OTA APK publishing requires an explicit, main-branch operator action.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'evershelf-health-bridge/**'
-      - '.github/workflows/build-health-bridge.yml'
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PUBLISH-HEALTH-BRIDGE to authorize the Health Bridge APK release'
+        type: string
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'PUBLISH-HEALTH-BRIDGE' }}
     name: Build Health Bridge APK
     runs-on: ubuntu-latest
 

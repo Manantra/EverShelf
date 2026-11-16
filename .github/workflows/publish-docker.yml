@@ -1,33 +1,21 @@
 name: Publish Docker Image
 
+# Publishing is a deliberate operator action. A push to main or a version tag
+# must NEVER publish automatically; the CI workflow is build/test-only.
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
   workflow_dispatch:
     inputs:
+      confirm:
+        description: 'Type PUBLISH-DOCKER to authorize publishing to GHCR'
+        type: string
+        required: true
       version:
-        description: 'Version to publish (e.g. 1.16.3); leave empty for no version tag'
+        description: 'Optional version tag (e.g. 1.16.27)'
         type: string
         required: false
         default: ''
       latest:
-        description: 'Also tag the image as latest'
-        type: boolean
-        required: false
-        default: true
-  # Called by ci.yml right after it creates a release: a push/tag made with a
-  # token inside a workflow cannot trigger this one, so the release job calls it
-  # directly (no PAT, no manual dispatch).
-  workflow_call:
-    inputs:
-      version:
-        description: 'Version to publish (e.g. 1.16.3) when called by the release job'
-        type: string
-        required: false
-        default: ''
-      latest:
-        description: 'Also tag the image as latest'
+        description: 'Explicitly overwrite GHCR latest (normally leave disabled)'
         type: boolean
         required: false
         default: false
@@ -41,6 +29,7 @@ env:
 
 jobs:
   publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'PUBLISH-DOCKER' }}
     name: Build & push to GHCR
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +55,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ inputs.latest == true || github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ inputs.latest == true }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=${{ inputs.version }},enable=${{ inputs.version != null && inputs.version != '' }}
