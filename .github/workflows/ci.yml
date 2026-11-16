@@ -60,6 +60,11 @@ jobs:
             php "$test"
           done
 
+      - name: Exercise real WAL backup and verify finished SQLite snapshot
+        run: |
+          php scripts/test-backup-integrity-php.php
+          python3 scripts/test-backup-integrity-http.py
+
       - name: Verify one-time API token generation and no-lockout upgrade policy
         run: python3 scripts/test-api-token-autogen.py
 

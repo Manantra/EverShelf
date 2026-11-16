@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.25] - 2026-11-15 (verified local SQLite backups, draft PR)
+
+### Fail-closed local backup publication (Issue #14 / Upstream P0-06)
+
+- Before promoting a `.part` SQLite snapshot to a completed `.db` backup,
+  validate it with `PRAGMA quick_check`. Both `VACUUM INTO` and the existing
+  WAL-checkpoint/copy fallback now go through the same verification gate.
+- Reject missing, zero-length, corrupt or truncated candidate files and delete
+  the temporary file without replacing an older good backup. On validation
+  failure, report `error.backup_integrity` with translations in all six
+  languages; the UI never displays raw English backend error prose.
+- A failed validation does not advance the last-backup timestamp or purge
+  previous backups. Existing backup retention and restore algorithms are not
+  changed in this patch, and no production data is touched.
+- Regression tests exercise real WAL-backed HTTP `backup_now`, verified
+  published backup contents, corruption and rename failure cases, and
+  source/translation integration. No broad Upstream merge.
+
 ## [1.16.24] - 2026-11-15 (safe automatic API token, draft PR)
 
 ### Secure new installs without locking out existing devices (Issue #12)

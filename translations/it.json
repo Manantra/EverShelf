@@ -2061,6 +2061,7 @@
     "backup_no_dir": "Cartella dei backup non creabile",
     "backup_no_db": "Database non trovato",
     "backup_copy_failed": "Copia del database non riuscita",
+    "backup_integrity": "Il backup è danneggiato o incompleto",
     "backup_invalid_name": "Nome del backup non valido",
     "backup_not_found": "Backup non trovato",
     "backup_delete_failed": "Eliminazione del backup non riuscita",
