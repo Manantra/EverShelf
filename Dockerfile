@@ -15,7 +15,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-ita \
     tesseract-ocr-eng \
-    && docker-php-ext-install pdo_sqlite curl mbstring gd zip intl \
+    && docker-php-ext-install pdo_sqlite sqlite3 curl mbstring gd zip intl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite and mod_headers
