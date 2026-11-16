@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.27] - 2026-11-16 (safe SQLite backup restore, draft PR)
+
+### Reject corrupt restores and preserve the prior live database (Issue #18)
+
+- **Never** directly overwrite an open `evershelf.db` or delete live WAL/SHM
+  files during restore. Validate the requested backup with read-only SQLite
+  `PRAGMA quick_check` and expected EverShelf table/column structure first.
+- Use SQLite's **transactional online backup API** to restore into the existing
+  database despite active PDO connections; SQLite handles WAL locking. Before
+  restore, create an integrity-checked private safety snapshot. Validate the
+  restored database again before announcing success.
+- If post-restore verification fails, roll back from the safety snapshot. If
+  that rollback is blocked, retain the private recovery file and report an
+  explicit recovery error. A failed/busy backup never reports success or
+  invalidates cache files.
+- Add localized errors for invalid backups, busy restores and unconfirmed
+  recovery in all six languages. The official PHP Docker base already bundles
+  SQLite3, so the Docker build checks the required API instead of rebuilding it.
+- Add isolated PHP and real HTTP regression tests for corrupt/empty/truncated
+  backups, unexpected schemas, invalid names, concurrent WAL writers,
+  verified restore, repeated restore, forced rollback and recovery retention.
+  No real data, deployed server or previous Draft-PR has been modified.
+
 ## [1.16.26] - 2026-11-16 (optional shell backup retention, draft PR)
 
 ### Never skip a scheduled backup when a retention override is absent (Issue #16)

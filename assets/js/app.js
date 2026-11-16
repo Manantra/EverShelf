@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261116a'; // bump when translations change
+const _I18N_VERSION = '20261116b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -15008,6 +15008,9 @@ function _apiErrorText(data) {
     if (key === 'error.backup_not_found') return t('error.backup_not_found');
     if (key === 'error.backup_delete_failed') return t('error.backup_delete_failed');
     if (key === 'error.backup_restore_failed') return t('error.backup_restore_failed');
+    if (key === 'error.backup_restore_invalid') return t('error.backup_restore_invalid');
+    if (key === 'error.backup_restore_busy') return t('error.backup_restore_busy');
+    if (key === 'error.backup_restore_recovery') return t('error.backup_restore_recovery');
     if (key === 'error.gdrive_disabled') return t('error.gdrive_disabled');
     if (key === 'error.gdrive_folder_missing') return t('error.gdrive_folder_missing');
     if (key === 'error.gdrive_not_configured') return t('error.gdrive_not_configured');

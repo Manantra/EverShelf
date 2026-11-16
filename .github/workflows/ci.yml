@@ -60,6 +60,11 @@ jobs:
             php "$test"
           done
 
+      - name: Validate SQLite online restore, rollback and corrupted HTTP backups
+        run: |
+          php scripts/test-backup-restore-safety.php
+          python3 scripts/test-backup-restore-http.py
+
       - name: Verify optional shell backup retention and WAL snapshot rotation
         run: python3 scripts/test-backup-shell-retention.py
 
@@ -207,6 +212,7 @@ jobs:
           docker run -d --name test-evershelf -p 8080:80 evershelf-test
           sleep 5
           curl -f http://localhost:8080/ || exit 1
+          docker exec test-evershelf php -r 'if (!class_exists("SQLite3") || !method_exists("SQLite3", "backup")) {fwrite(STDERR, "SQLite3 online backup API unavailable\n"); exit(1);} echo "SQLite3 restore extension ready\n";'
           docker stop test-evershelf
 
   validate-translations:

@@ -23,7 +23,7 @@ def check(ok, label):
 
 with tempfile.TemporaryDirectory(prefix="evershelf-backup-http-qa-") as directory:
     p = sandbox(Path(directory) / "server", {"ALLOW_OPEN_LAN": "true"})
-    for name in ("api/index.php", "api/lib/local_backup_integrity.php"):
+    for name in ("api/index.php", "api/lib/local_backup_integrity.php", "api/lib/local_backup_restore.php"):
         (p/name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT/name, p/name)
     server = Server(p)

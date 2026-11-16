@@ -90,6 +90,9 @@ $errorKeys = [
     'error.backup_not_found',
     'error.backup_delete_failed',
     'error.backup_restore_failed',
+    'error.backup_restore_invalid',
+    'error.backup_restore_busy',
+    'error.backup_restore_recovery',
 ];
 foreach ($errorKeys as $key) {
     assert_true(str_contains($backupFns, "'{$key}'"), "the backup functions can answer {$key}");

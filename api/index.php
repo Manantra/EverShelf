@@ -15,6 +15,7 @@ require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
 require_once __DIR__ . '/lib/local_backup_integrity.php';
+require_once __DIR__ . '/lib/local_backup_restore.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -14666,8 +14667,8 @@ function deleteLocalBackup(string $filename): array {
 }
 
 /**
- * Restore a local backup: replaces the current evershelf.db.
- * Clears WAL/SHM files and invalidates smart shopping cache.
+ * Restore a vetted SQLite backup through the online backup API. The existing
+ * PDO stays open; no direct file overwrites or WAL/SHM unlinking are allowed.
  */
 function restoreLocalBackup(string $filename, PDO $db): array {
     if (!preg_match('/^evershelf_\d{4}-\d{2}-\d{2}_\d{4}\.db$/', $filename)) {
@@ -14677,24 +14678,26 @@ function restoreLocalBackup(string $filename, PDO $db): array {
     if (!file_exists($backupPath)) {
         return ['success' => false, 'error' => 'Backup file not found', 'error_key' => 'error.backup_not_found'];
     }
-    $dbPath = __DIR__ . '/../data/evershelf.db';
 
-    // Flush WAL before replacing DB
-    try { $db->exec('PRAGMA wal_checkpoint(FULL)'); } catch (Throwable $e) {}
-
-    if (!copy($backupPath, $dbPath)) {
-        return ['success' => false, 'error' => 'Failed to restore backup', 'error_key' => 'error.backup_restore_failed'];
+    $result = evershelfRestoreSqliteBackupSafely($backupPath, DB_PATH);
+    if ($result !== 'ok') {
+        $errorKeys = [
+            'invalid_backup' => 'error.backup_restore_invalid',
+            'busy' => 'error.backup_restore_busy',
+            'failed' => 'error.backup_restore_failed',
+            'rollback_failed' => 'error.backup_restore_recovery',
+        ];
+        $errorKey = $errorKeys[$result] ?? 'error.backup_restore_failed';
+        EverLog::error('Restore refused or failed', [
+            'event' => 'backup_restore_refused',
+            'reason' => $result,
+        ]);
+        return ['success' => false, 'error' => 'Backup restore could not complete safely', 'error_key' => $errorKey];
     }
-    // Remove stale WAL/SHM so next connection starts clean
-    @unlink($dbPath . '-wal');
-    @unlink($dbPath . '-shm');
-    // Invalidate dependent caches
-    @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
 
+    // Invalidate dependent caches ONLY after a fully verified restore.
+    @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
     EverLog::info('restoreLocalBackup', ['filename' => $filename]);
-    // The key is what the client shows; `message` stays for non-browser callers
-    // that have no translations (the UI never prints it — issue: it was English
-    // prose inside an Italian UI).
     return [
         'success'     => true,
         'message'     => 'Restore complete — reload the page to see the restored data.',
