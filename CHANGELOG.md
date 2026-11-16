@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.22] - 2026-11-15 (security hardening, draft PR, pending validation)
+
+### Client settings API can no longer access internal configuration (Fixes #8)
+
+- Generic `app_settings_get` returns only the 16 keys used by the browser's
+  cross-device settings, not internal server configuration or migration state.
+- `app_settings_save` accepts only those keys, validates the JSON object and
+  enforces a 1 MiB request limit. Unknown keys reject the whole batch, while
+  SQLite transactions roll back every write on a database error.
+- The existing client keys (setup, preferences, recipes, shopping/Bring and
+  scan history) keep their data format; internal server writes stay unchanged.
+- Six-language errors and isolated in-memory SQLite regression tests added.
+- No stock, swipe, offline, migration or production changes. Requires CI and
+  staging verification before merge.
+
 ## [1.16.21] - 2026-11-02 (staging PR #3, pending iPhone acceptance)
 
 ### One shared product and stock card for Use and Dispose (Fixes #6)

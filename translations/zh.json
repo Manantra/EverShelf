@@ -1974,6 +1974,9 @@
     "badge_better": "低于平均值"
   },
   "error": {
+    "settings_key_not_allowed": "不允许修改此设置项。未保存任何更改。",
+    "settings_too_large": "设置请求过大。",
+    "invalid_settings": "设置数据无效。",
     "receipt_disabled": "小票识别已在设置中关闭。",
     "receipt_failed": "无法读取这张小票。",
     "family_disabled": "产品系列已在设置中关闭。",

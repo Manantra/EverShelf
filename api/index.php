@@ -10,6 +10,7 @@
 
 // ── Core bootstrap (env, security, database, logger) ─────────────────────────
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/app_settings.php';
 require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
@@ -20290,28 +20291,17 @@ function familySiblingSuggest(PDO $db): void {
 // ===== SHARED APP DATA FUNCTIONS =====
 
 function appSettingsGet(PDO $db): void {
-    $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
-    $settings = [];
-    foreach ($rows as $row) {
-        EverLog::debug('appSettingsGet');
-        $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
-    }
-    echo json_encode(['success' => true, 'settings' => $settings]);
+    echo json_encode(appSettingsReadClientData($db));
 }
 
 function appSettingsSave(PDO $db): void {
-    $input = json_decode(file_get_contents('php://input'), true);
-    if (!$input || !is_array($input['settings'] ?? null)) {
-        EverLog::debug('appSettingsSave');
-        echo json_encode(['error' => 'Missing settings object']);
-        return;
+    // Read at most one byte above the limit: large bodies must not exhaust memory.
+    $raw = file_get_contents('php://input', false, null, 0, 1048577);
+    $result = appSettingsWriteClientData($db, $raw === false ? '' : $raw);
+    if (!$result['success']) {
+        http_response_code($result['error'] === 'settings_too_large' ? 413 : 400);
     }
-    $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
-                          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
-    foreach ($input['settings'] as $key => $value) {
-        $stmt->execute([$key, json_encode($value)]);
-    }
-    echo json_encode(['success' => true]);
+    echo json_encode($result);
 }
 
 function recipesList(PDO $db): void {
