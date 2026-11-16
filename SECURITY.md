@@ -138,6 +138,24 @@ Out-of-scope issues:
 - Cache files are written with `LOCK_EX` so a web request and the cron cannot
   interleave and leave truncated JSON behind.
 
+## Database restoration safety (v1.16.27)
+
+Restore is allowed only for a recognized EverShelf SQLite backup whose
+`PRAGMA quick_check` and essential table/column structure pass validation.
+The API uses PHP's **SQLite3 extension** and its atomic online backup method
+(`SQLite3::backup`), not `copy()` on an open database. The official PHP
+Docker base includes SQLite3; our Docker build and CI explicitly verify the
+API is available. Manual installations must enable `php-sqlite3`.
+
+The restore creates a **private pre-restore safety snapshot** and validates the
+result before responding success. On a post-restore failure it attempts
+rollback; if other writers prevent recovery, the safety snapshot is preserved
+as `data/restore-safety-*` for administrator-led recovery. Stop writes and
+investigate before retrying after a `backup_restore_recovery` error. Restoring
+a previous database also restores its previous shared settings and may change
+integration/token settings; review device access afterward. Never attempt
+an untested restore directly against a production database.
+
 ## Repository & release secrets
 
 Real signing material must **never** be committed. If a keystore or password was
