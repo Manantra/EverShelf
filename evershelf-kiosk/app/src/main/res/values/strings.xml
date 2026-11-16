@@ -249,6 +249,7 @@ Keep them, or reconfigure from scratch?</string>
     <string name="settings_reconfigure_scale">Reconfigure scale</string>
     <string name="splash_tagline">Your smart pantry</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notifications and the rest are configured inside the EverShelf web app.</string>
+    <string name="settings_server_save_failed">Server did not save the settings. Check pairing or the API token, then retry.</string>
     <string name="settings_url_empty">URL cannot be empty</string>
     <string name="settings_url_enter_first">Enter a URL first</string>
     <string name="setup_pairing_step_title">Pair this kiosk</string>

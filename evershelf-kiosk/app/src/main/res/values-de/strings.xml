@@ -179,6 +179,7 @@ Behalten oder neu konfigurieren?</string>
     <string name="settings_reconfigure_scale">Waage neu einrichten</string>
     <string name="splash_tagline">Dein smarter Vorrat</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, Benachrichtigungen und der Rest werden in der EverShelf-Webapp konfiguriert.</string>
+    <string name="settings_server_save_failed">Einstellungen wurden nicht auf dem Server gespeichert. Kopplung oder API-Token prüfen und erneut versuchen.</string>
     <string name="settings_url_empty">URL darf nicht leer sein</string>
     <string name="settings_url_enter_first">Zuerst eine URL eingeben</string>
     <string name="setup_pairing_step_title">Dieses Kiosk koppeln</string>

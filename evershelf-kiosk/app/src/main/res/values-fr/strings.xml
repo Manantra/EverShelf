@@ -179,6 +179,7 @@ Les conserver ou tout reconfigurer ?</string>
     <string name="settings_reconfigure_scale">Reconfigurer la balance</string>
     <string name="splash_tagline">Votre garde-manger intelligent</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notifications et le reste se configurent dans l’appli web EverShelf.</string>
+    <string name="settings_server_save_failed">Les paramètres ne sont pas enregistrés sur le serveur. Vérifiez l\'association ou le jeton API, puis réessayez.</string>
     <string name="settings_url_empty">L’URL ne peut pas être vide</string>
     <string name="settings_url_enter_first">Saisissez d’abord une URL</string>
     <string name="setup_pairing_step_title">Associer ce kiosk</string>

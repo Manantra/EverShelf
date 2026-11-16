@@ -179,6 +179,7 @@
     <string name="settings_reconfigure_scale">Reconfigurar balanza</string>
     <string name="splash_tagline">Tu despensa inteligente</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notificaciones y el resto se configuran en la app web EverShelf.</string>
+    <string name="settings_server_save_failed">No se guardaron los ajustes en el servidor. Comprueba la vinculación o el token API y vuelve a intentarlo.</string>
     <string name="settings_url_empty">La URL no puede estar vacía</string>
     <string name="settings_url_enter_first">Introduce primero una URL</string>
     <string name="setup_pairing_step_title">Vincular este kiosk</string>
