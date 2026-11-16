@@ -145,6 +145,21 @@ function dbRollback(PDO $db): void {
     }
 }
 
+/**
+ * Durable receipts for opted-in offline writes. There is intentionally no
+ * time-based deletion: an old PWA can reappear after months offline.
+ * This table contains only request hashes and response metadata, not secrets.
+ */
+function ensureOfflineWriteReceipts(PDO $db): void {
+    $db->exec("CREATE TABLE IF NOT EXISTS offline_write_receipts (
+        operation_id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        response_json TEXT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )");
+}
+
 function initializeDB(PDO $db): void {
     $db->exec("
         CREATE TABLE IF NOT EXISTS products (
@@ -199,9 +214,11 @@ function initializeDB(PDO $db): void {
         -- smartShopping(): GROUP BY product_id filtering on type+undone
         CREATE INDEX IF NOT EXISTS idx_transactions_pid_type_undone ON transactions(product_id, type, undone);
     ");
+    ensureOfflineWriteReceipts($db);
 }
 
 function migrateDB(PDO $db): void {
+    ensureOfflineWriteReceipts($db);
     // Guard: if core tables don't exist yet (e.g. DB file present but empty / partial init),
     // run initializeDB first so all tables are created, then return — no ALTER TABLE needed.
     $productsExists = $db->query(
@@ -240,6 +257,21 @@ function migrateDB(PDO $db): void {
         try { $db->exec("ALTER TABLE inventory ADD COLUMN expiry_user_set INTEGER DEFAULT 0"); }
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
+
+    // Monotonic row revision for conflict resolution. SQLite timestamps only
+    // have second precision, so they cannot protect a quick A -> B -> A edit.
+    // A trigger covers every writer (API, background jobs, legacy clients)
+    // without changing their existing UPDATE statements or settings.
+    if (!in_array('revision', $invColNames, true)) {
+        try { $db->exec("ALTER TABLE inventory ADD COLUMN revision INTEGER NOT NULL DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    $db->exec("CREATE TRIGGER IF NOT EXISTS inventory_revision_on_update
+        AFTER UPDATE ON inventory
+        FOR EACH ROW WHEN NEW.revision = OLD.revision
+        BEGIN
+            UPDATE inventory SET revision = OLD.revision + 1 WHERE id = NEW.id;
+        END");
 
     $db->exec("CREATE TABLE IF NOT EXISTS barcode_cache (
         barcode TEXT PRIMARY KEY,

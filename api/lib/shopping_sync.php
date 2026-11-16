@@ -350,7 +350,7 @@ function evershelfFamilyStockQty(PDO $db, string $shoppingName): float
  * Build the specification line for a smart-shopping row.
  * Shared by both transports so the markers always match what the cleanup expects.
  */
-function evershelfBuildShoppingSpec(array $si): string
+function evershelfBuildShoppingSpec(array $si, ?PDO $db = null): string
 {
     $generic = (string)($si['shopping_name'] ?? '') ?: (string)($si['name'] ?? '');
     $parts   = [];
@@ -360,6 +360,28 @@ function evershelfBuildShoppingSpec(array $si): string
     $urg = evershelfUrgencyLabel((string)($si['urgency'] ?? ''));
     if ($urg !== '') {
         $parts[] = $urg;
+    }
+    // The smart cache may predate the quantity guards (or have been generated
+    // with different settings). This is the final auto-generated specification
+    // boundary shared by both shopping transports: never write a stale 24-pack
+    // suggestion even when the current planner would cap it to a normal trip.
+    // Preserve the prediction itself, its original unit and the user's horizon.
+    // Manual shopping-list specifications never pass through this function.
+    if (isset($si['suggested_qty']) && (float)$si['suggested_qty'] > 0) {
+        $suggestedUnit = trim((string)($si['suggested_unit'] ?? $si['unit'] ?? 'pz'));
+        // Old cached rows may have no per-item horizon. When the caller has a
+        // database, honour the household's configured planning window instead
+        // of silently assuming a 30-day trip.
+        $horizon = (int)($si['edible_days'] ?? $si['plan_days'] ?? smartResolvePlanDays(null, $db));
+        $guarded = shoppingCapSuggestedQty(
+            (float)$si['suggested_qty'],
+            $suggestedUnit,
+            (float)($si['default_qty'] ?? $si['default_quantity'] ?? 0),
+            (string)($si['package_unit'] ?? ''),
+            max(1, min(30, $horizon))
+        );
+        $si['suggested_qty'] = $guarded['quantity'];
+        $si['suggested_unit'] = $guarded['unit'];
     }
     $qtyLabel = formatSmartSuggestQty($si);
     if ($qtyLabel !== null) {

@@ -317,13 +317,17 @@ assert_true(str_contains($appJs, "'product_kind_prefix'") && str_contains($appJs
 assert_true(str_contains($apiPhp, "case 'products_apply_auto_rules':"), 'api: the maintenance action is routed');
 assert_true(str_contains($apiPhp, 'productKindApply('), 'api: the save path applies the genre prefix');
 assert_true(str_contains($apiPhp, 'mergeIncomingProductFields'), 'api: the single title choke point still exists');
-// The capital letter must survive PRODUCT_KIND_PREFIX=false: in the save path the call
-// sits OUTSIDE the genre guard (and the guard is what the comment above it marks).
-$capCall  = strpos($apiPhp, '$name = productTitleCapitalize($name);');
+// The capital letter must survive PRODUCT_KIND_PREFIX=false. The save path
+// distinguishes manual titles from automatically normalized titles before
+// the genre guard; user-selected internal capitalization must be preserved.
+$capCall = strpos($apiPhp, '? productTitleCapitalizeUserName($name)');
+$autoCap = strpos($apiPhp, ': productTitleCapitalize($name);');
 $kindGuard = strpos($apiPhp, '// Genre (genere) as an integral part of the article title');
-assert_true($capCall !== false, 'api: the save path capitalizes the stored title');
-assert_true($capCall !== false && $kindGuard !== false && $capCall < $kindGuard,
-    'api: …outside the genre guard, so switching the genre prefix off cannot switch the capital letter off');
+assert_true($capCall !== false && $autoCap !== false,
+    'api: the save path capitalizes manual titles without rewriting their casing');
+assert_true($capCall !== false && $autoCap !== false && $kindGuard !== false
+    && $capCall < $kindGuard && $autoCap < $kindGuard,
+    'api: title capitalization is outside the genre-prefix guard');
 assert_true(str_contains((string)file_get_contents(__DIR__ . '/../api/lib/product_kind.php'), 'function productTitleCapitalize'),
     'api: the title capitalizer lives with the other title rules (lib/product_kind.php)');
 

@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261025a'; // bump when translations change
+const _I18N_VERSION = '20261101g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7352,7 +7352,10 @@ function _nutrScoreBar(label, val, color) {
 function _renderMonthlyStatsSection(data) {
     const section = document.getElementById('monthly-stats-section');
     if (!section) return;
-    if (!data || !data.success || data.items_consumed === 0) {
+    // A month with waste but zero consumption still deserves a visible
+    // waste statistic; do not hide its panel just because nothing was used.
+    if (!data || !data.success || (
+        data.items_consumed === 0 && data.items_wasted === 0 && data.items_added === 0)) {
         section.innerHTML = '';
         section.style.display = 'none';
         return;
@@ -9843,11 +9846,19 @@ function alertQtyDisplay(item) {
     return stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
 }
 
+// 'conf' remains an internal DB/API code. The displayed noun should be
+// singular for a single/partial package and plural for multiple packages.
+function localizedPackageUnitLabel(count) {
+    const n = Number(count);
+    return n > 0 && n <= 1 ? t('units.conf') : t('units.boxes');
+}
+
 function formatQuantity(qty, unit, defaultQty, packageUnit) {
     if (!qty && qty !== 0) return '';
     const n = parseFloat(qty);
     const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml', 'conf': t('units.conf') };
-    const label = unitLabels[unit] || unit || t('units.pz');
+    const label = unit === 'conf' ? localizedPackageUnitLabel(n)
+        : (unitLabels[unit] || unit || t('units.pz'));
 
     // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
@@ -9856,11 +9867,11 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span>`;
+            return `${wholeConf} ${localizedPackageUnitLabel(wholeConf)} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span>`;
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
         if (wholeConf > 0) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
+            return `${wholeConf} ${localizedPackageUnitLabel(wholeConf)} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
         }
         return remainderText;
     }
@@ -9913,9 +9924,25 @@ function ensureQtyUnitBadge(inputId) {
 function setQtyInputUnitLabel(inputId, unit, muted = false) {
     const badge = ensureQtyUnitBadge(inputId) || document.getElementById(inputId + '-unit');
     if (!badge) return;
-    badge.textContent = getUnitDisplayLabel(unit);
+    const fullLabel = getUnitDisplayLabel(unit);
+    badge.replaceChildren();
+    if (unit === 'conf') {
+        // Keep the full accessible word, but on a narrow phone show a short,
+        // *localized* label so the amount input never gets pushed off-screen.
+        const full = document.createElement('span');
+        full.className = 'qty-unit-full';
+        full.textContent = fullLabel;
+        const short = document.createElement('span');
+        short.className = 'qty-unit-compact';
+        short.setAttribute('aria-hidden', 'true');
+        short.textContent = t('units.conf_short');
+        badge.append(full, short);
+    } else {
+        badge.textContent = fullLabel;
+    }
+    badge.setAttribute('aria-label', fullLabel);
     badge.classList.toggle('qty-unit-muted', !!muted);
-    badge.title = (t('qty.unit_for_input')) + ': ' + badge.textContent;
+    badge.title = (t('qty.unit_for_input')) + ': ' + fullLabel;
 }
 
 /**
@@ -9958,7 +9985,8 @@ function syncRecipeUseQtyUnitBadge() {
 function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
     const n = parseFloat(qty) || 0;
     const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml', 'conf': t('units.conf') };
-    const label = unitLabels[unit] || unit || t('units.pz');
+    const label = unit === 'conf' ? localizedPackageUnitLabel(n)
+        : (unitLabels[unit] || unit || t('units.pz'));
 
     // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
@@ -9967,11 +9995,11 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: '' };
+            return { mainQty: `${wholeConf}`, unitLabel: localizedPackageUnitLabel(wholeConf), packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: '' };
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
         if (wholeConf > 0) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
+            return { mainQty: `${wholeConf}`, unitLabel: localizedPackageUnitLabel(wholeConf), packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
         }
         return { mainQty: remainderText, unitLabel: '', packageDetail: '', fraction: '' };
     }
@@ -10096,7 +10124,7 @@ function renderInventoryItem(item, opts = {}) {
         : _invImageHtml(item.image_url, catIcon);
     
     return `
-    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
+    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" role="button" tabindex="0" aria-label="${escapeHtml((item.display_name || item.name) + ' – ' + t('inventory.item_detail_open'))}">
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
@@ -10271,7 +10299,7 @@ function _initInventoryRowSwipe(container) {
 
     const onStart = (e) => {
         if (e.type.startsWith('pointer') && e.button !== 0) return;
-        if (e.target.closest('.btn-inv-fav')) return;
+        if (e.target.closest('.btn-inv-fav, .inv-tag-pill, a, button, input, select')) return;
         const row = e.target.closest('.inventory-item');
         if (!row) return;
         const content = row.querySelector('.inv-row-content');
@@ -10337,6 +10365,12 @@ function _initInventoryRowSwipe(container) {
         swipeCtx = null;
         if (!ctx || ctx.abandoned) return;
         if (ctx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== ctx.pointerId) return;
+        // iOS/Android may emit pointercancel on a scroll or system gesture.
+        // Cancel must not be mistaken for a tap that opens product details.
+        if (e.type === 'pointercancel') {
+            resetRowVisual(ctx.row, ctx.content);
+            return;
+        }
 
         const { row, content } = ctx;
         const pt = pointFromEvent(e, true);
@@ -10366,14 +10400,29 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        // Mouse short click → Use. Touch: swipe only (no long-press — swipe already covers Use).
-        if (!ctx.isTouch && ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
+        // A stationary tap/click opens product details on BOTH touch and mouse.
+        // Swipe gestures still open their quick-action chooser or edit form.
+        // Vertical scrolling was already abandoned by onMove above.
+        if (ctx.maxDx < 12 && ctx.maxDy < 10
+            && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            quickUse(productId, location);
+            showItemDetail(invId, productId);
         }
     };
 
+    const onKeyDown = (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('.btn-inv-fav, .inv-tag-pill')) return;
+        const row = e.target.closest('.inventory-item');
+        if (!row || row !== e.target || row.dataset.invSwipeDone === '1') return;
+        e.preventDefault();
+        const invId = Number(row.dataset.invId);
+        const productId = Number(row.dataset.productId);
+        if (invId > 0 && productId > 0) showItemDetail(invId, productId);
+    };
+
     const bindings = [
+        ['keydown', onKeyDown],
         ['pointerdown', onStart, { passive: true }],
         ['pointermove', onMove, { passive: false }],
         ['pointerup', onEnd, { passive: true }],
@@ -10831,13 +10880,24 @@ function showItemDetail(inventoryId, productId) {
                     <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
                 </button>
             </div>
+            <button type="button" class="item-detail-remove-only" onclick="removeInventoryOnly(${inventoryId})">
+                <span aria-hidden="true">📋</span> ${escapeHtml(t('inventory.remove_only_action'))}
+            </button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
 function itemDetailThrow(inventoryId) {
-    deleteInventoryItem(inventoryId);
+    const item = _findInventoryItem(inventoryId);
+    if (!item) {
+        showToast(t('error.not_in_inventory'), 'error');
+        return;
+    }
+    // Waste must NEVER call inventory_delete: only the reasoned waste path
+    // writes type='waste' and contributes to household waste statistics.
+    closeModal();
+    return quickThrowFromInv(item.product_id, item.location, inventoryId);
 }
 
 async function itemDetailUseAll(productId, location) {
@@ -10978,7 +11038,7 @@ async function quickThrowFromInv(productId, location, invId) {
             }
         } catch (_) { /* showThrowForm still works with id */ }
     }
-    showThrowForm();
+    showThrowForm(location);
 }
 
 const WASTE_REASON_KEYS = ['expired', 'spoiled', 'wrong_location', 'kept_too_long', 'bought_too_much', 'forgotten', 'bad_quality', 'other'];
@@ -11028,95 +11088,30 @@ function _inventoryWaste(payload, productLabel) {
     });
 }
 
-async function deleteInventoryItem(id) {
-    const item = currentInventory.find(i => i.id == id);
-    const unit = item ? (item.unit || 'pz') : 'pz';
-    const qty  = item ? (parseFloat(item.quantity) || 0) : 0;
-    const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
-
-    if (!canDiscardOne) {
-        // Soft-delete with undo toast (24h transaction undo on the server).
-        if (!confirm(t('confirm.remove_item'))) return;
-        const snapshot = item ? { ...item } : null;
-        try {
-            await api('inventory_delete', {}, 'POST', { id });
-            closeModal();
-            showActionToast(t('toast.product_removed'), t('btn.undo') || 'Undo', async () => {
-                try {
-                    // Best-effort: re-add from snapshot if we still have it.
-                    if (snapshot && snapshot.product_id) {
-                        await api('inventory_add', {}, 'POST', {
-                            product_id: snapshot.product_id,
-                            quantity: snapshot.quantity,
-                            unit: snapshot.unit || 'pz',
-                            location: snapshot.location || 'dispensa',
-                            expiry_date: snapshot.expiry_date || '',
-                        });
-                    }
-                } catch (_) { /* ignore */ }
-                if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-            });
-            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-        } catch (e) {
-            showToast(t('error.connection'), 'error');
+/** Pure inventory removal is deliberately separate from disposal.
+ * It must never create a "waste" ledger entry or ask for a waste reason.
+ * Confirmation explicitly explains that this is NOT a usage/waste event.
+ */
+async function removeInventoryOnly(id) {
+    const item = _findInventoryItem(id);
+    if (!item) {
+        showToast(t('error.not_in_inventory'), 'error');
+        return false;
+    }
+    if (!confirm(t('inventory.remove_only_confirm'))) return false;
+    try {
+        const result = await api('inventory_delete', {}, 'POST', { id });
+        if (!result?.success && !result?._offline) {
+            showToast(result?.error || t('error.generic'), 'error');
+            return false;
         }
-        return;
-    }
-
-    // Show a choice modal: 1 piece vs everything
-    const qtyDisplay = formatQuantity(qty, unit, item.default_quantity, item.package_unit);
-    document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('use.throw_title')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(item.name)} · ${qtyDisplay}</p>
-        <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn btn-large btn-warning full-width" onclick="_discardOnePiece(${id})">
-                ${t('confirm.discard_one')}
-            </button>
-            <button class="btn btn-large btn-danger full-width" onclick="_discardAllFromModal(${id})">
-                ${t('use.throw_all', { qty: qtyDisplay })}
-            </button>
-            <button class="btn btn-secondary full-width" onclick="closeModal()">
-                ${t('confirm.cancel')}
-            </button>
-        </div>
-    `;
-    document.getElementById('modal-overlay').style.display = 'flex';
-}
-
-async function _discardOnePiece(inventoryId) {
-    const item = currentInventory.find(i => i.id == inventoryId);
-    if (!item) { closeModal(); return; }
-    closeModal();
-    try {
-        await _inventoryWaste({
-            product_id: item.product_id,
-            quantity: 1,
-            location: item.location,
-        }, item.name);
-        showToast(t('toast.thrown_away_partial', { qty: 1, unit: item.unit || 'pz', name: item.name }), 'success');
+        closeModal();
+        showToast(t('inventory.remove_only_done'), 'success');
         if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    } catch(e) {
+        return true;
+    } catch (_) {
         showToast(t('error.connection'), 'error');
-    }
-}
-
-async function _discardAllFromModal(inventoryId) {
-    const item = currentInventory.find(i => i.id == inventoryId);
-    if (!item) { closeModal(); return; }
-    closeModal();
-    try {
-        await _inventoryWaste({
-            product_id: item.product_id,
-            use_all: true,
-            location: item.location,
-        }, item.name);
-        showToast(t('toast.thrown_away', { name: item.name }), 'success');
-        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    } catch(e) {
-        showToast(t('error.connection'), 'error');
+        return false;
     }
 }
 
@@ -11186,8 +11181,21 @@ function editInventoryItem(id, _retried) {
     const scaleEditReady = s.scale_enabled && s.scale_gateway_url && _scaleConnected &&
         (effectiveUnit === 'g' || effectiveUnit === 'ml');
     
+    window._editingInventorySnapshot = {
+        quantity: Number(item.quantity),
+        location: item.location,
+        expiry_date: item.expiry_date || null,
+        vacuum_sealed: Number(item.vacuum_sealed) || 0,
+        expiry_user_set: Number(item.expiry_user_set) || 0,
+    };
     window._editingProduct = {
         name: item.name,
+        _originalName: item.name, // snapshot for manual rename conflict detection
+        _expectedFields: Object.fromEntries([
+            'brand', 'category', 'notes', 'image_url', 'unit',
+            'default_quantity', 'package_unit', 'barcode',
+        ].filter(k => Object.prototype.hasOwnProperty.call(item, k))
+         .map(k => [k, item[k]])),
         category: item.category || '',
         _isOpened: !!item.opened_at,
         _prevUnit: item.unit || 'pz',
@@ -11228,7 +11236,7 @@ function editInventoryItem(id, _retried) {
             <div class="form-group">
                 <label>${t('product.unit_label')}</label>
                 <select id="edit-unit" class="form-input" onchange="onEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf_short') + ' (' + t('units.conf') + ')' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
@@ -11405,6 +11413,9 @@ async function submitEditInventory(e, id, productId) {
         product_id: parseInt(productId, 10) || productId,
         vacuum_sealed: document.getElementById('edit-vacuum')?.checked ? 1 : 0,
         expiry_user_set: _expiryUserSetPayload('edit-expiry'),
+        ...(window._editingInventorySnapshot
+            ? { expected_inventory: { ...window._editingInventorySnapshot } }
+            : {}),
     };
     
     if (unit === 'conf') {
@@ -11413,35 +11424,32 @@ async function submitEditInventory(e, id, productId) {
     }
     
     try {
-        // Persist renamed title on the product catalog (locked so barcode rescans keep it)
+        // A manual rename and stock correction must commit together. One
+        // guarded inventory_update transaction also preserves the selected
+        // unit, expiry and location on failures or multi-device conflicts.
+        // Ordinary stock edits (no rename) preserve their previous API path.
         if (name !== (prev.name || '').trim()) {
-            const prodSave = await api('product_save', {}, 'POST', {
-                id: payload.product_id,
+            payload.product_edit = {
                 name,
-                brand,
-                name_user_set: 1,
-                category: prev.category || '',
-                image_url: prev.image_url || '',
-                unit: unit || prev.unit || 'pz',
-                default_quantity: prev.default_quantity ?? 1,
-                package_unit: unit === 'conf' ? (payload.package_unit || prev.package_unit || '') : (prev.package_unit || ''),
-                barcode: prev.barcode || null,
-                notes: prev.notes || '',
-            });
-            if (prodSave && prodSave.success === false) {
-                showToast(prodSave.message || prodSave.error || t('error.generic'), 'error');
-                return;
-            }
+                expected_name: window._editingProduct?._originalName ?? prev.name,
+                ...(Object.keys(window._editingProduct?._expectedFields || {}).length
+                    ? { expected_fields: window._editingProduct._expectedFields }
+                    : {}),
+            };
         }
 
         const res = await api('inventory_update', {}, 'POST', payload);
         if (!res?.success) {
-            showToast(res?.message || res?.error || t('error.generic'), 'error');
-            return;
+            showToast(res?.error === 'product_conflict'
+                ? t('error.product_conflict')
+                : (res?.error === 'inventory_conflict'
+                    ? t('error.inventory_conflict')
+                    : (res?.message || res?.error || t('error.generic'))), 'error');
+            return; // Keep unsaved values when another device changed this row.
         }
         const savedQty = res.quantity !== undefined ? parseFloat(res.quantity) : qty;
         const patch = {
-            name,
+            name: res.product_name || name,
             brand,
             quantity: savedQty,
             location: loc,
@@ -11459,7 +11467,7 @@ async function submitEditInventory(e, id, productId) {
             if (!Array.isArray(arr)) return;
             arr.forEach(i => {
                 if (i.product_id == payload.product_id) {
-                    i.name = name;
+                    i.name = res.product_name || name;
                     i.brand = brand;
                 }
             });
@@ -13355,6 +13363,16 @@ function showProductAction() {
         </div>
     `;
     editInfoEl.style.display = isUnknown ? 'block' : 'none';
+    editInfoEl.dataset.originalName = currentProduct.name || '';
+    editInfoEl._editorSnapshot = {
+        brand: currentProduct.brand || '',
+        notes: currentProduct.notes || '',
+        category: currentProduct.category || '',
+        image_url: currentProduct.image_url || '',
+        unit: currentProduct.unit || 'pz',
+        default_quantity: Number(currentProduct.default_quantity ?? 1),
+        barcode: currentProduct.barcode || null,
+    };
     // Do not autofocus edit-action-name for unknown products — soft keyboard would cover the action buttons.
     
     // Show extra product info section below preview
@@ -13682,7 +13700,7 @@ function editActionInventoryItem(inventoryId) {
             <div class="form-group">
                 <label>${t('product.unit_label')}</label>
                 <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf_short') + ' (' + t('units.conf') + ')' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="action-edit-conf-group" style="display:${isConf ? 'block' : 'none'}">
@@ -13719,7 +13737,7 @@ function editActionInventoryItem(inventoryId) {
             </div>
             <div class="modal-actions" style="margin-top:12px">
                 <button type="submit" class="btn btn-large btn-primary flex-1">${t('btn.save')}</button>
-                <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
+                <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px" title="${escapeHtml(t('inventory.remove_only_action'))}" aria-label="${escapeHtml(t('inventory.remove_only_action'))}">📋 ${escapeHtml(t('inventory.remove_only_action'))}</button>
             </div>
             <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
                 data-name="${escapeHtml(item.name || currentProduct?.name || '')}"
@@ -13783,17 +13801,16 @@ async function submitActionEditInventory(e, id, productId) {
 }
 
 async function deleteActionInventoryItem(id) {
-    if (confirm(t('confirm.remove_item'))) {
-        await api('inventory_delete', {}, 'POST', { id });
-        closeModal();
-        showToast(t('toast.product_removed'), 'success');
-        showProductAction(); // Refresh the action page
+    // Refresh the action page only if the confirmed removal actually happened.
+    if (await removeInventoryOnly(id)) {
+        if (typeof showProductAction === 'function') showProductAction();
     }
 }
 
 // === THROW AWAY FORM ===
-function showThrowForm() {
-    // Open a modal to ask how much to throw away
+function showThrowForm(preferredLocation = null) {
+    // All disposal entry points share this form, including product detail,
+    // swipe-left and the action page. Default to the selected inventory row.
     api('inventory_list').then(data => {
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
         if (items.length === 0) {
@@ -13801,6 +13818,7 @@ function showThrowForm() {
             return;
         }
         
+        const selected = items.find(i => i.location === preferredLocation) || items[0];
         const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
         const unit = items[0].unit || 'pz';
         const defQty = items[0].default_quantity || 0;
@@ -13839,12 +13857,12 @@ function showThrowForm() {
                 <div class="form-group">
                     <label>${t('use.location_label')}</label>
                     <div class="location-selector" id="throw-location-selector">
-                        ${items.map((inv, idx) => {
+                        ${items.map(inv => {
                             const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
+                            return `<button type="button" class="loc-btn ${inv.location === selected.location ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
                         }).join('')}
                     </div>
-                    <input type="hidden" id="throw-location" value="${items[0].location}">
+                    <input type="hidden" id="throw-location" value="${selected.location}">
                 </div>
                 <div class="form-group">
                     <label>${t('use.throw_qty_label')}</label>
@@ -13854,7 +13872,7 @@ function showThrowForm() {
                             <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
                             <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
                         </div>
-                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz'))}</span>
+                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(selected.unit || 'pz'))}</span>
                     </div>
                 </div>
                 <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
@@ -13862,6 +13880,7 @@ function showThrowForm() {
                 </button>
             </div>
         `;
+        setQtyInputUnitLabel('throw-quantity', selected.unit || 'pz');
         document.getElementById('modal-overlay').style.display = 'flex';
     });
 }
@@ -14022,6 +14041,13 @@ async function saveEditedProductInfo() {
             default_quantity: currentProduct.default_quantity || 1,
             notes: notes,
             name_user_set: 1,
+            ...(currentProduct.id ? {
+                expected_name: document.getElementById('action-edit-info')?.dataset.originalName
+                    ?? currentProduct.name,
+                ...(document.getElementById('action-edit-info')?._editorSnapshot
+                    ? { expected_fields: document.getElementById('action-edit-info')._editorSnapshot }
+                    : {}),
+            } : {}),
         });
         showLoading(false);
         if (result.success) {
@@ -14033,6 +14059,8 @@ async function saveEditedProductInfo() {
             showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_updated'), result.merged ? 'info' : 'success');
             // Refresh the action page with updated data
             showProductAction();
+        } else if (result.error === 'product_conflict') {
+            showToast(t('error.product_conflict'), 'error');
         } else if (result.error === 'barcode_already_used' && result.existing_id) {
             const full = await api('product_get', { id: result.existing_id }).catch(() => null);
             if (full?.product) {
@@ -15259,6 +15287,24 @@ function openUseInventoryEdit() {
  * Fill the hero-card meta row with expiry badge + quantity pill.
  * Called from loadUseInventoryInfo() once inventory data is available.
  */
+/** Explicit distinction between pack size and total available sub-units.
+ * 14 packages of 690g = 9,660g total; they are not two stock quantities.
+ * Do not change storage units or the inventory adjustment calculations.
+ */
+function _formatUsePackageStock(count, perPackage, subUnit, showTotal = false) {
+    const qty = Number(count);
+    const size = Number(perPackage);
+    const num = value => new Intl.NumberFormat(_collationLocale(),
+        { maximumFractionDigits: 3 }).format(value);
+    if (!Number.isFinite(qty) || !Number.isFinite(size)
+        || qty < 0 || size <= 0 || !subUnit) return '';
+    const packLabel = localizedPackageUnitLabel(qty);
+    if (showTotal) {
+        return `${num(qty)} ${packLabel} (${t('use.weight_total')}: ${num(qty * size)} ${subUnit})`;
+    }
+    return `${num(qty)} ${packLabel} (${num(size)} ${subUnit} ${t('use.weight_per_package')})`;
+}
+
 function _updateUseHeroMeta(items) {
     const metaEl = document.getElementById('use-hero-meta');
     if (!metaEl) return;
@@ -15288,7 +15334,12 @@ function _updateUseHeroMeta(items) {
     if (items.length > 0) {
         const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
         const unit = items[0]?.unit;
-        const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
+        const qtyStr = unit === 'conf'
+            ? (_formatUsePackageStock(totalQty, items[0]?.default_quantity,
+                items[0]?.package_unit) || stripHtml(formatQuantity(totalQty, unit,
+                    items[0]?.default_quantity, items[0]?.package_unit)))
+            : stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity,
+                items[0]?.package_unit));
         const locCount = new Set(items.map(i => i.location)).size;
         const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short')}` : '';
         pills.push(`<span class="use-meta-pill use-pill-qty">${escapeHtml(qtyStr)}${locSuffix}</span>`);
@@ -15476,9 +15527,8 @@ async function loadUseInventoryInfo() {
             infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
                 const confQty = parseFloat(i.quantity);
-                const subQty = Math.round(confQty * pkgSize);
-                const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
-                return `${loc.icon} ${loc.label}: ${confDisplay} conf (${subQty}${subLabel})`;
+                return `${loc.icon} ${loc.label}: ${_formatUsePackageStock(confQty,
+                    parseFloat(i.default_quantity) || pkgSize, i.package_unit || subLabel, true)}`;
             }).join(' · ');
 
             // Show unit switch
@@ -15502,10 +15552,10 @@ async function loadUseInventoryInfo() {
             confFracDiv.innerHTML = `<div class="fraction-btn-row">${
                 confFracs.filter(f => f <= _useConfMode.totalConf + 0.01).map(f => {
                     const label = f === 0.25 ? '¼' : f === 0.5 ? '½' : f;
-                    return `<button type="button" class="frac-btn${f === 1 ? ' active' : ''}" data-frac="${f}" onclick="setConfFraction(${f})">${label} ${t('units.conf') || 'conf'}</button>`;
+                    return `<button type="button" class="frac-btn${f === 1 ? ' active' : ''}" data-frac="${f}" onclick="setConfFraction(${f})">${label} ${localizedPackageUnitLabel(f)}</button>`;
                 }).join('')
             }</div>`;
-            document.querySelector('#page-use .use-partial').appendChild(confFracDiv);
+            document.getElementById('btn-use-submit').before(confFracDiv);
 
             // Trigger a live-box refresh with the latest reading if on scale
             if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
@@ -15556,7 +15606,7 @@ async function loadUseInventoryInfo() {
                         <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾ ${t('use.piece')}</button>
                         <button type="button" class="frac-btn active" data-frac="1" onclick="setPzFraction(1)">${t('use.one_whole')}</button>
                     </div>`;
-                document.querySelector('#page-use .use-partial').appendChild(fracDiv);
+                document.getElementById('btn-use-submit').before(fracDiv);
             }
             syncUseQtyUnitBadge();
         }
@@ -15704,7 +15754,7 @@ function _appendUseWeightFractionButtons(stock, unit) {
             return `<button type="button" class="frac-btn${f === 0.5 ? ' active' : ''}" data-frac="${f}" onclick="setUseWeightFraction(${f})">${label} (${amt}${uLabel})</button>`;
         }).join('')
     }</div>`;
-    document.querySelector('#page-use .use-partial').appendChild(fracDiv);
+    document.getElementById('btn-use-submit').before(fracDiv);
 }
 
 function selectUseLocation(btn, loc) {
@@ -20377,16 +20427,29 @@ async function removeBringItem(idx) {
             listUUID: shoppingListUUID,
             purchased: false, // Rimuovi → month-only suppress, not until finished
         });
-        if (data.success || data._offline) {
-            _markBringPurchased([item.name], false);
-            shoppingItems.splice(idx, 1);
-            _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
-            renderShoppingItems();
-            if (panel) panel.scrollTop = scrollY;
-            showToast(t('toast.removed_from_list_short'), 'success');
-            logOperation('bring_manual_remove', { name: item.name });
-            loadShoppingCount();
+        const queuedOffline = data?._offline === true && data?._queued === true;
+        const removedOnServer = data?.success === true
+            && (data.removed === true || (typeof data.removed === 'number' && data.removed > 0));
+        if (!queuedOffline && !removedOnServer) {
+            // The API can return success:true, removed:0. Do not hide a row
+            // locally when no matching server row was actually deleted.
+            showToast(t('shopping.remove_error'), 'error');
+            await loadShoppingList();
+            return;
         }
+        _markBringPurchased([item.name], false);
+        shoppingItems.splice(idx, 1);
+        _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+        renderShoppingItems();
+        if (panel) panel.scrollTop = scrollY;
+        // A queued offline operation is pending, NOT a successful server write.
+        if (queuedOffline) {
+            showToast(t('error.offline_ops_pending').replace('{n}', _offlineQueueGet().length), 'info');
+        } else {
+            showToast(t('toast.removed_from_list_short'), 'success');
+        }
+        logOperation('bring_manual_remove', { name: item.name });
+        loadShoppingCount();
     } catch (err) {
         showToast(t('shopping.remove_error'), 'error');
     }
@@ -26375,11 +26438,69 @@ function _offlineSearchBarcode(barcode) {
     }
     return { found: false, _offline: true };
 }
+const _OFFLINE_QUEUE_LIMIT = 100;
+let _offlineQueueLocalLock = Promise.resolve();
+let _offlineQueueStorageBlocked = false;
+let _offlineQueueReadError = false;
+function _offlineNewTempInventoryId() {
+    // Negative safe integer with extremely low collision risk between Safari
+    // tabs. The same ID is used in both the optimistic cache and queued add.
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const parts = new Uint32Array(2);
+        crypto.getRandomValues(parts);
+        return -((parts[0] * 2097152 + (parts[1] & 2097151)) || 1);
+    }
+    return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+}
+function _offlineNewOpId() {
+    // Safari and modern browsers have crypto.randomUUID; the fallback stays
+    // unique across tabs even when a device's clock moves after sleep.
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(36).slice(2)
+            + '-' + Math.random().toString(36).slice(2);
+}
+
+/** Read strictly before a write: corrupted/blocked Safari storage must never
+ * look like an empty queue and thereby erase old unsent operations. */
+function _offlineQueueReadStrict() {
+    const stored = localStorage.getItem(_OFFLINE_QUEUE_KEY);
+    if (stored === null) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) throw new Error('offline_queue_corrupt');
+    return parsed;
+}
 function _offlineQueueGet() {
-    try { return JSON.parse(localStorage.getItem(_OFFLINE_QUEUE_KEY)) || []; } catch { return []; }
+    try {
+        const queue = _offlineQueueReadStrict();
+        _offlineQueueReadError = false;
+        return queue;
+    } catch (_) {
+        // Used by read-only screens. A corrupt queue is NOT treated as empty
+        // by any write or replay path, both of which read strictly.
+        _offlineQueueReadError = true;
+        return [];
+    }
 }
 function _offlineQueueSet(q) {
-    try { localStorage.setItem(_OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
+    // Do NOT swallow QuotaExceededError, SecurityError or Safari private-mode
+    // storage failures. The caller must not acknowledge unpersisted writes.
+    const encoded = JSON.stringify(q);
+    localStorage.setItem(_OFFLINE_QUEUE_KEY, encoded);
+    if (localStorage.getItem(_OFFLINE_QUEUE_KEY) !== encoded) {
+        throw new Error('offline_queue_write_failed');
+    }
+}
+/** Serialize queue mutations across Safari/PWA tabs when Web Locks is available.
+ * The local fallback avoids same-tab races; cross-tab fallback remains limited
+ * on older/Lockdown-mode WebKit (documented in compatibility matrix). */
+function _offlineWithQueueLock(work) {
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+        return navigator.locks.request('evershelf-offline-queue', { mode: 'exclusive' }, work);
+    }
+    const scheduled = _offlineQueueLocalLock.catch(() => {}).then(work);
+    _offlineQueueLocalLock = scheduled.catch(() => {});
+    return scheduled;
 }
 
 function _offlineShoppingCacheGet() {
@@ -26413,16 +26534,36 @@ function toggleShoppingSection(secKey) {
     _shoppingSectionsCollapsedSet(m);
     renderShoppingItems();
 }
-function _offlineQueuePush(action, body) {
-    const q = _offlineQueueGet();
-    if (q.length >= 100) q.shift(); // cap at 100
-    q.push({ action, body: body ? { ...body } : null, ts: Date.now() });
-    _offlineQueueSet(q);
-    _renderOfflineBanner();
+async function _offlineQueuePush(action, body) {
+    try {
+        return await _offlineWithQueueLock(async () => {
+        if (_offlineQueueStorageBlocked) {
+            return { success: false, error: 'offline_storage_unavailable' };
+        }
+        try {
+            const q = _offlineQueueReadStrict();
+            if (q.length >= _OFFLINE_QUEUE_LIMIT) {
+                return { success: false, error: 'offline_queue_full' };
+            }
+            // Copy at queue time so form changes while offline cannot mutate
+            // an already acknowledged queued request.
+            q.push({ action, body: body == null ? null : JSON.parse(JSON.stringify(body)),
+                ts: Date.now(), _opId: _offlineNewOpId() });
+            _offlineQueueSet(q);
+        } catch (_) {
+            return { success: false, error: 'offline_storage_unavailable' };
+        }
+        _renderOfflineBanner();
+        return { success: true };
+        });
+    } catch (_) {
+        // Web Locks may reject in Safari Lockdown/restricted contexts.
+        return { success: false, error: 'offline_storage_unavailable' };
+    }
 }
 
 // ─── Offline API handler: called by api() when _offlineMode is true ─────────
-function _handleOfflineApi(action, params, body) {
+async function _handleOfflineApi(action, params, body) {
     // ─── Reads: computed from or served directly from local cache ────────────
     if (action === 'inventory_list') {
         let inv = _offlineCacheGet() || [];
@@ -26532,9 +26673,17 @@ function _handleOfflineApi(action, params, body) {
                        'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost',
                        'shopping_remove', 'shopping_add', 'spend_add'];
     if (QUEUEABLE.includes(action)) {
-        _offlineQueuePush(action, body);
-        _applyOptimisticUpdate(action, body);
-        _applyShoppingOptimisticUpdate(action, body);
+        const pendingBody = action === 'inventory_add' && body
+            && !(typeof body.id === 'number' && body.id < 0)
+            ? { ...body, id: _offlineNewTempInventoryId() } : body;
+        const queued = await _offlineQueuePush(action, pendingBody);
+        if (!queued.success) {
+            showToast(t('error.' + (queued.error === 'offline_storage_unavailable'
+                ? 'offline_write_not_queued' : queued.error)), 'error');
+            return { success: false, error: queued.error, _offline: true, _queued: false };
+        }
+        _applyOptimisticUpdate(action, pendingBody);
+        _applyShoppingOptimisticUpdate(action, pendingBody);
         return { success: true, _offline: true, _queued: true };
     }
     // Everything else (AI, Bring!, etc.): return offline error
@@ -26565,7 +26714,10 @@ function _applyOptimisticUpdate(action, body) {
         const idx = cache.findIndex(i => i.id === body.id);
         if (idx >= 0) { cache.splice(idx, 1); changed = true; }
     } else if (action === 'inventory_add') {
-        cache.push({ ...body, id: -(Date.now()), _offline: true });
+        cache.push({ ...body,
+            id: typeof body.id === 'number' && body.id < 0
+                ? body.id : _offlineNewTempInventoryId(),
+            _offline: true });
         changed = true;
     }
     if (changed) _offlineCacheSet(cache);
@@ -26597,8 +26749,11 @@ function _enterOfflineMode() {
     _offlineMode = true;
     clearTimeout(_offlineBannerTimer);
     clearTimeout(_continueBtnTimer);
-    // Hide the full overlay (no "restored" animation)
-    _hideNetworkOverlay(false);
+    // On manual "Continue offline" the overlay is still above everything
+    // (z-index 300000). Hide it synchronously before revealing the banner;
+    // waiting for the 450 ms fade can make the cache seem banner-less on iOS.
+    // The automatic timeout must take this same path.
+    _hideNetworkOverlay(false, true);
     // Unblock the UI and show a subtle offline indicator
     document.body.classList.add('offline-mode');
     _renderOfflineBanner(true); // loading state
@@ -26620,8 +26775,13 @@ async function _exitOfflineMode() {
             refreshCurrentPage();
         }
     }
-    const banner = document.getElementById('offline-banner');
-    if (banner) banner.style.display = 'none';
+    if (_offlineQueueGet().length > 0 || _offlineQueueStorageBlocked || _offlineQueueReadError) {
+        _renderOfflineBanner();
+        showToast(t('error.offline_ops_pending').replace('{n}', _offlineQueueGet().length), 'warning');
+    } else {
+        const banner = document.getElementById('offline-banner');
+        if (banner) banner.style.display = 'none';
+    }
 }
 
 function _renderOfflineBanner(loading = false) {
@@ -26629,8 +26789,21 @@ function _renderOfflineBanner(loading = false) {
     const textEl = banner ? banner.querySelector('.offline-banner-text') : null;
     if (!banner || !textEl) return;
     const q = _offlineQueueGet();
-    if (q.length > 0) {
-        textEl.innerHTML = t('error.offline_ops_pending').replace('{n}', q.length);
+    // Discarding the final reviewed action can call this while already
+    // online. A previously opened offline banner must not linger with an
+    // empty queue (or show a misleading "server retry" button).
+    if (!_offlineMode && q.length === 0 && !_offlineQueueReadError
+        && !_offlineQueueStorageBlocked) {
+        banner.style.display = 'none';
+        return;
+    }
+    const conflicts = q.filter(op => op._needsReview).length;
+    if (_offlineQueueStorageBlocked || _offlineQueueReadError) {
+        textEl.textContent = t('error.offline_storage_unavailable');
+    } else if (conflicts > 0) {
+        textEl.textContent = t('error.offline_conflicts_pending').replace('{n}', conflicts);
+    } else if (q.length > 0) {
+        textEl.textContent = t('error.offline_ops_pending').replace('{n}', q.length);
     } else if (loading) {
         textEl.innerHTML = `<span class="offline-banner-dot"></span>${t('error.offline_reading_cache')}`;
     } else {
@@ -26638,33 +26811,475 @@ function _renderOfflineBanner(loading = false) {
         const msg = t('error.offline_cache_ready').replace('{n}', n);
         textEl.innerHTML = msg;
     }
+    const retry = banner.querySelector('.offline-banner-retry');
+    if (retry) {
+        const review = !_offlineMode && (q.length > 0 || _offlineQueueReadError || _offlineQueueStorageBlocked);
+        retry.textContent = review ? t('error.offline_review') : t('error.server_retry');
+        retry.onclick = review ? _offlineReviewQueue : _heartbeatRetry;
+    }
     banner.style.display = '';
 }
 
-async function _syncOfflineQueue() {
-    const q = _offlineQueueGet();
-    if (q.length === 0) return 0;
-    let synced = 0;
-    const failed = [];
-    const tempIdMap = {}; // negative temp id → real server id
-    for (const op of q) {
-        if (!op.action) continue;
-        let body = op.body ? { ...op.body } : {};
-        // Resolve any temp IDs from earlier add operations in this batch
-        if (typeof body.id === 'number' && body.id < 0 && tempIdMap[body.id]) {
-            body = { ...body, id: tempIdMap[body.id] };
+/** Show unsent actions; never remove a conflict without explicit consent.
+ * This is deliberately a review surface, not an automatic conflict merge. */
+/** Only offer quantity-rebase when the queued edit changed no other fields.
+ * A stock+rename or stock+expiry change must stay for manual review, because
+ * silently discarding its additional fields would lose the user's intent.
+ */
+function _offlineQuantityResolutionPreview(op, current) {
+    if (!op || op.action !== 'inventory_update' || !op._needsReview
+        || !current || Number(op.body?.id) !== Number(current.id)
+        || Number(op.body?.product_id) !== Number(current.product_id)
+        || op.body?.product_edit || !op.body?.expected_inventory) return null;
+    const original = Number(op.body.expected_inventory.quantity);
+    const wanted = Number(op.body.quantity);
+    if (!Number.isFinite(original) || !Number.isFinite(wanted)
+        || original < 0 || wanted < 0 || wanted > 100000
+        || !Object.hasOwn(op.body.expected_inventory, 'quantity')) return null;
+    const allowed = ['id', 'product_id', 'quantity', 'expected_inventory', 'location',
+        'expiry_date', 'vacuum_sealed', 'expiry_user_set', 'unit',
+        'package_unit', 'package_size'];
+    if (Object.keys(op.body).some(field => !allowed.includes(field))) return null;
+    const baseline = op.body.expected_inventory;
+    const equal = (a, b, key) => {
+        if (key === 'vacuum_sealed' || key === 'expiry_user_set' || key === 'package_size') {
+            return Number(a || 0) === Number(b || 0);
         }
-        try {
-            const result = await api(op.action, {}, 'POST', body);
-            if (result && result._offline) { failed.push(op); continue; }
-            if (op.action === 'inventory_add' && result?.id && op.body?.id < 0) {
-                tempIdMap[op.body.id] = result.id;
-            }
-            synced++;
-        } catch(_) { failed.push(op); }
+        return String(a ?? '') === String(b ?? '');
+    };
+    // If any other field changed *offline* or changed on the server, do not
+    // disguise a multi-field conflict as a simple quantity-only decision.
+    for (const field of ['location', 'expiry_date', 'vacuum_sealed', 'expiry_user_set']) {
+        if (Object.hasOwn(baseline, field)
+            && !equal(baseline[field], current[field], field)) return null;
+        if (Object.hasOwn(op.body, field)
+            && !equal(op.body[field], current[field], field)) return null;
+        if (Object.hasOwn(op.body, field) && Object.hasOwn(baseline, field)
+            && !equal(op.body[field], baseline[field], field)) return null;
     }
-    _offlineQueueSet(failed);
-    return synced;
+    for (const field of ['unit', 'package_unit', 'package_size']) {
+        if (Object.hasOwn(op.body, field)
+            && !equal(op.body[field], current[field], field)) return null;
+    }
+    const latest = Number(current.quantity);
+    if (!Number.isFinite(latest)) return null;
+    const combined = Math.round((latest + wanted - original) * 1000000) / 1000000;
+    return { original, wanted, latest, combined,
+        canDelta: combined >= 0 && combined <= 100000 };
+}
+
+/** Show user-readable current-vs-offline values; server keep is the default.
+ * Any request to apply the offline value is separately, explicitly confirmed.
+ */
+async function _offlineReviewQueue() {
+    let pending;
+    try {
+        pending = await _offlineWithQueueLock(async () => {
+            const ops = _offlineQueueReadStrict();
+            if (ops.some(op => !op._opId)) {
+                const migrated = ops.map(op => ({ ...op, _opId: op._opId || _offlineNewOpId() }));
+                _offlineQueueSet(migrated);
+                return migrated;
+            }
+            return ops;
+        });
+    } catch (_) {
+        showToast(t('error.offline_storage_unavailable'), 'error');
+        return;
+    }
+    const content = document.getElementById('modal-content');
+    const overlay = document.getElementById('modal-overlay');
+    if (!content || !overlay) return;
+    if (pending.length === 0 && !_offlineQueueStorageBlocked) {
+        closeModal();
+        _renderOfflineBanner();
+        return;
+    }
+    // Read-only snapshots. Do NOT issue a stock update just to show a choice.
+    const live = await Promise.all(pending.map(async op => {
+        if (_offlineMode || op.action !== 'inventory_update' || !op._needsReview
+            || !(Number(op.body?.id) > 0)) return null;
+        try {
+            const result = await api('inventory_conflict_snapshot', { id: op.body.id },
+                'GET', null, {}, 8000);
+            return result?.success ? result.inventory : null;
+        } catch (_) { return null; }
+    }));
+    // A Safari tab may have discarded an action while snapshots were loaded.
+    // Never render controls against a stale copy of the durable queue.
+    const newest = _offlineQueueGet();
+    if (JSON.stringify(newest) !== JSON.stringify(pending)) {
+        await _offlineReviewQueue();
+        return;
+    }
+    const entries = pending.map((op, i) => {
+        const details = [op.action || '?', op.body?.name || op.body?.product_edit?.name
+            || op.body?.items?.[0]?.name || op.body?.id || op.body?.product_id || ''];
+        const label = details.filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
+        const status = op._needsReview ? t('error.offline_conflicts_pending').replace('{n}', '1')
+            : op._syncError || t('error.offline_ops_pending').replace('{n}', '1');
+        const key = escapeHtml(String(op._opId));
+        const current = live[i];
+        const preview = _offlineQuantityResolutionPreview(op, current);
+        const quantityEdit = op.action === 'inventory_update' && op._needsReview;
+        const isConflict = op._needsReview
+            && ['inventory_conflict', 'product_conflict', 'idempotency_conflict',
+                'inventory_not_found', 'product_not_found'].includes(op._syncError);
+        const serverLabel = current ? (escapeHtml(String(current.name || '')) + ' · '
+            + escapeHtml(String(current.quantity)) + ' '
+            + escapeHtml(String(current.unit || ''))) : '';
+        const userLabel = op.body?.quantity !== undefined
+            ? escapeHtml(String(op.body.quantity)) : '';
+        const info = quantityEdit
+            ? '<div class="offline-conflict-details">'
+                + '<strong>' + escapeHtml(t('error.offline_current_server')) + '</strong> '
+                + (current ? serverLabel : escapeHtml(t('error.offline_server_unavailable')))
+                + '<div><strong>' + escapeHtml(t('error.offline_your_change')) + '</strong> '
+                + userLabel + '</div></div>' : '';
+        const keep = op._needsReview && current
+            ? '<button type="button" class="btn btn-primary" data-offline-keep="' + key
+                + '">' + escapeHtml(t('error.offline_keep_server')) + '</button> '
+            : '';
+        const resolveButtons = preview && !op._resolution
+            ? '<button type="button" class="btn btn-secondary" data-offline-resolve="replace" data-offline-op="'
+                + key + '">' + escapeHtml(t('error.offline_replace')) + ' ('
+                + escapeHtml(String(preview.wanted)) + ')</button> '
+                + (preview.canDelta
+                    ? '<button type="button" class="btn btn-secondary" data-offline-resolve="delta" data-offline-op="'
+                        + key + '">' + escapeHtml(t('error.offline_apply_delta')) + ' ('
+                        + escapeHtml(String(preview.combined)) + ')</button> ' : '')
+            : '';
+        const receiptRetry = op._resolution
+            ? '<button type="button" class="btn btn-secondary" data-offline-resolve="'
+                + escapeHtml(op._resolution.mode) + '" data-offline-op="' + key
+                + '">' + escapeHtml(t('error.offline_check_resolution')) + '</button> '
+            : '';
+        // Preserve the original manual retry/discard actions for unsupported
+        // operations. Do not offer re-sending an already rejected stale edit.
+        const retry = !isConflict && !op._resolution
+            ? '<button type="button" class="btn btn-secondary" data-offline-retry="'
+                + key + '">' + escapeHtml(t('error.offline_retry')) + '</button> ' : '';
+        const discard = '<button type="button" class="btn btn-secondary" data-offline-discard="'
+            + key + '">' + escapeHtml(t('error.offline_discard')) + '</button>';
+        return '<li class="offline-queued-op">' + label
+            + ' <small>' + escapeHtml(status) + '</small>'
+            + info + '<div class="offline-conflict-actions">'
+            + keep + resolveButtons + receiptRetry + retry + discard + '</div></li>';
+    }).join('');
+    content.innerHTML =
+        '<div class="modal-header"><h3>' + escapeHtml(t('error.offline_review'))
+        + '</h3><button class="modal-close" onclick="closeModal()">✕</button></div>'
+        + '<p class="settings-hint">' + escapeHtml(t('error.offline_review_hint')) + '</p>'
+        + '<ol class="offline-pending-list">' + entries + '</ol>'
+        + '<button type="button" class="btn btn-secondary" id="offline-copy-pending">'
+        + escapeHtml(t('error.offline_copy')) + '</button>';
+    content.querySelectorAll('[data-offline-retry]').forEach(button => {
+        button.addEventListener('click', () => _offlineRetryQueuedOp(button.dataset.offlineRetry));
+    });
+    content.querySelectorAll('[data-offline-discard]').forEach(button => {
+        button.addEventListener('click', () => _offlineDiscardQueuedOp(button.dataset.offlineDiscard));
+    });
+    content.querySelectorAll('[data-offline-keep]').forEach(button => {
+        button.addEventListener('click', () => _offlineDiscardQueuedOp(button.dataset.offlineKeep, true));
+    });
+    content.querySelectorAll('[data-offline-resolve]').forEach(button => {
+        button.addEventListener('click', () => _offlineResolveQueuedOp(
+            button.dataset.offlineOp, button.dataset.offlineResolve));
+    });
+    content.querySelector('#offline-copy-pending')?.addEventListener('click', async () => {
+        try {
+            // Read latest at click time; queued operations may have changed
+            // while the dialog was open in another Safari/PWA tab.
+            await navigator.clipboard.writeText(JSON.stringify(_offlineQueueReadStrict(), null, 2));
+        } catch (_) {
+            showToast(t('error.copy_failed'), 'error');
+        }
+    });
+    overlay.style.display = 'flex';
+}
+
+async function _offlineRetryQueuedOp(opId) {
+    // The user must first compare against the server: a missing HTTP response
+    // does NOT prove the previous write was rolled back.
+    if (!confirm(t('error.offline_retry_confirm'))) return;
+    try {
+        await _offlineWithQueueLock(async () => {
+            const queue = _offlineQueueReadStrict();
+            const index = queue.findIndex(op => op._opId === opId);
+            if (index < 0) return;
+            queue[index] = { ...queue[index], _needsReview: false, _syncError: null };
+            _offlineQueueSet(queue);
+        });
+        if (!_offlineMode) await _syncOfflineQueue();
+        _renderOfflineBanner();
+        await _offlineReviewQueue();
+    } catch (_) {
+        showToast(t('error.offline_storage_unavailable'), 'error');
+    }
+}
+
+/** A keep-server decision is a local queue acknowledgement, NOT a server
+ * transaction. It cannot alter stock or ledger. Later dependent queued edits
+ * for the same row require separate manual review rather than stale replay.
+ */
+function _offlineRemoveResolvedOp(queue, opId) {
+    const index = queue.findIndex(op => op._opId === opId);
+    if (index < 0) return queue;
+    const discarded = queue[index];
+    if (discarded.action === 'inventory_update') {
+        const target = String(discarded.body?.id);
+        for (let i = index + 1; i < queue.length; i++) {
+            const later = queue[i];
+            if (later.action?.startsWith('inventory_')
+                && String(later.body?.id) === target) {
+                later._needsReview = true;
+                later._syncError = 'dependent_conflict';
+            }
+        }
+    }
+    return queue.filter(op => op._opId !== opId);
+}
+
+async function _offlineDiscardQueuedOp(opId, keepServer = false) {
+    if (!confirm(t(keepServer ? 'error.offline_keep_server_confirm'
+        : 'error.offline_discard_confirm'))) return;
+    try {
+        await _offlineWithQueueLock(async () => {
+            const q = _offlineQueueReadStrict();
+            if (!q.some(op => op._opId === opId)) return;
+            _offlineQueueSet(_offlineRemoveResolvedOp(q, opId));
+        });
+        _renderOfflineBanner();
+        await _offlineReviewQueue();
+    } catch (_) {
+        showToast(t('error.offline_storage_unavailable'), 'error');
+    }
+}
+
+/** Explicit replace/rebase: persist a stable receipt key BEFORE the POST.
+ * A lost response or Safari suspension can never produce a second delta.
+ * The server compares the selected monotonic row revision under BEGIN
+ * IMMEDIATE; a newer Mac edit returns 409 and forces a fresh review.
+ */
+async function _offlineResolveQueuedOp(opId, mode) {
+    if (_offlineMode || !['replace', 'delta'].includes(mode)) return;
+    try {
+        let op = _offlineQueueReadStrict().find(x => x._opId === opId);
+        if (!op || !op._needsReview || op.action !== 'inventory_update') return;
+        let requestBody = op._resolution || null;
+        if (requestBody && requestBody.mode !== mode) return;
+        if (!requestBody) {
+            const latest = await api('inventory_conflict_snapshot', { id: op.body?.id },
+                'GET', null, {}, 8000);
+            if (!latest?.success) {
+                showToast(t('error.offline_server_unavailable'), 'warning');
+                return;
+            }
+            const preview = _offlineQuantityResolutionPreview(op, latest.inventory);
+            if (!preview || (mode === 'delta' && !preview.canDelta)) {
+                showToast(t('error.offline_resolution_unavailable'), 'warning');
+                await _offlineReviewQueue();
+                return;
+            }
+            const expected = mode === 'delta' ? preview.combined : preview.wanted;
+            const prompt = t(mode === 'delta' ? 'error.offline_apply_delta_confirm'
+                : 'error.offline_replace_confirm')
+                .replace('{server}', String(preview.latest))
+                .replace('{result}', String(expected));
+            if (!confirm(prompt)) return;
+            requestBody = {
+                id: Number(latest.inventory.id),
+                product_id: Number(latest.inventory.product_id),
+                revision: Number(latest.inventory.revision),
+                mode,
+                quantity: preview.wanted,
+                ...(mode === 'delta' ? { base_quantity: preview.original } : {}),
+                _offline_op_id: _offlineNewOpId(),
+            };
+            await _offlineWithQueueLock(async () => {
+                const q = _offlineQueueReadStrict();
+                const target = q.find(x => x._opId === opId);
+                if (!target || !target._needsReview) return;
+                if (target._resolution) {
+                    requestBody = target._resolution;
+                    return;
+                }
+                target._resolution = requestBody;
+                _offlineQueueSet(q);
+            });
+            // A second tab may have deleted the action while we fetched.
+            op = _offlineQueueReadStrict().find(x => x._opId === opId);
+            if (!op?._resolution || op._resolution.mode !== mode) return;
+        }
+        // Only the same persisted body/key may ever be retried. Even if the
+        // server committed and the reply vanished, the durable receipt wins.
+        const response = await api('inventory_conflict_resolve', {}, 'POST',
+            requestBody, {}, 15000);
+        if (response?.success !== true || response?._offline) {
+            if (response?.error === 'inventory_conflict') {
+                // A *definitive* 409 means no transaction was accepted. The
+                // persisted intent can be discarded so the user can compare
+                // again against the newer revision. A timeout, 500, 503 or
+                // lost response MUST retain the same durable receipt key.
+                await _offlineWithQueueLock(async () => {
+                    const q = _offlineQueueReadStrict();
+                    const target = q.find(x => x._opId === opId);
+                    if (target && JSON.stringify(target._resolution) === JSON.stringify(requestBody)) {
+                        delete target._resolution;
+                        _offlineQueueSet(q);
+                    }
+                });
+            }
+            showToast(response?.error === 'inventory_conflict'
+                ? t('error.offline_revision_changed')
+                : t('error.offline_resolution_unconfirmed'), 'warning');
+            await _offlineReviewQueue();
+            return;
+        }
+        await _offlineWithQueueLock(async () => {
+            const q = _offlineQueueReadStrict();
+            const target = q.find(x => x._opId === opId);
+            // Never remove an entry if a different tab changed its intent.
+            if (!target || JSON.stringify(target._resolution) !== JSON.stringify(requestBody)) return;
+            _offlineQueueSet(_offlineRemoveResolvedOp(q, opId));
+        });
+        _renderOfflineBanner();
+        refreshCurrentPage();
+        await _offlineReviewQueue();
+    } catch (_) {
+        showToast(t('error.offline_resolution_unconfirmed'), 'warning');
+        await _offlineReviewQueue();
+    }
+}
+
+async function _syncOfflineQueue() {
+    // Holding the Web Lock through replay makes two Safari/PWA tabs submit
+    // the same operation at most once in supported browsers.
+    try {
+        return await _offlineWithQueueLock(async () => {
+        let ops;
+        try {
+            if (_offlineQueueStorageBlocked) throw new Error('offline_storage_unavailable');
+            ops = _offlineQueueReadStrict();
+            if (ops.length === 0) return 0;
+            // Migrate old list entries in place, preserving order and payload.
+            // IDs allow each acknowledgement to be checkpointed independently.
+            if (ops.some(op => !op._opId)) {
+                // Previous EverShelf versions stored ops without IDs. Attempt
+                // to migrate, but a quota-full Safari origin may not fit the
+                // larger JSON until an acknowledged operation is removed.
+                // In that case replay legacy entries by their original body
+                // and timestamp; only write a smaller queue after success.
+                ops = ops.map(op => ({ ...op, _opId: op._opId || _offlineNewOpId() }));
+                try { _offlineQueueSet(ops); } catch (_) { /* legacy fallback */ }
+            }
+        } catch (_) {
+            _offlineQueueReadError = true;
+            showToast(t('error.offline_storage_unavailable'), 'error');
+            return 0;
+        }
+
+        let synced = 0;
+        const tempIdMap = {};
+        const blockedTargets = new Set();
+        for (const op of ops) {
+            if (!op.action) continue;
+            const rawBody = op.body ? { ...op.body } : {};
+            const target = op.action.startsWith('inventory_')
+                ? ('inv:' + String(rawBody.id ?? rawBody.product_id ?? ''))
+                : op.action.startsWith('shopping_')
+                    ? ('shopping:' + String(rawBody.name || rawBody.items?.[0]?.name || ''))
+                    : '';
+            if (target && blockedTargets.has(target)) continue;
+            if (op._needsReview) {
+                if (target) blockedTargets.add(target);
+                continue; // unresolved conflict must not permit a later stale edit
+            }
+
+            let body = rawBody;
+            if (op.action !== 'inventory_add' && typeof body.id === 'number' && body.id < 0) {
+                if (!tempIdMap[body.id]) {
+                    if (target) blockedTargets.add(target);
+                    continue;
+                }
+                body = { ...body, id: tempIdMap[body.id] };
+            }
+            let response = null;
+            let error = 'network_unavailable';
+            try {
+                // Network errors, HTTP conflicts and timeouts must never count
+                // as an acknowledgement. A delayed iPhone resume is allowed.
+                // Stable receipt key for inventory additions: the server
+                // persists it in the same SQLite transaction as stock/ledger.
+                // It must survive a lost response and even a PWA restart.
+                const requestBody = op.action === 'inventory_add'
+                    ? { ...body, _offline_op_id: op._opId } : body;
+                response = await api(op.action, {}, 'POST', requestBody, {}, 15000);
+                error = response?.error || 'sync_unconfirmed';
+            } catch (_) {}
+            const removed = response?.removed;
+            const deleteConfirmed = op.action !== 'shopping_remove'
+                || removed === true
+                || (typeof removed === 'number' && removed > 0);
+            const confirmed = response?.success === true
+                && !response?._offline && deleteConfirmed;
+            if (response?.success === true && !deleteConfirmed) {
+                error = 'shopping_remove_noop';
+            }
+            try {
+                // Re-read rather than saving an old array: preserve any writes
+                // arriving via another tab/version while a request was pending.
+                const latest = _offlineQueueReadStrict();
+                const index = latest.findIndex(x => x._opId === op._opId
+                    || (!x._opId && x.action === op.action
+                        && x.ts === op.ts
+                        && JSON.stringify(x.body) === JSON.stringify(op.body)));
+                if (index < 0) continue;
+                if (confirmed) {
+                    // inventory_add returns inventory_id; id remains a legacy
+                    // alias for older API providers. Never map to a product ID.
+                    const savedInventoryId = Number(response.inventory_id ?? response.id);
+                    if (op.action === 'inventory_add' && savedInventoryId > 0 && rawBody.id < 0) {
+                        tempIdMap[rawBody.id] = savedInventoryId;
+                        for (const later of latest) {
+                            if (later._opId !== op._opId && later.body?.id === rawBody.id) {
+                                later.body = { ...later.body, id: savedInventoryId };
+                            }
+                        }
+                    }
+                    latest.splice(index, 1);
+                    // Persist acknowledgement immediately: a suspended/crashed
+                    // PWA cannot replay prior successful operations on restart.
+                    _offlineQueueSet(latest);
+                    synced++;
+                } else {
+                    latest[index] = { ...latest[index], body,
+                        _syncError: error,
+                        // Only a confirmed SQLite busy rejection is certainly
+                        // safe to retry. Network loss may have occurred AFTER
+                        // the server committed: do not double-add inventory.
+                        _needsReview: error !== 'database_busy' };
+                    _offlineQueueSet(latest);
+                    // A rejected edit must block later writes for that same row
+                    // until the user resolves the earlier conflict.
+                    if (target) blockedTargets.add(target);
+                }
+            } catch (_) {
+                // We no longer know whether an acknowledged operation was
+                // durably removed. Stop replay to avoid cascading duplicates.
+                _offlineQueueStorageBlocked = true;
+                showToast(t('error.offline_storage_unavailable'), 'error');
+                break;
+            }
+        }
+        _renderOfflineBanner();
+        return synced;
+        });
+    } catch (_) {
+        // Browser rejected the lock; do not claim or erase queued operations.
+        showToast(t('error.offline_storage_unavailable'), 'error');
+        return 0;
+    }
 }
 
 // ─── Overlay show / hide ────────────────────────────────────────────────────
@@ -26705,7 +27320,7 @@ function _showNetworkOverlay() {
     }, _OFFLINE_MODE_DELAY_MS);
 }
 
-function _hideNetworkOverlay(showRestoredMsg) {
+function _hideNetworkOverlay(showRestoredMsg, immediate = false) {
     clearTimeout(_continueBtnTimer);
     clearTimeout(_offlineBannerTimer);
     _networkDown      = false;
@@ -26714,6 +27329,13 @@ function _hideNetworkOverlay(showRestoredMsg) {
     const contBtn = document.getElementById('net-error-continue-btn');
     if (contBtn) { contBtn.style.display = 'none'; contBtn.classList.remove('visible'); }
     if (!el) return;
+    if (immediate) {
+        // Entering offline cache mode must expose its banner immediately.
+        // Only a *reconnection* uses the deliberate restored/fade animation.
+        el.classList.remove('visible', 'restored', 'checking');
+        el.style.display = 'none';
+        return;
+    }
     if (showRestoredMsg) {
         el.classList.add('restored');
         el.classList.remove('checking');
@@ -26764,6 +27386,15 @@ window.addEventListener('offline', () => _showNetworkOverlay());
 window.addEventListener('online',  () => {
     clearTimeout(_offlineBannerTimer); // don't auto-enter offline mode if we just came back
     _networkPingOnce();
+});
+// iOS Safari may suspend JS timers while the screen is locked / app is in
+// background, and returning through Tailscale does not always emit 'online'.
+// Resume the actual server check when the page becomes visible again.
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (_offlineMode || _serverOffline)) _heartbeatRetry();
+});
+window.addEventListener('pageshow', () => {
+    if (_offlineMode || _serverOffline) _heartbeatRetry();
 });
 
 // ===== SCREENSAVER & INACTIVITY AUTO-REFRESH =====
@@ -29088,28 +29719,48 @@ let _serverOffline = false;
 let _heartbeatTimer = null;
 const _HB_INTERVAL_ONLINE  = 20_000; // ms — normal polling interval
 const _HB_INTERVAL_OFFLINE =  5_000; // ms — faster retry when unreachable
+const _HB_REQUEST_TIMEOUT  = 15_000; // ms — tolerate slow reverse proxies/SSO
+const _HB_FAILURE_THRESHOLD = 2;     // a single slow/failed ping is not an outage
+let _heartbeatFailures = 0;
+let _heartbeatInFlight = false;
 
 async function _runHeartbeat() {
+    // A network-online event or the manual Retry button can arrive while the
+    // periodic ping is pending. Overlapping probes must not reorder UI state.
+    if (_heartbeatInFlight) return;
+    clearTimeout(_heartbeatTimer);
+    _heartbeatTimer = null;
+    _heartbeatInFlight = true;
     const ac = new AbortController();
-    const tid = setTimeout(() => ac.abort(), 7000); // 7 s hard timeout
+    const tid = setTimeout(() => ac.abort(), _HB_REQUEST_TIMEOUT);
+    let healthy = false;
     try {
         const res = await fetch(`${API_BASE}?action=ping`, {
             cache: 'no-store',
             signal: ac.signal,
         });
+        healthy = res.ok;
+    } catch (_) {
+        // Abort and transient network errors are both counted as failed probes.
+    } finally {
         clearTimeout(tid);
-        _setServerOffline(!res.ok);
-    } catch (e) {
-        clearTimeout(tid);
-        _setServerOffline(true);
+        _heartbeatInFlight = false;
+        _heartbeatFailures = healthy ? 0 : Math.min(_heartbeatFailures + 1, _HB_FAILURE_THRESHOLD);
+        _setServerOffline(_heartbeatFailures >= _HB_FAILURE_THRESHOLD);
     }
 }
 
 function _setServerOffline(offline) {
     if (offline === _serverOffline) {
-        // State unchanged — reschedule at the appropriate interval and return
+        // Safari can fire a native offline event and enter the cached PWA
+        // before the heartbeat has marked _serverOffline=true. When a later
+        // ping succeeds, online->online is still a REAL recovery for the
+        // user-facing offline cache mode. Do not leave the UI stuck forever.
+        if (!offline && _offlineMode && _heartbeatFailures === 0) {
+            _handleServerRestored();
+        }
         _heartbeatTimer = setTimeout(_runHeartbeat,
-            offline ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
+            (offline || _heartbeatFailures > 0) ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
         return;
     }
     _serverOffline = offline;
@@ -29125,7 +29776,7 @@ function _setServerOffline(offline) {
         _handleServerRestored();
     }
     _heartbeatTimer = setTimeout(_runHeartbeat,
-        offline ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
+        (offline || _heartbeatFailures > 0) ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
 }
 
 /** Flush log messages and error reports that were buffered while offline. */
@@ -29654,6 +30305,11 @@ async function _initApp() {
     // were queued — the queue survives in localStorage but _offlineMode is false.
     (() => {
         const startupQueue = _offlineQueueGet();
+        if (_offlineQueueReadError) {
+            _renderOfflineBanner();
+            showToast(t('error.offline_storage_unavailable'), 'error');
+            return;
+        }
         if (startupQueue.length === 0) return;
         setTimeout(async () => {
             const synced = await _syncOfflineQueue();
