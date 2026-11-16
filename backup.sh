@@ -14,7 +14,9 @@ ENV_FILE="${INSTALL_DIR}/.env"
 
 RETENTION=3
 if [ -f "$ENV_FILE" ]; then
-    val=$(grep -E '^BACKUP_RETENTION_DAYS=' "$ENV_FILE" | tail -1 | cut -d= -f2)
+    # A missing optional key makes grep exit 1; pipefail would otherwise
+    # abort the whole backup before it starts instead of using RETENTION=3.
+    val=$(grep -E '^BACKUP_RETENTION_DAYS=' "$ENV_FILE" | tail -1 | cut -d= -f2 || true)
     if [[ "$val" =~ ^[0-9]+$ ]] && [ "$val" -ge 1 ]; then
         RETENTION="$val"
     fi
