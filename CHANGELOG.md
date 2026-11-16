@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.26] - 2026-11-16 (optional shell backup retention, draft PR)
+
+### Never skip a scheduled backup when a retention override is absent (Issue #16)
+
+- Fixed the existing `backup.sh` retention lookup under `set -euo pipefail`:
+  a `.env` without `BACKUP_RETENTION_DAYS` no longer aborts before the
+  database is backed up. The existing default of **three newest backup files**
+  is preserved, as are valid explicit retention settings.
+- Added isolated regression cases for a missing `.env`, missing/empty/zero or
+  invalid value, explicit overrides, repeated keys, real WAL-backed SQLite
+  snapshots, old-backup rotation, no source database and failed source backup.
+- No backup data, live installation, restore logic, or schema was modified.
+  Fix is scoped to P0-07 and is reviewed independently of P0-06.
+
 ## [1.16.25] - 2026-11-15 (verified local SQLite backups, draft PR)
 
 ### Fail-closed local backup publication (Issue #14 / Upstream P0-06)

@@ -60,6 +60,9 @@ jobs:
             php "$test"
           done
 
+      - name: Verify optional shell backup retention and WAL snapshot rotation
+        run: python3 scripts/test-backup-shell-retention.py
+
       - name: Exercise real WAL backup and verify finished SQLite snapshot
         run: |
           php scripts/test-backup-integrity-php.php
