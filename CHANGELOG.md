@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.28] - 2026-11-16 (explicit consumption confirmation, draft)
+
+### Prevent silent inventory consumption while the Use form is idle (Issue #26)
+
+- Remove the 15-second Use-form countdown that invoked \`requestSubmit()\` without
+  any active confirmation. Swiping right opens the Use form without changing stock,
+  and choosing a package-quantity preset no longer schedules a hidden debit.
+- Preserve deliberate \`Diese Menge verwenden\` and existing all-stock
+  confirmation actions. The separate Add-form behavior is unchanged.
+- Add a fail-closed JavaScript test that fast-forwards idle timers and rejects
+  a deliberate reintroduction of automatic inventory submission.
+- Bump the visible version, PWA cache and asset stamps to avoid stale Safari UI.
+
 ## [1.16.27] - 2026-11-16 (safe SQLite backup restore, draft PR)
 
 ### Reject corrupt restores and preserve the prior live database (Issue #18)
