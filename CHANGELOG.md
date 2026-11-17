@@ -13,6 +13,214 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.28] - 2026-11-16 (explicit consumption confirmation, draft)
+
+### Prevent silent inventory consumption while the Use form is idle (Issue #26)
+
+- Remove the 15-second Use-form countdown that invoked \`requestSubmit()\` without
+  any active confirmation. Swiping right opens the Use form without changing stock,
+  and choosing a package-quantity preset no longer schedules a hidden debit.
+- Preserve deliberate \`Diese Menge verwenden\` and existing all-stock
+  confirmation actions. The separate Add-form behavior is unchanged.
+- Add a fail-closed JavaScript test that fast-forwards idle timers and rejects
+  a deliberate reintroduction of automatic inventory submission.
+- Bump the visible version, PWA cache and asset stamps to avoid stale Safari UI.
+
+## [1.16.27] - 2026-11-16 (safe SQLite backup restore, draft PR)
+
+### Reject corrupt restores and preserve the prior live database (Issue #18)
+
+- **Never** directly overwrite an open `evershelf.db` or delete live WAL/SHM
+  files during restore. Validate the requested backup with read-only SQLite
+  `PRAGMA quick_check` and expected EverShelf table/column structure first.
+- Use SQLite's **transactional online backup API** to restore into the existing
+  database despite active PDO connections; SQLite handles WAL locking. Before
+  restore, create an integrity-checked private safety snapshot. Validate the
+  restored database again before announcing success.
+- If post-restore verification fails, roll back from the safety snapshot. If
+  that rollback is blocked, retain the private recovery file and report an
+  explicit recovery error. A failed/busy backup never reports success or
+  invalidates cache files.
+- Add localized errors for invalid backups, busy restores and unconfirmed
+  recovery in all six languages. The official PHP Docker base already bundles
+  SQLite3, so the Docker build checks the required API instead of rebuilding it.
+- Add isolated PHP and real HTTP regression tests for corrupt/empty/truncated
+  backups, unexpected schemas, invalid names, concurrent WAL writers,
+  verified restore, repeated restore, forced rollback and recovery retention.
+  No real data, deployed server or previous Draft-PR has been modified.
+
+## [1.16.26] - 2026-11-16 (optional shell backup retention, draft PR)
+
+### Never skip a scheduled backup when a retention override is absent (Issue #16)
+
+- Fixed the existing `backup.sh` retention lookup under `set -euo pipefail`:
+  a `.env` without `BACKUP_RETENTION_DAYS` no longer aborts before the
+  database is backed up. The existing default of **three newest backup files**
+  is preserved, as are valid explicit retention settings.
+- Added isolated regression cases for a missing `.env`, missing/empty/zero or
+  invalid value, explicit overrides, repeated keys, real WAL-backed SQLite
+  snapshots, old-backup rotation, no source database and failed source backup.
+- No backup data, live installation, restore logic, or schema was modified.
+  Fix is scoped to P0-07 and is reviewed independently of P0-06.
+
+## [1.16.25] - 2026-11-15 (verified local SQLite backups, draft PR)
+
+### Fail-closed local backup publication (Issue #14 / Upstream P0-06)
+
+- Before promoting a `.part` SQLite snapshot to a completed `.db` backup,
+  validate it with `PRAGMA quick_check`. Both `VACUUM INTO` and the existing
+  WAL-checkpoint/copy fallback now go through the same verification gate.
+- Reject missing, zero-length, corrupt or truncated candidate files and delete
+  the temporary file without replacing an older good backup. On validation
+  failure, report `error.backup_integrity` with translations in all six
+  languages; the UI never displays raw English backend error prose.
+- A failed validation does not advance the last-backup timestamp or purge
+  previous backups. Existing backup retention and restore algorithms are not
+  changed in this patch, and no production data is touched.
+- Regression tests exercise real WAL-backed HTTP `backup_now`, verified
+  published backup contents, corruption and rename failure cases, and
+  source/translation integration. No broad Upstream merge.
+
+## [1.16.24] - 2026-11-15 (safe automatic API token, draft PR)
+
+### Secure new installs without locking out existing devices (Issue #12)
+
+- First HTTP request to a new tokenless install now creates a 256-bit API token,
+  persists it in .env (or SQLite env overrides for a read-only/external .env),
+  creates a one-time pairing code, and enforces auth immediately.
+- A dedicated filesystem lock and marker protect parallel first boots and prevent
+  silent token rotation if someone removes a previously generated token.
+  Broken lock or credential persistence fails closed with HTTP 503.
+- Existing token, legacy SETTINGS_TOKEN, intentional ALLOW_OPEN_LAN, CLI and
+  demo installations remain unchanged. Existing tokenless households with an
+  established SQLite DB are warned but not locked out on upgrade; opt in with
+  API_TOKEN_AUTOGENERATE=true when integrations can be re-paired.
+- Added isolated HTTP and SQLite integration cases for fresh and missing .env,
+  read-only and external configs, concurrency, interrupted initialization,
+  failed persistence, opt-outs, upgrades and one-time code replay.
+  CI's disposable unprotected fixtures explicitly set ALLOW_OPEN_LAN=true.
+- Home Assistant REST sensor YAML now includes an `Authorization: !secret`
+  reference when a paired client exports it, never a raw token. Documentation
+  explains how to migrate previously open HA sensors safely; Android kiosk
+  native pairing and legacy-token paths are covered by disposable integration
+  tests.
+- Native Kiosk SettingsActivity now sends the paired X-API-Token and only
+  reports server success after HTTP 2xx. Unprotected OTA metadata remains
+  public as intended. Kiosk version advanced to 1.7.25 (code 26), but no APK
+  is released here; the CI compiles Kotlin without publishing anything.
+- Raised the Android Gradle heap for release APK packaging and capped workers
+  after the disposable packaging check exposed an out-of-memory failure.
+- No changes to inventory, swipe, shopping, recipes or database schema.
+  Physical iPhone staging and GitHub CI acceptance are required before merge.
+
+## [1.16.23] - 2026-11-15 (settings synchronization, draft PR)
+
+### First Settings save after setup must not report success prematurely (Issue #10)
+
+- Serialize cross-device `user_prefs` SQLite updates by client revision; later
+  values cannot be overwritten by a delayed, earlier browser request.
+- A late Settings-panel `get_settings` response cannot overwrite a form edit
+  made while the panel was loading. The SQLite payload is snapshotted at
+  save time, so an intervening async refresh cannot change the saved values.
+- A manual Settings save defers the preference write until `save_settings`
+  succeeds, then waits for acknowledgement from the SQLite settings endpoint.
+  Failed/queued/offline replies show an error instead of a false success.
+- Failed sync remains retryable; setup's stale `get_settings` response cannot
+  overwrite a newer edit; a partial failure does not acknowledge the checklist.
+- Added deterministic JavaScript regressions for delayed, stale, rejected,
+  retried and secondary settings writes. Fresh physical iPhone 17 Pro Max
+  staging verified first save, stale response, second save and reload. No
+  stock, swipe, API or schema changes; merge/deploy remains gated by approval.
+
+## [1.16.22] - 2026-11-15 (security hardening, draft PR, pending validation)
+
+### Client settings API can no longer access internal configuration (Fixes #8)
+
+- Generic `app_settings_get` returns only the 16 keys used by the browser's
+  cross-device settings, not internal server configuration or migration state.
+- `app_settings_save` accepts only those keys, validates the JSON object and
+  enforces a 1 MiB request limit. Unknown keys reject the whole batch, while
+  SQLite transactions roll back every write on a database error.
+- The existing client keys (setup, preferences, recipes, shopping/Bring and
+  scan history) keep their data format; internal server writes stay unchanged.
+- Six-language errors and isolated in-memory SQLite regression tests added.
+- No stock, swipe, offline, migration or production changes. Requires CI and
+  staging verification before merge.
+
+## [1.16.21] - 2026-11-02 (staging PR #3, pending iPhone acceptance)
+
+### One shared product and stock card for Use and Dispose (Fixes #6)
+
+- Product name/photo and the available stock summary are now part of
+  ONE compact card in both workflows, instead of two stacked cards.
+- Shared product identity preserves brand, use-screen Edit pencil and
+  expiry badges. Long product names wrap on small phones.
+- Same stock math: total, per-pack size, weighted total and locations.
+- CSS scoped to the two forms, including dark and alternate theme
+  decorations. Offline/safety and bookkeeping remain unchanged.
+- New shared-card render and responsive layout tests in CI.
+
+## [1.16.20] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
+
+### Compact, safer disposal screen (Fixes #5)
+
+- Disposal now reuses the single stock summary from the Use screen: one
+  available total, unit/pack size and overall weight, and location labels.
+  The product header no longer shows the same stock again. The location
+  chooser is displayed only if multiple storage locations exist, without
+  repeating the quantity.
+- The normal amount-to-dispose input and its action are first. A separated
+  bottom button "Discard everything" clearly warns that it targets all
+  locations.
+- Full disposal no longer auto-confirms after five seconds: it requires
+  an explicit confirmation tap, followed by the existing required disposal
+  reason. Cancellation and empty/zero quantity do not write inventory.
+- Existing offline writes, waste reasons and accounting are unchanged.
+  Frontend version/cache and localized strings are updated together.
+
+## [1.16.19] - 2026-11-01 (staging PR #3, pending iPhone acceptance)
+
+### False not-in-inventory warning and centered swipe labels (Fixes #4)
+
+- Staging phone logs showed real HTTP 429 rate-limit responses on inventory
+  reads. The disposal screen misread failed requests as an empty stock.
+- Consumption and disposal screens now distinguish errors from a genuine,
+  successfully retrieved empty inventory; server rate limits remain enabled.
+- One full pantry GET per refresh, local location filtering, no redundant
+  second refresh on navigation; filtered results cannot overwrite offline
+  cache for all locations.
+- Late disposal responses cannot replace a newer modal, and a missing product
+  picture no longer causes an unnecessary product read.
+- Both action labels are centered in their visible 100px swipe strips.
+  Directions remain LEFT dispose/red and RIGHT consume/amber.
+- Regression test covers 429, valid recovery, actual zero stock, network
+  error, stale response and centered swipe labels.
+
+## [1.16.18] - 2026-11-01 (proposed staging PR #3, not yet released)
+
+### Correct mobile swipe direction (Fixes #1)
+
+- **Swipe RIGHT to open Verbrauchen** (amber), **LEFT to open Entsorgen**
+  (red), per manual iPhone feedback. Both gestures open forms only and do
+  not write inventory until the quantity/reason is confirmed.
+- Updated the swipe UI, all six languages, PWA caching and gesture tests.
+  The single stock summary, detail editing and other v1.16.17 work remain.
+
+## [1.16.17] - 2026-11-01 (proposed staging PR, not yet released)
+
+### Direct pantry gestures and a single stock overview (Fixes #1)
+
+- Swipe LEFT to open Use, swipe RIGHT to open reasoned Disposal. Neither gesture books stock automatically; tap still opens details and scroll/favorites continue working.
+- Product detail Edit replaces the redundant All used button. Full stock consumption remains only in Use, with its strong confirmation.
+- One Use stock summary contains the full amount, package size, total weight and locations; multi-location choices no longer repeat the quantities. All six languages updated.
+
+### GitHub workflow and real SemVer (Relates to #2)
+
+- Enable Issues and develop on feature branches reviewed through PRs, testing in isolated staging before merging to the baseline.
+- Update patch version in manifest, header, preloader, README, changelog, asset/i18n stamps and isolated service-worker cache together.
+- Version bump script now understands the staging service-worker cache name, and CI checks for version drift.
+- New gesture, mixed package size and no-double-stock tests; no DB/API or production data changed.
+
 ## [1.16.16] - 2026-10-25
 
 ### The setup wizard obeys the server (not every new browser)

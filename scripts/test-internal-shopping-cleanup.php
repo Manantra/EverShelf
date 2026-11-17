@@ -59,7 +59,7 @@ $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 $db->exec("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, brand TEXT DEFAULT '', shopping_name TEXT DEFAULT '', unit TEXT DEFAULT '', default_quantity REAL DEFAULT 0, package_unit TEXT DEFAULT '')");
 $db->exec("CREATE TABLE inventory (product_id INTEGER, quantity REAL, expiry_date TEXT)");
-$db->exec("CREATE TABLE shopping_list (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, raw_name TEXT DEFAULT '', specification TEXT DEFAULT '')");
+$db->exec("CREATE TABLE shopping_list (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, raw_name TEXT DEFAULT '', specification TEXT DEFAULT '', need_qty REAL, need_unit TEXT NOT NULL DEFAULT '')");
 // Real schema also touched by the shared predicate (blocklist / purchase history).
 $db->exec("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '', updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
 $db->exec("CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, location TEXT NOT NULL DEFAULT 'dispensa', notes TEXT DEFAULT '', undone INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
@@ -155,6 +155,29 @@ $eggsNeeded = evershelfShoppingRowStillNeeded(
     $db, $indexEggs, 'Uova', 'Uova', static fn(string $g): float => 3.0
 );
 assert_true($eggsNeeded, 'shared predicate: 3 leftover eggs still need a restock row');
+
+// ── Persisted plan restock: convert 690 g to one 690 g package, not 690 packs ──
+$db->exec("INSERT INTO products (id,name,unit,default_quantity,package_unit,shopping_name)
+    VALUES(7,'Passierte Tomaten','conf',690,'g','Passierte')");
+$db->exec("INSERT INTO shopping_list(name,raw_name,specification,need_qty,need_unit)
+    VALUES('Passierte','Passierte Tomaten','🟠 Presto · 🛒 Almeno: 2 conf',2,'conf')");
+assert_true(shoppingHasTrackedRemainingNeed(['need_qty' => 2, 'need_unit' => 'conf', 'specification' => '🛒 Almeno: 2 conf']),
+    'plan: positive persisted remaining quantity survives cache invalidation');
+assert_true(!shoppingHasTrackedRemainingNeed([
+    'need_qty' => 2, 'need_unit' => 'conf', 'specification' => '24 conf (manuell)'
+]), 'a manually replaced note disables automatic remaining-need protection');
+$partialGrams = shoppingAdvanceTrackedNeed($db, 7, 690.0, 'g');
+assert_true(abs((float)($partialGrams['remaining'] ?? -1) - 1.0) < 0.001,
+    'plan: 690 g of a 690 g conf family deducts exactly one package');
+$needAfter = $db->query("SELECT need_qty FROM shopping_list WHERE name='Passierte'")->fetchColumn();
+assert_true(abs((float)$needAfter - 1.0) < 0.001,
+    'plan: remaining deficit is persisted across requests');
+$incompatible = shoppingAdvanceTrackedNeed($db, 7, 1.0, 'ml');
+assert_true($incompatible === null,
+    'plan: incompatible liquid unit is not deducted from gram/package family');
+internalShoppingCleanupObsolete($db);
+assert_true((int)$db->query("SELECT COUNT(*) FROM shopping_list WHERE name='Passierte'")->fetchColumn() === 1,
+    'plan: cron cleanup preserves outstanding tracked need');
 
 echo $fail === 0 ? "\nAll internal-shopping cleanup tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

@@ -3,19 +3,21 @@ name: Build & Release Kiosk APK
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# OTA APK publishing requires an explicit, main-branch operator action.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'evershelf-kiosk/**'
-      - '.github/workflows/build-kiosk.yml'
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PUBLISH-KIOSK to authorize the Kiosk APK release'
+        type: string
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'PUBLISH-KIOSK' }}
     name: Build Kiosk APK
     runs-on: ubuntu-latest
 

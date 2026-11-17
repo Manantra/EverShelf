@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'stability/**', 'feat/**', 'fix/**']
   pull_request:
-    branches: [main]
+    branches: [main, develop, 'stability/**']
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -24,7 +24,8 @@ jobs:
 
       - name: Check PHP syntax
         run: |
-          find api/ -name '*.php' -exec php -l {} \;
+          set -euo pipefail
+          find api/ scripts/ -name '*.php' -print0 | xargs -0 -n1 php -l
 
   lint-js:
     name: JavaScript Lint
@@ -35,6 +36,159 @@ jobs:
       - name: Check JS syntax
         run: |
           node -c assets/js/app.js
+
+      - name: Verify SemVer and PWA cache consistency
+        run: python3 scripts/test-version-consistency.py
+
+  regression-tests:
+    name: PHP and write-acknowledgement regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, curl, mbstring, iconv, intl, gd, xml, zip
+
+      - name: Ensure all publishing workflows require manual authorization
+        run: python3 scripts/test-release-workflow-gate.py
+
+      - name: Run all existing PHP regressions
+        run: |
+          set -euo pipefail
+          for test in scripts/test-*.php; do
+            echo "Testing $test"
+            php "$test"
+          done
+
+      - name: Validate SQLite online restore, rollback and corrupted HTTP backups
+        run: |
+          php scripts/test-backup-restore-safety.php
+          python3 scripts/test-backup-restore-http.py
+
+      - name: Verify optional shell backup retention and WAL snapshot rotation
+        run: python3 scripts/test-backup-shell-retention.py
+
+      - name: Exercise real WAL backup and verify finished SQLite snapshot
+        run: |
+          php scripts/test-backup-integrity-php.php
+          python3 scripts/test-backup-integrity-http.py
+
+      - name: Verify one-time API token generation and no-lockout upgrade policy
+        run: python3 scripts/test-api-token-autogen.py
+
+      - name: Verify Home Assistant and native kiosk token migration
+        run: python3 scripts/test-ha-kiosk-token-migration.py
+
+      - name: Verify secure Home Assistant sensor YAML exports
+        run: node scripts/test-ha-sensor-auth-yaml.js
+
+      - name: Check failed write acknowledgements
+        run: node scripts/test-write-acknowledgements.js
+
+      - name: Verify Settings writes wait for consistent SQLite acknowledgements
+        run: node scripts/test-settings-sync.js
+
+      - name: Simulate Safari/PWA storage, suspended replay, and tab conflicts
+        run: node scripts/test-pwa-offline-queue.js
+
+      - name: Verify phone inventory tap, swipe and package size display
+        run: node scripts/test-inventory-mobile-tap.js
+
+      - name: Verify iPhone swipe transient API errors and centered labels
+        run: node scripts/test-inventory-transient-errors.js
+
+      - name: Verify product-detail disposal and inventory-only removal stay separate
+        run: node scripts/test-disposal-entrypoints.js
+
+      - name: Verify compact disposal form and explicit full-disposal confirmation
+        run: node scripts/test-disposal-layout.js
+
+      - name: Verify combined product and stock card on Use and Dispose
+        run: node scripts/test-combined-product-stock-card.js
+
+      - name: Verify compact localized package labels on narrow phones
+        run: node scripts/test-compact-package-badges.js
+
+      - name: Verify heartbeat state, timeout and reconnect logic
+        run: node scripts/test-heartbeat.js
+
+      - name: Verify both product editing screens handle stale writes
+        run: node scripts/test-product-conflict-ui.js
+
+      - name: Verify localization references
+        run: python3 scripts/i18n-audit.py
+
+      - name: Exercise real HTTP and SQLite persistence in a disposable sandbox
+        run: |
+          set -euo pipefail
+          mkdir -p data logs
+          printf 'EVERSHELF_SANDBOX=1\nAPP_LANG=de\nSHOPPING_MODE=internal\nAI_ENABLED=false\nBARCODE_OFFLINE_ENABLED=false\nREPORT_ENABLED=false\nALLOW_OPEN_LAN=true\n' > .env
+          php -S 127.0.0.1:18080 -t . > /tmp/evershelf-e2e-php.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl --fail --silent 'http://127.0.0.1:18080/api/index.php?action=ping' > /dev/null; then
+              break
+            fi
+            sleep 0.5
+          done
+          python3 scripts/test-http-persistence.py --sandbox-root . --base-url http://127.0.0.1:18080
+          python3 scripts/integration-shopping-dismiss.py --sandbox-root . --base-url http://127.0.0.1:18080
+          python3 scripts/integration-restock-settings.py --sandbox-root . --base-url http://127.0.0.1:18080 --mode both
+          # Separate PHP workers on the same disposable WAL DB, not a mock.
+          php -S 127.0.0.1:18081 -t . > /tmp/evershelf-e2e-php-second.log 2>&1 &
+          second_pid=$!
+          trap 'kill "$server_pid" "$second_pid" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl --fail --silent 'http://127.0.0.1:18081/api/index.php?action=ping' > /dev/null; then
+              break
+            fi
+            sleep 0.5
+          done
+          python3 scripts/integration-concurrent-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081 --rounds 3 --parallel 12
+          python3 scripts/integration-idempotent-offline-add.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          python3 scripts/integration-offline-conflict-resolution.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          python3 scripts/integration-recent-actual-use.py --sandbox-root . --base-url http://127.0.0.1:18080
+          python3 scripts/integration-usage-waste-stats.py --sandbox-root . --base-url http://127.0.0.1:18080
+          # CI uses a single disposable loopback IP and a shared 120 req/min
+          # bucket for every unrelated integration suite. This test alone adds
+          # legitimate API traffic, making later concurrency assertions see
+          # an incidental 429 rather than the intended version-conflict 409.
+          # Clear ONLY the synthetic sandbox limiter here; never production.
+          grep -qx 'EVERSHELF_SANDBOX=1' .env
+          if [ -d data/rate_limits ]; then
+            find data/rate_limits -maxdepth 1 -type f -name '*.json' -delete
+          fi
+          python3 scripts/integration-concurrent-product-edit.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          python3 scripts/integration-concurrent-field-edits.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          python3 scripts/integration-atomic-product-inventory.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          node scripts/integration-offline-replay-conflicts.js --sandbox-root . --base-url http://127.0.0.1:18080
+          php api/cron_smart_shopping.php
+          python3 -c "import sqlite3; db=sqlite3.connect('data/evershelf.db'); assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'"
+
+  kiosk-compile:
+    name: Android kiosk Kotlin compile (no APK publish)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6.0.1
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.6'
+
+      - name: Compile native kiosk sources without signing or publishing
+        working-directory: evershelf-kiosk
+        run: gradle :app:compileDebugKotlin --no-daemon
 
   docker-build:
     name: Docker Build Test
@@ -61,6 +215,7 @@ jobs:
           docker run -d --name test-evershelf -p 8080:80 evershelf-test
           sleep 5
           curl -f http://localhost:8080/ || exit 1
+          docker exec test-evershelf php -r 'if (!class_exists("SQLite3") || !method_exists("SQLite3", "backup")) {fwrite(STDERR, "SQLite3 online backup API unavailable\n"); exit(1);} echo "SQLite3 restore extension ready\n";'
           docker stop test-evershelf
 
   validate-translations:
@@ -92,6 +247,7 @@ jobs:
               lang_keys = set(lang.keys())
               missing = base_keys - lang_keys
               if missing:
+                  ok = False
                   print(f'{f}: {len(missing)} missing keys')
                   for k in sorted(missing)[:10]:
                       print(f'  - {k}')
@@ -99,169 +255,11 @@ jobs:
                       print(f'  ... and {len(missing)-10} more')
               else:
                   print(f'{f}: complete ✓')
+          if not ok:
+              sys.exit(1)
           "
 
-  # ── Auto-merge develop → main ────────────────────────────────────────────
-  # Runs automatically after ALL checks pass on develop.
-  # You never need to merge manually again — just push to develop.
-  auto-merge-to-main:
-    name: Auto-merge develop → main
-    needs: [lint-php, lint-js, docker-build, validate-translations]
-    if: github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout (full history)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          # Always use the built-in GITHUB_TOKEN for checkout (read-only fetch).
-          # WORKFLOW_PAT is only needed for the push step below.
-          token: ${{ github.token }}
 
-      - name: Configure git bot identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Merge develop → main
-        run: |
-          # ── ROOT CAUSE FIX ──────────────────────────────────────────────────
-          # actions/checkout writes an http.extraheader (AUTHORIZATION: basic …)
-          # that silently overrides any credentials embedded in git remote URLs.
-          # We must clear it BEFORE setting the remote URL with WORKFLOW_PAT,
-          # otherwise GITHUB_TOKEN is always used for the push and workflow-file
-          # changes are rejected.
-          # ────────────────────────────────────────────────────────────────────
-          git config --local --unset-all http."https://github.com/".extraheader 2>/dev/null || true
-
-          LAST=$(git log --oneline -1 origin/develop)
-          git checkout main
-          git pull --ff-only origin main
-          git merge --no-ff origin/develop \
-            -m "chore: auto-merge develop → main
-
-          Triggered by: $LAST"
-
-          # ── PUSH STRATEGY ───────────────────────────────────────────────────
-          # Priority 1: WORKFLOW_PAT (classic PAT, repo+workflow scopes)
-          #   → can push workflow file changes; set as a repo secret.
-          # Priority 2: GITHUB_TOKEN fallback
-          #   → cannot push workflow files; strip them from the merge commit.
-          # ────────────────────────────────────────────────────────────────────
-          PUSH_TOKEN="${{ secrets.WORKFLOW_PAT }}"
-          if [ -z "$PUSH_TOKEN" ]; then
-            WF=$(git diff --name-only origin/main -- .github/workflows/ 2>/dev/null || echo "")
-            if [ -n "$WF" ]; then
-              echo "::warning::WORKFLOW_PAT not set — stripping workflow changes from merge commit:"
-              echo "$WF"
-              git checkout origin/main -- .github/workflows/
-              git diff --cached --quiet || git commit --amend --no-edit
-            fi
-            PUSH_TOKEN="${{ github.token }}"
-          fi
-
-          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
-
-          # Retry push: concurrent develop pushes can race on main (fetch-first rejection)
-          for attempt in 1 2 3; do
-            if git push origin main; then
-              echo "Pushed main (attempt ${attempt})"
-              exit 0
-            fi
-            echo "::warning::Push to main rejected (attempt ${attempt}) — refetch and retry"
-            git fetch origin main
-            git merge --no-edit origin/main || true
-            sleep $((attempt * 2))
-          done
-          echo "::error::Failed to push main after retries"
-          exit 1
-
-  # ── Auto-create GitHub Release on main ───────────────────────────────────
-  # Runs after auto-merge succeeds. Reads version from index.html,
-  # creates a release tag vX.Y.Z if it doesn't exist yet.
-  # This powers the in-app update badge for self-hosted users.
-  create-release:
-    name: Create GitHub Release
-    needs: [auto-merge-to-main]
-    if: github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      created: ${{ steps.tag_check.outputs.exists == 'false' }}
-      version: ${{ steps.version.outputs.plain }}
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v7
-        with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract version from index.html
-        id: version
-        run: |
-          VER=$(grep -oP 'header-version">v\K[\d.]+' index.html | head -1)
-          echo "version=v${VER}" >> $GITHUB_OUTPUT
-          echo "plain=${VER}" >> $GITHUB_OUTPUT
-          echo "Detected version: v${VER}"
-
-      - name: Check if tag already exists
-        id: tag_check
-        run: |
-          if git ls-remote --tags origin "refs/tags/${{ steps.version.outputs.version }}" | grep -q .; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Read CHANGELOG entry for this version
-        id: changelog
-        if: steps.tag_check.outputs.exists == 'false'
-        run: |
-          VER="${{ steps.version.outputs.version }}"
-          # The section for this version, up to the next "## [...]" heading.
-          # The old end pattern (/^## [0-9]/) never matched the bracketed headings,
-          # so the range ran to the end of the file and every release body carried
-          # the previous release too (seen on v1.16.1, which appended 1.16.0).
-          BODY=$(awk -v ver="${VER#v}" '
-            index($0, "## [" ver "]") == 1 { inside = 1; print; next }
-            inside && /^## / { exit }
-            inside { print }
-          ' CHANGELOG.md | head -200)
-          if [ -z "$BODY" ]; then
-            BODY="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
-          fi
-          # Multiline output
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          echo "$BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create release
-        if: steps.tag_check.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: "EverShelf ${{ steps.version.outputs.version }}"
-          body: ${{ steps.changelog.outputs.body }}
-          target_commitish: main
-          make_latest: true
-
-  # A push/tag made with a token from inside a workflow does not trigger another
-  # workflow, so the release alone never built the image. The image job is a
-  # reusable workflow, called directly here: no PAT, no dispatch, no gap. Only
-  # when this run actually created a release (a tag that already existed means
-  # the image was published with it).
-  publish-container:
-    name: Publish Docker Image
-    needs: [create-release]
-    if: github.ref == 'refs/heads/develop' && needs.create-release.outputs.created == 'true'
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-docker.yml
-    with:
-      version: ${{ needs.create-release.outputs.version }}
-      latest: true
+  # CI deliberately stops at testing. No Git push, release, or package publish
+  # is allowed from push/PR events, including pushes to 'develop'.
+  # Use the separately gated workflow_dispatch release workflows explicitly.

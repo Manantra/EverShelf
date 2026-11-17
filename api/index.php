@@ -10,9 +10,12 @@
 
 // ── Core bootstrap (env, security, database, logger) ─────────────────────────
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/app_settings.php';
 require_once __DIR__ . '/lib/tags.php';
 require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
+require_once __DIR__ . '/lib/local_backup_integrity.php';
+require_once __DIR__ . '/lib/local_backup_restore.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -1005,6 +1008,12 @@ try {
             break;
         case 'inventory_update':
             updateInventory($db);
+            break;
+        case 'inventory_conflict_snapshot':
+            inventoryConflictSnapshot($db);
+            break;
+        case 'inventory_conflict_resolve':
+            inventoryConflictResolve($db);
             break;
         case 'inventory_delete':
             deleteInventory($db);
@@ -4397,6 +4406,25 @@ function _barcodeLookupGemini(string $barcode, string $apiKey): ?array {
     ];
 }
 
+/**
+ * Optional field-by-field optimistic compare for manual product editing.
+ * Values are snapshots from editor open, not values after a refresh.
+ * Automated catalog and legacy clients can omit this parameter entirely.
+ */
+function productExpectedFields(mixed $raw): ?array {
+    if ($raw === null) return null;
+    if (!is_array($raw) || array_is_list($raw) || count($raw) === 0) return null;
+    $allowed = ['name', 'brand', 'category', 'notes', 'image_url',
+        'unit', 'default_quantity', 'package_unit', 'barcode'];
+    foreach ($raw as $key => $value) {
+        if (!in_array($key, $allowed, true)
+            || (!is_string($value) && !is_numeric($value) && $value !== null)) {
+            return null;
+        }
+    }
+    return $raw;
+}
+
 function saveProduct(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || empty($input['name'])) {
@@ -4409,6 +4437,61 @@ function saveProduct(PDO $db): void {
     $barcode = normalizeProductBarcode($input['barcode'] ?? null);
     $id = !empty($input['id']) ? (int)$input['id'] : 0;
     $merged = false;
+
+    // Optional optimistic concurrency guard for manual product editors.
+    // Never require it from scanner, catalog, import, or legacy API clients.
+    // Comparing exact names (not updated_at with second-level resolution)
+    // also detects two edits saved within the very same second.
+    $expectedFields = null;
+    if ($id && array_key_exists('expected_fields', $input)) {
+        $expectedFields = productExpectedFields($input['expected_fields']);
+        if ($expectedFields === null) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_expected_fields']);
+            return;
+        }
+    }
+    $expectedName = null;
+    if ($id && array_key_exists('expected_name', $input)) {
+        if (!is_string($input['expected_name']) || trim($input['expected_name']) === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_expected_name']);
+            return;
+        }
+        $expectedName = $input['expected_name'];
+        $seen = loadProductRow($db, $id);
+        if (!$seen) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'product_not_found']);
+            return;
+        }
+        if ((string)$seen['name'] !== $expectedName) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'product_conflict',
+                'current_name' => (string)$seen['name']]);
+            return;
+        }
+        // The opt-in editing flow must never merge another product before its
+        // conditional UPDATE has checked for a stale version.
+        if ($barcode !== null) {
+            $owner = findDuplicateProductId($db, $input['name'],
+                $input['brand'] ?? '', $barcode, $id);
+            if ($owner && $owner !== $id) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'error' => 'product_conflict']);
+                return;
+            }
+        }
+    }
+
+    if ($id && $expectedFields !== null && $expectedName === null && $barcode !== null) {
+        $other = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $barcode, $id);
+        if ($other && $other !== $id) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'product_conflict']);
+            return;
+        }
+    }
 
     if ($barcode !== null) {
         $barcodeOwner = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $barcode, $id ?: null);
@@ -4433,6 +4516,12 @@ function saveProduct(PDO $db): void {
     }
 
     $existing = $id ? loadProductRow($db, $id) : null;
+    if ($id && !$existing) {
+        // A stale product ID must not produce a false success response.
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'product_not_found']);
+        return;
+    }
     $fields = mergeIncomingProductFields($existing, $input, $barcode);
     $invConvert = $fields['_inventory_convert'] ?? null;
     $fields = _stripPieceProductInternalKeys($fields);
@@ -4440,7 +4529,16 @@ function saveProduct(PDO $db): void {
 
     try {
         if ($id) {
-            executeProductUpdate($db, $fields, $id);
+            if (!executeProductUpdate($db, $fields, $id, $expectedName, $expectedFields)) {
+                // Atomic WHERE name=? prevents a stale editor from winning even
+                // if another request changed the product after our first read.
+                $latest = loadProductRow($db, $id);
+                http_response_code($latest ? 409 : 404);
+                echo json_encode(['success' => false,
+                    'error' => $latest ? 'product_conflict' : 'product_not_found',
+                    'current_name' => $latest['name'] ?? null]);
+                return;
+            }
             applyPieceProductInventoryRepair($db, $id, $existing, $invConvert);
             $consolidated = safeConsolidateDuplicateProducts($db, $id);
             if ($consolidated['merged']) {
@@ -4464,6 +4562,12 @@ function saveProduct(PDO $db): void {
         }
         echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged]);
     } catch (PDOException $e) {
+        if (($expectedName !== null || $expectedFields !== null)
+            && str_contains($e->getMessage(), 'UNIQUE constraint failed: products.barcode')) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'product_conflict']);
+            return;
+        }
         if (str_contains($e->getMessage(), 'UNIQUE constraint failed: products.barcode') && $fields['barcode'] !== null) {
             $owner = findDuplicateProductId($db, $fields['name'], $fields['brand'], $fields['barcode'], $id ?: null);
             if ($owner) {
@@ -4854,7 +4958,7 @@ function listInventory(PDO $db): void {
     // hides "crumb" rows via isInventoryDepleted (≤20 g / ≤20 ml).
     $includeDepleted = !empty($_GET['include_depleted']) || !empty($_GET['for_recipe']);
     $query = "
-        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
+        SELECT i.*, p.name, p.brand, p.category, p.notes, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name, COALESCE(p.kind, '') as kind,
                COALESCE(p.is_favorite, 0) as is_favorite
         FROM inventory i
@@ -5006,9 +5110,77 @@ function applyAutoProductRules(PDO $db): void {
     ]);
 }
 
+/** Request identity is supplied only by the offline client as a stable UUID.
+ * A reused key with different parameters is a hard conflict, not a replay.
+ */
+function inventoryOfflineReceiptIdentity(array $input): ?array {
+    if (!array_key_exists('_offline_op_id', $input)) return null;
+    $key = $input['_offline_op_id'];
+    if (!is_string($key) || !preg_match('/^[a-zA-Z0-9_-]{12,128}$/D', $key)) {
+        return ['invalid' => true];
+    }
+    $payload = $input;
+    unset($payload['_offline_op_id']);
+    // The negative temporary row ID is a local UI handle, never a write
+    // parameter. It must not change the semantic identity of an addition.
+    if (isset($payload['id']) && is_numeric($payload['id']) && (int)$payload['id'] < 0) {
+        unset($payload['id']);
+    }
+    ksort($payload);
+    return ['key' => $key,
+        'hash' => hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION))];
+}
+
+/** Null on first submission, stored response for a confirmed replay, false
+ * when an operation ID was reused for a different action or payload.
+ */
+function inventoryOfflineReceiptReadAction(PDO $db, array $identity, string $action): array|false|null {
+    $stmt = $db->prepare('SELECT action, request_hash, response_json
+        FROM offline_write_receipts WHERE operation_id=?');
+    $stmt->execute([$identity['key']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) return null;
+    if ($row['action'] !== $action || !hash_equals($row['request_hash'], $identity['hash'])) {
+        return false;
+    }
+    $result = json_decode($row['response_json'], true);
+    if (!is_array($result) || ($result['success'] ?? null) !== true) {
+        throw new RuntimeException('Invalid persisted inventory receipt');
+    }
+    return $result + ['idempotent_replay' => true];
+}
+
+function inventoryOfflineReceiptRead(PDO $db, array $identity): array|false|null {
+    return inventoryOfflineReceiptReadAction($db, $identity, 'inventory_add');
+}
+
+function inventoryOfflineReceiptReply(array|false $receipt): void {
+    if ($receipt === false) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'idempotency_conflict']);
+    } else {
+        echo json_encode(array_merge($receipt, ['idempotent_replay' => true]));
+    }
+}
+
 function addToInventory(PDO $db): void {
     EverLog::info('addToInventory');
-    $input = json_decode(file_get_contents('php://input'), true);
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $receiptIdentity = inventoryOfflineReceiptIdentity($input);
+    if (isset($receiptIdentity['invalid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_offline_op_id']);
+        return;
+    }
+    // Early read avoids even a catalog consolidation on the common replay
+    // path. The required second check UNDER BEGIN IMMEDIATE closes races.
+    if ($receiptIdentity !== null) {
+        $existingReceipt = inventoryOfflineReceiptRead($db, $receiptIdentity);
+        if ($existingReceipt !== null) {
+            inventoryOfflineReceiptReply($existingReceipt);
+            return;
+        }
+    }
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (float)($input['quantity'] ?? 1);
     $location = $input['location'] ?? 'dispensa';
@@ -5082,6 +5254,24 @@ function addToInventory(PDO $db): void {
     }
 
     
+    // SQLite must commit the inventory change and its transaction ledger
+    // together. Acquiring BEGIN IMMEDIATE before the first write prevents two
+    // devices from computing a new quantity from the same old row. Retry ONLY
+    // lock acquisition; never replay a partially committed stock write.
+    $inventoryTxnOpen = false;
+    try {
+        dbWithRetry(static function () use ($db): void { dbBeginImmediate($db); });
+        $inventoryTxnOpen = true;
+        if ($receiptIdentity !== null) {
+            $existingReceipt = inventoryOfflineReceiptRead($db, $receiptIdentity);
+            if ($existingReceipt !== null) {
+                dbRollback($db);
+                $inventoryTxnOpen = false;
+                inventoryOfflineReceiptReply($existingReceipt);
+                return;
+            }
+        }
+
     // If a different unit was specified, update the product's unit.
     // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
     // do NOT overwrite it here. It is managed via product_save / the edit form.
@@ -5167,27 +5357,92 @@ function addToInventory(PDO $db): void {
     $stmt->execute([$productId, $quantity, $location]);
 
     clearFinishedDismissed($db, $productId);
-    
-    $restock = shoppingHandleRestockAfterAdd($db, $productId);
-
-    echo json_encode([
+    $coreReceipt = [
         'success' => true,
         'new_qty' => $newQty,
         'total_qty' => $totalQty,
         'unit' => $prodInfo['unit'] ?? 'pz',
         'default_quantity' => (float)($prodInfo['default_quantity'] ?? 0),
         'package_unit' => $prodInfo['package_unit'] ?? null,
-        'removed_from_bring' => !empty($restock['removed']),
-        'removed_names' => $restock['removed_names'] ?? [],
-        'shopping_kept' => !empty($restock['shopping_kept']),
-        'remaining_need' => $restock['remaining'] ?? null,
+        'removed_from_bring' => false,
+        'removed_names' => [],
+        'shopping_kept' => false,
+        'remaining_need' => null,
         'canonical_product_id' => $productId,
         'catalog_merged' => $catalogMerged,
         'inventory_id' => $inventoryId,
         'new_row' => $newRow,
+        // External shopping synchronization runs after commit. A crash
+        // between commit and HTTP response must still return a receipt,
+        // but cannot claim the external network call definitely completed.
+        'shopping_sync_pending' => true,
         'expiry_date' => $expiry,
         'location' => $location,
+    ];
+    if ($receiptIdentity !== null) {
+        $record = $db->prepare('INSERT INTO offline_write_receipts
+            (operation_id, action, request_hash, response_json)
+            VALUES (?, ?, ?, ?)');
+        $record->execute([
+            $receiptIdentity['key'], 'inventory_add', $receiptIdentity['hash'],
+            json_encode($coreReceipt, JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+    dbCommit($db);
+    $inventoryTxnOpen = false;
+    } catch (Throwable $e) {
+        if ($inventoryTxnOpen) dbRollback($db);
+        EverLog::exception($e, 'inventory_add');
+        $busy = $e instanceof PDOException && str_contains($e->getMessage(), 'database is locked');
+        http_response_code($busy ? 503 : 500);
+        echo json_encode(['success' => false,
+            'error' => $busy ? 'database_busy' : 'inventory_add_failed']);
+        return;
+    }
+
+    // Stock+ledger are now durable. Shopping-list reconciliation (including
+    // optional Bring! network calls) must never make the caller think that a
+    // committed stock write failed and should be submitted again.
+    $restock = ['removed' => false, 'removed_names' => [], 'shopping_kept' => false, 'remaining' => null];
+    $shoppingSyncPending = false;
+    try {
+        $restock = shoppingHandleRestockAfterAdd($db, $productId, $quantity, $effectiveUnit);
+        if (!empty($restock['removed'])) {
+            bringMarkPurchasedForProduct($db, $productId);
+            shoppingClearDismissedForProduct($db, $productId);
+        }
+    } catch (Throwable $e) {
+        $shoppingSyncPending = true;
+        EverLog::exception($e, 'inventory_add_shopping_sync');
+    }
+    try {
+        invalidateSmartShoppingCache();
+    } catch (Throwable $e) {
+        $shoppingSyncPending = true;
+        EverLog::exception($e, 'inventory_add_smart_cache');
+    }
+
+    $finalReceipt = array_merge($coreReceipt, [
+        'removed_from_bring' => !empty($restock['removed']),
+        'removed_names' => $restock['removed_names'] ?? [],
+        'shopping_kept' => !empty($restock['shopping_kept']),
+        'remaining_need' => $restock['remaining'] ?? null,
+        'shopping_sync_pending' => $shoppingSyncPending,
     ]);
+    if ($receiptIdentity !== null) {
+        try {
+            $db->prepare('UPDATE offline_write_receipts SET response_json=?
+                WHERE operation_id=?')->execute([
+                json_encode($finalReceipt, JSON_UNESCAPED_UNICODE),
+                $receiptIdentity['key'],
+            ]);
+        } catch (Throwable $e) {
+            // Core inventory and its receipt are already committed. A receipt
+            // refresh failure must never trigger a full stock write retry.
+            EverLog::exception($e, 'inventory_add_receipt_refresh');
+        }
+    }
+    echo json_encode($finalReceipt);
     EverLog::info('inventory_add ok', [
         'product_id' => $productId,
         'qty' => $quantity,
@@ -5197,13 +5452,6 @@ function addToInventory(PDO $db): void {
         'remaining_need' => $restock['remaining']['need_base'] ?? null,
         'removed_names' => $restock['removed_names'] ?? [],
     ]);
-    // Only blocklist when the shopping need is fully covered
-    if (!empty($restock['removed'])) {
-        bringMarkPurchasedForProduct($db, $productId);
-        // …and a previous "non lo compro" is over: the household just bought it.
-        shoppingClearDismissedForProduct($db, $productId);
-    }
-    invalidateSmartShoppingCache();
 }
 
 /** Waste transaction notes use format Buttato|reason_key (legacy: plain "Buttato"). */
@@ -6172,6 +6420,247 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
     invalidateSmartShoppingCache();
 }
 
+/**
+ * Optional manual rename performed *within* inventory_update's IMMEDIATE
+ * transaction. Unlike product_save, this path must not merge product IDs:
+ * merging a product is a separate operation that can invalidate an inventory
+ * row. Instead ask the editor to refresh on a potential duplicate.
+ *
+ * Only title-derived fields are written; brand, notes, unit and package
+ * settings are managed by their existing editing paths.
+ */
+function inventoryApplyManualProductRename(PDO $db, int $productId, array $edit): string {
+    $existing = loadProductRow($db, $productId);
+    if (!$existing) throw new DomainException('product_not_found');
+    if ((string)$existing['name'] !== $edit['expected_name']) {
+        throw new DomainException('product_conflict');
+    }
+    $expected = $edit['expected_fields'] ?? null;
+    if ($expected !== null) {
+        foreach ($expected as $key => $value) {
+            $actual = $existing[$key] ?? null;
+            $matches = $key === 'default_quantity'
+                ? ($actual !== null && $value !== null && (float)$actual == (float)$value)
+                : ($actual === $value);
+            if (!$matches) throw new DomainException('product_conflict');
+        }
+    }
+
+    $incoming = array_merge($existing, [
+        'name' => $edit['name'],
+        'name_user_set' => 1,
+    ]);
+    $merged = mergeIncomingProductFields(
+        $existing, $incoming, normalizeProductBarcode($existing['barcode'] ?? null)
+    );
+    $title = (string)$merged['name'];
+
+    // The original product_save path may consolidate duplicated families.
+    // This combined editor intentionally refuses such a structural merge,
+    // rather than deleting/reparenting an inventory row within a stock edit.
+    if (findDuplicateProductId($db, $title, (string)$existing['brand'], null, $productId)) {
+        throw new DomainException('product_conflict');
+    }
+    $stmt = $db->prepare(
+        'UPDATE products SET name=?, shopping_name=?, kind=?, name_user_set=1, ' .
+        'updated_at=CURRENT_TIMESTAMP WHERE id=? AND name=?'
+    );
+    $stmt->execute([
+        $title, $merged['shopping_name'], $merged['kind'],
+        $productId, $edit['expected_name'],
+    ]);
+    if ($stmt->rowCount() !== 1) throw new DomainException('product_conflict');
+    return $title;
+}
+
+/**
+ * Read the *current* row even when it is depleted/hidden in inventory_list.
+ * The monotonic revision is advanced by SQLite on every inventory UPDATE,
+ * including writes from old API clients and background jobs.
+ */
+function inventoryConflictSnapshot(PDO $db): void {
+    $idRaw = $_GET['id'] ?? null;
+    if (!is_scalar($idRaw) || !preg_match('/^[0-9]+$/D', (string)$idRaw) || (int)$idRaw <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_inventory_id']);
+        return;
+    }
+    $stmt = $db->prepare('SELECT i.id, i.product_id, i.quantity, i.location,
+        i.revision, i.expiry_date, i.expiry_user_set, i.vacuum_sealed,
+        p.name, p.unit, p.default_quantity, p.package_unit
+        FROM inventory i JOIN products p ON p.id=i.product_id WHERE i.id=?');
+    $stmt->execute([(int)$idRaw]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'inventory_not_found']);
+        return;
+    }
+    echo json_encode(['success' => true, 'inventory' => [
+        'id' => (int)$row['id'],
+        'product_id' => (int)$row['product_id'],
+        'quantity' => (float)$row['quantity'],
+        'location' => $row['location'],
+        'revision' => (int)$row['revision'],
+        'name' => $row['name'],
+        'unit' => $row['unit'],
+        'expiry_date' => $row['expiry_date'],
+        'expiry_user_set' => (int)$row['expiry_user_set'],
+        'vacuum_sealed' => (int)$row['vacuum_sealed'],
+        'package_size' => (float)$row['default_quantity'],
+        'package_unit' => $row['package_unit'],
+    ]], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * An explicit user resolution of a stale quantity edit. Unlike replaying
+ * inventory_update, this has its own atomic compare-and-set contract:
+ *   - BEGIN IMMEDIATE, compare row revision and product identity under lock
+ *   - compute delta from the user's original offline baseline, or replace
+ *   - write stock, compensating ledger, and durable idempotency receipt
+ * All in the same SQLite transaction. In particular, keep-server is NOT
+ * a server action: the client deletes only its selected local queue item.
+ *
+ * No unit, expiry, location, product rename, shopping-mode setting or other
+ * unrelated field can be modified by this endpoint.
+ */
+function inventoryConflictResolve(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $allowed = ['id', 'product_id', 'revision', 'mode', 'quantity',
+        'base_quantity', '_offline_op_id'];
+    if (!is_array($input) || array_is_list($input)
+        || array_diff(array_keys($input), $allowed)
+        || !isset($input['id'], $input['product_id'], $input['revision'],
+            $input['mode'], $input['quantity'], $input['_offline_op_id'])
+        || !is_int($input['id']) || $input['id'] <= 0
+        || !is_int($input['product_id']) || $input['product_id'] <= 0
+        || !is_int($input['revision']) || $input['revision'] < 0
+        || !in_array($input['mode'], ['replace', 'delta'], true)
+        || !is_numeric($input['quantity'])
+        || !is_finite((float)$input['quantity'])
+        || (float)$input['quantity'] < 0
+        || (float)$input['quantity'] > 100000
+        || ($input['mode'] === 'delta'
+            && (!array_key_exists('base_quantity', $input)
+                || !is_numeric($input['base_quantity'])
+                || !is_finite((float)$input['base_quantity'])
+                || (float)$input['base_quantity'] < 0))
+    ) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_conflict_resolution']);
+        return;
+    }
+    $identity = inventoryOfflineReceiptIdentity($input);
+    if ($identity === null || isset($identity['invalid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_offline_op_id']);
+        return;
+    }
+
+    $receipt = null;
+    $changed = null;
+    $id = $input['id'];
+    try {
+        dbWithRetry(static function () use ($db, $input, $identity, &$receipt, &$changed): void {
+            dbBeginImmediate($db);
+            try {
+                $priorReceipt = inventoryOfflineReceiptReadAction($db, $identity, 'inventory_conflict_resolve');
+                if ($priorReceipt !== null) {
+                    if ($priorReceipt === false) throw new DomainException('idempotency_conflict');
+                    $receipt = $priorReceipt;
+                    dbRollback($db);
+                    return;
+                }
+                $stmt = $db->prepare('SELECT id, product_id, quantity, location, revision
+                    FROM inventory WHERE id=?');
+                $stmt->execute([$input['id']]);
+                $current = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$current) throw new DomainException('inventory_not_found');
+                if ((int)$current['product_id'] !== $input['product_id']
+                    || (int)$current['revision'] !== $input['revision']) {
+                    throw new DomainException('inventory_conflict');
+                }
+                $previous = (float)$current['quantity'];
+                $desired = (float)$input['quantity'];
+                if ($input['mode'] === 'delta') {
+                    $desired = $previous + ($desired - (float)$input['base_quantity']);
+                }
+                if (!is_finite($desired) || $desired < 0 || $desired > 100000) {
+                    throw new DomainException('invalid_resolved_quantity');
+                }
+                $desired = round($desired, 6);
+                $db->prepare('UPDATE inventory
+                    SET quantity=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+                    ->execute([$desired, $input['id']]);
+                $diff = round($desired - $previous, 6);
+                if (abs($diff) > 0.001) {
+                    $db->prepare("INSERT INTO transactions
+                        (product_id, type, quantity, location, notes)
+                        VALUES (?, ?, ?, ?, '[Manual correction]')")
+                        ->execute([
+                            (int)$current['product_id'],
+                            $diff > 0 ? 'in' : 'out', abs($diff),
+                            $current['location'],
+                        ]);
+                }
+                $fresh = $db->prepare('SELECT revision FROM inventory WHERE id=?');
+                $fresh->execute([$input['id']]);
+                $receipt = [
+                    'success' => true,
+                    'id' => (int)$input['id'],
+                    'quantity' => $desired,
+                    'revision' => (int)$fresh->fetchColumn(),
+                    'mode' => $input['mode'],
+                ];
+                $db->prepare('INSERT INTO offline_write_receipts
+                    (operation_id, action, request_hash, response_json)
+                    VALUES (?, ?, ?, ?)')->execute([
+                        $identity['key'], 'inventory_conflict_resolve', $identity['hash'],
+                        json_encode($receipt, JSON_UNESCAPED_UNICODE),
+                    ]);
+                $changed = ['product_id' => (int)$current['product_id'],
+                    'quantity' => $desired, 'location' => $current['location'],
+                    'changed' => abs($diff) > 0.001];
+                dbCommit($db);
+            } catch (Throwable $e) {
+                dbRollback($db);
+                throw $e;
+            }
+        });
+    } catch (DomainException $e) {
+        $reason = $e->getMessage();
+        http_response_code($reason === 'inventory_not_found' ? 404
+            : ($reason === 'invalid_resolved_quantity' ? 400 : 409));
+        echo json_encode(['success' => false, 'error' => $reason]);
+        return;
+    } catch (PDOException $e) {
+        $busy = str_contains($e->getMessage(), 'database is locked');
+        if (!$busy) EverLog::exception($e, 'inventory_conflict_resolve');
+        http_response_code($busy ? 503 : 500);
+        echo json_encode(['success' => false, 'error' => $busy ? 'database_busy' : 'resolution_failed']);
+        return;
+    } catch (Throwable $e) {
+        EverLog::exception($e, 'inventory_conflict_resolve');
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'resolution_failed']);
+        return;
+    }
+
+    // External sync is post-commit (no HTTP calls under SQLite write lock).
+    // Existing shopping settings are unchanged.
+    if ($changed !== null && $changed['changed']) {
+        try { bringSyncProductFromCache($db, $changed['product_id']); } catch (Throwable $e) {}
+        $nameStmt = $db->prepare('SELECT name FROM products WHERE id=?');
+        $nameStmt->execute([$changed['product_id']]);
+        _fireHaWebhook('stock_update', [
+            'item' => (string)$nameStmt->fetchColumn(),
+            'quantity' => $changed['quantity'],
+            'location' => $changed['location'],
+        ]);
+    }
+    echo json_encode($receipt, JSON_UNESCAPED_UNICODE);
+}
+
 function updateInventory(PDO $db): void {
     EverLog::info('updateInventory');
     $input = json_decode(file_get_contents('php://input'), true);
@@ -6180,6 +6669,51 @@ function updateInventory(PDO $db): void {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Inventory ID required']);
         return;
+    }
+
+    // Optional editor-open snapshot for conflict-safe manual inventory updates.
+    // Legacy and automated clients may omit it. Only these persisted fields
+    // participate in this row's compare, not timestamps or unrelated products.
+    $expected = $input['expected_inventory'] ?? null;
+    if (array_key_exists('expected_inventory', $input)) {
+        $allowed = ['quantity', 'location', 'expiry_date', 'vacuum_sealed', 'expiry_user_set'];
+        if (!is_array($expected) || array_is_list($expected) || !$expected) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_expected_inventory']);
+            return;
+        }
+        foreach ($expected as $field => $value) {
+            if (!in_array($field, $allowed, true)
+                || (!is_scalar($value) && $value !== null)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'invalid_expected_inventory']);
+                return;
+            }
+        }
+    }
+
+    // The editor sends product + inventory edits as ONE optional operation.
+    // Validate before locking or writing. API/scan clients without this field
+    // continue using the original inventory_update behavior.
+    $productEdit = $input['product_edit'] ?? null;
+    if (array_key_exists('product_edit', $input)) {
+        $valid = is_array($productEdit)
+            && !empty($productEdit['name']) && is_string($productEdit['name'])
+            && !empty($productEdit['expected_name'])
+            && is_string($productEdit['expected_name'])
+            // A combined edit MUST guard both records. Legacy unguarded stock
+            // updates (without product_edit) remain allowed as before.
+            && $expected !== null;
+        if ($valid && array_key_exists('expected_fields', $productEdit)) {
+            $parsed = productExpectedFields($productEdit['expected_fields']);
+            $valid = $parsed !== null;
+            if ($valid) $productEdit['expected_fields'] = $parsed;
+        }
+        if (!$valid) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_product_edit']);
+            return;
+        }
     }
 
     // Read current state before update (needed for transaction reconciliation + shelf learning)
@@ -6205,9 +6739,38 @@ function updateInventory(PDO $db): void {
 
     // Wrap all writes in a single IMMEDIATE transaction; retry on SQLITE_BUSY.
     try {
-        dbWithRetry(function () use ($db, $fields, $params, $input, $prevRow, $id): void {
+        $renamedProduct = null;
+        dbWithRetry(function () use ($db, $fields, $params, $input, &$prevRow, $id, $expected, $productEdit, &$renamedProduct): void {
             dbBeginImmediate($db);
             try {
+                // The original read occurred before this write lock. Refresh
+                // it while holding BEGIN IMMEDIATE to avoid stale ledger deltas
+                // and reject explicitly guarded multi-device edits.
+                $locked = $db->prepare("SELECT quantity, location, product_id, added_at, expiry_date, expiry_user_set, vacuum_sealed FROM inventory WHERE id=?");
+                $locked->execute([$id]);
+                $current = $locked->fetch(PDO::FETCH_ASSOC);
+                if (!$current) throw new DomainException('inventory_not_found');
+                if ($expected !== null) {
+                    foreach ($expected as $field => $value) {
+                        $actual = $current[$field] ?? null;
+                        $equal = in_array($field, ['quantity', 'vacuum_sealed', 'expiry_user_set'], true)
+                            ? ($actual !== null && $value !== null && (float)$actual == (float)$value)
+                            : ($field === 'expiry_date'
+                                ? (($actual ?: null) === ($value ?: null))
+                                : ($actual === $value));
+                        if (!$equal) throw new DomainException('inventory_conflict');
+                    }
+                }
+                $prevRow = $current;
+                if ($productEdit !== null) {
+                    if (isset($input['product_id'])
+                        && (int)$input['product_id'] !== (int)$current['product_id']) {
+                        throw new DomainException('inventory_conflict');
+                    }
+                    $renamedProduct = inventoryApplyManualProductRename(
+                        $db, (int)$current['product_id'], $productEdit
+                    );
+                }
                 $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
                 $stmt->execute($params);
 
@@ -6269,6 +6832,14 @@ function updateInventory(PDO $db): void {
                 throw $e;
             }
         });
+    } catch (DomainException $e) {
+        $reason = $e->getMessage();
+        $missing = in_array($reason, ['inventory_not_found', 'product_not_found'], true);
+        http_response_code($missing ? 404 : 409);
+        echo json_encode(['success' => false, 'error' =>
+            in_array($reason, ['product_conflict', 'product_not_found'], true)
+                ? $reason : ($missing ? 'inventory_not_found' : 'inventory_conflict')]);
+        return;
     } catch (PDOException $e) {
         if (str_contains($e->getMessage(), 'database is locked')) {
             http_response_code(503);
@@ -6326,6 +6897,7 @@ function updateInventory(PDO $db): void {
         'expiry_date'    => $row['expiry_date'],
         'vacuum_sealed'  => (int)$row['vacuum_sealed'],
         'product_id'     => (int)$row['product_id'],
+        'product_name'   => $renamedProduct,
     ], JSON_UNESCAPED_UNICODE);
 }
 
@@ -6679,11 +7251,13 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         $nameUserSet = $forceName ? 1 : 0;
     }
 
-    // Every article title opens with a capital letter, whichever pass wrote the name
-    // (scan, import, catalog, AI, hand-typed rename): "latte fresco" → "Latte fresco".
-    // Deliberately OUTSIDE the genre guard below — the genre prefix can be switched
-    // off with PRODUCT_KIND_PREFIX=false, the spelling rule cannot.
-    $name = productTitleCapitalize($name);
+    // Automatically sourced names use the canonical title spelling. A name
+    // explicitly locked by the user must preserve internal capitalization
+    // ("Passierte Tomaten" must not become "Passierte tomaten" on every save).
+    // Both branches capitalize the first letter; neither depends on genre rules.
+    $name = !empty($nameUserSet)
+        ? productTitleCapitalizeUserName($name)
+        : productTitleCapitalize($name);
 
     // Genre (genere) as an integral part of the article title: "Fiori di latte" →
     // "Yogurt Fiori di latte". Cheap paths first — curated dictionary, then the
@@ -6777,14 +7351,29 @@ function productSaveParams(array $fields): array {
     ];
 }
 
-function executeProductUpdate(PDO $db, array $fields, int $id): void {
-    $stmt = $db->prepare('
+function executeProductUpdate(PDO $db, array $fields, int $id, ?string $expectedName = null, ?array $expectedFields = null): bool {
+    $sql = '
         UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
         nutriments_json=?, kind=?, name_user_set=?,
-        updated_at=CURRENT_TIMESTAMP WHERE id=?
-    ');
-    $stmt->execute([...productSaveParams($fields), $id]);
+        updated_at=CURRENT_TIMESTAMP WHERE id=?';
+    $params = [...productSaveParams($fields), $id];
+    if ($expectedName !== null) {
+        $sql .= ' AND name=?';
+        $params[] = $expectedName;
+    }
+    if ($expectedFields !== null) {
+        foreach ($expectedFields as $field => $value) {
+            // Whitelisted above. SQLite IS is NULL-safe and performs numeric
+            // equality for REAL default_quantity. Guard is part of UPDATE,
+            // so another writer cannot slip in between read and write.
+            $sql .= ' AND ' . $field . ' IS ?';
+            $params[] = $value;
+        }
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->rowCount() > 0;
 }
 
 function normalizeProductName(string $name): string {
@@ -8012,18 +8601,49 @@ function dismissInventoryAnomaly(): void {
     echo json_encode(['success' => true]);
 }
 
+/**
+ * Genuine household consumption for user-facing usage statistics.
+ * Ledger housekeeping can have type='out' for arithmetic reasons; it is
+ * not the same as the user explicitly consuming a food product.
+ */
+function statsGenuineConsumptionSql(string $alias = 't'): string {
+    return "({$alias}.type = 'out' AND COALESCE({$alias}.undone, 0) = 0
+        AND ({$alias}.notes IS NULL OR (
+            {$alias}.notes NOT LIKE '[Manual correction]%'
+            AND {$alias}.notes NOT LIKE '[Spostamento]%'
+            AND {$alias}.notes NOT LIKE '[Eliminazione inventario]%'
+            AND {$alias}.notes NOT LIKE '[Reconciliation]%'
+            AND {$alias}.notes NOT LIKE '[Finished]%'
+            AND {$alias}.notes NOT LIKE '[Undone]%'
+            AND {$alias}.notes NOT LIKE '[Annullato]%'
+        )))";
+}
+
+/** Actual restocking, not a manual stock correction or location transfer. */
+function statsGenuineRestockSql(string $alias = 't'): string {
+    return "({$alias}.type = 'in' AND COALESCE({$alias}.undone, 0) = 0
+        AND ({$alias}.notes IS NULL OR (
+            {$alias}.notes NOT LIKE '[Manual correction]%'
+            AND {$alias}.notes NOT LIKE '[Spostamento]%'
+            AND {$alias}.notes NOT LIKE '[Undone]%'
+            AND {$alias}.notes NOT LIKE '[Annullato]%'
+        )))";
+}
+
 function getStats(PDO $db): void {
     EverLog::info('getStats');
-    // Consolidated summary query: totals + 7-day activity in a single round-trip
+    // Consolidated summary query: exclude corrections/undone entries from use.
+    $realUse = statsGenuineConsumptionSql('t');
+    $realAdd = statsGenuineRestockSql('t');
     $summary = $db->query("
         SELECT
             (SELECT COUNT(*) FROM products)                              AS total_products,
             (SELECT COALESCE(SUM(quantity),0) FROM inventory)           AS total_items,
             (SELECT COUNT(DISTINCT location) FROM inventory)            AS total_locations,
-            (SELECT COUNT(*) FROM transactions
-             WHERE type='in'  AND created_at >= datetime('now','-7 days')) AS recent_in,
-            (SELECT COUNT(*) FROM transactions
-             WHERE type='out' AND created_at >= datetime('now','-7 days')) AS recent_out
+            (SELECT COUNT(*) FROM transactions t
+             WHERE {$realAdd} AND t.created_at >= datetime('now','-7 days')) AS recent_in,
+            (SELECT COUNT(*) FROM transactions t
+             WHERE {$realUse} AND t.created_at >= datetime('now','-7 days')) AS recent_out
     ")->fetch(PDO::FETCH_ASSOC);
     $totalProducts = (int)$summary['total_products'];
     $totalItems    = (float)$summary['total_items'];
@@ -8186,14 +8806,15 @@ function getStats(PDO $db): void {
         return $da <=> $db2;
     });
 
-    // Waste vs consumption trend (3 × 30-day buckets)
+    // Waste and actual consumption are separate (never count stock corrections).
     $wasteStats3m = $db->query("
         SELECT type,
             SUM(CASE WHEN created_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS m0,
             SUM(CASE WHEN created_at >= datetime('now', '-60 days') AND created_at < datetime('now', '-30 days') THEN 1 ELSE 0 END) AS m1,
             SUM(CASE WHEN created_at >= datetime('now', '-90 days') AND created_at < datetime('now', '-60 days') THEN 1 ELSE 0 END) AS m2
-        FROM transactions
-        WHERE type IN ('out', 'waste') AND created_at >= datetime('now', '-90 days')
+        FROM transactions t
+        WHERE (({$realUse}) OR (t.type = 'waste' AND COALESCE(t.undone,0) = 0))
+          AND t.created_at >= datetime('now', '-90 days')
         GROUP BY type
     ")->fetchAll();
     $used30 = 0; $wasted30 = 0;
@@ -8304,19 +8925,21 @@ function getMonthlyStats(PDO $db): void {
     $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
     $lastMonthEnd   = date('Y-m-01'); // exclusive upper bound for prev month
 
-    // Totals: consumed + added + wasted this month vs previous calendar month
+    // Distinguish real use, waste, and stock correction/ledger maintenance.
+    $realUse = statsGenuineConsumptionSql('t');
+    $realAdd = statsGenuineRestockSql('t');
     $totals = $db->query("
         SELECT
             SUM(CASE WHEN created_at >= '{$thisMonthStart}'
-                      AND type IN ('out','waste') AND undone=0 THEN 1 ELSE 0 END) AS this_out,
+                      AND {$realUse} THEN 1 ELSE 0 END) AS this_out,
             SUM(CASE WHEN created_at >= '{$lastMonthStart}' AND created_at < '{$lastMonthEnd}'
-                      AND type IN ('out','waste') AND undone=0 THEN 1 ELSE 0 END) AS prev_out,
+                      AND {$realUse} THEN 1 ELSE 0 END) AS prev_out,
             SUM(CASE WHEN created_at >= '{$thisMonthStart}'
-                      AND type = 'in' AND undone=0 THEN 1 ELSE 0 END) AS this_in,
+                      AND {$realAdd} THEN 1 ELSE 0 END) AS this_in,
             SUM(CASE WHEN created_at >= '{$thisMonthStart}'
                       AND type = 'waste' AND undone=0 THEN 1 ELSE 0 END) AS this_wasted
-        FROM transactions
-        WHERE created_at >= '{$lastMonthStart}'
+        FROM transactions t
+        WHERE t.created_at >= '{$lastMonthStart}'
     ")->fetch(PDO::FETCH_ASSOC);
 
     $thisOut   = (int)($totals['this_out']    ?? 0);
@@ -8329,7 +8952,7 @@ function getMonthlyStats(PDO $db): void {
         SELECT COALESCE(NULLIF(TRIM(p.category), ''), 'altro') AS cat, COUNT(*) AS cnt
         FROM transactions t
         JOIN products p ON t.product_id = p.id
-        WHERE t.type IN ('out','waste') AND t.undone = 0
+        WHERE {$realUse}
           AND t.created_at >= '{$thisMonthStart}'
         GROUP BY cat
         ORDER BY cnt DESC
@@ -8358,7 +8981,7 @@ function getMonthlyStats(PDO $db): void {
         SELECT p.name, COUNT(*) AS cnt
         FROM transactions t
         JOIN products p ON t.product_id = p.id
-        WHERE t.type IN ('out','waste') AND t.undone = 0
+        WHERE {$realUse}
           AND t.created_at >= '{$thisMonthStart}'
         GROUP BY t.product_id
         ORDER BY cnt DESC
@@ -8648,7 +9271,15 @@ function getMacroStats(PDO $db): void {
 // ===== RECENT & POPULAR PRODUCTS =====
 function recentPopularProducts(PDO $db): void {
     EverLog::debug('recentPopularProducts');
-    // Last 4 distinct products used (type='out'), most recent first
+    // Stock adjustments, transfers, inventory deletion and ledger repair all
+    // write type='out', but are NOT product consumption. In particular an
+    // explicit offline conflict decision (e.g. 16 -> 14) writes the durable
+    // '[Manual correction]' ledger entry and must never make the product
+    // appear under "Recently used" or inflate "Most used".
+    // Keep real inventory_use (empty notes or recipe/use notes), excluding
+    // undone actions and system-generated ledger maintenance entries.
+    $realUse = statsGenuineConsumptionSql('t');
+    // Last 4 distinct products actually consumed (type='out'), newest first
     $recentStmt = $db->query("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
                MAX(t.created_at) as last_used,
@@ -8656,7 +9287,7 @@ function recentPopularProducts(PDO $db): void {
                          WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
-        WHERE t.type = 'out'
+        WHERE {$realUse}
         GROUP BY t.product_id
         ORDER BY last_used DESC
         LIMIT 4
@@ -8672,7 +9303,7 @@ function recentPopularProducts(PDO $db): void {
                          WHERE i.product_id = p.id AND i.quantity > 0), 0) AS stock_qty
         FROM transactions t
         JOIN products p ON p.id = t.product_id
-        WHERE t.type = 'out'
+        WHERE {$realUse}
           AND t.created_at >= datetime('now', '-90 days')
         GROUP BY t.product_id
         ORDER BY usage_count DESC
@@ -13874,6 +14505,14 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
                ->execute([$genericName, $prod['name'], $spec]);
             EverLog::info('shoppingQuickSync: added to internal list', ['product_id' => $productId, 'name' => $genericName]);
         } elseif ($totalQty > $threshold && $onList) {
+            // A cacheless real-time stock event must not erase a persisted
+            // plan-mode remaining need. The explicit restock counter is only
+            // advanced by actual inventory_add, not by a status refresh.
+            $pending = $db->prepare('SELECT need_qty, need_unit, specification FROM shopping_list WHERE lower(name)=lower(?)');
+            $pending->execute([$genericName]);
+            if (shoppingHasTrackedRemainingNeed($pending->fetch(PDO::FETCH_ASSOC) ?: [])) {
+                return;
+            }
             // Only remove when remaining family need is covered (partial restock keeps the row)
             $eval = shoppingEvaluateFamilyRestock($db, $productId);
             if (!empty($eval['covered'])) {
@@ -13935,9 +14574,24 @@ function createLocalBackup(?PDO $db = null): array {
         @unlink($tmpPath);
         $made = @copy($dbFile, $tmpPath);
     }
-    if (!$made || !@rename($tmpPath, $destPath)) {
+    if (!$made) {
         @unlink($tmpPath);
         return ['success' => false, 'error' => 'Failed to copy database file', 'error_key' => 'error.backup_copy_failed'];
+    }
+
+    // A written file is not automatically a usable backup. Verify the
+    // temporary SQLite snapshot before publishing it (both VACUUM and fallback).
+    // An invalid candidate must not replace an older good backup or advance
+    // the last-backup timestamp / retention purge.
+    $publishStatus = evershelfValidateAndPublishLocalBackup($tmpPath, $destPath);
+    if ($publishStatus === 'integrity_failed') {
+        EverLog::error('Backup snapshot failed SQLite integrity check', [
+            'event' => 'backup_integrity_failed',
+        ]);
+        return ['success' => false, 'error' => 'Backup failed the integrity check', 'error_key' => 'error.backup_integrity'];
+    }
+    if ($publishStatus !== 'ok') {
+        return ['success' => false, 'error' => 'Failed to publish database backup', 'error_key' => 'error.backup_copy_failed'];
     }
 
     // Purge local backups older than retention
@@ -14013,8 +14667,8 @@ function deleteLocalBackup(string $filename): array {
 }
 
 /**
- * Restore a local backup: replaces the current evershelf.db.
- * Clears WAL/SHM files and invalidates smart shopping cache.
+ * Restore a vetted SQLite backup through the online backup API. The existing
+ * PDO stays open; no direct file overwrites or WAL/SHM unlinking are allowed.
  */
 function restoreLocalBackup(string $filename, PDO $db): array {
     if (!preg_match('/^evershelf_\d{4}-\d{2}-\d{2}_\d{4}\.db$/', $filename)) {
@@ -14024,24 +14678,26 @@ function restoreLocalBackup(string $filename, PDO $db): array {
     if (!file_exists($backupPath)) {
         return ['success' => false, 'error' => 'Backup file not found', 'error_key' => 'error.backup_not_found'];
     }
-    $dbPath = __DIR__ . '/../data/evershelf.db';
 
-    // Flush WAL before replacing DB
-    try { $db->exec('PRAGMA wal_checkpoint(FULL)'); } catch (Throwable $e) {}
-
-    if (!copy($backupPath, $dbPath)) {
-        return ['success' => false, 'error' => 'Failed to restore backup', 'error_key' => 'error.backup_restore_failed'];
+    $result = evershelfRestoreSqliteBackupSafely($backupPath, DB_PATH);
+    if ($result !== 'ok') {
+        $errorKeys = [
+            'invalid_backup' => 'error.backup_restore_invalid',
+            'busy' => 'error.backup_restore_busy',
+            'failed' => 'error.backup_restore_failed',
+            'rollback_failed' => 'error.backup_restore_recovery',
+        ];
+        $errorKey = $errorKeys[$result] ?? 'error.backup_restore_failed';
+        EverLog::error('Restore refused or failed', [
+            'event' => 'backup_restore_refused',
+            'reason' => $result,
+        ]);
+        return ['success' => false, 'error' => 'Backup restore could not complete safely', 'error_key' => $errorKey];
     }
-    // Remove stale WAL/SHM so next connection starts clean
-    @unlink($dbPath . '-wal');
-    @unlink($dbPath . '-shm');
-    // Invalidate dependent caches
-    @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
 
+    // Invalidate dependent caches ONLY after a fully verified restore.
+    @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
     EverLog::info('restoreLocalBackup', ['filename' => $filename]);
-    // The key is what the client shows; `message` stays for non-browser callers
-    // that have no translations (the UI never prints it — issue: it was English
-    // prose inside an Italian UI).
     return [
         'success'     => true,
         'message'     => 'Restore complete — reload the page to see the restored data.',
@@ -15266,7 +15922,7 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
     }
 
     $rows = $db->query(
-        "SELECT id, name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
+        "SELECT id, name, raw_name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
     )->fetchAll(PDO::FETCH_ASSOC);
     $bringKey = italianToBring($generic);
     foreach ($rows as $row) {
@@ -15296,6 +15952,67 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
 }
 
 /**
+ * A plan-mode row with a persisted positive need is not covered just because
+ * the forecast cache was invalidated after a stock write. Manual list rows
+ * (need_qty NULL) and the deliberately different trip mode are unaffected.
+ */
+function shoppingHasTrackedRemainingNeed(array $row): bool {
+    return shoppingRemoveOnBuyMode() === 'plan'
+        && !isShoppingBringMode()
+        && (float)($row['need_qty'] ?? 0) > 0.001
+        && trim((string)($row['need_unit'] ?? '')) !== ''
+        // A user can manually replace the suggestion with a personal note;
+        // do not let stale need_qty override that explicit decision.
+        && preg_match('/🛒\s*(?:Compra|Almeno):/u', (string)($row['specification'] ?? '')) === 1;
+}
+
+/**
+ * Decrement only an explicitly tracked outstanding shopping quantity.
+ * Conversion uses the app's mass/volume/piece families, never raw number math.
+ * Null means no eligible tracking row or incompatible units.
+ * @return array{remaining:float,unit:string}|null
+ */
+function shoppingAdvanceTrackedNeed(PDO $db, int $productId, float $addedQty, string $addedUnit): ?array {
+    if (shoppingRemoveOnBuyMode() !== 'plan' || isShoppingBringMode() || $addedQty <= 0) {
+        return null;
+    }
+    $stmt = $db->prepare('SELECT name, shopping_name, default_quantity, package_unit FROM products WHERE id=?');
+    $stmt->execute([$productId]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) return null;
+
+    $rows = $db->query('SELECT id, name, raw_name, specification, need_qty, need_unit FROM shopping_list')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $row) {
+        if (!shoppingHasTrackedRemainingNeed($row)
+            || !shoppingListRowMatchesProduct($db, (string)$row['name'], (string)$row['raw_name'],
+                (string)$product['name'], (string)$product['shopping_name'])) continue;
+        $unit = trim((string)$row['need_unit']);
+        $size = (float)$product['default_quantity'];
+        $pkgUnit = (string)$product['package_unit'];
+        $added = evershelfBaseQty($addedQty, $addedUnit, $size, $pkgUnit);
+        $target = evershelfBaseQty(1.0, $unit, $size, $pkgUnit);
+        if ($added['family'] !== $target['family'] || $target['qty'] <= 0) {
+            return null; // Never subtract grams from unconvertible pieces or vice versa.
+        }
+        $remaining = max(0.0, (float)$row['need_qty'] - $added['qty'] / $target['qty']);
+        if ($remaining > 0.001) {
+            $shown = in_array($unit, ['conf', 'pz'], true) ? ceil($remaining) : $remaining;
+            $label = formatSmartSuggestQty([
+                'suggested_qty' => $shown, 'suggested_unit' => $unit, 'suggested_approx' => true,
+            ]);
+            $spec = preg_replace('/(?:^|\s·\s)?🛒\s*(?:Compra|Almeno):\s*[^·]*/u', '', (string)$row['specification'])
+                ?? (string)$row['specification'];
+            $spec = trim($spec, " ·");
+            if ($label !== null) $spec = ($spec !== '' ? $spec . ' · ' : '') . '🛒 ' . $label;
+            $db->prepare('UPDATE shopping_list SET specification=?, need_qty=? WHERE id=?')
+                ->execute([dedupeBringSpec($spec), $remaining, (int)$row['id']]);
+        }
+        return ['remaining' => $remaining, 'unit' => $unit];
+    }
+    return null;
+}
+
+/**
  * After inventory_add: remove from shopping list only when the family need is covered;
  * otherwise keep the row and refresh remaining qty.
  *
@@ -15317,7 +16034,7 @@ function shoppingRemoveOnBuyDecided(): bool {
     return trim((string)env('SHOPPING_REMOVE_ON_BUY', '')) !== '';
 }
 
-function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {
+function shoppingHandleRestockAfterAdd(PDO $db, int $productId, float $addedQty = 0, string $addedUnit = ''): array {
     $eval = shoppingEvaluateFamilyRestock($db, $productId);
     if (shoppingRemoveOnBuyMode() === 'trip') {
         $removal = shoppingRemoveProductFromList($db, $productId);
@@ -15328,6 +16045,25 @@ function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {
                 'shopping_kept' => false,
                 'remaining' => $eval,
             ];
+        }
+    }
+    // A just-purchased product may have no active forecast after cache reset.
+    // Consume its previously recorded outstanding deficit one purchase at a
+    // time; a fresh forecast still takes precedence when available.
+    if ($addedQty > 0 && $addedUnit !== '' && !isShoppingBringMode()
+        && findSmartItemForProduct(loadSmartShoppingCacheItems(), $productId) === null) {
+        $tracked = shoppingAdvanceTrackedNeed($db, $productId, $addedQty, $addedUnit);
+        if ($tracked !== null) {
+            $stillDue = $tracked['remaining'];
+            $eval['need_base'] = $stillDue;
+            $eval['suggested_qty'] = $stillDue > 0.001
+                ? (in_array($tracked['unit'], ['conf', 'pz'], true) ? ceil($stillDue) : $stillDue)
+                : null;
+            $eval['suggested_unit'] = $tracked['unit'];
+            $eval['covered'] = $stillDue <= 0.001;
+            if ($stillDue > 0.001) {
+                return ['removed' => false, 'removed_names' => [], 'shopping_kept' => true, 'remaining' => $eval];
+            }
         }
     }
     if (!empty($eval['covered'])) {
@@ -15972,7 +16708,7 @@ function shoppingSyncProductFromCache(PDO $db, int $productId): void {
     if (shoppingIsDismissed($db, (string)$genericName, (string)($si['name'] ?? ''))) {
         return;
     }
-    $spec = evershelfBuildShoppingSpec($si);
+    $spec = evershelfBuildShoppingSpec($si, $db);
 
     $existing = internalFindShoppingListRowByGeneric($db, $genericName, $si['name'] ?? $genericName);
     if ($existing) {
@@ -16455,7 +17191,7 @@ function internalShoppingAutoAddCritical(PDO $db): array {
         // the planning window is not covered — do not skip on family_qty > 0.
         $rawName = trim((string)($si['name'] ?? '')) ?: $name;
         $genKey = internalShoppingListGenericKey($db, $name, $rawName);
-        $spec = evershelfBuildShoppingSpec($si);
+        $spec = evershelfBuildShoppingSpec($si, $db);
         if (isset($onListKeys[$genKey])) {
             // Refresh qty/urgency on existing rows so anti-waste caps stay accurate
             $upd = $db->prepare("UPDATE shopping_list SET specification = ? WHERE lower(name) = lower(?)");
@@ -16500,13 +17236,14 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         => evershelfFamilyUsableStockQtyMemo($db, $generic, $unit, $pkgSize, $pkgUnit);
     $removed     = 0;
     $candidates  = 0;
-    $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query("SELECT id, name, raw_name, specification, need_qty, need_unit FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
     $del  = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
 
     foreach ($rows as $row) {
         $spec = (string)($row['specification'] ?? '');
         // Only EverShelf-owned rows; never a row the user marked as finished.
-        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)) {
+        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)
+            || shoppingHasTrackedRemainingNeed($row)) {
             continue;
         }
         $name = trim((string)($row['name'] ?? ''));
@@ -18936,7 +19673,7 @@ function internalShoppingPruneCovered(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query('SELECT id, name, raw_name, specification, need_qty, need_unit FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
     $prods = $db->query('SELECT id, name, shopping_name FROM products')->fetchAll(PDO::FETCH_ASSOC);
     $index = evershelfSmartItemsIndex(evershelfLoadSmartItemsForSync($db));
     $removed = 0;
@@ -18956,6 +19693,10 @@ function internalShoppingPruneCovered(PDO $db): array {
             || ($listRaw !== '' && seasonalShoppingItemOutOfSeason($listRaw))) {
             $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
             $removed++;
+            continue;
+        }
+        // Out-of-season cleanup must still win over a persisted purchase goal.
+        if (shoppingHasTrackedRemainingNeed($row)) {
             continue;
         }
         $bestPid  = null;
@@ -19569,28 +20310,17 @@ function familySiblingSuggest(PDO $db): void {
 // ===== SHARED APP DATA FUNCTIONS =====
 
 function appSettingsGet(PDO $db): void {
-    $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
-    $settings = [];
-    foreach ($rows as $row) {
-        EverLog::debug('appSettingsGet');
-        $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
-    }
-    echo json_encode(['success' => true, 'settings' => $settings]);
+    echo json_encode(appSettingsReadClientData($db));
 }
 
 function appSettingsSave(PDO $db): void {
-    $input = json_decode(file_get_contents('php://input'), true);
-    if (!$input || !is_array($input['settings'] ?? null)) {
-        EverLog::debug('appSettingsSave');
-        echo json_encode(['error' => 'Missing settings object']);
-        return;
+    // Read at most one byte above the limit: large bodies must not exhaust memory.
+    $raw = file_get_contents('php://input', false, null, 0, 1048577);
+    $result = appSettingsWriteClientData($db, $raw === false ? '' : $raw);
+    if (!$result['success']) {
+        http_response_code($result['error'] === 'settings_too_large' ? 413 : 400);
     }
-    $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
-                          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
-    foreach ($input['settings'] as $key => $value) {
-        $stmt->execute([$key, json_encode($value)]);
-    }
-    echo json_encode(['success' => true]);
+    echo json_encode($result);
 }
 
 function recipesList(PDO $db): void {

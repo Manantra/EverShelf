@@ -2,6 +2,11 @@
 /**
  * EverShelf API bootstrap — shared by HTTP router and cron.
  */
+// Capture before any early config read can initialize an empty SQLite database.
+// This distinguishes a fresh install from an upgrade already using the LAN.
+if (!defined('EVERSHELF_DB_PREEXISTING_AT_BOOT')) {
+    define('EVERSHELF_DB_PREEXISTING_AT_BOOT', is_file(dirname(__DIR__) . '/data/evershelf.db'));
+}
 require_once __DIR__ . '/lib/env.php';
 loadEnv(); // read .env first: bridges it into getenv()/$_ENV before anything reads config
 
@@ -28,6 +33,7 @@ require_once __DIR__ . '/lib/product_kind.php';
 require_once __DIR__ . '/lib/auto_favorite.php';
 require_once __DIR__ . '/lib/shopping_sync.php';
 require_once __DIR__ . '/lib/pairing.php';
+require_once __DIR__ . '/lib/token_init.php';
 require_once __DIR__ . '/lib/health.php';
 require_once __DIR__ . '/lib/weather.php';
 require_once __DIR__ . '/lib/ai_provider.php';
@@ -43,3 +49,7 @@ require_once __DIR__ . '/lib/open_prices.php';
 require_once __DIR__ . '/lib/webpush.php';
 // Support layer: the optional donation/banner question (see api/lib/support.php).
 require_once __DIR__ . '/lib/support.php';
+
+// HTTP requests are protected from their very first API dispatch.
+// Existing (already-initialized) open-LAN installs are never silently locked out.
+evershelfEnsureFirstRunApiToken();

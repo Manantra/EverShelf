@@ -41,9 +41,29 @@ Out-of-scope issues:
 
 - API keys stored server-side in `.env`, never sent to the browser
 - `get_settings` returns only boolean flags (`gemini_key_set`), never raw key values
-- Optional `API_TOKEN` (legacy alias `SETTINGS_TOKEN`) protects every data read and
+- An `API_TOKEN` (legacy alias `SETTINGS_TOKEN`) protects every data read and
   write (`hash_equals` to prevent timing attacks). `DEMO_MODE=true` blocks all write
   operations at the router level
+- **New installations are protected automatically (v1.16.24).** The first HTTP
+  request to a fresh installation without `API_TOKEN`/`SETTINGS_TOKEN` generates
+  a random 256-bit token and enforces it in that same request. The one-time pairing
+  code is printed in the server log and retrievable only from a paired device.
+  It is never returned to anonymous clients. Tokens are stored in `.env`, or
+  in `app_settings.env_overrides` when the configured environment file is
+  read-only (including an external `EVERSHELF_ENV_FILE`).
+  An existing installation that already has `data/evershelf.db` and no token
+  stays as it was to avoid an unexpected iPhone/kiosk/Home Assistant lockout;
+  this is **still unprotected**. To secure it, arrange pairing access and set
+  `API_TOKEN_AUTOGENERATE=true` (or add `API_TOKEN` manually) before restarting
+  clients. The migration logs a one-time `api_token_legacy_open` warning.
+  `ALLOW_OPEN_LAN=true` is an explicit opt-out **only on a trusted LAN**;
+  it must not be used on an Internet-exposed installation. Changing an existing
+  configured token is never automatic. Back up `data/api_token_autogen.json`
+  alongside credentials; if the token is removed, the API fails closed with
+  HTTP 503 until it is restored or the operator explicitly chooses an open LAN.
+  Two concurrent first requests are serialized through a filesystem lock;
+  if initial storage is unavailable, requests fail closed rather than silently
+  answering without authentication. `DEMO_MODE=true` and CLI/cron are exempt.
 - **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to
   an anonymous request: the UI shows a dialog and the user types the one-time code.
   The code is shown on an already-paired device under **Settings → System → Security**
@@ -117,6 +137,24 @@ Out-of-scope issues:
   comments/order.
 - Cache files are written with `LOCK_EX` so a web request and the cron cannot
   interleave and leave truncated JSON behind.
+
+## Database restoration safety (v1.16.27)
+
+Restore is allowed only for a recognized EverShelf SQLite backup whose
+`PRAGMA quick_check` and essential table/column structure pass validation.
+The API uses PHP's **SQLite3 extension** and its atomic online backup method
+(`SQLite3::backup`), not `copy()` on an open database. The official PHP
+Docker base includes SQLite3; our Docker build and CI explicitly verify the
+API is available. Manual installations must enable `php-sqlite3`.
+
+The restore creates a **private pre-restore safety snapshot** and validates the
+result before responding success. On a post-restore failure it attempts
+rollback; if other writers prevent recovery, the safety snapshot is preserved
+as `data/restore-safety-*` for administrator-led recovery. Stop writes and
+investigate before retrying after a `backup_restore_recovery` error. Restoring
+a previous database also restores its previous shared settings and may change
+integration/token settings; review device access afterward. Never attempt
+an untested restore directly against a production database.
 
 ## Repository & release secrets
 

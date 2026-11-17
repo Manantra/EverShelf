@@ -37,6 +37,7 @@ $dockerfile = (string)file_get_contents($root . '/Dockerfile');
 $cronFile   = $root . '/docker/evershelf-cron';
 $cron       = is_file($cronFile) ? (string)file_get_contents($cronFile) : '';
 $api        = (string)file_get_contents($root . '/api/index.php');
+$backupModule = (string)file_get_contents($root . '/api/lib/local_backup_integrity.php');
 $cronScript = (string)file_get_contents($root . '/api/cron_smart_shopping.php');
 $appJs      = (string)file_get_contents($root . '/assets/js/app.js');
 $html       = (string)file_get_contents($root . '/index.html');
@@ -92,33 +93,48 @@ assert_true(
     'the backup is rate-limited to once every 23 hours (not once per 5-minute run)'
 );
 
-// ── Publishing the image follows the release, automatically ────────────────
-// A workflow push cannot trigger another workflow, so the tag alone never built
-// the image; v1.16.1/v1.16.2 needed a manual dispatch. The release job now calls
-// publish-docker as a reusable workflow (no PAT, no dispatch).
+// ── Publishing must NOT happen merely because CI or main ran ───────────────
+// The old invariant (automatic develop->main->release->Docker) was unsafe.
+// Keep its *opposite* under regression alongside the standalone release-gate test.
 $ci = (string)file_get_contents($root . '/.github/workflows/ci.yml');
 $publisher = (string)file_get_contents($root . '/.github/workflows/publish-docker.yml');
 assert_true(
-    str_contains($ci, 'uses: ./.github/workflows/publish-docker.yml'),
-    'the release job calls publish-docker as a reusable workflow'
+    !preg_match('/^  (auto-merge-to-main|create-release|publish-container):/m', $ci),
+    'CI cannot auto-merge develop, create a release or publish an image'
 );
 assert_true(
-    str_contains($ci, 'version: ${{ needs.create-release.outputs.version }}')
-    && str_contains($ci, 'latest: true'),
-    'the call passes the version and the latest tag'
+    str_contains($ci, 'python3 scripts/test-release-workflow-gate.py'),
+    'CI runs the fail-closed manual release-gate test'
 );
-assert_true(str_contains($ci, 'created: ${{ steps.tag_check.outputs.exists') ,'create-release reports whether it created a release');
-assert_true(str_contains($publisher, 'workflow_call:'), 'publish-docker can be called by another workflow');
-assert_true(str_contains($publisher, 'inputs.version'), 'the reusable workflow accepts the version to tag');
-assert_true(!str_contains($ci, 'gh workflow run publish-docker'), 'publishing no longer depends on a PAT-authenticated dispatch');
+assert_true(
+    !preg_match('/^  push:|^  workflow_call:/m', $publisher),
+    'Docker publishing is not triggered by main pushes, tags or reusable jobs'
+);
+assert_true(
+    str_contains($publisher, "inputs.confirm == 'PUBLISH-DOCKER'")
+    && str_contains($publisher, "github.ref == 'refs/heads/main'")
+    && str_contains($publisher, "github.event_name == 'workflow_dispatch'"),
+    'Docker publishing requires explicit manual confirmation on main'
+);
+assert_true(
+    str_contains($publisher, 'type=raw,value=latest,enable=${{ inputs.latest == true }}'),
+    'the latest image tag requires a separate explicit checkbox'
+);
+assert_true(
+    str_contains($publisher, 'inputs.version'),
+    'the manual release accepts the deliberately chosen version'
+);
 
 // ── The backup itself is a consistent snapshot, not a plain copy ────────────
 assert_true(str_contains($api, "'backup_last_ts' =>"), 'get_settings exposes backup_last_ts (the checklist/panel need it)');
 assert_true(str_contains($api, "env('BACKUP_ENABLED', 'true') === 'true'"), 'backup_enabled defaults to true in get_settings');
 assert_true(str_contains($api, 'VACUUM INTO'), 'the in-app backup uses VACUUM INTO (consistent while the app writes)');
 assert_true(
-    str_contains($api, "\$tmpPath  = \$destPath . '.part';") && str_contains($api, '@rename($tmpPath, $destPath)'),
-    'the snapshot is written to a .part file and renamed (no half backups)'
+    str_contains($api, "\$tmpPath  = \$destPath . '.part';")
+    && str_contains($api, 'evershelfValidateAndPublishLocalBackup($tmpPath, $destPath)')
+    && str_contains($backupModule, 'PRAGMA quick_check')
+    && str_contains($backupModule, '@rename($candidate, $destination)'),
+    'the .part snapshot is integrity-checked before atomic rename (no half backups)'
 );
 
 // ── The UI tells the truth and warns ────────────────────────────────────────
