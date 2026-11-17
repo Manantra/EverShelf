@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261116b'; // bump when translations change
+const _I18N_VERSION = '20261116c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -16287,107 +16287,24 @@ function _bindAddFormBeforeUnloadGuard() {
     });
 }
 
-let _useFormIdleTimer = null;
-let _useFormIdleRAF = null;
-let _useFormIdlePageEl = null;
-let _useFormIdleOnInteraction = null;
-const USE_FORM_IDLE_MS = 15000;
-
-function _useFormIdleEligible() {
-    if (_currentPageId !== 'use') return false;
-    const qtyInput = document.getElementById('use-quantity');
-    const qty = parseFloat(qtyInput?.value);
-    if (_useConfMode) {
-        if (_useConfMode._activeUnit === 'sub') return false;
-        if (_useConfMode._activeUnit === 'conf') return qty === 1 || isNaN(qty);
-    }
-    const u = _useNormalUnit || (_useCurrentItems?.[0]?.unit || 'pz');
-    if (u === 'g' || u === 'ml') return false;
-    if (u === 'pz' || u === 'conf') return qty === 1 || isNaN(qty);
-    return false;
-}
-
+/**
+ * Inventory must never change merely because the Use screen is left idle.
+ *
+ * The previous 15-second countdown submitted the form without a deliberate
+ * action; a right-swipe followed by waiting silently consumed one package.
+ * Preserve these functions as compatibility hooks for location/unit presets,
+ * but require a real submit click for all consumption.
+ */
 function clearUseFormIdleCountdown() {
-    if (_useFormIdleTimer) { clearTimeout(_useFormIdleTimer); _useFormIdleTimer = null; }
-    if (_useFormIdleRAF) { cancelAnimationFrame(_useFormIdleRAF); _useFormIdleRAF = null; }
     const btn = document.getElementById('btn-use-submit');
     if (btn) btn.style.background = '';
     const hint = document.getElementById('use-idle-hint');
     if (hint) hint.style.display = 'none';
-    if (_useFormIdlePageEl && _useFormIdleOnInteraction) {
-        _useFormIdlePageEl.removeEventListener('input', _useFormIdleOnInteraction);
-        _useFormIdlePageEl.removeEventListener('change', _useFormIdleOnInteraction);
-        _useFormIdlePageEl.removeEventListener('pointerdown', _useFormIdleOnInteraction);
-    }
-    _useFormIdlePageEl = null;
-    _useFormIdleOnInteraction = null;
 }
 
 function _maybeStartUseFormIdleCountdown() {
+    // Do not schedule a timer, do not auto-submit and do not show an idle hint.
     clearUseFormIdleCountdown();
-    if (!_useFormIdleEligible()) return;
-
-    const pageUse = document.getElementById('page-use');
-    const btn = document.getElementById('btn-use-submit');
-    if (!pageUse || !btn) return;
-
-    const qtyInput = document.getElementById('use-quantity');
-    if (qtyInput) {
-        if (_useConfMode && _useConfMode._activeUnit === 'conf') {
-            qtyInput.value = Math.min(1, _useConfMode.totalConf);
-        } else if (!_useConfMode) {
-            const u = _useNormalUnit || (_useCurrentItems?.[0]?.unit || 'pz');
-            if (u === 'pz' || u === 'conf') qtyInput.value = 1;
-        }
-    }
-
-    const hint = document.getElementById('use-idle-hint');
-    if (hint) {
-        hint.textContent = t('use.idle_auto_hint');
-        hint.style.display = 'block';
-    }
-
-    const baseBg = getComputedStyle(btn).backgroundColor;
-    const duration = USE_FORM_IDLE_MS;
-    let start = performance.now();
-
-    function tick() {
-        const elapsed = performance.now() - start;
-        const pct = Math.min(100, (elapsed / duration) * 100);
-        btn.style.background =
-            `linear-gradient(to left, rgba(255,255,255,0.35) ${100 - pct}%, rgba(255,255,255,0) ${100 - pct}%), ${baseBg}`;
-        if (elapsed < duration) {
-            _useFormIdleRAF = requestAnimationFrame(tick);
-        }
-    }
-
-    function onExpire() {
-        clearUseFormIdleCountdown();
-        if (_currentPageId !== 'use' || !_useFormIdleEligible()) return;
-        const form = pageUse.querySelector('form');
-        if (form) form.requestSubmit();
-    }
-
-    function scheduleExpire() {
-        if (_useFormIdleTimer) clearTimeout(_useFormIdleTimer);
-        _useFormIdleTimer = setTimeout(onExpire, duration);
-    }
-
-    function onInteraction() {
-        start = performance.now();
-        scheduleExpire();
-        if (_useFormIdleRAF) cancelAnimationFrame(_useFormIdleRAF);
-        _useFormIdleRAF = requestAnimationFrame(tick);
-    }
-
-    _useFormIdlePageEl = pageUse;
-    _useFormIdleOnInteraction = onInteraction;
-    pageUse.addEventListener('input', onInteraction);
-    pageUse.addEventListener('change', onInteraction);
-    pageUse.addEventListener('pointerdown', onInteraction);
-
-    _useFormIdleRAF = requestAnimationFrame(tick);
-    scheduleExpire();
 }
 
 function clearAddFormIdleCountdown() {
