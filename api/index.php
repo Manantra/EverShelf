@@ -2141,6 +2141,14 @@ function inventoryImportUpsertProduct(PDO $db, array $data): array {
     $fields = mergeIncomingProductFields($existing, $input, $barcode);
     $invConvert = $fields['_inventory_convert'] ?? null;
     $fields = _stripPieceProductInternalKeys($fields);
+    if ($existing) {
+        // A CSV stock row has no packaging metadata. Never interpret its
+        // Quantity as a replacement for the product's pack size, especially
+        // when converting 1 conf into the existing article's grams.
+        $fields['default_quantity'] = $existing['default_quantity'];
+        $fields['package_unit'] = $existing['package_unit'];
+        $invConvert = null; // Importing stock is not an article-unit migration.
+    }
 
     if ($id) {
         executeProductUpdate($db, $fields, $id);
@@ -2178,9 +2186,21 @@ function inventoryImportAddStock(PDO $db, int $productId, array $data): array {
     $consolidated = safeConsolidateDuplicateProducts($db, $productId);
     $productId = $consolidated['id'];
 
-    if ($unit) {
-        $stmt = $db->prepare('UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-        $stmt->execute([$unit, $productId]);
+    $prodStmt = $db->prepare('SELECT unit, default_quantity, package_unit FROM products WHERE id = ?');
+    $prodStmt->execute([$productId]);
+    $prod = $prodStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $productUnit = (string)($prod['unit'] ?? '') ?: 'pz';
+    if ($unit && mb_strtolower(trim((string)$unit)) !== mb_strtolower(trim($productUnit))) {
+        $factor = inventoryUnitConversionFactor((string)$unit, $productUnit,
+            (float)($prod['default_quantity'] ?? 0), (string)($prod['package_unit'] ?? ''));
+        if ($factor !== null) {
+            $quantity = round($quantity * $factor, 4);
+        } elseif (inventoryLiveStockRows($db, $productId) > 0) {
+            throw new DomainException('unit_mismatch');
+        } else {
+            $db->prepare('UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                ->execute([$unit, $productId]);
+        }
     }
 
     $expiryUserSet = $expiry ? 1 : 0;
@@ -2375,9 +2395,11 @@ function importInventory(PDO $db): void {
     $db->beginTransaction();
     try {
         foreach ($toImport as $row) {
+            $db->exec('SAVEPOINT evershelf_import_row');
             try {
                 $prod = inventoryImportUpsertProduct($db, $row['data']);
                 $stock = inventoryImportAddStock($db, $prod['id'], $row['data']);
+                $db->exec('RELEASE SAVEPOINT evershelf_import_row');
                 $imported++;
                 $results[] = [
                     'line' => $row['line'],
@@ -2387,6 +2409,8 @@ function importInventory(PDO $db): void {
                     'merged_product' => $prod['merged'],
                 ];
             } catch (Throwable $e) {
+                $db->exec('ROLLBACK TO SAVEPOINT evershelf_import_row');
+                $db->exec('RELEASE SAVEPOINT evershelf_import_row');
                 $failed++;
                 $results[] = [
                     'line' => $row['line'],
@@ -4545,7 +4569,11 @@ function saveProduct(PDO $db): void {
                 $merged = true;
                 $id = $consolidated['id'];
             }
-            echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged]);
+            $unitKept = $existing && inventoryLiveStockRows($db, $id) > 0
+                && mb_strtolower(trim((string)($existing['unit'] ?? '')))
+                   !== mb_strtolower(trim((string)($fields['unit'] ?? '')));
+            echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged,
+                'unit_kept' => (bool)$unitKept]);
             return;
         }
 
@@ -5225,35 +5253,6 @@ function addToInventory(PDO $db): void {
         return;
     }
 
-    // Minimum stock: an "add" of 2 g (or 2 pieces read as grams) is a typo, and the
-    // pantry would hide the row immediately (isInventoryDepleted()). Refused here,
-    // logged with a greppable key, and the client shows the translated error_key.
-    // The unit being written is the one sent with the add, else the product's own.
-    $prodUnitStmt = $db->prepare('SELECT unit FROM products WHERE id = ?');
-    $prodUnitStmt->execute([$productId]);
-    $productUnit = (string)($prodUnitStmt->fetchColumn() ?: 'pz');
-    $effectiveUnit = $unit !== null && $unit !== '' ? (string)$unit : $productUnit;
-    $minAdd = inventoryMinAddQuantity($effectiveUnit);
-    if ($quantity < $minAdd) {
-        EverLog::warn('addToInventory: quantity below the minimum (400)', [
-            'event'      => 'api_inventory_add_below_minimum',
-            'product_id' => $productId,
-            'error_key'  => 'error.quantity_below_min',
-            'qty'        => $quantity,
-            'unit'       => $effectiveUnit,
-            'min'        => $minAdd,
-        ]);
-        http_response_code(400);
-        echo json_encode([
-            'success'    => false,
-            'error'      => 'Quantity below minimum',
-            'error_key'  => 'error.quantity_below_min',
-            'error_args' => ['min' => $minAdd, 'unit' => $effectiveUnit],
-        ]);
-        return;
-    }
-
-    
     // SQLite must commit the inventory change and its transaction ledger
     // together. Acquiring BEGIN IMMEDIATE before the first write prevents two
     // devices from computing a new quantity from the same old row. Retry ONLY
@@ -5272,29 +5271,81 @@ function addToInventory(PDO $db): void {
             }
         }
 
-    // If a different unit was specified, update the product's unit.
-    // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
-    // do NOT overwrite it here. It is managed via product_save / the edit form.
-    if ($unit) {
-        $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$unit, $productId]);
-    } else {
-        // Auto-set default_quantity if product has none (first add sets package size)
-        $stmt = $db->prepare("SELECT default_quantity, unit FROM products WHERE id = ?");
-        $stmt->execute([$productId]);
-        $prod = $stmt->fetch();
-        if ($prod && (float)($prod['default_quantity'] ?? 0) == 0 && !in_array($prod['unit'], ['pz', 'conf'])) {
-            $stmt = $db->prepare("UPDATE products SET default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-            $stmt->execute([$quantity, $productId]);
+    // Stock's unit is on products, never on inventory. Convert first, then validate
+    // the minimum. Read while holding BEGIN IMMEDIATE to avoid racing a second writer.
+    $prodStmt = $db->prepare('SELECT unit, default_quantity, package_unit FROM products WHERE id = ?');
+    $prodStmt->execute([$productId]);
+    $prod = $prodStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $productUnit = (string)($prod['unit'] ?? '') ?: 'pz';
+    $effectiveUnit = $unit !== null && $unit !== '' ? (string)$unit : $productUnit;
+    $originalUnit = $effectiveUnit;
+    $unitFollowsAdd = false;
+    if (mb_strtolower(trim($effectiveUnit)) !== mb_strtolower(trim($productUnit))) {
+        $packSize = (float)($prod['default_quantity'] ?? 0);
+        $packUnit = (string)($prod['package_unit'] ?? '');
+        if ($packSize <= 0 && isset($input['package_size']) && (float)$input['package_size'] > 0) {
+            $packSize = (float)$input['package_size'];
+            $packUnit = (string)($input['package_unit'] ?? '');
+        }
+        $factor = inventoryUnitConversionFactor($effectiveUnit, $productUnit, $packSize, $packUnit);
+        if ($factor !== null) {
+            $quantity = round($quantity * $factor, 4);
+            $effectiveUnit = $productUnit;
+            EverLog::info('addToInventory: quantity converted', ['event' => 'api_inventory_add_unit_converted',
+                'product_id' => $productId, 'from_unit' => $originalUnit, 'to_unit' => $productUnit]);
+        } elseif (inventoryLiveStockRows($db, $productId) > 0) {
+            dbRollback($db);
+            $inventoryTxnOpen = false;
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'unit_mismatch',
+                'error_key' => 'error.unit_mismatch', 'error_args' => ['unit' => $productUnit]]);
+            return;
+        } else {
+            $unitFollowsAdd = true; // No prior stock to reinterpret.
         }
     }
-    
+    $minAdd = inventoryMinAddQuantity($effectiveUnit);
+    if ($quantity < $minAdd) {
+        EverLog::warn('addToInventory: quantity below minimum (400)', [
+            'event'      => 'api_inventory_add_below_minimum',
+            'product_id' => $productId,
+            'qty'        => $quantity,
+            'unit'       => $effectiveUnit,
+            'min'        => $minAdd,
+        ]);
+        dbRollback($db);
+        $inventoryTxnOpen = false;
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Quantity below minimum',
+            'error_key'  => 'error.quantity_below_min',
+            'error_args' => ['min' => $minAdd, 'unit' => $effectiveUnit]]);
+        return;
+    }
+    if ($unitFollowsAdd) {
+        $db->prepare('UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            ->execute([$effectiveUnit, $productId]);
+    } elseif ($unit === null || $unit === '') {
+        // Preserve original pack-size autofill for products with no pack metadata.
+        if ((float)($prod['default_quantity'] ?? 0) == 0 && !in_array($productUnit, ['pz', 'conf'], true)) {
+            $db->prepare('UPDATE products SET default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                ->execute([$quantity, $productId]);
+        }
+    }
+
     // Update package info if conf
     $packageUnit = $input['package_unit'] ?? null;
     $packageSize = $input['package_size'] ?? null;
     if ($packageUnit !== null) {
-        $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$packageUnit, $packageSize ?: 0, $productId]);
+        // A stock-entry form may send stale package metadata. Do not silently
+        // replace the pack size used to convert existing article quantities.
+        $existingPackSize = (float)($prod['default_quantity'] ?? 0);
+        $existingPackUnit = (string)($prod['package_unit'] ?? '');
+        $hasPackMetadata = $existingPackSize > 0 && $existingPackUnit !== '';
+        $hasLiveStock = inventoryLiveStockRows($db, $productId) > 0;
+        if (!$hasLiveStock || !$hasPackMetadata) {
+            $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$packageUnit, $packageSize ?: 0, $productId]);
+        }
     }
     
     $vacuumSealed = (int)($input['vacuum_sealed'] ?? 0);
@@ -6947,6 +6998,36 @@ function productQtyThreshold(string $unit): float {
     return EVERSHELF_TRACE_QTY[mb_strtolower(trim($unit))] ?? 0.5;
 }
 
+/** Unit scale shared by HTTP adds and CSV imports; no guessed mass-to-piece factors. */
+function inventoryUnitConversionFactor(string $from, string $to, float $packSize = 0.0, string $packUnit = ''): ?float {
+    $from = mb_strtolower(trim($from));
+    $to = mb_strtolower(trim($to));
+    if ($from === '' || $to === '') return null;
+    $aliases = ['lt' => 'l'];
+    $from = $aliases[$from] ?? $from;
+    $to = $aliases[$to] ?? $to;
+    if ($from === $to) return 1.0;
+    $mass = ['g' => 1.0, 'kg' => 1000.0];
+    $volume = ['ml' => 1.0, 'l' => 1000.0];
+    $counts = ['pz', 'conf'];
+    if (isset($mass[$from], $mass[$to])) return $mass[$from] / $mass[$to];
+    if (isset($volume[$from], $volume[$to])) return $volume[$from] / $volume[$to];
+    if (in_array($from, $counts, true) && in_array($to, $counts, true)) return 1.0;
+    // Only a declared pack size allows a piece or pack to become mass/volume.
+    if (in_array($from, $counts, true) && $packSize > 0 && $packUnit !== '') {
+        $scale = inventoryUnitConversionFactor($packUnit, $to);
+        return $scale === null ? null : $packSize * $scale;
+    }
+    return null;
+}
+
+/** Positive inventory rows mean changing the article's unit would reinterpret existing stock. */
+function inventoryLiveStockRows(PDO $db, int $productId): int {
+    $stmt = $db->prepare('SELECT COUNT(*) FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt->execute([$productId]);
+    return (int)$stmt->fetchColumn();
+}
+
 /**
  * Smallest quantity a stock entry can be CREATED with, per unit.
  *
@@ -7352,12 +7433,18 @@ function productSaveParams(array $fields): array {
 }
 
 function executeProductUpdate(PDO $db, array $fields, int $id, ?string $expectedName = null, ?array $expectedFields = null): bool {
+    // SQL CASE is evaluated within the UPDATE's write lock, even if a second
+    // client inserts stock between a prior catalogue read and this save.
     $sql = '
-        UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
+        UPDATE products SET name=?, brand=?, category=?, image_url=?,
+        unit=CASE WHEN EXISTS(SELECT 1 FROM inventory WHERE product_id=? AND quantity>0)
+                  THEN unit ELSE ? END,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
         nutriments_json=?, kind=?, name_user_set=?,
         updated_at=CURRENT_TIMESTAMP WHERE id=?';
-    $params = [...productSaveParams($fields), $id];
+    $params = productSaveParams($fields);
+    array_splice($params, 4, 0, [$id]); // Extra product ID for guarded unit CASE.
+    $params[] = $id;
     if ($expectedName !== null) {
         $sql .= ' AND name=?';
         $params[] = $expectedName;

@@ -2056,6 +2056,7 @@
     "copy_failed": "Error al copiar al portapapeles",
     "invalid_quantity": "Cantidad no válida",
     "quantity_below_min": "Cantidad demasiado pequeña: añade al menos {min} {unit} — por debajo, el producto se consideraría ya terminado.",
+    "unit_mismatch": "La unidad no coincide con las existencias (guardadas en {unit}). Revisa las existencias antes de cambiar la unidad.",
     "no_recipe_engine": "Configure Gemini or Mealie in recipe settings",
     "invalid_token": "🔒 Token no válido o ausente",
     "backup_no_dir": "No se puede crear la carpeta de copias",

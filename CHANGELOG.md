@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.29] - 2026-11-19 (unit-preserving inventory, draft)
+
+### Prevent silent reinterpretation of stocked product quantities (Issue #28)
+
+- Convert an incoming quantity into the article's stored unit before saving:
+  2 packs at 180 g = 360 g, 0.5 kg = 500 g. Never guess a conversion
+  between unrelated unit families.
+- Existing positive stock keeps its stored unit in product edits, including
+  atomic SQL protection against overlapping catalogue and inventory writes.
+  Incompatible incoming stock is rejected with a localized conflict response.
+- CSV import preserves pre-existing package size/unit metadata, converts using
+  that metadata, and rolls back each failed row independently.
+- Preserve the fork's durable offline write receipts and transactional
+  inventory+ledger updates. Add isolated HTTP/SQLite regression tests for
+  stock integrity, alternate locations, conflicts, CSV and offline receipts.
+- Release candidate only: no production data migration or deployment.
+
 ## [1.16.28] - 2026-11-16 (explicit consumption confirmation, draft)
 
 ### Prevent silent inventory consumption while the Use form is idle (Issue #26)

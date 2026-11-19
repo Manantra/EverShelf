@@ -2057,6 +2057,7 @@
     "copy_failed": "Copia negli appunti non riuscita",
     "invalid_quantity": "Quantità non valida",
     "quantity_below_min": "Quantità troppo bassa: aggiungi almeno {min} {unit} — sotto quella soglia il prodotto risulterebbe già finito.",
+    "unit_mismatch": "Unità diversa dalla scorta esistente (registrata in {unit}). Controlla la scorta prima di cambiare unità.",
     "invalid_token": "🔒 Token non valido o mancante",
     "backup_no_dir": "Cartella dei backup non creabile",
     "backup_no_db": "Database non trovato",

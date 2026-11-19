@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261116c'; // bump when translations change
+const _I18N_VERSION = '20261119a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14998,6 +14998,7 @@ function _apiErrorText(data) {
     const key = data?.error_key;
     if (key === 'error.product_id_required') return t('error.product_id_required');
     if (key === 'error.quantity_below_min') return t('error.quantity_below_min', data?.error_args || {});
+    if (key === 'error.unit_mismatch') return t('error.unit_mismatch', data?.error_args || {});
     // Backup endpoints answer with a translated key: the English prose in
     // `error` is for non-browser callers and must never reach the UI.
     if (key === 'error.backup_no_dir') return t('error.backup_no_dir');

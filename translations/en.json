@@ -2057,6 +2057,7 @@
     "copy_failed": "Copy to clipboard failed",
     "invalid_quantity": "Invalid quantity",
     "quantity_below_min": "Quantity too small: add at least {min} {unit} — below that the product would count as already finished.",
+    "unit_mismatch": "Unit does not match existing stock (stored as {unit}). Review the stock before changing the unit.",
     "invalid_token": "🔒 Invalid or missing token",
     "backup_no_dir": "Cannot create the backup folder",
     "backup_no_db": "Database not found",
