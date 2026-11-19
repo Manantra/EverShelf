@@ -2056,6 +2056,7 @@
     "copy_failed": "Échec de la copie dans le presse-papiers",
     "invalid_quantity": "Quantité invalide",
     "quantity_below_min": "Quantité trop petite : ajoutez au moins {min} {unit} — en dessous, le produit serait compté comme déjà terminé.",
+    "unit_mismatch": "Unité différente du stock existant (enregistré en {unit}). Vérifiez le stock avant de changer d’unité.",
     "no_recipe_engine": "Configure Gemini or Mealie in recipe settings",
     "invalid_token": "🔒 Jeton invalide ou manquant",
     "backup_no_dir": "Impossible de créer le dossier de sauvegarde",

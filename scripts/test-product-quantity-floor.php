@@ -180,7 +180,8 @@ if (!is_array($mirror)) {
 }
 
 // ── The API refuses it, before writing, with a translatable key ─────────────
-$add = slice_from($api, 'function addToInventory(PDO $db): void {', 9000);
+// Unit conversion now precedes the minimum check, so include the complete insert path.
+$add = slice_from($api, 'function addToInventory(PDO $db): void {', 14000);
 assert_true($add !== '', 'api: addToInventory() exists');
 assert_true(str_contains($add, '$minAdd = inventoryMinAddQuantity($effectiveUnit)'),
     'api: the guard reads the floor of the unit being written');
