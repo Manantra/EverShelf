@@ -45,8 +45,9 @@ function extract(a, b) {
 }
 const queueSource = [
     "const _OFFLINE_QUEUE_KEY = 'test-offline-replay';",
+    extract('const _EXACTLY_ONCE_ACTIONS = new Set(', 'const _onlineWriteInFlight = new Map();'),
     extract('const _OFFLINE_QUEUE_LIMIT = 100;', 'function _offlineShoppingCacheGet()'),
-    extract('async function _offlineQueuePush(action, body) {', '// ─── Offline API handler:'),
+    extract('async function _offlineQueuePush(action, body, onlineIntent = false) {', '// ─── Offline API handler:'),
     extract('async function _syncOfflineQueue() {', '// ─── Overlay show / hide'),
     'this.queue = { push: _offlineQueuePush, sync: _syncOfflineQueue, get: _offlineQueueGet };',
 ].join('\n');
@@ -207,7 +208,8 @@ function sql(productId, inventoryId) {
     assert.equal(relaunched.get().length, 1,
         'Previously conflicted operation is still pending after other successful replays');
     // Server commits an offline add but the simulated Safari client loses the
-    // response. Automatic retry would double the inventory; block for review.
+    // response. Receipt-backed replays now use the SAME durable operation ID,
+    // so restart may safely recover without creating a second inventory entry.
     [code, other] = await request('product_save', {
         name: label + ' LostAck', unit: 'conf', default_quantity: 690,
         package_unit: 'g', category: 'conserve',
@@ -227,23 +229,28 @@ function sql(productId, inventoryId) {
         location: 'dispensa', unit: 'conf',
     })).success, true);
     assert.equal(await uncertain.sync(), 0);
-    assert.equal(uncertain.get()[0]._needsReview, true,
-        'Missing acknowledgement needs explicit review');
+    const retryOp = uncertain.get().find(op => op.body.product_id === uncertainPid);
+    assert(retryOp && retryOp._opId, 'Lost response keeps the original durable intent');
+    assert.equal(retryOp._needsReview, false,
+        'A receipt-backed network loss can be replayed safely with its original key');
     [code, other] = await request('inventory_list');
     const uncertainRow = other.inventory.find(row => row.product_id === uncertainPid);
     assert(uncertainRow && uncertainRow.quantity === 1);
     const retryAfterReload = browser();
     const beforeResume = apiCount;
-    assert.equal(await retryAfterReload.sync(), 0);
-    assert.equal(apiCount, beforeResume,
-        'A PWA restart must not automatically duplicate an uncertain add');
+    assert.equal(await retryAfterReload.sync(), 1,
+        'PWA restart safely replays the original receipt-backed operation');
+    assert.equal(apiCount, beforeResume + 1,
+        'One replay with an existing key, not an independent new write');
+    assert(!retryAfterReload.get().some(op => op.body?.product_id === uncertainPid),
+        'Successful replay is removed durably from the queue');
+    assert.equal(retryAfterReload.get().length, 1,
+        'Earlier unrelated conflict remains queued for explicit review');
     [code, other] = await request('inventory_list');
-    assert.equal(other.inventory.find(row => row.product_id === uncertainPid).quantity, 1);
-    // A user-approved retry uses the persisted operation key. Even though
-    // the FIRST call really committed, this must return its receipt instead
-    // of adding another package.
-    const retryOp = retryAfterReload.get().find(op => op.body.product_id === uncertainPid);
-    assert(retryOp && retryOp._opId);
+    assert.equal(other.inventory.find(row => row.product_id === uncertainPid).quantity, 1,
+        'Receipt-backed automatic recovery never adds stock twice');
+    // Even another delayed response/replay using the saved original key must
+    // yield the old receipt, not create another package.
     [code, other] = await request('inventory_add', {
         ...retryOp.body, _offline_op_id: retryOp._opId,
     });
@@ -252,6 +259,6 @@ function sql(productId, inventoryId) {
     assert.equal(other.idempotent_replay, true);
     [code, other] = await request('inventory_list');
     assert.equal(other.inventory.find(row => row.product_id === uncertainPid).quantity, 1,
-        'Retrying same offline operation ID does not add stock twice');
+        'Another late replay of the same ID does not create a duplicate');
     console.log('Actual HTTP/SQLite offline conflicts, lost replies, and idempotent user retry passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
