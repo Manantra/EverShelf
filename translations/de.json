@@ -2029,6 +2029,8 @@
     "offline_ops_pending": "{n} Aktionen ausstehend",
     "offline_queue_full": "Offline-Warteschlange voll (100 Aktionen). Verbinde die App, bevor du weitere Änderungen speicherst.",
     "offline_write_not_queued": "Offline-Änderung NICHT vorgemerkt: Der Gerätespeicher ist nicht beschreibbar.",
+    "online_write_pending": "Buchung noch nicht bestätigt. Der ursprüngliche Auftrag ist sicher vorgemerkt und wird mit derselben Kennung erneut geprüft. Bitte nicht neu buchen.",
+    "online_write_not_saved": "Buchung nicht gesendet: Der Browser konnte den Sicherheitsbeleg nicht speichern. Bitte Gerätespeicher prüfen.",
     "offline_storage_unavailable": "Offline-Speicher nicht zuverlässig verfügbar. Prüfe den Serverstand, bevor du einen Vorgang erneut sendest.",
     "offline_conflicts_pending": "{n} Offline-Konflikt(e) müssen geprüft werden.",
     "offline_review": "Ausstehende Änderungen prüfen",

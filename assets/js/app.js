@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261119a'; // bump when translations change
+const _I18N_VERSION = '20261119b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6627,6 +6627,104 @@ function togglePasswordVisibility(inputId) {
 }
 
 // ===== API HELPER =====
+// These writes have durable server-side receipts. Before sending even while
+// online, persist the precise intent+ID in our existing fail-closed PWA queue.
+// A vanished HTTP response can then be replayed using the SAME receipt key.
+const _EXACTLY_ONCE_ACTIONS = new Set(['inventory_add', 'inventory_use', 'spend_add']);
+const _onlineWriteInFlight = new Map();
+
+function _onlineWriteSignature(action, body) {
+    const copy = { ...(body || {}) };
+    delete copy._offline_op_id;
+    // The offline Add form uses a negative inventory ID as a local-only
+    // placeholder. That ID does not make a second purchase a new intent.
+    if (action === 'inventory_add' && Number(copy.id) < 0) delete copy.id;
+    return action + ':' + JSON.stringify(Object.fromEntries(
+        Object.keys(copy).sort().map(key => [key, copy[key]])));
+}
+
+async function _durableOnlineWrite(action, params, method, body, headers, timeoutMs) {
+    const signature = _onlineWriteSignature(action, body);
+    const current = _onlineWriteInFlight.get(signature);
+    if (current) return current; // two tap/click events, not two human intents
+
+    const task = (async () => {
+        const id = _offlineNewOpId();
+        const requestBody = { ...body, _offline_op_id: id };
+        // _offlineQueuePush performs its read+write under our established Web
+        // Lock. Refuse a SECOND request while an ambiguous earlier one with
+        // identical payload is still durably waiting for acknowledgement.
+        const queued = await _offlineQueuePush(action, requestBody, true);
+        if (!queued.success) {
+            const errorKey = queued.error === 'online_write_pending'
+                ? 'error.online_write_pending'
+                : queued.error === 'offline_queue_full'
+                    ? 'error.offline_queue_full' : 'error.online_write_not_saved';
+            return { success: false, _queued: queued.error === 'online_write_pending',
+                error: t(errorKey) };
+        }
+
+        let answer;
+        try {
+            // Explicit key bypasses this wrapper and sends one immutable body.
+            answer = await api(action, params, method, requestBody,
+                headers, timeoutMs || 15000);
+        } catch (_) {
+            answer = null; // The server may have COMMITTED before the reply vanished.
+        }
+
+        if (answer?.success === true) {
+            try {
+                await _offlineWithQueueLock(async () => {
+                    const ops = _offlineQueueReadStrict();
+                    const index = ops.findIndex(op => op._opId === id);
+                    if (index < 0) return; // A second tab may have checkpointed it.
+                    ops.splice(index, 1);
+                    _offlineQueueSet(ops); // persist acknowledgement immediately
+                });
+            } catch (_) {
+                // Already committed server-side; keep the receipt-backed queue
+                // entry and warn, rather than risking an untracked second write.
+                _offlineQueueStorageBlocked = true;
+                showToast(t('error.offline_storage_unavailable'), 'error');
+            }
+            _renderOfflineBanner();
+            return answer;
+        }
+
+        try {
+            await _offlineWithQueueLock(async () => {
+                const ops = _offlineQueueReadStrict();
+                const index = ops.findIndex(op => op._opId === id);
+                if (index < 0) return;
+                const error = answer?.error || 'network_unavailable';
+                // Only a definite rejection/conflict needs manual review.
+                // Network loss and 503 can replay with their durable receipt ID.
+                const definitive = !['network_unavailable', 'invalid_response',
+                    'database_busy'].includes(error);
+                ops[index] = { ...ops[index], _syncError: error,
+                    _needsReview: definitive };
+                _offlineQueueSet(ops);
+            });
+        } catch (_) {
+            _offlineQueueStorageBlocked = true;
+            showToast(t('error.offline_storage_unavailable'), 'error');
+        }
+        _renderOfflineBanner();
+        return { success: false, _queued: true,
+            error: answer?.error && !['database_busy', 'invalid_response'].includes(answer.error)
+                ? answer.error : t('error.online_write_pending') };
+    })();
+    _onlineWriteInFlight.set(signature, task);
+    try {
+        return await task;
+    } finally {
+        if (_onlineWriteInFlight.get(signature) === task) {
+            _onlineWriteInFlight.delete(signature);
+        }
+    }
+}
+
 async function api(action, params = {}, method = 'GET', body = null, extraHeaders = {}, timeoutMs = 0) {
     // In demo mode, all shopping write operations are no-ops
     if (_demoMode) {
@@ -6650,6 +6748,11 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     // In offline mode, serve from cache / queue writes
     if (_offlineMode) {
         return _handleOfflineApi(action, params, body);
+    }
+    if (method === 'POST' && body && _EXACTLY_ONCE_ACTIONS.has(action)
+        && !body._offline_op_id) {
+        return _durableOnlineWrite(action, params, method, body,
+            extraHeaders, timeoutMs);
     }
     let url = `${API_BASE}?action=${action}`;
     if (method === 'GET') {
@@ -26523,7 +26626,7 @@ function toggleShoppingSection(secKey) {
     _shoppingSectionsCollapsedSet(m);
     renderShoppingItems();
 }
-async function _offlineQueuePush(action, body) {
+async function _offlineQueuePush(action, body, onlineIntent = false) {
     try {
         return await _offlineWithQueueLock(async () => {
         if (_offlineQueueStorageBlocked) {
@@ -26531,13 +26634,22 @@ async function _offlineQueuePush(action, body) {
         }
         try {
             const q = _offlineQueueReadStrict();
+            if (onlineIntent && q.some(op => _EXACTLY_ONCE_ACTIONS.has(op.action)
+                && op.action === action
+                && _onlineWriteSignature(op.action, op.body) ===
+                   _onlineWriteSignature(action, body))) {
+                return { success: false, error: 'online_write_pending' };
+            }
             if (q.length >= _OFFLINE_QUEUE_LIMIT) {
                 return { success: false, error: 'offline_queue_full' };
             }
+            const opId = typeof body?._offline_op_id === 'string'
+                ? body._offline_op_id : _offlineNewOpId();
             // Copy at queue time so form changes while offline cannot mutate
             // an already acknowledged queued request.
             q.push({ action, body: body == null ? null : JSON.parse(JSON.stringify(body)),
-                ts: Date.now(), _opId: _offlineNewOpId() });
+                ts: Date.now(), _opId: opId,
+                ...(onlineIntent ? { _onlineIntent: true } : {}) });
             _offlineQueueSet(q);
         } catch (_) {
             return { success: false, error: 'offline_storage_unavailable' };
@@ -27198,11 +27310,11 @@ async function _syncOfflineQueue() {
             try {
                 // Network errors, HTTP conflicts and timeouts must never count
                 // as an acknowledgement. A delayed iPhone resume is allowed.
-                // Stable receipt key for inventory additions: the server
-                // persists it in the same SQLite transaction as stock/ledger.
-                // It must survive a lost response and even a PWA restart.
-                const requestBody = op.action === 'inventory_add'
-                    ? { ...body, _offline_op_id: op._opId } : body;
+                // The same durable per-intent key is used for stock addition,
+                // consumption and spend tracking. A lost reply never creates
+                // a second write even across PWA/Safari restarts.
+                const requestBody = _EXACTLY_ONCE_ACTIONS.has(op.action)
+                    ? { ...body, _offline_op_id: body._offline_op_id || op._opId } : body;
                 response = await api(op.action, {}, 'POST', requestBody, {}, 15000);
                 error = response?.error || 'sync_unconfirmed';
             } catch (_) {}
@@ -27247,7 +27359,10 @@ async function _syncOfflineQueue() {
                         // Only a confirmed SQLite busy rejection is certainly
                         // safe to retry. Network loss may have occurred AFTER
                         // the server committed: do not double-add inventory.
-                        _needsReview: error !== 'database_busy' };
+                        _needsReview: error !== 'database_busy'
+                            && !(_EXACTLY_ONCE_ACTIONS.has(op.action)
+                                && ['network_unavailable', 'sync_unconfirmed',
+                                    'invalid_response'].includes(error)) };
                     _offlineQueueSet(latest);
                     // A rejected edit must block later writes for that same row
                     // until the user resolves the earlier conflict.
@@ -28201,7 +28316,12 @@ async function _spesaSpendSave() {
     if (amount && amount > 0) {
         try {
             const sym = _spesaCurrencySymbol();
-            await api('spend_add', {}, 'POST', { amount: amount, currency: sym });
+            const result = await api('spend_add', {}, 'POST', { amount: amount, currency: sym });
+            if (!result?.success) {
+                showToast(result?.error || t('shopping.spend_track_error'),
+                    result?._queued ? 'warning' : 'error');
+                return;
+            }
             showToast(t('shopping.spend_tracked_toast', { sym, amount: amount.toFixed(2) }), 'info');
         } catch (_) {
             showToast(t('shopping.spend_track_error'), 'error');

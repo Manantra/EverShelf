@@ -2029,6 +2029,8 @@
     "offline_ops_pending": "有 {n} 项操作等待同步",
     "offline_queue_full": "离线队列已满（100 项）。请先重新连接，再保存其他更改。",
     "offline_write_not_queued": "离线更改未加入队列：设备存储不可写。",
+    "online_write_pending": "操作尚未确认。原始请求已安全保存，将使用同一标识重试。请勿重新提交。",
+    "online_write_not_saved": "操作未发送：浏览器无法保存安全记录。请检查设备存储空间。",
     "offline_storage_unavailable": "离线存储不可靠。再次发送操作前，请先检查服务器状态。",
     "offline_conflicts_pending": "有 {n} 个离线冲突需要检查。",
     "offline_review": "检查待同步的更改",

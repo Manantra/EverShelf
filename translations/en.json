@@ -2029,6 +2029,8 @@
     "offline_ops_pending": "{n} operations pending",
     "offline_queue_full": "Offline queue is full (100 actions). Reconnect before saving more changes.",
     "offline_write_not_queued": "Offline change NOT queued: device storage is not writable.",
+    "online_write_pending": "Write not yet confirmed. The original operation is safely queued and will be retried with the same ID. Do not submit a new one.",
+    "online_write_not_saved": "Write not sent: the browser could not store the safety receipt. Check device storage.",
     "offline_storage_unavailable": "Offline storage is not reliable. Check the server state before sending an action again.",
     "offline_conflicts_pending": "{n} offline conflict(s) need review.",
     "offline_review": "Review pending changes",

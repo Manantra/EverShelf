@@ -338,7 +338,7 @@ assert_true(preg_match('/\$dt->modify\("-\\{\$i\} months"\)/', $api) === 1,
 // The ledger is append-only and no surface can correct an entry, so every recorded
 // amount must leave a trace: "the month jumped from €81 to €166" is only answerable
 // from the log line (amount + resulting month total).
-$spendAdd = ($p = strpos($api, 'function spendAdd(): void {')) === false ? '' : substr($api, $p, 2200);
+$spendAdd = ($p = strpos($api, 'function spendAdd(): void {')) === false ? '' : substr($api, $p, 6500);
 assert_true($spendAdd !== '', 'api/index.php exposes spendAdd()');
 assert_true(str_contains($spendAdd, "'event'       => 'api_spend_add'"),
     'spendAdd() logs every recorded amount with a greppable event key');

@@ -2028,6 +2028,8 @@
     "offline_ops_pending": "{n} operaciones pendientes",
     "offline_queue_full": "La cola sin conexión está llena (100 acciones). Vuelve a conectarte antes de guardar más cambios.",
     "offline_write_not_queued": "Cambio sin conexión NO guardado en la cola: el almacenamiento del dispositivo no permite escribir.",
+    "online_write_pending": "Operación sin confirmar. La solicitud original está guardada y se reintentará con el mismo identificador. No la registres otra vez.",
+    "online_write_not_saved": "Operación no enviada: el navegador no pudo guardar el comprobante de seguridad. Revisa el almacenamiento del dispositivo.",
     "offline_storage_unavailable": "El almacenamiento sin conexión no es fiable. Comprueba el estado del servidor antes de reenviar una acción.",
     "offline_conflicts_pending": "{n} conflicto(s) sin conexión necesitan revisión.",
     "offline_review": "Revisar cambios pendientes",

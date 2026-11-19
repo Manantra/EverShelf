@@ -2029,6 +2029,8 @@
     "offline_ops_pending": "{n} operazioni in attesa",
     "offline_queue_full": "La coda offline è piena (100 operazioni). Riconnettiti prima di salvare altre modifiche.",
     "offline_write_not_queued": "Modifica offline NON accodata: impossibile scrivere nella memoria del dispositivo.",
+    "online_write_pending": "Operazione non ancora confermata. La richiesta originale è salvata e sarà riprovata con lo stesso ID. Non crearne un’altra.",
+    "online_write_not_saved": "Operazione non inviata: il browser non ha potuto salvare la ricevuta di sicurezza. Controlla lo spazio sul dispositivo.",
     "offline_storage_unavailable": "Archiviazione offline non affidabile. Controlla lo stato sul server prima di inviare nuovamente un’azione.",
     "offline_conflicts_pending": "{n} conflitti offline da verificare.",
     "offline_review": "Controlla le modifiche in sospeso",
