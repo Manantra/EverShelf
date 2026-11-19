@@ -19,8 +19,9 @@ function extract(start, end) {
 }
 const source = [
     "const _OFFLINE_QUEUE_KEY = 'test-queue';",
+    "const _EXACTLY_ONCE_ACTIONS = new Set(['inventory_add', 'inventory_use', 'spend_add']);",
     extract('const _OFFLINE_QUEUE_LIMIT = 100;', 'function _offlineShoppingCacheGet()'),
-    extract('async function _offlineQueuePush(action, body) {', '// ─── Offline API handler:'),
+    extract('async function _offlineQueuePush(action, body, onlineIntent = false) {', '// ─── Offline API handler:'),
     extract('async function _handleOfflineApi(action, params, body) {', '// Optimistically update the cached inventory'),
     extract('async function _syncOfflineQueue() {', '// ─── Overlay show / hide'),
     'this.testApi = { push: _offlineQueuePush, handle: _handleOfflineApi, sync: _syncOfflineQueue, read: _offlineQueueGet };',

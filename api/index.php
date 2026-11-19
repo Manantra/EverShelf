@@ -5944,7 +5944,13 @@ function useFromInventory(PDO $db): void {
     $useAll = $input['use_all'] ?? false;
     $location = $input['location'] ?? 'dispensa';
     $notes = $input['notes'] ?? '';
-    
+    $receiptIdentity = inventoryOfflineReceiptIdentity($input ?? []);
+    if (isset($receiptIdentity['invalid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_offline_op_id']);
+        return;
+    }
+
     if (!$productId) {
         // Same contract as addToInventory: stable key, translated client-side.
         EverLog::warn('useFromInventory: product_id missing (400)', [
@@ -5960,6 +5966,12 @@ function useFromInventory(PDO $db): void {
         return;
     }
 
+    if ($receiptIdentity !== null) {
+        useFromInventoryWithReceipt($db, $receiptIdentity,
+            (int)$productId, $quantity, (bool)$useAll, (string)$location, (string)$notes);
+        return;
+    }
+
     try {
         dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes): void {
             useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes);
@@ -5971,6 +5983,69 @@ function useFromInventory(PDO $db): void {
         EverLog::error('useFromInventory db error', ['msg' => $e->getMessage()]);
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Database busy — please retry']);
+    }
+}
+
+/**
+ * Exactly-once inventory use for clients that provide a stable intent ID.
+ * BEGIN IMMEDIATE, inventory rows, transaction ledger and durable receipt are
+ * committed as ONE unit. Legacy unkeyed calls retain their old duplicate gate.
+ * Capture the legacy response: no "success" reaches a client before COMMIT.
+ */
+function useFromInventoryWithReceipt(
+    PDO $db, array $identity, int $productId, $quantity,
+    bool $useAll, string $location, string $notes
+): void {
+    try {
+        $output = dbWithRetry(static function () use (
+            $db, $identity, $productId, $quantity, $useAll, $location, $notes
+        ): array {
+            dbBeginImmediate($db);
+            $baseBufferLevel = ob_get_level();
+            try {
+                $seen = inventoryOfflineReceiptReadAction($db, $identity, 'inventory_use');
+                if ($seen !== null) {
+                    dbRollback($db);
+                    return $seen === false
+                        ? ['status' => 409, 'body' => ['success' => false, 'error' => 'idempotency_conflict']]
+                        : ['status' => 200, 'body' => $seen];
+                }
+
+                ob_start();
+                useFromInventoryCore($db, $productId, $quantity, $useAll,
+                    $location, $notes, true);
+                $encoded = (string)ob_get_clean();
+                $body = json_decode($encoded, true);
+                if (!is_array($body) || ($body['success'] ?? null) !== true
+                    || http_response_code() >= 400) {
+                    dbRollback($db);
+                    return ['status' => max(400, http_response_code()),
+                        'body' => is_array($body) ? $body
+                            : ['success' => false, 'error' => 'inventory_use_failed']];
+                }
+
+                maybeAutoFavorite($db, $productId);
+                $stmt = $db->prepare('INSERT INTO offline_write_receipts
+                    (operation_id, action, request_hash, response_json)
+                    VALUES (?, ?, ?, ?)');
+                $stmt->execute([$identity['key'], 'inventory_use', $identity['hash'],
+                    json_encode($body, JSON_UNESCAPED_UNICODE)]);
+                dbCommit($db);
+                return ['status' => 200, 'body' => $body];
+            } catch (Throwable $e) {
+                while (ob_get_level() > $baseBufferLevel) ob_end_clean();
+                dbRollback($db);
+                throw $e;
+            }
+        });
+        http_response_code($output['status']);
+        echo json_encode($output['body'], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        EverLog::exception($e, 'inventory_use_idempotent');
+        http_response_code($e instanceof PDOException
+            && str_contains($e->getMessage(), 'database is locked') ? 503 : 500);
+        echo json_encode(['success' => false,
+            'error' => http_response_code() === 503 ? 'database_busy' : 'inventory_use_failed']);
     }
 }
 
@@ -6055,14 +6130,15 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?
     ];
 }
 
-function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes): void {
+function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes, bool $explicitIntent = false): void {
     $requestedLocation = $location;
     $locationFallback = false;
     $lastTransactionId = null;
-    // ── Server-side deduplication ─────────────────────────────────────────
+    // ── Server-side deduplication (only older requests without a stable ID) ──
     // Guard against accidental double-consume triggers (scale jitter, double tap,
     // delayed/offline replay burst). We only apply this stricter gate to manual
     // uses with empty notes, so recipe uses (notes="Ricetta: ...") remain unaffected.
+    if (!$explicitIntent) {
     $dedupWindow = $useAll ? 60 : (($notes === '') ? 120 : 12);
     if ($useAll) {
         $dedup = $db->prepare(
@@ -6118,8 +6194,9 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         ]);
         return;
     }
+    } // An explicit distinct op ID represents a real new user intent.
     // ─────────────────────────────────────────────────────────────────────
-    
+
     // Handle "throw all from all locations"
     if ($useAll && $location === '__all__') {
         $stmt = $db->prepare("SELECT id, quantity, location FROM inventory WHERE product_id = ? AND quantity > 0");
@@ -9121,30 +9198,70 @@ function _spendHistoryPath(): string {
     return __DIR__ . '/../data/shopping_spend.json';
 }
 
-function _spendLoadHistory(): array {
+function _spendLoadHistory(bool $preserveHistory = false, bool $strict = false): array {
     $path = _spendHistoryPath();
     if (!file_exists($path)) return [];
     $raw = file_get_contents($path);
-    $arr = json_decode($raw, true);
-    if (!is_array($arr)) return [];
+    $arr = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($arr) || array_values($arr) !== $arr) {
+        if ($strict) throw new RuntimeException('spend_history_unreadable');
+        return [];
+    }
     // Normalize entries
     $out = [];
     foreach ($arr as $e) {
-        if (!is_array($e)) continue;
+        if (!is_array($e)) {
+            if ($strict) throw new RuntimeException('spend_history_invalid_entry');
+            continue;
+        }
         $amount = isset($e['amount']) ? (float)$e['amount'] : 0.0;
         $ts = isset($e['ts']) ? (int)$e['ts'] : 0;
         $currency = isset($e['currency']) ? trim((string)$e['currency']) : '€';
-        if ($amount <= 0 || $ts <= 0) continue;
-        $out[] = ['ts' => $ts, 'amount' => round($amount, 2), 'currency' => $currency !== '' ? $currency : '€'];
+        if (!is_finite($amount) || $amount <= 0 || $ts <= 0) {
+            if ($strict) throw new RuntimeException('spend_history_invalid_entry');
+            continue;
+        }
+        $record = ['ts' => $ts, 'amount' => round($amount, 2),
+            'currency' => $currency !== '' ? $currency : '€'];
+        if (isset($e['_offline_op_id']) && is_string($e['_offline_op_id'])) {
+            $record['_offline_op_id'] = $e['_offline_op_id'];
+            $record['_op_hash'] = (string)($e['_op_hash'] ?? '');
+        }
+        $out[] = $record;
     }
-    // Keep last ~24 months
+    if ($preserveHistory) return $out; // Never discard older entries during a write.
+    // Display only the last ~24 months as before.
     $cut = time() - 24 * 30 * 86400;
     return array_values(array_filter($out, fn($e) => ($e['ts'] ?? 0) >= $cut));
 }
 
 function _spendSaveHistory(array $hist): void {
     $path = _spendHistoryPath();
-    file_put_contents($path, json_encode(array_values($hist), JSON_UNESCAPED_UNICODE), LOCK_EX);
+    $contents = json_encode(array_values($hist), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $temp = tempnam(dirname($path), '.spend-write-');
+    if ($temp === false) throw new RuntimeException('spend_temp_failed');
+    try {
+        $handle = fopen($temp, 'wb');
+        if ($handle === false) throw new RuntimeException('spend_temp_open_failed');
+        try {
+            $length = strlen($contents);
+            $written = 0;
+            while ($written < $length) {
+                $n = fwrite($handle, substr($contents, $written));
+                if ($n === false || $n === 0) throw new RuntimeException('spend_write_failed');
+                $written += $n;
+            }
+            if (!fflush($handle)) throw new RuntimeException('spend_flush_failed');
+            if (function_exists('fsync') && !fsync($handle)) {
+                throw new RuntimeException('spend_sync_failed');
+            }
+        } finally {
+            fclose($handle);
+        }
+        if (!rename($temp, $path)) throw new RuntimeException('spend_replace_failed');
+    } finally {
+        if (file_exists($temp)) unlink($temp);
+    }
 }
 
 /**
@@ -9159,38 +9276,90 @@ function _spendSaveHistory(array $hist): void {
  */
 function spendAdd(): void {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $identity = inventoryOfflineReceiptIdentity($input);
+    if (isset($identity['invalid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_offline_op_id']);
+        return;
+    }
     $amount = isset($input['amount']) ? (float)$input['amount'] : 0.0;
     $currency = trim((string)($input['currency'] ?? '€'));
     if ($currency === '') $currency = '€';
-
-    if ($amount <= 0.0001) {
+    if (!is_finite($amount) || $amount <= 0.0001) {
         EverLog::warn('spend ignored: no amount', ['event' => 'api_spend_add_ignored', 'amount' => $amount]);
         echo json_encode(['success' => true, 'ignored' => true]);
         return;
     }
 
-    $hist = _spendLoadHistory();
-    $ts = time();
-    $hist[] = ['ts' => $ts, 'amount' => round($amount, 2), 'currency' => $currency];
-    _spendSaveHistory($hist);
-
-    $month = date('Y-m', $ts);
-    $monthTotal = 0.0;
-    foreach ($hist as $e) {
-        if (date('Y-m', (int)($e['ts'] ?? 0)) === $month) {
-            $monthTotal += (float)($e['amount'] ?? 0);
-        }
+    // The spend ledger is a JSON FILE, not SQLite. Its idempotency receipt
+    // therefore belongs in each entry, under the same cross-process file lock.
+    // Locking only the final file_put_contents never protected read-modify-write.
+    $lock = @fopen(_spendHistoryPath() . '.lock', 'c');
+    if ($lock === false) {
+        http_response_code(503);
+        echo json_encode(['success' => false, 'error' => 'spend_storage_unavailable']);
+        return;
     }
-    EverLog::info('spend recorded', [
-        'event'       => 'api_spend_add',
-        'amount'      => round($amount, 2),
-        'currency'    => $currency,
-        'month'       => $month,
-        'month_total' => round($monthTotal, 2),
-        'entries'     => count($hist),
-    ]);
+    $reply = null;
+    $logged = null;
+    try {
+        if (!flock($lock, LOCK_EX)) throw new RuntimeException('spend_lock_failed');
+        $hist = _spendLoadHistory(true, true);
+        if ($identity !== null) {
+            foreach ($hist as $existing) {
+                if (($existing['_offline_op_id'] ?? '') !== $identity['key']) continue;
+                if (!hash_equals((string)($existing['_op_hash'] ?? ''), $identity['hash'])) {
+                    $reply = ['status' => 409, 'body' => [
+                        'success' => false, 'error' => 'idempotency_conflict']];
+                } else {
+                    $reply = ['status' => 200, 'body' => [
+                        'success' => true, 'month' => date('Y-m', (int)$existing['ts']),
+                        'currency_symbol' => $existing['currency'],
+                        'amount' => (float)$existing['amount'],
+                        'idempotent_replay' => true]];
+                }
+                break;
+            }
+        }
+        if ($reply === null) {
+            $ts = time();
+            $entry = ['ts' => $ts, 'amount' => round($amount, 2),
+                'currency' => $currency];
+            if ($identity !== null) {
+                $entry['_offline_op_id'] = $identity['key'];
+                $entry['_op_hash'] = $identity['hash'];
+            }
+            $hist[] = $entry;
+            // Write new JSON in the same directory then atomically rename.
+            // Failed writes cannot truncate/erase previously confirmed history.
+            _spendSaveHistory($hist);
+            $month = date('Y-m', $ts);
+            $monthTotal = 0.0;
+            foreach ($hist as $e) {
+                if (date('Y-m', (int)($e['ts'] ?? 0)) === $month) {
+                    $monthTotal += (float)($e['amount'] ?? 0);
+                }
+            }
+            $logged = ['event'       => 'api_spend_add', 'amount' => round($amount, 2),
+                'currency' => $currency, 'month' => $month,
+                'month_total' => round($monthTotal, 2),
+                'entries' => count($hist)];
+            $reply = ['status' => 200, 'body' => ['success' => true,
+                'month' => $month, 'currency_symbol' => $currency,
+                'amount' => round($amount, 2)]];
+        }
+    } catch (Throwable $e) {
+        EverLog::exception($e, 'spend_add');
+        $reply = ['status' => 503, 'body' => [
+            'success' => false, 'error' => 'spend_storage_unavailable']];
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 
-    echo json_encode(['success' => true, 'month' => $month, 'currency_symbol' => $currency, 'amount' => round($amount, 2)]);
+    if ($logged !== null) EverLog::info('spend recorded', $logged);
+    http_response_code($reply['status']);
+    echo json_encode($reply['body'], JSON_UNESCAPED_UNICODE);
 }
 
 /**

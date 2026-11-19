@@ -2028,6 +2028,8 @@
     "offline_ops_pending": "{n} opérations en attente",
     "offline_queue_full": "La file hors ligne est pleine (100 opérations). Reconnectez-vous avant de modifier davantage.",
     "offline_write_not_queued": "Modification hors ligne NON mise en attente : stockage local inaccessible en écriture.",
+    "online_write_pending": "Opération non confirmée. La demande originale est enregistrée et sera réessayée avec le même identifiant. Ne la saisissez pas à nouveau.",
+    "online_write_not_saved": "Opération non envoyée : le navigateur n’a pas pu enregistrer le justificatif de sécurité. Vérifiez le stockage de l’appareil.",
     "offline_storage_unavailable": "Stockage hors ligne peu fiable. Vérifiez l’état du serveur avant de renvoyer une opération.",
     "offline_conflicts_pending": "{n} conflit(s) hors ligne à examiner.",
     "offline_review": "Examiner les modifications en attente",

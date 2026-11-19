@@ -13,6 +13,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.30] - 2026-11-19 (durable consume/spend intent receipts, draft)
+
+### Eliminate remaining double-use and double-spend replays (Issue #29)
+
+- Extend the fork's existing SQLite durable offline receipts to
+  `inventory_use`: BEGIN IMMEDIATE protects stock, ledger and receipt
+  together. Identical request IDs replay the original response; distinct
+  deliberate intents remain allowed even within the old dedup window.
+  Unkeyed legacy callers keep the old heuristic guard.
+- Keep shopping spend in its existing JSON file, but append under a
+  cross-process flock lock with atomic temp-file replacement, preserving
+  historical entries and tracking the stable request ID+hash **inside the
+  entry**. A corrupt file fails closed instead of erasing purchase history.
+- Protect online inventory add, consumption and spend by journaling a stable
+  request ID in the existing fail-closed Safari/PWA queue *before* network
+  transmission. On lost HTTP responses, the same ID is safely replayed;
+  duplicate button events or a second browser tab cannot create a new
+  ambiguous intent.
+- Extend offline replay's receipt IDs to consumption and spending. Local
+  storage failures block unrecorded writes, and no UI success toast is
+  shown for unconfirmed shopping spend.
+- Preserve the existing offline queue locks, storage verification,
+  stock/transaction atomicity, package units and explicit-use confirmation.
+  No official Upstream replay store is bulk-merged; no production migration.
+- Add real loopback HTTP/SQLite/JSON-file tests for concurrent uses, recipes,
+  all-stock consumption, lost replies, failed receipt commits, concurrent
+  spends and corrupt history; simulate Safari storage failures, PWA
+  restarts, parallel tabs and double taps.
+
+**Staged on top of draft v1.16.29 (#32). Neither version is deployed.**
+
 ## [1.16.29] - 2026-11-19 (unit-preserving inventory, draft)
 
 ### Prevent silent reinterpretation of stocked product quantities (Issue #28)

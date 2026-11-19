@@ -52,7 +52,10 @@ async function runReplay(ops, apiImpl) {
             return apiImpl(action, body, calls.length);
         },
     };
-    const run = vm.runInNewContext(replaySource + '\n_syncOfflineQueue;', context);
+    const actions = extract(
+        'const _EXACTLY_ONCE_ACTIONS = new Set(',
+        'const _onlineWriteInFlight = new Map();');
+    const run = vm.runInNewContext(actions + replaySource + '\n_syncOfflineQueue;', context);
     const synced = await run();
     return { synced, remaining, calls, toasts };
 }
