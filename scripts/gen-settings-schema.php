@@ -150,7 +150,7 @@ foreach ($panels as $panel) {
         }
         $label = $lm[1];
         $hint = '';
-        if (preg_match('/class="settings-hint"[^>]*data-i18n="([^"]+)"|data-i18n="([^"]+)"[^>]*class="settings-hint"/', $block, $hm)) {
+        if (preg_match('/class="settings-hint"[^>]*data-i18n(?:-safe-inline)?="([^"]+)"|data-i18n(?:-safe-inline)?="([^"]+)"[^>]*class="settings-hint"/', $block, $hm)) {
             $hint = $hm[1] !== '' ? $hm[1] : $hm[2];
         }
         if ($hint === '' && $card['hint'] === '') {

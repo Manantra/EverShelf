@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.33] - 2026-11-20 (safe Google Drive inline help, draft)
+
+### Restore formatting of Google Drive help text without unsafe translation HTML (Issue #35)
+
+- The three Google Drive setup hints have <strong> and <code> spans in six
+  translations, but were inserted by the text-only `data-i18n` path. Only
+  these three use a dedicated `data-i18n-safe-inline` binding.
+- Create only exact, attribute-free <strong> and <code> DOM nodes, filling
+  their content through `textContent`. Everything else, including unexpected
+  tags/event handlers and dynamic text, remains an inert text node.
+- Existing `data-i18n` escaping, unrelated `data-i18n-html` handling, OAuth
+  logic, credentials and scanner behavior stay unchanged.
+- Add multilingual DOM-safety regression to CI and preserve existing translations.
+
+**Separate draft stacked on v1.16.32 (#36). No merge to `main` or production data.**
+
 ## [1.16.32] - 2026-11-20 (safe scanner camera-error hint, draft)
 
 ### Render camera-permission guidance correctly without weakening HTML escaping (Issue #31)

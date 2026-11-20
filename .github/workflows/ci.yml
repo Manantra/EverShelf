@@ -130,6 +130,9 @@ jobs:
       - name: Verify safe camera-denial scanner hint in all six locales
         run: node scripts/test-scanner-camera-hint.js
 
+      - name: Verify safe Google Drive inline hints in all six locales
+        run: node scripts/test-gdrive-rich-hints.js
+
       - name: Verify stock unit conversion and stable-unit source contract
         run: python3 scripts/test-inventory-unit-contract.py
 
