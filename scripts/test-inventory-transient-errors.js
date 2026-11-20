@@ -11,6 +11,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const js = fs.readFileSync(path.join(__dirname, '../assets/js/app.js'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '../assets/css/style.css'), 'utf8');
+const corporateCss = fs.readFileSync(path.join(__dirname, '../assets/css/corporate.css'), 'utf8');
+const indexHtml = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function extract(start, end) {
     const first = js.indexOf(start);
@@ -208,6 +210,36 @@ function testCenteredBackgrounds() {
     assert(left.includes('right: 0') && right.includes('left: 0'),
         'Disposal on revealed right edge and consumption on revealed left edge');
     assert(left.includes('239, 68, 68') && right.includes('245, 158, 11'));
+
+    // CSS loaded later must not override the intended red disposal / amber use.
+    const corporateBlock = cls => {
+        const re = new RegExp('\\.' + cls + '\\s*\\{([^}]+)\\}');
+        return corporateCss.match(re)?.[1] || '';
+    };
+    const corporateLeft = corporateBlock('inv-swipe-bg-left');
+    const corporateRight = corporateBlock('inv-swipe-bg-right');
+    assert(corporateLeft.includes('var(--es-action-danger)')
+        && !corporateLeft.includes('var(--es-action-use)')
+        && corporateLeft.includes('#b91c1c'),
+        'Corporate theme must keep Entsorgen red in the revealed RIGHT strip');
+    assert(corporateRight.includes('var(--es-action-use)')
+        && !corporateRight.includes('var(--primary-light)')
+        && corporateRight.includes('#92400e'),
+        'Corporate theme must keep Verbrauchen amber in the revealed LEFT strip');
+    // In dark mode, the base dark-red/amber ink has poor contrast against
+    // semi-transparent action backgrounds. Require light theme-compatible ink.
+    assert(corporateCss.includes('[data-theme="dark"] .inv-swipe-bg-left')
+        && corporateCss.includes('.dark .inv-swipe-bg-left')
+        && corporateCss.includes('color: #fca5a5'),
+        'Dark mode disposal text must stay legible red');
+    assert(corporateCss.includes('[data-theme="dark"] .inv-swipe-bg-right')
+        && corporateCss.includes('.dark .inv-swipe-bg-right')
+        && corporateCss.includes('color: #fcd34d'),
+        'Dark mode consumption text must stay legible amber');
+    const styleAt = indexHtml.indexOf('assets/css/style.css');
+    const corporateAt = indexHtml.indexOf('assets/css/corporate.css');
+    assert(styleAt >= 0 && corporateAt > styleAt,
+        'CSS regression assumes corporate.css loads after style.css');
     console.log('PASS Verbrauchen and Entsorgen centered within their visible swipe strips');
 }
 (async()=>{

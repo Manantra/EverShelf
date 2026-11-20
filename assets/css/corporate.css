@@ -355,14 +355,28 @@ select.form-input:focus {
     font-weight: 700;
 }
 
+/* Keep both actions aligned with the underlying swipe implementation:
+   swipe LEFT reveals disposal in red on the RIGHT strip;
+   swipe RIGHT reveals consumption in amber on the LEFT strip.
+   These later corporate rules must not override the correct style.css semantics. */
 .inv-swipe-bg-left {
+    background: color-mix(in srgb, var(--es-action-danger) 22%, transparent);
+    color: #b91c1c;
+}
+
+.inv-swipe-bg-right {
     background: color-mix(in srgb, var(--es-action-use) 22%, transparent);
     color: #92400e;
 }
 
-.inv-swipe-bg-right {
-    background: color-mix(in srgb, var(--primary-light) 22%, transparent);
-    color: var(--primary-dark);
+/* The same action meanings stay readable on the dark inventory card. */
+[data-theme="dark"] .inv-swipe-bg-left,
+.dark .inv-swipe-bg-left {
+    color: #fca5a5;
+}
+[data-theme="dark"] .inv-swipe-bg-right,
+.dark .inv-swipe-bg-right {
+    color: #fcd34d;
 }
 
 /* Hide static swipe text hints — demo animation on first visit only */
