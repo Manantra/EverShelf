@@ -133,6 +133,9 @@ jobs:
       - name: Verify safe Google Drive inline hints in all six locales
         run: node scripts/test-gdrive-rich-hints.js
 
+      - name: Verify swipe product metadata failure and offline fallback
+        run: node scripts/test-swipe-product-get-errors.js
+
       - name: Verify stock unit conversion and stable-unit source contract
         run: python3 scripts/test-inventory-unit-contract.py
 
