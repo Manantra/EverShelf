@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261120c'; // bump when translations change
+const _I18N_VERSION = '20261120d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11145,12 +11145,38 @@ async function _openUsePage(productId, location) {
     try {
         currentProduct = { id: productId };
         const data = await api('product_get', { id: productId });
-        if (data.product) {
+        // A failed product lookup (especially HTTP 429) is not a valid product.
+        // Do not open a nameless Use form even if inventory_list still succeeds.
+        // In intentional offline mode, the cached inventory row is the product
+        // snapshot, so queued offline consumption remains available.
+        if (data?.success === false && !data?._offline) {
+            showToast(data.error || t('error.loading'), 'error');
+            return;
+        }
+        if (data?.product) {
             currentProduct = data.product;
             if (!currentProduct.weight_info && currentProduct.notes) {
                 const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
                 if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
             }
+        } else if (data?._offline) {
+            const cached = [...currentInventory, ..._allInventoryCache].find(
+                i => Number(i.product_id) === Number(productId));
+            if (!cached) {
+                showToast(t('error.loading'), 'error');
+                return;
+            }
+            currentProduct = {
+                id: productId, name: cached.name, brand: cached.brand || '',
+                image_url: cached.image_url || null, category: cached.category || '',
+                unit: cached.unit || 'pz',
+                default_quantity: cached.default_quantity || 0,
+                package_unit: cached.package_unit || '',
+                notes: cached.notes || '',
+            };
+        } else {
+            showToast(data?.error || t('error.loading'), 'error');
+            return;
         }
         document.getElementById('use-location').value = location;
         document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));

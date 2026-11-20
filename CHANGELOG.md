@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.34] - 2026-11-20 (safe swipe product detail reads, draft)
+
+### Product detail HTTP 429 must not open a nameless Use screen (Issue #4)
+
+- A real iPhone Safari HTTP 429 on `product_get`, while `inventory_list`
+  succeeds, currently opens a Use form with the correct stock but an empty
+  product name. Reject failed or missing online product metadata before
+  displaying the form; show the actual rate-limit/network error instead.
+- Preserve intentionally offline consumption: rebuild the product identity
+  from the locally cached inventory row when `product_get` is unavailable
+  in offline mode. Missing cached product details fail closed.
+- Add negative-mutation/regression tests for 429, other bad replies, proper
+  online retry and offline cache fallback. Keep barcode/scan and the
+  existing `inventory_list`/swipe direction implementation unchanged.
+- Bump version, PWA cache and asset tokens to invalidate old JavaScript.
+
+**Separate draft stacked on v1.16.33 (#37), not merged to `main`.
+Do not claim full offline/iPhone release gates from this focused fix.**
+
 ## [1.16.33] - 2026-11-20 (safe Google Drive inline help, draft)
 
 ### Restore formatting of Google Drive help text without unsafe translation HTML (Issue #35)
