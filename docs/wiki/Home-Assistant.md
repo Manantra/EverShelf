@@ -85,6 +85,8 @@ sensor:
       Authorization: !secret evershelf_api_authorization
     scan_interval: 300        # seconds
     value_template: "{{ value_json.state }}"
+    # The overview endpoint wraps additional data in its "attributes" object.
+    json_attributes_path: "$.attributes"
     json_attributes:
       - expiring_soon
       - expiring_3d
