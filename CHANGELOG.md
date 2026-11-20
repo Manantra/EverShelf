@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Leave the Products sensor at the JSON root; it already serves
   `items` and `last_updated` at that level. Do not rewrite the PHP
   endpoint or change any token handling, Webhooks, TTS, or scan logic.
+- Remove the generator's `device_class: null`: a complete Copy-YAML
+  configuration was rejected by actual Home Assistant Core 2026.11.0
+  despite its check_config command exiting 0 (`Incorrect config` and
+  only `Successful config (partial)`). It is not a valid sensor device
+  class; omitting it allows HA to select the normal generic sensor.
 - Extend the existing secure Home Assistant YAML test so it fails on
   the pre-fix generator and passes with the correct nested path,
   confirming no inline credentials in any generated YAML variant.

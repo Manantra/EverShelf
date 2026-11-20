@@ -24272,7 +24272,6 @@ ${authHeader}    scan_interval: 300
       - days_to_next_expiry
       - last_updated
     unit_of_measurement: "items"
-    device_class: null
 
   - platform: rest
     name: "EverShelf Expired Items"

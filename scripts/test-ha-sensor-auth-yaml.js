@@ -49,6 +49,8 @@ for(const [name,token,needed,expectHeaders] of [
    name+' product JSON items are top-level, do not apply overview JSON path');
  assert.equal((yaml.match(/json_attributes_path:/g)||[]).length,1,
    name+' only overview needs nested JSONPath');
+ assert(!yaml.includes('device_class: null'),
+   name+' must not export invalid device_class: null (HA Core 2026.11 rejects it)');
 
  if(expectHeaders){
   assert(yaml.includes('secrets.yaml'),name+' must explain secret storage');

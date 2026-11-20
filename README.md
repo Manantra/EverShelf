@@ -37,7 +37,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 <details>
 <summary><b>📰 What's new</b></summary>
 
-**v1.16.36** — fix copied Home Assistant Overview REST YAML: extract nested JSON attributes with `json_attributes_path`, keeping API responses and token handling unchanged (issue #40, draft).
+**v1.16.36** — fix Home Assistant REST Copy YAML: extract nested Overview attributes and omit invalid `device_class: null`, keeping API responses and tokens unchanged (issue #40, draft).
 
 **v1.16.35** — keep swipe action colors consistent across the full corporate CSS cascade: Entsorgen red, Verbrauchen amber, with brighter legible labels in dark mode (issue #4, draft).
 
