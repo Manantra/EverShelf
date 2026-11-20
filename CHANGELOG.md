@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.35] - 2026-11-20 (clear swipe action colors and dark-mode legibility, draft)
+
+### Restore semantic swipe colors without changing gestures (Issue #4)
+
+- An iPhone 17 Pro Max Safari screenshot audit of the real inventory row
+  markup/CSS showed both action labels perfectly centered in their 100px
+  revealed strips, but `corporate.css` was loaded after `style.css` and
+  overrode the correct action colors: disposal appeared orange and consumption
+  green, contradicting the existing red / amber semantics.
+- Fix only the later corporate color overrides: swiping LEFT still exposes
+  red `Entsorgen` on the right edge; swiping RIGHT exposes amber
+  `Verbrauchen` on the left edge.
+- Apply brighter red and amber label ink in dark mode for readability.
+- Extend the existing swipe regression to detect CSS overrides in the actual
+  stylesheet loading order and retain the existing HTTP 429/503 checks.
+- Leave swipe-event thresholds, scanner, transaction APIs and inventory
+  persistence untouched. Increase version and PWA cache/asset stamp.
+
+**Separate draft stacked on v1.16.34 (#38); not merged to `main`.
+Visual iPhone QA is from an isolated, data-free static row fixture with the
+actual inventory row markup, gesture handler and production CSS stack.**
+
 ## [1.16.34] - 2026-11-20 (safe swipe product detail reads, draft)
 
 ### Product detail HTTP 429 must not open a nameless Use screen (Issue #4)
