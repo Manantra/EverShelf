@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261120e'; // bump when translations change
+const _I18N_VERSION = '20261120f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -24257,6 +24257,7 @@ sensor:
     resource: "${base}/api/?action=ha_sensor"
 ${authHeader}    scan_interval: 300
     value_template: "{{ value_json.state }}"
+    json_attributes_path: "$.attributes"
     json_attributes:
       - expiring_soon
       - expiring_3d

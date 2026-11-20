@@ -37,6 +37,19 @@ for(const [name,token,needed,expectHeaders] of [
  assert.equal((yaml.match(/^    resource: "http:\/\/evershelf\.example\.test\/api\/\?action=ha_sensor/gm)||[]).length,4,
    name+' resource routes');
  assert(yaml.includes('scan_interval: 300'),name+' preserves sensor fields');
+ // Overview has a nested "attributes" object in the real PHP response.
+ // Home Assistant REST sensors read root keys unless json_attributes_path is set.
+ const overview=yaml.split('    name: "EverShelf Overview"')[1]?.split('  - platform: rest')[0] || '';
+ const products=yaml.split('    name: "EverShelf Products"')[1] || '';
+ assert(overview.includes('    json_attributes_path: "$.attributes"\n    json_attributes:'),
+   name+' overview must select nested attributes before extracting keys');
+ assert(products.includes('    json_attributes:\n      - items'),
+   name+' product sensor still maps its top-level items');
+ assert(!products.includes('json_attributes_path'),
+   name+' product JSON items are top-level, do not apply overview JSON path');
+ assert.equal((yaml.match(/json_attributes_path:/g)||[]).length,1,
+   name+' only overview needs nested JSONPath');
+
  if(expectHeaders){
   assert(yaml.includes('secrets.yaml'),name+' must explain secret storage');
   assert(yaml.includes('NOT the Home Assistant HA_TOKEN'),name+' distinction must be explicit');
@@ -49,4 +62,6 @@ const docs=fs.readFileSync(path.join(__dirname,'../docs/wiki/Home-Assistant.md')
 assert(docs.includes('evershelf_api_authorization: "Bearer YOUR_EVERSHELF_API_TOKEN"'));
 assert((docs.match(/Authorization: !secret evershelf_api_authorization/g)||[]).length>=3);
 assert(docs.includes('are not') || docs.includes('not the **EverShelf API token**'));
+assert(docs.includes('    json_attributes_path: "$.attributes"\n    json_attributes:'),
+  'Manual HA Overview YAML must address nested API attributes');
 console.log('PASS HA documentation uses private secrets.yaml, not inline credentials');

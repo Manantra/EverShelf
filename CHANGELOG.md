@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.36] - 2026-11-20 (Home Assistant Overview REST attributes, draft)
+
+### Generated Home Assistant Overview sensor must select nested attributes (Issue #40)
+
+- An isolated, real Home Assistant Core 2026.11.0 integration probe
+  confirmed that `ha_sensor` replies with the state at JSON root but
+  its Overview metadata inside `attributes`. The generated Copy YAML
+  and documented example incorrectly requested `json_attributes`
+  from the root, producing no Overview attributes in Home Assistant.
+- Add `json_attributes_path: "$.attributes"` **only to the Overview
+  sensor**, in both `_renderHaSensorYaml()` and the wiki manual example.
+- Leave the Products sensor at the JSON root; it already serves
+  `items` and `last_updated` at that level. Do not rewrite the PHP
+  endpoint or change any token handling, Webhooks, TTS, or scan logic.
+- Extend the existing secure Home Assistant YAML test so it fails on
+  the pre-fix generator and passes with the correct nested path,
+  confirming no inline credentials in any generated YAML variant.
+- Bump version and PWA cache/asset stamp (`20261120f`) so browsers
+  load the corrected YAML generator.
+
+**Separate draft stacked on v1.16.35 (#39). No production HA integration,
+deployment or merge; Android/HA release gates remain open (#25).**
+
 ## [1.16.35] - 2026-11-20 (clear swipe action colors and dark-mode legibility, draft)
 
 ### Restore semantic swipe colors without changing gestures (Issue #4)
