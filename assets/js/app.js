@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261120b'; // bump when translations change
+const _I18N_VERSION = '20261120c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1533,6 +1533,29 @@ function _applyI18nToLabels() {
     }
 }
 
+// Restricted inline translation formatter for the three Google Drive help hints.
+// Only exact <strong>...</strong> and <code>...</code> pairs become DOM elements;
+// all other markup, attributes and dynamic text remain inert text nodes.
+function renderSafeI18nInline(el, translated) {
+    const source = String(translated ?? '');
+    const allowed = /<(strong|code)>([\s\S]*?)<\/\1>/gi;
+    const fragment = document.createDocumentFragment();
+    let position = 0;
+    for (const match of source.matchAll(allowed)) {
+        if (match.index > position) {
+            fragment.appendChild(document.createTextNode(source.slice(position, match.index)));
+        }
+        const inline = document.createElement(match[1].toLowerCase());
+        inline.textContent = match[2];
+        fragment.appendChild(inline);
+        position = match.index + match[0].length;
+    }
+    if (position < source.length) {
+        fragment.appendChild(document.createTextNode(source.slice(position)));
+    }
+    el.replaceChildren(fragment);
+}
+
 // Translate all elements with data-i18n attributes
 function translatePage() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -1549,6 +1572,10 @@ function translatePage() {
     document.querySelectorAll('[data-i18n-html]').forEach(el => {
         const key = el.getAttribute('data-i18n-html');
         if (key) el.innerHTML = t(key);
+    });
+    document.querySelectorAll('[data-i18n-safe-inline]').forEach(el => {
+        const key = el.getAttribute('data-i18n-safe-inline');
+        if (key) renderSafeI18nInline(el, t(key));
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.getAttribute('data-i18n-placeholder');
