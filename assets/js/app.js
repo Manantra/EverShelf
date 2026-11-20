@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261119b'; // bump when translations change
+const _I18N_VERSION = '20261120a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -16502,19 +16502,15 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
     // Store context so _saveVacuumAndStay can record the choice
     _pendingMoveCtx = { productId: product.id, fromLoc, openedId };
 
-    // If a preference is established, skip the modal entirely and auto-apply
+    // A saved preference can shorten the harmless "stay" path, but must
+    // NEVER silently relocate stock. Even old settings may contain choices
+    // learned from a 15-second timeout on previous versions.
     const prefMoveLoc = _getPreferredMoveLoc(product.id, fromLoc);
-    if (prefMoveLoc) {
-        if (prefMoveLoc === fromLoc) {
-            // Preference: stay in place — silent, no modal
-            _saveVacuumAndStay(openedId || 0);
-        } else {
-            // Preference: move to another location — apply silently
-            confirmMoveAfterUse(product.id, fromLoc, prefMoveLoc, openedId || 0, !!(openedVacuumSealed ?? product.vacuum_sealed));
-        }
+    if (prefMoveLoc === fromLoc) {
+        _saveVacuumAndStay(openedId || 0, true);
         return;
     }
-
+    // A different destination is a suggestion only; show the actual choice.
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
@@ -16531,7 +16527,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>${t('move.title')}</h3>
-            <button class="modal-close" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0})">✕</button>
+            <button class="modal-close" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0}, true)">✕</button>
         </div>
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">${t('move.question').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')).replace('{name}', `<strong>${escapeHtml(product.name)}</strong>`)}</p>
@@ -16541,23 +16537,32 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
-    startMoveModalCountdown('btn-move-stay', () => { _saveVacuumAndStay(openedId || 0); });
+    startMoveModalCountdown('btn-move-stay', () => { _saveVacuumAndStay(openedId || 0, true); });
 }
 
-/** Save vacuum state when user chooses to keep the item at the current location. */
-async function _saveVacuumAndStay(openedId) {
-    // Record the "stay" preference before closing
-    if (_pendingMoveCtx) {
-        _recordMoveLocChoice(_pendingMoveCtx.productId, _pendingMoveCtx.fromLoc, _pendingMoveCtx.fromLoc);
-        _pendingMoveCtx = null;
+/** Dismissal/timeout is NOT a choice and must never write vacuum state.
+ * Explicit Stay may save the checkbox and teach the location preference. */
+async function _saveVacuumAndStay(openedId, fromClock = false) {
+    const isVacuum = document.getElementById('move-vacuum-check')?.checked ? 1 : 0;
+    if (_pendingMoveCtx && !fromClock) {
+        _recordMoveLocChoice(_pendingMoveCtx.productId,
+            _pendingMoveCtx.fromLoc, _pendingMoveCtx.fromLoc);
     }
+    _pendingMoveCtx = null;
     closeModal();
-    if (openedId) {
-        const isVacuum = document.getElementById('move-vacuum-check')?.checked ? 1 : 0;
+    if (!fromClock && openedId) {
         try {
-            await api('inventory_update', {}, 'POST', { id: openedId, vacuum_sealed: isVacuum });
-            if (isVacuum) showToast(t('add.vacuum_saved'), 'success');
-        } catch (_) {}
+            const result = await api('inventory_update', {}, 'POST', {
+                id: openedId, vacuum_sealed: isVacuum,
+            });
+            if (result?.success && !result._queued && !result._offline && isVacuum) {
+                showToast(t('add.vacuum_saved'), 'success');
+            } else if (!result?.success) {
+                showToast(result?.error || t('error.connection'), 'error');
+            }
+        } catch (_) {
+            showToast(t('error.connection'), 'error');
+        }
     }
     showPage('dashboard');
 }
@@ -16565,19 +16570,25 @@ async function _saveVacuumAndStay(openedId) {
 async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVacuum) {
     clearMoveModalTimer();
     const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
-    // Record preference
-    if (_pendingMoveCtx && _pendingMoveCtx.productId === productId) {
-        _recordMoveLocChoice(productId, fromLoc, toLoc);
-        _pendingMoveCtx = null;
-    }
+    const explicitChoice = _pendingMoveCtx?.productId === productId
+        && _pendingMoveCtx?.fromLoc === fromLoc;
+    _pendingMoveCtx = null;
     closeModal();
     showLoading(true);
     try {
         const invData = await api('inventory_list');
+        // inventory_list is a legacy read endpoint: it returns {inventory:[...]}
+        // without a success:true property. Validate the actual payload shape.
+        if (!Array.isArray(invData?.inventory) || invData.success === false) {
+            throw new Error('move_inventory_unavailable');
+        }
         const invRows = invData.inventory || [];
         if (openedId) {
             const item = invRows.find(i => i.id == openedId);
-            const product = { name: currentProduct?.name || item?.name || '', category: currentProduct?.category || item?.category || '' };
+            if (!item || Number(item.product_id) !== Number(productId)) {
+                throw new Error('move_target_not_found');
+            }
+            const product = { name: currentProduct?.name || item.name || '', category: currentProduct?.category || item.category || '' };
             const payload = {
                 id: openedId,
                 location: toLoc,
@@ -16587,7 +16598,12 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
             if (!item?.expiry_user_set) {
                 payload.expiry_date = addDays(estimateOpenedExpiryDays(product, toLoc));
             }
-            await api('inventory_update', {}, 'POST', payload);
+            const saved = await api('inventory_update', {}, 'POST', payload);
+            if (saved?._offline || saved?._queued) {
+                throw new Error('move_pending_offline');
+            }
+            if (!saved?.success) throw new Error(saved?.error || 'move_unconfirmed');
+            if (explicitChoice) _recordMoveLocChoice(productId, fromLoc, toLoc);
             showToast(t('move.moved_toast').replace('{location}', LOCATIONS[toLoc]?.label || toLoc), 'success');
         } else {
             const item = invRows.find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
@@ -16604,12 +16620,22 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
                     if (newVacuum) days = getVacuumExpiryDays(days);
                     payload.expiry_date = addDays(days);
                 }
-                await api('inventory_update', {}, 'POST', payload);
+                const saved = await api('inventory_update', {}, 'POST', payload);
+                if (saved?._offline || saved?._queued) {
+                    throw new Error('move_pending_offline');
+                }
+                if (!saved?.success) throw new Error(saved?.error || 'move_unconfirmed');
+                if (explicitChoice) _recordMoveLocChoice(productId, fromLoc, toLoc);
                 showToast(t('move.moved_simple', { location: LOCATIONS[toLoc]?.label || toLoc }), 'success');
             }
         }
     } catch (e) {
         console.error('Move error:', e);
+        if (e?.message === 'move_pending_offline') {
+            showToast(t('error.offline_ops_pending').replace('{n}', '1'), 'warning');
+        } else {
+            showToast(t('error.connection'), 'error');
+        }
     }
     showLoading(false);
     showPage('dashboard');
@@ -22833,15 +22859,12 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
     // Set context for recording the choice
     _pendingMoveCtx = { productId, fromLoc, openedId };
 
-    // If a preference exists, skip the modal entirely
+    // Only an already-chosen Stay may be honored silently. A preference
+    // for a DIFFERENT location cannot authorize a future stock movement.
     const prefMoveLoc = _getPreferredMoveLoc(productId, fromLoc);
-    if (prefMoveLoc) {
-        if (prefMoveLoc === fromLoc) {
-            closeModal();
-        } else {
-            confirmRecipeMove(productId, fromLoc, prefMoveLoc, openedId, wasVacuum);
-        }
+    if (prefMoveLoc === fromLoc) {
         _pendingMoveCtx = null;
+        closeModal();
         return;
     }
 
@@ -22857,7 +22880,7 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>${t('move.title')}</h3>
-            <button class="modal-close" onclick="clearMoveModalTimer();closeModal()">✕</button>
+            <button class="modal-close" onclick="clearMoveModalTimer();_recipeMoveCancelStay(${productId}, '${fromLoc}', ${openedId || 0}, true)">✕</button>
         </div>
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">${t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))}</p>
@@ -22867,27 +22890,41 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
-    startMoveModalCountdown('btn-move-stay', () => { _recipeMoveCancelStay(productId, fromLoc, openedId || 0); });
+    startMoveModalCountdown('btn-move-stay', () => { _recipeMoveCancelStay(productId, fromLoc, openedId || 0, true); });
 }
 
-function _recipeMoveCancelStay(productId, fromLoc, openedId) {
-    _recordMoveLocChoice(productId, fromLoc, fromLoc);
+function _recipeMoveCancelStay(productId, fromLoc, openedId, fromClock = false) {
+    // A timeout or tapping X is not an affirmative preference.
+    if (!fromClock && _pendingMoveCtx?.productId === productId
+        && _pendingMoveCtx?.fromLoc === fromLoc) {
+        _recordMoveLocChoice(productId, fromLoc, fromLoc);
+    }
     _pendingMoveCtx = null;
     closeModal();
 }
 
 async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacuum) {
     clearMoveModalTimer();
-    _recordMoveLocChoice(productId, fromLoc, toLoc);
+    const explicitChoice = _pendingMoveCtx?.productId === productId
+        && _pendingMoveCtx?.fromLoc === fromLoc;
     _pendingMoveCtx = null;
     const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
     closeModal();
     try {
         const invData = await api('inventory_list');
+        // inventory_list is a legacy read endpoint: it returns {inventory:[...]}
+        // without a success:true property. Validate the actual payload shape.
+        if (!Array.isArray(invData?.inventory) || invData.success === false) {
+            throw new Error('move_inventory_unavailable');
+        }
         const invRows = invData.inventory || [];
+        let updated = false;
         if (openedId) {
             const item = invRows.find(i => i.id == openedId);
-            const product = { name: item?.name || '', category: item?.category || '' };
+            if (!item || Number(item.product_id) !== Number(productId)) {
+                throw new Error('recipe_move_target_not_found');
+            }
+            const product = { name: item.name || '', category: item.category || '' };
             const payload = {
                 id: openedId,
                 location: toLoc,
@@ -22899,7 +22936,12 @@ async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacu
                 if (newVacuum) days = getVacuumExpiryDays(days);
                 payload.expiry_date = addDays(days);
             }
-            await api('inventory_update', {}, 'POST', payload);
+            const saved = await api('inventory_update', {}, 'POST', payload);
+            if (saved?._offline || saved?._queued) {
+                throw new Error('move_pending_offline');
+            }
+            if (!saved?.success) throw new Error(saved?.error || 'recipe_move_unconfirmed');
+            updated = true;
         } else {
             const item = invRows.find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
             if (item) {
@@ -22914,12 +22956,24 @@ async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacu
                     if (newVacuum) days = getVacuumExpiryDays(days);
                     payload.expiry_date = addDays(days);
                 }
-                await api('inventory_update', {}, 'POST', payload);
+                const saved = await api('inventory_update', {}, 'POST', payload);
+                if (saved?._offline || saved?._queued) {
+                    throw new Error('move_pending_offline');
+                }
+                if (!saved?.success) throw new Error(saved?.error || 'recipe_move_unconfirmed');
+                updated = true;
             }
         }
+        if (!updated) throw new Error('recipe_move_inventory_missing');
+        if (explicitChoice) _recordMoveLocChoice(productId, fromLoc, toLoc);
         showToast(t('move.moved_simple', { location: LOCATIONS[toLoc]?.label || toLoc }), 'success');
     } catch (e) {
         console.error('Recipe move error:', e);
+        if (e?.message === 'move_pending_offline') {
+            showToast(t('error.offline_ops_pending').replace('{n}', '1'), 'warning');
+        } else {
+            showToast(t('error.connection'), 'error');
+        }
     }
 }
 
