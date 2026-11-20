@@ -94,6 +94,9 @@ jobs:
       - name: Simulate Safari/PWA storage, suspended replay, and tab conflicts
         run: node scripts/test-pwa-offline-queue.js
 
+      - name: Verify 15-second move modal auto-dismiss does not learn or mutate stock
+        run: node scripts/test-move-preference-intent.js
+
       - name: Verify exactly-once online intents and durable Safari replay
         run: node scripts/test-durable-online-write.js
 
@@ -185,6 +188,13 @@ jobs:
             find data/rate_limits -maxdepth 1 -type f -name '*.json' -delete
           fi
           python3 scripts/integration-exactly-once-use-spend.py --sandbox-root . --base-url http://127.0.0.1:18080 --second-url http://127.0.0.1:18081
+          # Move preference integration uses real PHP/SQLite, never production.
+          # Clear only synthetic traffic throttling from this marked sandbox.
+          grep -qx 'EVERSHELF_SANDBOX=1' .env
+          if [ -d data/rate_limits ]; then
+            find data/rate_limits -maxdepth 1 -type f -name '*.json' -delete
+          fi
+          node scripts/integration-move-after-use-intent.js --sandbox-root . --base-url http://127.0.0.1:18080
           php api/cron_smart_shopping.php
           python3 -c "import sqlite3; db=sqlite3.connect('data/evershelf.db'); assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'"
 

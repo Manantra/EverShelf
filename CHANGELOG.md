@@ -13,6 +13,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.31] - 2026-11-20 (intent-safe move-after-use preferences, draft)
+
+### Never teach location habits from timer defaults or silently relocate stock (Issue #30)
+
+- Separate actual user taps from 15-second default/close actions in both
+  ordinary consumption and recipe move-after-use modals. Automatic dismissal
+  is no location choice: no `pref_move_loc` learning, no inventory/vacuum write.
+- A learned "stay" preference can dismiss without side effects; a learned
+  DIFFERENT destination can no longer silently move stock, especially when
+  older preferences were polluted by automatic timer answers.
+- Manual moves learn only after the backend confirms `inventory_update`.
+  Rejected/offline/queued/missing or wrong-product moves are not reported as
+  successful and cannot reinforce a preference.
+- Preserve the explicit 15-second UI, checked vacuum state, manual location
+  changes, existing SQLite receipts/queue, and all v1.16.29–v1.16.30 fixes.
+- Add deterministic fake-timer tests executing the actual app.js/recipe
+  handlers for 15-second expiry, X dismissals, pointer interrupts, existing
+  preferences, multiple locations, vacuum state and failed/missing records.
+- Add a real two-dialog HTTP/SQLite integration: timer and saved preferences
+  do not touch stock; explicit manual and recipe moves affect only the correct
+  synthetic inventory row. Preserve the existing `inventory_list` response
+  contract (it returns an inventory array without `success:true`).
+  No production database or automatic stock migration is involved.
+
+**Stacked draft after v1.16.30 (#33), which itself follows v1.16.29 (#32).**
+
 ## [1.16.30] - 2026-11-19 (durable consume/spend intent receipts, draft)
 
 ### Eliminate remaining double-use and double-spend replays (Issue #29)
