@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.32] - 2026-11-20 (safe scanner camera-error hint, draft)
+
+### Render camera-permission guidance correctly without weakening HTML escaping (Issue #31)
+
+- Render only the explicitly supported `<br>` separator from `scanner.camera_error_hint`
+  as a line break; escape every surrounding text segment, including unexpected HTML.
+- Preserve all six existing translations and the complete barcode scanner, camera
+  permission flow, manual input and AI fallback unchanged.
+- Add a real camera-denial handler regression across six locales with injected
+  HTML and a targeted markup audit in CI. Issue #35 (Google Drive hints) remains
+  separate. No production state or scanner-engine migration.
+
+**Isolated draft stacked on v1.16.31 (#34). No merge to `main`.**
+
 ## [1.16.31] - 2026-11-20 (intent-safe move-after-use preferences, draft)
 
 ### Never teach location habits from timer defaults or silently relocate stock (Issue #30)

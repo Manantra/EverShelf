@@ -1403,7 +1403,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261120a'; // bump when translations change
+const _I18N_VERSION = '20261120b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11776,7 +11776,7 @@ async function initScanner() {
                     <button type="button" class="scan-result-sheet-close" onclick="_dismissAiMatchPanel()" aria-label="${escapeAttr(t('btn.close') || 'Close')}">✕</button>
                 </div>
                 <p style="color: var(--danger)">${escapeHtml(t('error.camera'))}</p>
-                <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${escapeHtml(t('scanner.camera_error_hint'))}</p>
+                <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${t('scanner.camera_error_hint').split(/<br\s*\/?>/gi).map(escapeHtml).join('<br>')}</p>
             `;
             result.style.display = 'block';
         }
