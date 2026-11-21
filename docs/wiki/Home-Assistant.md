@@ -222,47 +222,63 @@ EverShelf fires an HTTP POST to your HA webhook URL when pantry events occur.
 ```json
 {
   "event": "expiry_alert",
-  "timestamp": "2025-06-12T08:00:00+00:00",
-  "data": {
-    "type": "expiring_soon",
-    "count": 3,
-    "days": 3,
-    "summary": "Milk, Yogurt, Butter",
-    "items": [
-      {
-        "product_id": 42,
-        "inventory_id": 7,
-        "name": "Milk",
-        "brand": "Parmalat",
-        "category": "Dairy",
-        "quantity": 2.0,
-        "unit": "conf",
-        "default_quantity": 1000.0,
-        "package_unit": "ml",
-        "location": "frigo",
-        "expiry_date": "2025-06-14",
-        "days_remaining": 2,
-        "opened_at": "2025-06-10",
-        "vacuum_sealed": false
-      }
-    ]
-  }
+  "source": "evershelf",
+  "ts": 1795248000,
+  "type": "expiring_soon",
+  "count": 3,
+  "days": 3,
+  "summary": "Milk, Yogurt, Butter",
+  "items": [
+    {
+      "product_id": 42,
+      "inventory_id": 7,
+      "name": "Milk",
+      "brand": "Parmalat",
+      "category": "Dairy",
+      "quantity": 2.0,
+      "unit": "conf",
+      "default_quantity": 1000.0,
+      "package_unit": "ml",
+      "location": "frigo",
+      "expiry_date": "2026-11-23",
+      "days_remaining": 2,
+      "opened_at": "2026-11-20",
+      "vacuum_sealed": false
+    }
+  ]
 }
 ```
 
+EverShelf sends the event metadata and attributes **directly at the JSON root**:
+`event`, `source`, `ts` (Unix seconds), plus event-specific keys such as
+`type`, `count`, and `items`. There is **no** nested `data` object.
+The settings option `expiry` enables events with the actual payload name
+`expiry_alert`. The cron may send two types: `expiring_soon` and `expired`.
+
 ### Example: Expiry Alert → Telegram
+
+Only run the example for **upcoming** expiry events. The same webhook URL can
+also receive `stock_update` and `shopping_add`, which have no `items` list.
 
 ```yaml
 alias: EverShelf Expiry Alert
 trigger:
   - platform: webhook
-    webhook_id: "evershelf_webhook_abc123"   # ← your Webhook ID
+    webhook_id: "evershelf_webhook_abc123"   # your secret HA Webhook ID
+    allowed_methods:
+      - POST
+    local_only: true
+condition:
+  - condition: template
+    value_template: >
+      {{ trigger.json.get('event') == 'expiry_alert'
+         and trigger.json.get('type') == 'expiring_soon' }}
 action:
   - service: notify.telegram_bot
     data:
-      message: >
-        🥫 EverShelf: {{ trigger.json.data.count }} product(s) expiring soon
-        {% for item in trigger.json.data.items %}
+      message: >-
+        🥫 EverShelf: {{ trigger.json['count'] }} product(s) expiring soon
+        {% for item in trigger.json['items'] %}
         — {{ item.name }}{% if item.brand %} ({{ item.brand }}){% endif %} ·
           {{ item.quantity }} {{ item.unit }} · 📍 {{ item.location }} ·
           expires {{ item.expiry_date }} ({{ item.days_remaining }} days)
@@ -277,7 +293,7 @@ You can filter by location in the automation template to only alert for fridge i
 condition:
   - condition: template
     value_template: >
-      {{ trigger.json.data.items | selectattr('location','eq','frigo') | list | length > 0 }}
+      {{ trigger.json.get('items', []) | selectattr('location','eq','frigo') | list | length > 0 }}
 ```
 
 ---
