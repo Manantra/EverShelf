@@ -13,6 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.37] - 2026-11-21 (Home Assistant webhook automation documentation, draft)
+
+### Correct the HA expiry webhook JSON shape and automation example (Issue #42)
+
+- A real isolated Home Assistant Core 2026.11.0 automation was triggered
+  by EverShelf's actual `stock_update` and `shopping_add` HTTP webhooks.
+  The payload's `event`, `source`, `ts` (Unix timestamp) and
+  event-specific fields are flat JSON keys; the old wiki incorrectly
+  claimed a `timestamp` string and a nested `data` object.
+- Correct the sample expiry payload and both expiry / fridge automation
+  templates. Use `trigger.json['items']` (bracket lookup avoids the
+  `dict.items` method), not `trigger.json.data.items`. Guard the
+  notification example by `event == expiry_alert` and
+  `type == expiring_soon` so it won't attempt an expiry message for
+  shopping and stock updates delivered via the same webhook URL.
+- Add a repeatable Node regression to verify the sample payload against
+  the live PHP webhook emitter / expiry cron and require the guarded,
+  root-level Home Assistant template references. Run it in GitHub CI.
+- Keep the working webhook sender, event filter, Home Assistant sensor
+  outputs, API tokens, and transaction logic untouched. Bump version and
+  PWA cache / assets (`20261121a`).
+
+**Draft stacked on v1.16.36 (#41). The separate HTTP 503/timeout tests
+confirmed best-effort webhook delivery (no automatic retries), while
+persisted stock and shopping writes remain intact. No production HA or
+main branch changes; release gate #25 remains open.**
+
 ## [1.16.36] - 2026-11-20 (Home Assistant Overview REST attributes, draft)
 
 ### Generated Home Assistant Overview sensor must select nested attributes (Issue #40)

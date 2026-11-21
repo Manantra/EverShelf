@@ -85,6 +85,9 @@ jobs:
       - name: Verify secure Home Assistant sensor YAML exports
         run: node scripts/test-ha-sensor-auth-yaml.js
 
+      - name: Verify Home Assistant webhook event examples match emitted payloads
+        run: node scripts/test-ha-webhook-automation-doc.js
+
       - name: Check failed write acknowledgements
         run: node scripts/test-write-acknowledgements.js
 
