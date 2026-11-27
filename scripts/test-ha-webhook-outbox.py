@@ -45,6 +45,12 @@ def post(s,action,payload):
     assert result["success"],(action,result)
     return result,elapsed
 
+def restore(s,filename):
+    req=Request(s.url+"backup_restore",data=json.dumps({"filename":filename}).encode(),
+                headers={"Content-Type":"application/json","X-API-Token":"qa-only-token","X-EverShelf-Request":"1"},method="POST")
+    with urlopen(req,timeout=15) as response:
+        return json.load(response)
+
 def count(q):
     with sqlite3.connect(q/"data/ha_webhook_outbox/events.db") as db:
         return db.execute("SELECT count(*) FROM events").fetchone()[0]
@@ -63,7 +69,7 @@ def finish(w, timeout=25):
 try:
     with tempfile.TemporaryDirectory(prefix="qa45-outbox-") as temp:
         q=sandbox(Path(temp)/"app",{"HA_ENABLED":"true","HA_WEBHOOK_ASYNC":"true","HA_URL":f"http://127.0.0.1:{r.server_port}","HA_WEBHOOK_ID":"qa-only-secret","HA_WEBHOOK_EVENTS":"shopping_add,stock_update","API_TOKEN":"qa-only-token","LOG_LEVEL":"DEBUG"})
-        for name in ("api/index.php","api/lib/ha_webhook_outbox.php","api/cron_ha_webhooks.php"):
+        for name in ("api/index.php","api/lib/ha_webhook_outbox.php","api/cron_ha_webhooks.php","api/lib/local_backup_restore.php"):
             shutil.copy2(root/name,q/name)
         s=Server(q)
         s2=None
@@ -93,8 +99,21 @@ try:
             check(all("qa-only-secret" not in str(row) and "127.0.0.1" not in str(row) for row in rows),"no stored webhook ID or URL")
             s.close();s=Server(q)
             check(count(q)==2,"pending events survive PHP server restart")
+            backups=q/"data/backups";backups.mkdir(exist_ok=True)
+            backupname="evershelf_2026-11-27_0800.db"
+            backup=backups/backupname
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                db.execute("VACUUM INTO ?",(str(backup),))
+            badname="evershelf_2026-11-27_0801.db"
+            (backups/badname).write_bytes(b"not SQLite")
+            rejected=restore(s,badname)
+            check(not rejected["success"] and rejected["error_key"]=="error.backup_restore_invalid"
+                  and count(q)==2,"invalid backup leaves pending events intact")
             w=worker(q)
             check(first.wait(5),"worker reaches slow receiver")
+            rejected=restore(s,backupname)
+            check(not rejected["success"] and rejected["error_key"]=="error.backup_restore_busy",
+                  "restore cannot race an in-flight worker")
             start=time.monotonic()
             finish(worker(q),timeout=4)
             check(time.monotonic()-start<2,"parallel worker returns without duplicate claim")
@@ -150,6 +169,44 @@ try:
             logs="\n".join(f.read_text(errors="replace") for f in (q/"logs").glob("*.log"))
             check("HTTP 503" in logs and "enqueue failed; event dropped" in logs,
                   "503 and enqueue failure logged")
+            post(s,"inventory_update",{"id":iid,"quantity":5,"location":"dispensa"})
+            check(count(q)==1,"pending post-backup change")
+            # A locked outbox must prevent a restore, not leave a stale event behind.
+            with sqlite3.connect(path/"events.db") as lock:
+                lock.execute("BEGIN EXCLUSIVE")
+                try:
+                    rejected=restore(s,backupname)
+                    check(not rejected["success"] and rejected["error_key"]=="error.backup_restore_failed",
+                          "cannot invalidate locked outbox: restore rejected")
+                finally:
+                    lock.rollback()
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                check(db.execute("SELECT quantity FROM inventory WHERE id=?",(iid,)).fetchone()[0]==5,
+                      "failed restore leaves latest stock intact")
+            check(count(q)==1,"failed invalidation preserves pending event")
+            result=restore(s,backupname)
+            check(result["success"] and count(q)==0,"valid restore discards pending pre-restore events")
+            finish(worker(q))
+            check(len(received)==5,"no stale post-backup event delivered")
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                check(db.execute("SELECT quantity FROM inventory WHERE id=?",(iid,)).fetchone()[0]==4
+                      and db.execute("PRAGMA quick_check").fetchone()[0]=="ok","restored stock and integrity")
+            post(s,"inventory_update",{"id":iid,"quantity":6,"location":"dispensa"})
+            check(count(q)==1,"new post-restore stock change is queued")
+            finish(worker(q))
+            check(len(received)==6 and received[-1]["quantity"]==6,"post-restore worker resumes normally")
+            # Exercise the queue count and expiration limits without network calls.
+            with sqlite3.connect(path/"events.db") as db:
+                db.executemany("INSERT INTO events(event,payload,target_hash,created_at) VALUES (?,?,?,?)",
+                               [("stock_update","{}","invalid",0)]*500)
+            post(s,"inventory_update",{"id":iid,"quantity":7,"location":"dispensa"})
+            check(count(q)==500,"full outbox rejects event without rejecting stock change")
+            finish(worker(q))
+            check(count(q)==450 and len(received)==6,"worker honors 50-event bound and drops expired rows")
+            for _ in range(9):
+                finish(worker(q))
+            check(count(q)==0 and len(received)==6,"bounded queue drains expired backlog without delivery")
+
 
         finally:
             if w is not None:

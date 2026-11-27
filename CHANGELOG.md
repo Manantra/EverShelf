@@ -20,16 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Experimental opt-in `HA_WEBHOOK_ASYNC=true` separates outbound webhook
   attempts from API write acknowledgements using a private bounded SQLite queue.
   Default synchronous behavior is retained until the worker is configured.
-- Independent CLI worker, Docker minute schedule, no automatic retry after
+- Independent CLI worker, staggered Docker ten-second schedule, no automatic retry after
   timeout, non-2xx response or process failure. Preserve TLS checks from #44.
 - Keep stock/shopping SQLite and other notification/Bring integrations unchanged.
   The queue is best-effort, not atomic with pantry commits.
 - Local HTTP tests cover slow receiver, parallel requests/workers, restart,
   worker kill, queue contention, stale/disabled/changed destinations and
-  durable stock/shopping writes. Backup/restore and Docker runtime review
-  remain release gates.
+  durable stock/shopping writes. Bind the queue count limit as an integer.
+- Coordinate verified restore with the worker and invalidate pending events
+  before changing live pages. Tests cover busy, invalid, failed and valid restore.
+  Docker runtime review and concurrent household-write semantics remain release gates.
 
-**Local experimental draft stacked on v1.16.38 (#46). No production change.**
+**Experimental draft stacked on v1.16.38 (#46). No production change.**
 
 ## [1.16.38] - 2026-11-27 (Home Assistant webhook TLS, draft)
 

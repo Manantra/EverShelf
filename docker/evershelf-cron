@@ -11,3 +11,8 @@ MAILTO=""
 
 # Optional HA outbox: independent of maintenance and backup; no request blocks on it.
 * * * * * www-data php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1
+* * * * * www-data sleep 10 && php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1
+* * * * * www-data sleep 20 && php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1
+* * * * * www-data sleep 30 && php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1
+* * * * * www-data sleep 40 && php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1
+* * * * * www-data sleep 50 && php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1

@@ -14965,7 +14965,8 @@ function restoreLocalBackup(string $filename, PDO $db): array {
         return ['success' => false, 'error' => 'Backup file not found', 'error_key' => 'error.backup_not_found'];
     }
 
-    $result = evershelfRestoreSqliteBackupSafely($backupPath, DB_PATH);
+    $result = evershelfRestoreSqliteBackupSafely($backupPath, DB_PATH, null,
+        'evershelfHaOutboxInvalidateForRestore');
     if ($result !== 'ok') {
         $errorKeys = [
             'invalid_backup' => 'error.backup_restore_invalid',

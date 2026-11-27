@@ -371,7 +371,7 @@ HTTP remains supported for existing local installations but does not provide TLS
 
 Enable `HA_WEBHOOK_ASYNC=true` in `.env` only after scheduling
 `api/cron_ha_webhooks.php` as the same user as PHP. The Docker image includes
-a once-per-minute cron entry; bare-metal administrators must install it first
+staggered cron entries every ten seconds; bare-metal administrators must install a schedule first
 (see [Installation](Installation#cron-jobs)). The default is unchanged
 synchronous delivery to preserve existing installations and automation timing.
 
@@ -380,8 +380,10 @@ network request. A private separate SQLite outbox under
 `data/ha_webhook_outbox/` stores event payloads, but not the destination URL,
 webhook ID or CA path (only a destination fingerprint). Keep the runtime data
 directory inaccessible via HTTP and out of backups/image build contexts.
-Normally a new event is attempted at the next cron tick (up to about one
-minute of scheduling delay, plus backlog and network time). A stopped worker
+Normally a new event is attempted at the next cron tick (about ten seconds
+maximum scheduling delay in Docker, up to one minute with the sample bare-metal
+cron, plus backlog and network time). After container startup the first cron
+tick may take up to a minute. A stopped worker
 does not deliver events. The queue is bounded (500 events, 256 KiB per payload,
 10-minute expiry); the worker handles at most 50 events per run, with a
 45-second start budget. Excess, stale, disabled or changed-destination events
@@ -395,10 +397,16 @@ promised. Event order follows queue insertion, not a global transaction order.
 Other notification channels (ntfy, generic webhook, HA notify, Web Push) and
 Bring! are unchanged and may still perform synchronous network calls.
 
-Do not enable this experimental mode before reviewing backup/restore behavior
-and validating the worker schedule on your installation. Before restoring a
-pantry backup, stop the worker and discard pending test events if appropriate;
-queue contents are not part of the pantry SQLite backup.
+Do not enable this experimental mode before validating the worker schedule on
+your installation. The verified local restore shares an exclusion lock with
+the worker and enqueue operation. A busy worker makes restore return busy; an
+invalid backup leaves the queue untouched. After validating the backup and
+creating a safety snapshot, pending events are discarded before live pages
+change. If invalidation fails, restore is refused. If the subsequent restore
+fails, the discarded events are not recovered. Queue contents are not part of
+the pantry backup. Pause concurrent household writes during restore: the gate
+protects delivery and enqueue, not the entire lifetime of every API request.
+For manual filesystem restores, stop the app/worker and discard the old queue.
 
 ## Troubleshooting
 

@@ -44,23 +44,60 @@ function evershelfHaOutboxTargetHash(string $url, string $caBundle): string {
     return hash('sha256', $url . "\0" . $caBundle);
 }
 
+/** Share the existing restore gate; never wait behind a restore in an API write. */
+function evershelfHaOutboxRestoreGate() {
+    $path = dirname(evershelfHaOutboxDir()) . '/backup_restore.lock';
+    if (is_link($path)) return false;
+    $lock = @fopen($path, 'c');
+    if ($lock === false) return false;
+    if (!@flock($lock, LOCK_SH | LOCK_NB)) {
+        fclose($lock);
+        return false;
+    }
+    return $lock;
+}
+
+/** Called only while the verified restore owns the exclusive restore gate. */
+function evershelfHaOutboxInvalidateForRestore(): bool {
+    if (!is_dir(evershelfHaOutboxDir())) return true;
+    try {
+        $db = evershelfHaOutboxOpen();
+        $removed = $db->exec('DELETE FROM events');
+        EverLog::info('HA outbox: pending events discarded before restore', ['count' => $removed]);
+        return true;
+    } catch (Throwable $e) {
+        EverLog::warn('HA outbox: restore blocked; cannot invalidate pending events');
+        return false;
+    }
+}
+
 /** No network I/O here. Failure must not change the stock/shopping result. */
 function evershelfHaOutboxEnqueue(string $event, string $payload, string $url, string $caBundle): void {
+    $gate = null;
     try {
+        $gate = evershelfHaOutboxRestoreGate();
+        if ($gate === false) throw new RuntimeException('Restore gate busy');
         if (strlen($payload) > EVERSHELF_HA_OUTBOX_MAX_PAYLOAD) {
             throw new RuntimeException('Outbox payload too large');
         }
         $db = evershelfHaOutboxOpen();
         $q = $db->prepare('INSERT INTO events (event,payload,target_hash,created_at)
             SELECT ?,?,?,? WHERE (SELECT count(*) FROM events) < ?');
-        $q->execute([$event, $payload, evershelfHaOutboxTargetHash($url, $caBundle),
-                     time(), EVERSHELF_HA_OUTBOX_MAX]);
+        $q->bindValue(1, $event, PDO::PARAM_STR);
+        $q->bindValue(2, $payload, PDO::PARAM_STR);
+        $q->bindValue(3, evershelfHaOutboxTargetHash($url, $caBundle), PDO::PARAM_STR);
+        $q->bindValue(4, time(), PDO::PARAM_INT);
+        // SQLite compares storage classes for count(*) < ?; bind numeric limit as an integer.
+        $q->bindValue(5, EVERSHELF_HA_OUTBOX_MAX, PDO::PARAM_INT);
+        $q->execute();
         if ($q->rowCount() !== 1) {
             EverLog::warn("HA outbox[$event]: queue full; event dropped");
         }
     } catch (Throwable $e) {
         // Do not log payloads, filesystem paths or credentials.
         EverLog::warn("HA outbox[$event]: enqueue failed; event dropped");
+    } finally {
+        if (is_resource($gate)) fclose($gate);
     }
 }
 
@@ -69,9 +106,11 @@ function evershelfHaOutboxDrain(): int {
     if (PHP_SAPI !== 'cli') return 0;
     $dir = evershelfHaOutboxDir();
     if (!is_dir($dir)) return 0;
-    $lock = null;
+    $lock = $gate = null;
     $mask = umask(0077);
     try {
+        $gate = evershelfHaOutboxRestoreGate();
+        if ($gate === false) return 0;
         $db = evershelfHaOutboxOpen();
         if (is_link($dir . '/worker.lock')) throw new RuntimeException('Invalid lock');
         $lock = fopen($dir . '/worker.lock', 'c');
@@ -102,6 +141,7 @@ function evershelfHaOutboxDrain(): int {
         return -1;
     } finally {
         if (is_resource($lock)) fclose($lock);
+        if (is_resource($gate)) fclose($gate);
         umask($mask);
     }
 }

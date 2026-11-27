@@ -189,7 +189,7 @@ script and is safe to run by hand.
 **Docker: nothing to install.** The image ships `/etc/cron.d/evershelf`, which runs
 `api/cron_smart_shopping.php` every 5 minutes as `www-data` (output in
 `data/cron.log`). That single job also covers the barcode sync, the retention passes
-and the daily backup. A separate once-per-minute CLI job drains the optional
+and the daily backup. Separate staggered CLI jobs every ten seconds drain the optional
 Home Assistant webhook outbox when enabled. Check it with:
 
 ```bash
@@ -206,7 +206,7 @@ crontab -e
 # Smart shopping predictions + daily backup (every 5 minutes)
 */5 * * * * php /var/www/html/dispensa/api/cron_smart_shopping.php >> /var/www/html/dispensa/data/cron.log 2>&1
 
-# Optional HA deferred webhooks (install as the web/PHP user before enabling HA_WEBHOOK_ASYNC)
+# Optional HA deferred webhooks (once/minute example; install as the web/PHP user before enabling HA_WEBHOOK_ASYNC)
 * * * * * php /var/www/html/dispensa/api/cron_ha_webhooks.php >> /var/www/html/dispensa/data/cron.log 2>&1
 
 # Barcode catalog refresh (weekly; daily for small catalogs)

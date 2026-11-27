@@ -265,6 +265,9 @@ jobs:
           docker exec test-evershelf php -r 'if (!class_exists("SQLite3") || !method_exists("SQLite3", "backup")) {fwrite(STDERR, "SQLite3 online backup API unavailable\n"); exit(1);} echo "SQLite3 restore extension ready\n";'
           docker stop test-evershelf
 
+      - name: Test scheduled HA delivery inside isolated Docker container
+        run: python3 scripts/test-ha-webhook-docker.py evershelf-test
+
   validate-translations:
     name: Validate Translation Files
     runs-on: ubuntu-latest
