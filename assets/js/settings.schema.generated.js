@@ -1525,6 +1525,10 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "reason": "security"
         },
         {
+            "env": "HA_WEBHOOK_ASYNC",
+            "reason": "advanced"
+        },
+        {
             "env": "HA_WEBHOOK_EVENTS",
             "reason": "advanced"
         },

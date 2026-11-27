@@ -85,6 +85,9 @@ jobs:
       - name: Verify outbound Home Assistant webhook TLS and SQLite persistence
         run: python3 scripts/test-ha-webhook-tls.py
 
+      - name: Verify private HA outbox and independent API acknowledgement
+        run: python3 scripts/test-ha-webhook-outbox.py
+
       - name: Verify secure Home Assistant sensor YAML exports
         run: node scripts/test-ha-sensor-auth-yaml.js
 

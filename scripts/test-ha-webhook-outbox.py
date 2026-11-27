@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Isolated real HTTP API and outbox worker proof; no production connections."""
+from pathlib import Path
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+import concurrent.futures
+import json, runpy, tempfile, threading, time, sqlite3, shutil, subprocess, stat
+
+root=Path(__file__).resolve().parent.parent
+fixture=runpy.run_path(str(root/"scripts/test-api-token-autogen.py"),run_name="qa")
+sandbox,Server,PHP=fixture["sandbox"],fixture["Server"],fixture["PHP"]
+received=[]
+first=threading.Event()
+crash_entered=threading.Event()
+crash_next=threading.Event()
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        data=json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        received.append(data)
+        attempt=len(received)
+        if attempt==1:
+            first.set()
+            time.sleep(6)
+        if crash_next.is_set():
+            crash_next.clear()
+            crash_entered.set()
+            time.sleep(6)
+        self.send_response(503 if attempt==2 else 200)
+        self.send_header("Content-Length","0")
+        self.end_headers()
+    def log_message(self,*args): pass
+r=ThreadingHTTPServer(("127.0.0.1",0),Handler)
+threading.Thread(target=r.serve_forever,daemon=True).start()
+
+def post(s,action,payload):
+    req=Request(s.url+action,data=json.dumps(payload).encode(),headers={"Content-Type":"application/json","X-API-Token":"qa-only-token","X-EverShelf-Request":"1"},method="POST")
+    start=time.monotonic()
+    try:
+        with urlopen(req,timeout=20) as response:
+            result=json.load(response)
+    except HTTPError as e:
+        raise AssertionError((action,e.code,e.read().decode())) from e
+    elapsed=time.monotonic()-start
+    assert result["success"],(action,result)
+    return result,elapsed
+
+def count(q):
+    with sqlite3.connect(q/"data/ha_webhook_outbox/events.db") as db:
+        return db.execute("SELECT count(*) FROM events").fetchone()[0]
+
+def check(condition,msg):
+    assert condition,msg
+    print("PASS",msg,flush=True)
+
+def worker(q):
+    return subprocess.Popen([PHP,str(q/"api/cron_ha_webhooks.php")],cwd=q,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+def finish(w, timeout=25):
+    out,err=w.communicate(timeout=timeout)
+    assert w.returncode==0,(out.decode(),err.decode())
+
+try:
+    with tempfile.TemporaryDirectory(prefix="qa45-outbox-") as temp:
+        q=sandbox(Path(temp)/"app",{"HA_ENABLED":"true","HA_WEBHOOK_ASYNC":"true","HA_URL":f"http://127.0.0.1:{r.server_port}","HA_WEBHOOK_ID":"qa-only-secret","HA_WEBHOOK_EVENTS":"shopping_add,stock_update","API_TOKEN":"qa-only-token","LOG_LEVEL":"DEBUG"})
+        for name in ("api/index.php","api/lib/ha_webhook_outbox.php","api/cron_ha_webhooks.php"):
+            shutil.copy2(root/name,q/name)
+        s=Server(q)
+        s2=None
+        w=None
+        try:
+            a,elapsed=post(s,"shopping_add",{"items":[{"name":"QA Quinoa","specification":"1"}]})
+            check(a["added"]==1 and elapsed<1.5,f"shopping API {elapsed:.3f}s with no receiver wait")
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                check(db.execute("SELECT count(*) FROM shopping_list").fetchone()[0]==1,"shopping row persisted")
+            p,_=post(s,"product_save",{"name":"QA Beans","name_user_set":1,"lang":"de","category":"conserve","unit":"conf","default_quantity":1,"package_unit":"conf"})
+            post(s,"inventory_add",{"product_id":p["id"],"quantity":2,"unit":"conf","location":"dispensa"})
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                iid=db.execute("SELECT id FROM inventory WHERE product_id=?",(p["id"],)).fetchone()[0]
+            _,elapsed=post(s,"inventory_update",{"id":iid,"quantity":4,"location":"dispensa"})
+            check(elapsed<1.5,f"inventory API {elapsed:.3f}s with no receiver wait")
+            check(count(q)==2 and not received,"two events queued, no outgoing HTTP yet")
+            try:
+                urlopen(s.url.split("/api/")[0]+"/api/cron_ha_webhooks.php",timeout=3)
+                raise AssertionError("worker exposed through HTTP")
+            except HTTPError as e:
+                check(e.code==403,"worker cannot be triggered over HTTP")
+            check(count(q)==2 and not received,"HTTP worker request cannot claim an event")
+            path=q/"data/ha_webhook_outbox"
+            check(stat.S_IMODE(path.stat().st_mode)==0o700 and stat.S_IMODE((path/"events.db").stat().st_mode)==0o600,"private outbox permissions")
+            with sqlite3.connect(path/"events.db") as db:
+                rows=db.execute("SELECT event,payload,target_hash FROM events").fetchall()
+            check(all("qa-only-secret" not in str(row) and "127.0.0.1" not in str(row) for row in rows),"no stored webhook ID or URL")
+            s.close();s=Server(q)
+            check(count(q)==2,"pending events survive PHP server restart")
+            w=worker(q)
+            check(first.wait(5),"worker reaches slow receiver")
+            start=time.monotonic()
+            finish(worker(q),timeout=4)
+            check(time.monotonic()-start<2,"parallel worker returns without duplicate claim")
+            s2=Server(q)
+            def add(pair):
+                server,name=pair
+                return post(server,"shopping_add",{"items":[{"name":name,"specification":"1"}]})
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes=list(pool.map(add,[(s,"Reis"),(s2,"Linsen")]))
+            check(all(a["added"]==1 and elapsed<1.5 for a,elapsed in outcomes),"two parallel API writes complete while worker waits")
+            finish(w);w=None
+            check(count(q)==0 and len(received)==4,"worker drains four events exactly once despite timeout and HTTP 503")
+            check(received[0]["event"]=="shopping_add" and received[1]["event"]=="stock_update" and received[1]["quantity"]==4,"FIFO payload and stock quantity preserved")
+            finish(worker(q))
+            check(len(received)==4,"restart does not retry attempted events")
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                check(db.execute("SELECT quantity FROM inventory WHERE id=?",(iid,)).fetchone()[0]==4 and db.execute("PRAGMA quick_check").fetchone()[0]=="ok","stock persisted and pantry integrity ok")
+            post(s,"shopping_add",{"items":[{"name":"QA Changed Target","specification":"1"}]})
+            check(count(q)==1,"event queued before destination change")
+            env=q/".env";env.write_text(env.read_text().replace("HA_WEBHOOK_ID=qa-only-secret","HA_WEBHOOK_ID=qa-new-secret"))
+            finish(worker(q))
+            check(count(q)==0 and len(received)==4,"old event not sent after destination change")
+            post(s,"shopping_add",{"items":[{"name":"QA Stale Event","specification":"1"}]})
+            with sqlite3.connect(path/"events.db") as db:
+                db.execute("UPDATE events SET created_at=0")
+            finish(worker(q))
+            check(count(q)==0 and len(received)==4,"expired event dropped without sending")
+            post(s,"shopping_add",{"items":[{"name":"QA Disabled Event","specification":"1"}]})
+            env.write_text(env.read_text().replace("HA_ENABLED=true","HA_ENABLED=false"))
+            finish(worker(q))
+            check(count(q)==0 and len(received)==4,"disabled HA drops pending events")
+            env.write_text(env.read_text().replace("HA_ENABLED=false","HA_ENABLED=true"))
+            post(s,"shopping_add",{"items":[{"name":"Haferflocken","specification":"1"}]})
+            check(count(q)==1,"one pending event for crash test")
+            crash_next.set()
+            w=worker(q)
+            check(crash_entered.wait(5),"worker claimed event and reached receiver")
+            w.kill();w.communicate();w=None
+            finish(worker(q))
+            check(count(q)==0 and len(received)==5,"worker killed after claim: no duplicate retry")
+            # Simulate queue contention separately from the pantry database.
+            with sqlite3.connect(path/"events.db") as lock:
+                lock.execute("BEGIN EXCLUSIVE")
+                try:
+                    result,elapsed=post(s,"shopping_add",{"items":[{"name":"Paprika","specification":"1"}]})
+                    check(result["added"]==1 and elapsed<1.5,"locked outbox cannot block or roll back shopping write")
+                finally:
+                    lock.rollback()
+            check(count(q)==0,"queue error does not cause inline network fallback")
+            with sqlite3.connect(q/"data/evershelf.db") as db:
+                check(db.execute("SELECT count(*) FROM shopping_list WHERE lower(name)='paprika'").fetchone()[0]==1,
+                      "shopping entry persisted despite outbox error")
+            logs="\n".join(f.read_text(errors="replace") for f in (q/"logs").glob("*.log"))
+            check("HTTP 503" in logs and "enqueue failed; event dropped" in logs,
+                  "503 and enqueue failure logged")
+
+        finally:
+            if w is not None:
+                w.terminate();w.wait()
+            if s2:s2.close()
+            s.close()
+finally:r.shutdown();r.server_close()

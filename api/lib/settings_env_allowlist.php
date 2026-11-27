@@ -60,6 +60,7 @@ function evershelfSettingsEnvAllowlist(): array
         'NOTIFY_CHANNELS'           => 'advanced',
         'NOTIFY_EVENTS'             => 'advanced',
         'HA_WEBHOOK_EVENTS'         => 'advanced',
+        'HA_WEBHOOK_ASYNC'          => 'advanced',
         'APPLIANCES'                => 'advanced',
         'CUSTOM_LOCATIONS'          => 'advanced',
         'INSTANCE_NAME'             => 'advanced',

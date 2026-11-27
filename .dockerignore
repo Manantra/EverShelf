@@ -98,3 +98,6 @@ Dockerfile
 **/*.swp
 **/*.swo
 
+
+# Private pending Home Assistant webhook events (never ship or commit).
+data/ha_webhook_outbox/

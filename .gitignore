@@ -105,3 +105,6 @@ TODO.md
 
 # ── Internal working docs (never pushed to GitHub) ────────────────────────
 todo/
+
+# Private pending Home Assistant webhook events (never ship or commit).
+data/ha_webhook_outbox/

@@ -1676,90 +1676,95 @@ function evershelfSettingsSchema(): array
     ),
     30 => 
     array (
-      'env' => 'HA_WEBHOOK_EVENTS',
+      'env' => 'HA_WEBHOOK_ASYNC',
       'reason' => 'advanced',
     ),
     31 => 
     array (
-      'env' => 'NOTIFY_CHANNELS',
+      'env' => 'HA_WEBHOOK_EVENTS',
       'reason' => 'advanced',
     ),
     32 => 
     array (
-      'env' => 'NOTIFY_EVENTS',
+      'env' => 'NOTIFY_CHANNELS',
       'reason' => 'advanced',
     ),
     33 => 
     array (
+      'env' => 'NOTIFY_EVENTS',
+      'reason' => 'advanced',
+    ),
+    34 => 
+    array (
       'env' => 'ICS_TOKEN',
       'reason' => 'security',
     ),
-    34 => 
+    35 => 
     array (
       'env' => 'BARCODE_AI_FALLBACK',
       'reason' => 'advanced',
     ),
-    35 => 
+    36 => 
     array (
       'env' => 'BARCODE_OFFLINE_ENABLED',
       'reason' => 'advanced',
     ),
-    36 => 
+    37 => 
     array (
       'env' => 'BARCODE_OFFLINE_SYNC_DAYS',
       'reason' => 'advanced',
     ),
-    37 => 
+    38 => 
     array (
       'env' => 'BARCODE_LOOKUP_TIMEOUT',
       'reason' => 'advanced',
     ),
-    38 => 
+    39 => 
     array (
       'env' => 'DEMO_MODE',
       'reason' => 'logging',
     ),
-    39 => 
+    40 => 
     array (
       'env' => 'DISPLAY_ERRORS',
       'reason' => 'logging',
     ),
-    40 => 
+    41 => 
     array (
       'env' => 'LOG_LEVEL',
       'reason' => 'logging',
     ),
-    41 => 
+    42 => 
     array (
       'env' => 'LOG_ROTATE_HOURS',
       'reason' => 'logging',
     ),
-    42 => 
+    43 => 
     array (
       'env' => 'LOG_MAX_FILES',
       'reason' => 'logging',
     ),
-    43 => 
+    44 => 
     array (
       'env' => 'GEMINI_CLASSIFY_DAILY_MAX',
       'reason' => 'advanced',
     ),
-    44 => 
+    45 => 
     array (
       'env' => 'RECEIPT_OCR_MAX_ITEMS',
       'reason' => 'advanced',
     ),
-    45 => 
+    46 => 
     array (
       'env' => 'AUTO_FAVORITE_TOP_N',
       'reason' => 'advanced',
     ),
-    46 => 
+    47 => 
     array (
       'env' => 'AUTO_FAVORITE_WINDOW_DAYS',
       'reason' => 'advanced',
     ),
-    47 => 
+    48 => 
     array (
       'env' => 'CRON_LOG_MAX_BYTES',
       'reason' => 'logging',

@@ -64,6 +64,11 @@ assert_true(
 
 // ── The job: every 5 minutes, as www-data, into the persistent volume ───────
 assert_true($cron !== '', 'docker/evershelf-cron exists');
+assert_true(
+    preg_match('~^\* \* \* \* \* www-data php /var/www/html/api/cron_ha_webhooks\.php >> /var/www/html/data/cron\.log 2>&1$~m', $cron) === 1,
+    'the independent HA outbox worker is scheduled every minute as www-data'
+);
+
 assert_true(str_ends_with($cron, "\n"), 'the cron file ends with a newline (cron ignores the last line without it)');
 foreach (['SHELL=', 'PATH=', 'MAILTO='] as $directive) {
     assert_true(str_contains($cron, $directive), "the cron file declares {$directive}");

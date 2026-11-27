@@ -8,3 +8,6 @@ SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 MAILTO=""
 */5 * * * * www-data php /var/www/html/api/cron_smart_shopping.php >> /var/www/html/data/cron.log 2>&1
+
+# Optional HA outbox: independent of maintenance and backup; no request blocks on it.
+* * * * * www-data php /var/www/html/api/cron_ha_webhooks.php >> /var/www/html/data/cron.log 2>&1
