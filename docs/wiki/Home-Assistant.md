@@ -344,7 +344,7 @@ The request is proxied through the EverShelf PHP backend (avoids CORS / mixed-co
 
 ## Environment Variables Reference
 
-Settings are configurable from `.env` or from the in-app Settings panel, except the administrator-only webhook CA bundle path.
+Settings are configurable from `.env` or from the in-app Settings panel, except the administrator-only webhook CA bundle path and deferred-delivery switch.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -354,6 +354,7 @@ Settings are configurable from `.env` or from the in-app Settings panel, except 
 | `HA_TTS_ENTITY` | _(empty)_ | `media_player` entity for TTS |
 | `HA_WEBHOOK_ID` | _(empty)_ | Webhook trigger ID from HA automation |
 | `HA_WEBHOOK_CA_BUNDLE` | _(empty)_ | Optional absolute path to a trusted PEM CA bundle for outbound HTTPS webhooks (`.env` only) |
+| `HA_WEBHOOK_ASYNC` | `false` | Opt in to deferred outbound HA webhook attempts; requires the CLI worker (`.env` only) |
 | `HA_WEBHOOK_EVENTS` | `expiry,shopping_add,stock_update` | Comma-separated list of events |
 | `HA_NOTIFY_SERVICE` | _(empty)_ | HA notify service (e.g. `notify.mobile_app_phone`) |
 | `HA_EXPIRY_DAYS` | `3` | Days before expiry to trigger the daily alert |
@@ -365,6 +366,72 @@ Settings are configurable from `.env` or from the in-app Settings panel, except 
 HTTPS webhooks verify the server certificate chain and hostname. Existing installations using untrusted self-signed certificates must install a trusted certificate or set `HA_WEBHOOK_CA_BUNDLE=/absolute/path/ca.pem` in `.env` to a trusted private CA bundle. The file must be readable by PHP; Docker users must mount it read-only into the container, outside the web root, and use the container path. Obtain the CA certificate from a trusted administrator, not from an unverified connection. Do not include private keys. A missing or invalid bundle fails delivery rather than disabling verification. This option applies only to outbound HA webhooks, not TTS or other integrations.
 
 HTTP remains supported for existing local installations but does not provide TLS protection. Failed webhook delivery is logged without rolling back stock or shopping writes.
+
+## Optional deferred webhook delivery (draft)
+
+Enable `HA_WEBHOOK_ASYNC=true` in `.env` only after scheduling
+`api/cron_ha_webhooks.php` as the same user as PHP. The Docker image includes
+staggered cron entries every ten seconds; bare-metal administrators must install a schedule first
+(see [Installation](Installation#cron-jobs)). The default is unchanged
+synchronous delivery to preserve existing installations and automation timing.
+
+With deferred delivery, stock/shopping writes do not wait for the HA webhook
+network request. A private separate SQLite outbox under
+`data/ha_webhook_outbox/` stores event payloads, but not the destination URL,
+webhook ID or CA path (only a destination fingerprint). Keep the runtime data
+directory inaccessible via HTTP and out of backups/image build contexts.
+Normally a new event is attempted at the next cron tick (about ten seconds
+maximum scheduling delay in Docker, up to one minute with the sample bare-metal
+cron, plus backlog and network time). After container startup the first cron
+tick may take up to a minute. A stopped worker
+does not deliver events. The queue is bounded (500 events, 256 KiB per payload,
+10-minute expiry); the worker handles at most 50 events per run, with a
+45-second start budget. Excess, stale, disabled or changed-destination events
+are dropped and logged. A failed local enqueue never rolls back a stock write.
+
+This is best-effort, not a transactional outbox: an event may be lost between
+the pantry write and enqueue, or if the worker stops after claiming it. Each
+queue row is removed before one network attempt, so a timeout, HTTP 503 or
+worker crash is **not retried automatically**. No exactly-once delivery is
+promised. Event order follows queue insertion, not a global transaction order.
+Other notification channels (ntfy, generic webhook, HA notify, Web Push) and
+Bring! are unchanged and may still perform synchronous network calls.
+
+Do not enable this experimental mode before validating the worker schedule on
+your installation. The verified local restore shares an exclusion lock with
+the worker and enqueue operation. A busy worker makes restore return busy; an
+invalid backup leaves the queue untouched. After validating the backup and
+creating a safety snapshot, pending events are discarded before live pages
+change. If invalidation fails, restore is refused. If the subsequent restore
+fails, the discarded events are not recovered. Queue contents are not part of
+the pantry backup. Pause concurrent household writes during restore: the gate
+protects delivery and enqueue, not the entire lifetime of every API request.
+For manual filesystem restores, stop the app/worker and discard the old queue.
+
+### Monitor the optional worker
+
+In Docker the existing healthcheck also checks the optional webhook worker.
+A normal completed drain, including an empty queue, refreshes a private
+heartbeat. If no run has completed for more than 150 seconds, if a pending
+event is older than 150 seconds, or if the queue cannot be read, the worker
+check fails. Docker uses its normal healthcheck grace period and failure
+threshold; an unhealthy status does not itself restart the container. The
+check does not perform a network request to Home Assistant and cannot
+certify successful webhook delivery (see the transport warnings in logs).
+It does not affect installations where deferred delivery is disabled.
+
+To inspect the same status as the PHP/web user on a bare-metal installation:
+
+```bash
+php /var/www/html/dispensa/api/cron_ha_webhooks.php --health
+```
+
+The command returns JSON and a nonzero exit code on unhealthy worker status.
+It reports only the enabled flag, worker state, last completion time, pending
+count and oldest pending age. The authenticated settings response also
+contains this object under `ha_webhook_worker`. No additional monitoring
+service or automatic push alert is configured. Monitor Docker health or the
+CLI exit code using your existing monitoring system if alerts are needed.
 
 ## Troubleshooting
 

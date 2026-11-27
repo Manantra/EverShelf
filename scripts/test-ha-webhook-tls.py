@@ -40,7 +40,8 @@ def certificates(p):
             "-keyout", p/"rogue.key", "-out", p/"rogue.pem")
     return ca
 
-def case(p, name, cert, bundle, expected, response=200):
+def case(p, name, cert, bundle, expected, response=200, *, async_mode=False):
+    name = ("queued-" if async_mode else "direct-") + name
     received = []
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -68,8 +69,10 @@ def case(p, name, cert, bundle, expected, response=200):
         url = ("https" if cert else "http") + "://127.0.0.1:" + str(receiver.server_port)
         q = sandbox(p/name, {"HA_ENABLED":"true", "HA_URL":url,
                     "API_TOKEN":"qa-isolated-token-44", "HA_WEBHOOK_ID":"qa-only", "HA_WEBHOOK_EVENTS":"shopping_add,stock_update",
-                    "HA_WEBHOOK_CA_BUNDLE":str(bundle or ""), "LOG_LEVEL":"DEBUG"})
-        shutil.copy2(ROOT/"api/index.php", q/"api/index.php")
+                    "HA_WEBHOOK_CA_BUNDLE":str(bundle or ""), "LOG_LEVEL":"DEBUG",
+                    "HA_WEBHOOK_ASYNC":"true" if async_mode else "false"})
+        for file in ("api/index.php", "api/lib/ha_webhook_outbox.php", "api/cron_ha_webhooks.php"):
+            shutil.copy2(ROOT/file, q/file)
         server = Server(q)
         def post(action, payload):
             req = Request(server.url+action, data=json.dumps(payload).encode(),
@@ -96,6 +99,9 @@ def case(p, name, cert, bundle, expected, response=200):
         with sqlite3.connect(q/"data/evershelf.db") as db:
             assert db.execute("SELECT quantity FROM inventory WHERE id=?", (iid,)).fetchone()[0] == 4, name
             assert db.execute("PRAGMA quick_check").fetchone()[0] == "ok", name
+        if async_mode:
+            assert not received, (name,"network send before worker")
+            subprocess.run([fixture["PHP"], str(q/"api/cron_ha_webhooks.php")], cwd=q, check=True, timeout=20)
         assert len(received) == 2*expected, (name,"received",len(received),"expected",2*expected)
         if expected:
             assert [body["event"] for _,body in received] == ["shopping_add","stock_update"], name
@@ -128,14 +134,17 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="evershelf-ha-tls-") as tmp:
         p=Path(tmp)
         ca=certificates(p)
-        case(p,"untrusted-default","rogue",None,0)
-        case(p,"trusted-private-ca","valid",ca,1)
-        case(p,"untrusted-with-ca","rogue",ca,0)
-        case(p,"wrong-hostname","wrong",ca,0)
-        case(p,"missing-bundle","valid",p/"missing.pem",0)
         bad=p/"invalid.pem"
         bad.write_text("not a certificate\n")
-        case(p,"invalid-bundle","valid",bad,0)
-        case(p,"http-local",None,None,1)
-        case(p,"http-ignores-ca-path",None,p/"missing.pem",1)
-        case(p,"https-503","valid",ca,1,503)
+        for async_mode in (False,True):
+            def run(*args):
+                case(p,*args,async_mode=async_mode)
+            run("untrusted-default","rogue",None,0)
+            run("trusted-private-ca","valid",ca,1)
+            run("untrusted-with-ca","rogue",ca,0)
+            run("wrong-hostname","wrong",ca,0)
+            run("missing-bundle","valid",p/"missing.pem",0)
+            run("invalid-bundle","valid",bad,0)
+            run("http-local",None,None,1)
+            run("http-ignores-ca-path",None,p/"missing.pem",1)
+            run("https-503","valid",ca,1,503)

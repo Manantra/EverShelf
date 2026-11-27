@@ -85,6 +85,9 @@ jobs:
       - name: Verify outbound Home Assistant webhook TLS and SQLite persistence
         run: python3 scripts/test-ha-webhook-tls.py
 
+      - name: Verify private HA outbox and independent API acknowledgement
+        run: python3 scripts/test-ha-webhook-outbox.py
+
       - name: Verify secure Home Assistant sensor YAML exports
         run: node scripts/test-ha-sensor-auth-yaml.js
 
@@ -261,6 +264,11 @@ jobs:
           curl -f http://localhost:8080/ || exit 1
           docker exec test-evershelf php -r 'if (!class_exists("SQLite3") || !method_exists("SQLite3", "backup")) {fwrite(STDERR, "SQLite3 online backup API unavailable\n"); exit(1);} echo "SQLite3 restore extension ready\n";'
           docker stop test-evershelf
+
+      - name: Test scheduled HA delivery inside isolated Docker container
+        run: |
+          python3 scripts/test-ha-webhook-docker.py evershelf-test
+          python3 scripts/test-ha-webhook-docker.py evershelf-test --unraid
 
   validate-translations:
     name: Validate Translation Files

@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.39] - 2026-11-27 (Home Assistant webhook outbox, draft)
+
+### Optional deferred HA webhook delivery (Issue #45)
+
+- Experimental opt-in `HA_WEBHOOK_ASYNC=true` separates outbound webhook
+  attempts from API write acknowledgements using a private bounded SQLite queue.
+  Default synchronous behavior is retained until the worker is configured.
+- Independent CLI worker, staggered Docker ten-second schedule, no automatic retry after
+  timeout, non-2xx response or process failure. Preserve TLS checks from #44.
+- Keep stock/shopping SQLite and other notification/Bring integrations unchanged.
+  The queue is best-effort, not atomic with pantry commits.
+- Local HTTP tests cover slow receiver, parallel requests/workers, restart,
+  worker kill, queue contention, stale/disabled/changed destinations and
+  durable stock/shopping writes. Bind the queue count limit as an integer.
+- Coordinate verified restore with the worker and invalidate pending events
+  before changing live pages. Tests cover busy, invalid, failed and valid restore.
+- Preserve the external `EVERSHELF_ENV_FILE` path for Docker cron jobs;
+  the root-owned runtime handoff contains only the filename. Monitor worker
+  heartbeat and queue backlog in Docker health and authenticated settings.
+  Concurrent household-write semantics and integration coverage remain release gates.
+
+**Experimental draft stacked on v1.16.38 (#46). No production change.**
+
 ## [1.16.38] - 2026-11-27 (Home Assistant webhook TLS, draft)
 
 ### Security: verify outbound HA HTTPS webhooks (Issue #44)

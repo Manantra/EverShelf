@@ -16,6 +16,7 @@ require_once __DIR__ . '/lib/product_family.php';
 require_once __DIR__ . '/lib/receipt_ocr.php';
 require_once __DIR__ . '/lib/local_backup_integrity.php';
 require_once __DIR__ . '/lib/local_backup_restore.php';
+require_once __DIR__ . '/lib/ha_webhook_outbox.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
@@ -2617,29 +2618,38 @@ function evershelfHaEventAllowed(string $event, array $allowed): bool {
     return false;
 }
 
-/**
- * Fire an outbound webhook to Home Assistant.
- * Respects HA_ENABLED, HA_URL, HA_WEBHOOK_ID and HA_WEBHOOK_EVENTS.
- * Synchronous best-effort delivery with a 5 s timeout; failures are logged.
- */
-function _fireHaWebhook(string $event, array $data): void {
-    // Notifications ride along: every event that reaches Home Assistant also goes
-    // to the NOTIFY_* channels (ntfy / generic webhook — api/lib/notify.php).
-    evershelfNotifyEvent($event, $data);
-
-    if (env('HA_ENABLED', 'false') !== 'true') return;
-    $haUrl     = rtrim(env('HA_URL', ''), '/');
+/** Resolve the current destination and event policy without performing network I/O. */
+function evershelfHaWebhookTarget(string $event): ?array {
+    if (env('HA_ENABLED', 'false') !== 'true') return null;
+    $haUrl = rtrim(env('HA_URL', ''), '/');
     $webhookId = env('HA_WEBHOOK_ID', '');
-    if (!$haUrl || !$webhookId) return;
-
+    if (!$haUrl || !$webhookId) return null;
     $allowed = array_map('trim', explode(',', env('HA_WEBHOOK_EVENTS', 'expiry,shopping_add,stock_update,barcode_scan')));
-    if (!evershelfHaEventAllowed($event, $allowed)) return;
+    if (!evershelfHaEventAllowed($event, $allowed)) return null;
+    return [$haUrl . '/api/webhook/' . urlencode($webhookId), trim(env('HA_WEBHOOK_CA_BUNDLE', ''))];
+}
 
-    $url     = $haUrl . '/api/webhook/' . urlencode($webhookId);
+/** HA webhook dispatch: optionally queue a private, best-effort delivery. */
+function _fireHaWebhook(string $event, array $data): void {
+    // Other notification channels retain their historical behavior.
+    evershelfNotifyEvent($event, $data);
+    $target = evershelfHaWebhookTarget($event);
+    if ($target === null) return;
+    [$url, $caBundle] = $target;
     $payload = json_encode(array_merge(['event' => $event, 'source' => 'evershelf', 'ts' => time()], $data), JSON_UNESCAPED_UNICODE);
+    if ($payload === false) {
+        EverLog::warn("_fireHaWebhook[$event]: JSON encoding failed");
+        return;
+    }
+    if (evershelfHaAsyncEnabled()) {
+        evershelfHaOutboxEnqueue($event, $payload, $url, $caBundle);
+    } else {
+        evershelfHaWebhookSend($event, $payload, $url, $caBundle);
+    }
+}
 
+function evershelfHaWebhookSend(string $event, string $payload, string $url, string $caBundle): void {
     // Private CAs must be explicitly trusted; never disable verification.
-    $caBundle = trim(env('HA_WEBHOOK_CA_BUNDLE', ''));
     $https = strtolower((string)parse_url($url, PHP_URL_SCHEME)) === 'https';
     if ($https && $caBundle !== '' && (!is_file($caBundle) || !is_readable($caBundle))) {
         EverLog::warn("_fireHaWebhook[$event]: CA bundle missing or unreadable");
@@ -9988,6 +9998,7 @@ function getServerSettings(): void {
         'telegram_webhook_path'       => 'api/index.php?action=telegram_webhook',
         // Home Assistant Integration
         'ha_enabled'                  => env('HA_ENABLED', 'false') === 'true',
+        'ha_webhook_worker'           => evershelfHaWorkerStatus(),
         'ha_url'                      => env('HA_URL', ''),
         'ha_token_set'                => !empty(env('HA_TOKEN', '')),
         'ha_tts_entity'               => env('HA_TTS_ENTITY', ''),
@@ -14955,7 +14966,8 @@ function restoreLocalBackup(string $filename, PDO $db): array {
         return ['success' => false, 'error' => 'Backup file not found', 'error_key' => 'error.backup_not_found'];
     }
 
-    $result = evershelfRestoreSqliteBackupSafely($backupPath, DB_PATH);
+    $result = evershelfRestoreSqliteBackupSafely($backupPath, DB_PATH, null,
+        'evershelfHaOutboxInvalidateForRestore');
     if ($result !== 'ok') {
         $errorKeys = [
             'invalid_backup' => 'error.backup_restore_invalid',

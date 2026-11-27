@@ -39,7 +39,7 @@ def write_marker(p,value):
 
 with tempfile.TemporaryDirectory(prefix="evershelf-restore-http-qa-") as tmp:
     p=sandbox(Path(tmp)/"server",{"ALLOW_OPEN_LAN":"true"})
-    for rel in ("api/index.php","api/lib/local_backup_restore.php"):
+    for rel in ("api/index.php","api/lib/local_backup_restore.php","api/lib/ha_webhook_outbox.php"):
         (p/rel).parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(ROOT/rel,p/rel)
     server=Server(p)

@@ -47,11 +47,14 @@ function evershelfRestoreSchemaAndIntegrityOkay(SQLite3 $connection): bool
 /**
  * @param null|callable(SQLite3):bool $afterRestoreCheck Internal test seam only.
  * The HTTP route never supplies this callback, and users cannot control it.
+ * @param null|callable():bool $beforeRestoreWrite Internal invalidation hook,
+ * called under the exclusive restore lock, after validation and safety copy.
  */
 function evershelfRestoreSqliteBackupSafely(
     string $backupPath,
     string $livePath,
-    ?callable $afterRestoreCheck = null
+    ?callable $afterRestoreCheck = null,
+    ?callable $beforeRestoreWrite = null
 ): string {
     clearstatcache(true, $backupPath);
     if (!is_file($backupPath) || is_link($backupPath) || (int)@filesize($backupPath) <= 0) {
@@ -94,6 +97,12 @@ function evershelfRestoreSqliteBackupSafely(
         @chmod($safetyPath, 0600);
         $safety = new SQLite3($safetyPath, SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE);
         if (!@$live->backup($safety) || !evershelfRestoreSchemaAndIntegrityOkay($safety)) {
+            return 'failed';
+        }
+
+        // External pending events must be invalidated while the restore lock is held.
+        // Only after source and recovery snapshot are both validated.
+        if ($beforeRestoreWrite !== null && $beforeRestoreWrite() !== true) {
             return 'failed';
         }
 
