@@ -31,6 +31,7 @@ function evershelfSettingsEnvAllowlist(): array
         'GH_ISSUE_TOKEN_KEY'        => 'security',
         'ICS_TOKEN'                 => 'security',
         'REPORT_ENABLED'            => 'security',
+        'HA_WEBHOOK_CA_BUNDLE'      => 'security',
         // support (parked banner slots live here too)
         'SUPPORT_MODE'              => 'support',
         'SUPPORT_DECIDED'           => 'support',

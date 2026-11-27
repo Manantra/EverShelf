@@ -2620,7 +2620,7 @@ function evershelfHaEventAllowed(string $event, array $allowed): bool {
 /**
  * Fire an outbound webhook to Home Assistant.
  * Respects HA_ENABLED, HA_URL, HA_WEBHOOK_ID and HA_WEBHOOK_EVENTS.
- * Non-blocking: uses a 5 s cURL timeout; failures are logged but never thrown.
+ * Synchronous best-effort delivery with a 5 s timeout; failures are logged.
  */
 function _fireHaWebhook(string $event, array $data): void {
     // Notifications ride along: every event that reaches Home Assistant also goes
@@ -2638,23 +2638,43 @@ function _fireHaWebhook(string $event, array $data): void {
     $url     = $haUrl . '/api/webhook/' . urlencode($webhookId);
     $payload = json_encode(array_merge(['event' => $event, 'source' => 'evershelf', 'ts' => time()], $data), JSON_UNESCAPED_UNICODE);
 
+    // Private CAs must be explicitly trusted; never disable verification.
+    $caBundle = trim(env('HA_WEBHOOK_CA_BUNDLE', ''));
+    $https = strtolower((string)parse_url($url, PHP_URL_SCHEME)) === 'https';
+    if ($https && $caBundle !== '' && (!is_file($caBundle) || !is_readable($caBundle))) {
+        EverLog::warn("_fireHaWebhook[$event]: CA bundle missing or unreadable");
+        return;
+    }
+
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    if ($ch === false) {
+        EverLog::warn("_fireHaWebhook[$event]: cURL initialization failed");
+        return;
+    }
+    $configured = curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $payload,
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
         CURLOPT_TIMEOUT        => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_CONNECTTIMEOUT => 3,
     ]);
+    if (!$configured || ($https && $caBundle !== '' && !curl_setopt($ch, CURLOPT_CAINFO, $caBundle))) {
+        curl_close($ch);
+        EverLog::warn("_fireHaWebhook[$event]: cURL configuration failed");
+        return;
+    }
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
     curl_close($ch);
 
-    if ($err) {
+    if ($resp === false || $err !== '') {
         EverLog::warn("_fireHaWebhook[$event]: cURL error – $err");
+    } elseif ($code < 200 || $code >= 300) {
+        EverLog::warn("_fireHaWebhook[$event]: HTTP $code");
     } else {
         EverLog::debug("_fireHaWebhook[$event]: HTTP $code");
     }
