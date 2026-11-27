@@ -344,7 +344,7 @@ The request is proxied through the EverShelf PHP backend (avoids CORS / mixed-co
 
 ## Environment Variables Reference
 
-All settings are configurable from `.env` or from the in-app Settings panel.
+Settings are configurable from `.env` or from the in-app Settings panel, except the administrator-only webhook CA bundle path.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -353,17 +353,24 @@ All settings are configurable from `.env` or from the in-app Settings panel.
 | `HA_TOKEN` | _(empty)_ | Long-Lived Access Token |
 | `HA_TTS_ENTITY` | _(empty)_ | `media_player` entity for TTS |
 | `HA_WEBHOOK_ID` | _(empty)_ | Webhook trigger ID from HA automation |
+| `HA_WEBHOOK_CA_BUNDLE` | _(empty)_ | Optional absolute path to a trusted PEM CA bundle for outbound HTTPS webhooks (`.env` only) |
 | `HA_WEBHOOK_EVENTS` | `expiry,shopping_add,stock_update` | Comma-separated list of events |
 | `HA_NOTIFY_SERVICE` | _(empty)_ | HA notify service (e.g. `notify.mobile_app_phone`) |
 | `HA_EXPIRY_DAYS` | `3` | Days before expiry to trigger the daily alert |
 
 ---
 
+## HTTPS webhook trust
+
+HTTPS webhooks verify the server certificate chain and hostname. Existing installations using untrusted self-signed certificates must install a trusted certificate or set `HA_WEBHOOK_CA_BUNDLE=/absolute/path/ca.pem` in `.env` to a trusted private CA bundle. The file must be readable by PHP; Docker users must mount it read-only into the container, outside the web root, and use the container path. Obtain the CA certificate from a trusted administrator, not from an unverified connection. Do not include private keys. A missing or invalid bundle fails delivery rather than disabling verification. This option applies only to outbound HA webhooks, not TTS or other integrations.
+
+HTTP remains supported for existing local installations but does not provide TLS protection. Failed webhook delivery is logged without rolling back stock or shopping writes.
+
 ## Troubleshooting
 
 **Test shows ❌ "Connection failed"**
 - Verify the URL is reachable from the EverShelf server (not just your browser)
-- If using HTTPS with a self-signed certificate, the server-side cURL request may fail — use HTTP on the local network instead
+- If using HTTPS with a private CA or self-signed certificate, check the certificate trust and hostname. For outbound webhooks, configure the trusted PEM bundle as described above rather than disabling TLS verification. The webhook CA setting does not configure the connection test or TTS.
 - Check that port 8123 (or your custom port) is open on the HA host
 
 **Test shows ❌ "bad_token"**

@@ -82,6 +82,9 @@ jobs:
       - name: Verify Home Assistant and native kiosk token migration
         run: python3 scripts/test-ha-kiosk-token-migration.py
 
+      - name: Verify outbound Home Assistant webhook TLS and SQLite persistence
+        run: python3 scripts/test-ha-webhook-tls.py
+
       - name: Verify secure Home Assistant sensor YAML exports
         run: node scripts/test-ha-sensor-auth-yaml.js
 

@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.16.38] - 2026-11-27 (Home Assistant webhook TLS, draft)
+
+### Security: verify outbound HA HTTPS webhooks (Issue #44)
+
+- Require certificate chain and hostname validation. No insecure override.
+- Optionally configure `HA_WEBHOOK_CA_BUNDLE` in `.env` with a trusted PEM
+  CA bundle readable by PHP. Untrusted self-signed installations must
+  configure trusted certificates before upgrading; missing or invalid bundles
+  fail delivery rather than disabling validation.
+- Keep HTTP support for existing local setups; HTTP is not encrypted.
+  Log transport/configuration errors and non-2xx responses as warnings.
+- Exercise real HTTP API shopping and inventory writes with local TLS/HTTP
+  receivers: trusted private CA, untrusted certificate, hostname mismatch,
+  missing/invalid bundle, HTTP compatibility and HTTP 503. Check durable
+  SQLite writes and integrity, event payloads and delivery counts in CI.
+- Leave the payload, event filter and transaction logic unchanged. The
+  synchronous webhook latency is tracked separately in #45.
+
+**Draft stacked on v1.16.37 (#43). No production connection or main merge.**
+
 ## [1.16.37] - 2026-11-21 (Home Assistant webhook automation documentation, draft)
 
 ### Correct the HA expiry webhook JSON shape and automation example (Issue #42)
