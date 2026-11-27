@@ -408,6 +408,31 @@ the pantry backup. Pause concurrent household writes during restore: the gate
 protects delivery and enqueue, not the entire lifetime of every API request.
 For manual filesystem restores, stop the app/worker and discard the old queue.
 
+### Monitor the optional worker
+
+In Docker the existing healthcheck also checks the optional webhook worker.
+A normal completed drain, including an empty queue, refreshes a private
+heartbeat. If no run has completed for more than 150 seconds, if a pending
+event is older than 150 seconds, or if the queue cannot be read, the worker
+check fails. Docker uses its normal healthcheck grace period and failure
+threshold; an unhealthy status does not itself restart the container. The
+check does not perform a network request to Home Assistant and cannot
+certify successful webhook delivery (see the transport warnings in logs).
+It does not affect installations where deferred delivery is disabled.
+
+To inspect the same status as the PHP/web user on a bare-metal installation:
+
+```bash
+php /var/www/html/dispensa/api/cron_ha_webhooks.php --health
+```
+
+The command returns JSON and a nonzero exit code on unhealthy worker status.
+It reports only the enabled flag, worker state, last completion time, pending
+count and oldest pending age. The authenticated settings response also
+contains this object under `ha_webhook_worker`. No additional monitoring
+service or automatic push alert is configured. Monitor Docker health or the
+CLI exit code using your existing monitoring system if alerts are needed.
+
 ## Troubleshooting
 
 **Test shows ❌ "Connection failed"**

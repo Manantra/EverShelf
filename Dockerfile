@@ -66,10 +66,10 @@ RUN a2enconf evershelf
 EXPOSE 80
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=90s \
+    CMD curl -fsS -o /dev/null http://localhost/ && runuser -u www-data -- php /var/www/html/api/cron_ha_webhooks.php --health || exit 1
 
 # Cron daemon + Apache in one container. -f keeps cron attached so its own
 # messages reach `docker logs` (the image has no syslog daemon); Apache stays the
 # long-running process the container lifecycle follows.
-CMD ["sh", "-c", "cron -f -L 15 & exec apache2-foreground"]
+CMD ["sh", "-c", "umask 022; printf '%s' \"${EVERSHELF_ENV_FILE:-}\" > /run/evershelf-env-file && chmod 0644 /run/evershelf-env-file && { cron -f -L 15 & exec apache2-foreground; }"]

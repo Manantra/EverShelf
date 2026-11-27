@@ -36,6 +36,12 @@ environment variable **`EVERSHELF_ENV_FILE`**, so it ends up on the array (in th
 
 - Only the keys you change are rewritten; the rest of the file is kept.
 
+Docker startup passes the configured file path to its internal cron jobs,
+so the web application and scheduled tasks use the same `/config/.env`.
+Only the filename is handed off; no configuration values or tokens are copied.
+The optional deferred Home Assistant webhook worker participates in Docker's
+healthcheck (see [Home Assistant](Home-Assistant#monitor-the-optional-worker)).
+
 ## First run: pairing
 
 The API token is never handed to an anonymous request. On the first start the UI asks for a

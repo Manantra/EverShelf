@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 import concurrent.futures
-import json, runpy, tempfile, threading, time, sqlite3, shutil, subprocess, stat
+import json, runpy, tempfile, threading, time, sqlite3, shutil, subprocess, stat, os
 
 root=Path(__file__).resolve().parent.parent
 fixture=runpy.run_path(str(root/"scripts/test-api-token-autogen.py"),run_name="qa")
@@ -51,6 +51,14 @@ def restore(s,filename):
     with urlopen(req,timeout=15) as response:
         return json.load(response)
 
+def health(q):
+    proc=subprocess.run([PHP,str(q/"api/cron_ha_webhooks.php"),"--health"],cwd=q,
+                        text=True,capture_output=True,timeout=5)
+    result=json.loads(proc.stdout)
+    assert proc.returncode == (0 if result["ok"] else 1), proc
+    assert set(result)=={"enabled","ok","state","last_run","pending","oldest_age"}, result
+    return result
+
 def count(q):
     with sqlite3.connect(q/"data/ha_webhook_outbox/events.db") as db:
         return db.execute("SELECT count(*) FROM events").fetchone()[0]
@@ -69,12 +77,24 @@ def finish(w, timeout=25):
 try:
     with tempfile.TemporaryDirectory(prefix="qa45-outbox-") as temp:
         q=sandbox(Path(temp)/"app",{"HA_ENABLED":"true","HA_WEBHOOK_ASYNC":"true","HA_URL":f"http://127.0.0.1:{r.server_port}","HA_WEBHOOK_ID":"qa-only-secret","HA_WEBHOOK_EVENTS":"shopping_add,stock_update","API_TOKEN":"qa-only-token","LOG_LEVEL":"DEBUG"})
-        for name in ("api/index.php","api/lib/ha_webhook_outbox.php","api/cron_ha_webhooks.php","api/lib/local_backup_restore.php"):
+        for name in ("api/index.php","api/lib/ha_webhook_outbox.php","api/cron_ha_webhooks.php","api/lib/local_backup_restore.php","api/lib/env.php"):
             shutil.copy2(root/name,q/name)
         s=Server(q)
         s2=None
         w=None
         try:
+            check(health(q)["state"]=="waiting" and not (q/"data/ha_webhook_outbox").exists(),
+                  "enabled worker with no heartbeat reported waiting without creating queue")
+            finish(worker(q))
+            check(stat.S_IMODE((q/"data/ha_webhook_outbox/worker.heartbeat").stat().st_mode)==0o600,"heartbeat private permissions")
+            check(health(q)["state"]=="running" and health(q)["pending"]==0,
+                  "idle worker reports heartbeat before first event")
+            heartbeat=q/"data/ha_webhook_outbox/worker.heartbeat"
+            old=time.time()-151
+            os.utime(heartbeat,(old,old))
+            check(health(q)["state"]=="stale","missing worker ticks detected")
+            finish(worker(q))
+            check(health(q)["state"]=="running","worker recovery updates heartbeat")
             a,elapsed=post(s,"shopping_add",{"items":[{"name":"QA Quinoa","specification":"1"}]})
             check(a["added"]==1 and elapsed<1.5,f"shopping API {elapsed:.3f}s with no receiver wait")
             with sqlite3.connect(q/"data/evershelf.db") as db:
@@ -86,6 +106,15 @@ try:
             _,elapsed=post(s,"inventory_update",{"id":iid,"quantity":4,"location":"dispensa"})
             check(elapsed<1.5,f"inventory API {elapsed:.3f}s with no receiver wait")
             check(count(q)==2 and not received,"two events queued, no outgoing HTTP yet")
+            st=health(q)
+            check(st["ok"] and st["pending"]==2 and st["oldest_age"] is not None,
+                  "health reports pending count without revealing payloads")
+            with sqlite3.connect(q/"data/ha_webhook_outbox/events.db") as db:
+                db.execute("UPDATE events SET created_at=?", (int(time.time())-151,))
+            check(health(q)["state"]=="backlog","old queued events flagged separately")
+            with sqlite3.connect(q/"data/ha_webhook_outbox/events.db") as db:
+                db.execute("UPDATE events SET created_at=?", (int(time.time()),))
+
             try:
                 urlopen(s.url.split("/api/")[0]+"/api/cron_ha_webhooks.php",timeout=3)
                 raise AssertionError("worker exposed through HTTP")
@@ -145,6 +174,7 @@ try:
             env.write_text(env.read_text().replace("HA_ENABLED=true","HA_ENABLED=false"))
             finish(worker(q))
             check(count(q)==0 and len(received)==4,"disabled HA drops pending events")
+            check(health(q)["state"]=="disabled" and health(q)["ok"],"disabled HA does not fail health")
             env.write_text(env.read_text().replace("HA_ENABLED=false","HA_ENABLED=true"))
             post(s,"shopping_add",{"items":[{"name":"Haferflocken","specification":"1"}]})
             check(count(q)==1,"one pending event for crash test")
@@ -158,6 +188,7 @@ try:
             with sqlite3.connect(path/"events.db") as lock:
                 lock.execute("BEGIN EXCLUSIVE")
                 try:
+                    check(health(q)["state"]=="unavailable","locked queue reports unavailable without mutating it")
                     result,elapsed=post(s,"shopping_add",{"items":[{"name":"Paprika","specification":"1"}]})
                     check(result["added"]==1 and elapsed<1.5,"locked outbox cannot block or roll back shopping write")
                 finally:

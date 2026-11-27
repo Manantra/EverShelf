@@ -9998,6 +9998,7 @@ function getServerSettings(): void {
         'telegram_webhook_path'       => 'api/index.php?action=telegram_webhook',
         // Home Assistant Integration
         'ha_enabled'                  => env('HA_ENABLED', 'false') === 'true',
+        'ha_webhook_worker'           => evershelfHaWorkerStatus(),
         'ha_url'                      => env('HA_URL', ''),
         'ha_token_set'                => !empty(env('HA_TOKEN', '')),
         'ha_tts_entity'               => env('HA_TTS_ENTITY', ''),

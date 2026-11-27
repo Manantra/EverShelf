@@ -29,7 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   durable stock/shopping writes. Bind the queue count limit as an integer.
 - Coordinate verified restore with the worker and invalidate pending events
   before changing live pages. Tests cover busy, invalid, failed and valid restore.
-  Docker runtime review and concurrent household-write semantics remain release gates.
+- Preserve the external `EVERSHELF_ENV_FILE` path for Docker cron jobs;
+  the root-owned runtime handoff contains only the filename. Monitor worker
+  heartbeat and queue backlog in Docker health and authenticated settings.
+  Concurrent household-write semantics and integration coverage remain release gates.
 
 **Experimental draft stacked on v1.16.38 (#46). No production change.**
 

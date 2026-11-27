@@ -8,7 +8,8 @@ import tempfile
 import time
 import uuid
 
-image = sys.argv[1] if len(sys.argv) == 2 else "evershelf-test"
+image = sys.argv[1] if len(sys.argv) >= 2 else "evershelf-test"
+unraid = "--unraid" in sys.argv[2:]
 name = "evershelf-qa-outbox-" + uuid.uuid4().hex[:12]
 token = "qa-docker-only-token"
 
@@ -67,8 +68,16 @@ usleep(3000000);
 header('Content-Length: 0');
 """)
     try:
-        docker("create", "--network", "none", "--name", name, image)
-        docker("cp", str(p / ".env"), name+":/var/www/html/.env")
+        # Faster polling for this test only; the image keeps its real production thresholds.
+        health_args=("--health-interval=2s","--health-retries=1","--health-start-period=0s")
+        if unraid:
+            (p / "config").mkdir()
+            (p / "config/.env").write_bytes((p / ".env").read_bytes())
+            docker("create", "--network", "none", "--name", name, *health_args, "-e", "EVERSHELF_ENV_FILE=/config/.env", image)
+            docker("cp", str(p / "config"), name+":/config")
+        else:
+            docker("create", "--network", "none", "--name", name, *health_args, image)
+            docker("cp", str(p / ".env"), name+":/var/www/html/.env")
         docker("cp", str(p / "receiver.php"), name+":/tmp/qa-receiver.php")
         docker("start", name)
         docker("exec", "-d", "-u", "www-data", name, "php", "-S",
@@ -91,6 +100,13 @@ header('Content-Length: 0');
             time.sleep(.5)
         else:
             raise AssertionError("cron did not start scheduling jobs")
+        if unraid:
+            # Emulate cron's deliberately stripped environment, not docker exec's.
+            resolved=inside("env","-u","EVERSHELF_ENV_FILE","php","-r",
+                "define('CRON_MODE',true); require '/var/www/html/api/lib/env.php'; echo evershelfEnvFile();")
+            check(resolved=="/config/.env","cron resolves external config without inherited environment")
+            check(inside("stat","-c","%a:%U","/run/evershelf-env-file")=="644:root",
+                  "config handoff is root-owned and not writable by web user")
         # No manual worker invocation: verify actual cron delivery.
         start = time.monotonic()
         a, elapsed = post("shopping_add", {"items":[{"name":"Reis","specification":"1"}]})
@@ -122,6 +138,53 @@ header('Content-Length: 0');
         time.sleep(11)
         check(len(received()) == 2, "no duplicate deliveries in subsequent cron ticks")
         check(scalar("SELECT count(*) FROM events",outbox+"/events.db") == "0", "queue drained")
+        st=json.loads(inside("runuser","-u","www-data","--","php",
+                            "/var/www/html/api/cron_ha_webhooks.php","--health"))
+        check(st["ok"] and st["state"]=="running" and st["pending"]==0,"worker health reports fresh idle heartbeat")
+        cfg=json.loads(inside("curl","-fsS","-H","X-API-Token: "+token,
+                             "http://127.0.0.1/api/index.php?action=get_settings"))
+        check(cfg["ha_webhook_worker"]["ok"] and cfg["ha_webhook_worker"]["pending"]==0,
+              "authenticated settings exposes safe worker status")
+        # Wait for the actual Docker health probe to observe the running worker.
+        deadline=time.monotonic()+35
+        while time.monotonic()<deadline:
+            state=docker("inspect","--format","{{.State.Health.Status}}",name)
+            if state=="healthy": break
+            time.sleep(1)
+        check(state=="healthy","container healthcheck passes with a healthy worker")
+        # Emulate a stalled worker in the disposable container. Hold the real
+        # worker lock while aging its heartbeat, without waiting 150 seconds.
+        # Scheduled workers cannot refresh it until the lock is released.
+        lock_code = ("$d='/var/www/html/data/ha_webhook_outbox'; "
+                     "$f=fopen($d.'/worker.lock','c'); "
+                     "if(!flock($f,LOCK_EX)) exit(1); "
+                     "touch($d.'/worker.heartbeat',time()-151); "
+                     "file_put_contents('/tmp/qa-worker-stalled','ready'); sleep(12);")
+        docker("exec","-d","-u","www-data",name,"php","-r",lock_code)
+        deadline=time.monotonic()+10
+        while time.monotonic()<deadline:
+            if inside("sh","-c","test -f /tmp/qa-worker-stalled && echo ready || true")=="ready": break
+            time.sleep(.2)
+        else: raise AssertionError("worker fault fixture did not lock")
+        deadline=time.monotonic()+8
+        while time.monotonic()<deadline:
+            state=docker("inspect","--format","{{.State.Health.Status}}",name)
+            if state=="unhealthy": break
+            time.sleep(.3)
+        check(state=="unhealthy","actual Docker healthcheck detects stale heartbeat")
+        # A local write remains available when the optional worker is unhealthy.
+        _, elapsed=post("inventory_update",{"id":iid,"quantity":5,"location":"dispensa"})
+        check(elapsed<2.5 and scalar("SELECT quantity FROM inventory WHERE id="+str(iid)) in ("5","5.0"),
+              "unhealthy worker does not block pantry API")
+        deadline=time.monotonic()+35
+        while time.monotonic()<deadline:
+            state=docker("inspect","--format","{{.State.Health.Status}}",name)
+            if state=="healthy" and len(received())==3: break
+            time.sleep(.5)
+        check(state=="healthy" and len(received())==3,"automatic health recovery and queued event delivery")
+        check(received()[-1]["body"]["quantity"]==5,"recovered worker sends correct new stock")
+
+
     except Exception:
         # Synthetic container only: diagnostics exclude .env and credentials.
         for command in (["docker","logs","--tail","40",name],

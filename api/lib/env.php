@@ -26,6 +26,16 @@ function evershelfEnvFile(): string
     if ($override === false || trim((string)$override) === '') {
         $override = $_SERVER['EVERSHELF_ENV_FILE'] ?? ($_ENV['EVERSHELF_ENV_FILE'] ?? '');
     }
+    // Debian cron intentionally clears the container's environment. The root
+    // Docker startup writes only the configured filename (never .env contents).
+    // CLI cron jobs can recover that path; explicit process configuration wins.
+    if (trim((string)$override) === '' && PHP_SAPI === 'cli' && defined('CRON_MODE')) {
+        $handoff = '/run/evershelf-env-file';
+        if (is_file($handoff) && !is_link($handoff) && fileowner($handoff) === 0
+            && (fileperms($handoff) & 0022) === 0) {
+            $override = (string)@file_get_contents($handoff);
+        }
+    }
     $override = trim((string)$override);
     $root = defined('EVERSHELF_ROOT') ? EVERSHELF_ROOT : dirname(__DIR__, 2);
     $resolved = $override !== '' ? $override : $root . '/.env';

@@ -10,6 +10,14 @@ function evershelfHaAsyncEnabled(): bool {
     return env('HA_WEBHOOK_ASYNC', 'false') === 'true';
 }
 
+// Bare-metal example runs once per minute; allow normal startup and a slow drain.
+const EVERSHELF_HA_WORKER_STALE = 150;
+
+function evershelfHaWorkerRequired(): bool {
+    return evershelfHaAsyncEnabled() && env('HA_ENABLED', 'false') === 'true'
+        && trim(env('HA_URL', '')) !== '' && trim(env('HA_WEBHOOK_ID', '')) !== '';
+}
+
 function evershelfHaOutboxDir(): string {
     return dirname(__DIR__, 2) . '/data/ha_webhook_outbox';
 }
@@ -38,6 +46,53 @@ function evershelfHaOutboxOpen(): PDO {
     } finally {
         umask($mask);
     }
+}
+
+/** Status contains counts and timestamps only. Read-only and no network calls. */
+function evershelfHaWorkerStatus(): array {
+    $enabled = evershelfHaWorkerRequired();
+    $out = ['enabled' => $enabled, 'ok' => !$enabled, 'state' => $enabled ? 'waiting' : 'disabled',
+        'last_run' => null, 'pending' => null, 'oldest_age' => null];
+    if (!$enabled) return $out;
+    try {
+        $dir = evershelfHaOutboxDir();
+        $file = $dir . '/events.db';
+        if (!is_dir($dir)) return $out;
+        if (is_link($dir) || is_link($file) || (fileperms($dir) & 0077) !== 0
+            || !is_file($file) || (fileperms($file) & 0077) !== 0) {
+            $out['state'] = 'unavailable';
+            return $out;
+        }
+        $db = new SQLite3($file, SQLITE3_OPEN_READONLY);
+        try {
+            $db->busyTimeout(100);
+            $row = @$db->querySingle('SELECT count(*) AS n, min(created_at) AS oldest FROM events', true);
+            if (!is_array($row) || !isset($row['n'])) throw new RuntimeException('Outbox unreadable');
+            $out['pending'] = (int)$row['n'];
+            $out['oldest_age'] = $row['oldest'] === null ? null : max(0, time() - (int)$row['oldest']);
+        } finally {
+            $db->close();
+        }
+        $heartbeat = $dir . '/worker.heartbeat';
+        clearstatcache(true, $heartbeat);
+        if (is_file($heartbeat) && !is_link($heartbeat)) {
+            $ts = (int)filemtime($heartbeat);
+            $out['last_run'] = $ts;
+            $out['state'] = $ts <= time() && time() - $ts <= EVERSHELF_HA_WORKER_STALE ? 'running' : 'stale';
+        }
+        if ($out['oldest_age'] !== null && $out['oldest_age'] > EVERSHELF_HA_WORKER_STALE) {
+            $out['state'] = 'backlog';
+        }
+        $out['ok'] = $out['state'] === 'running';
+    } catch (Throwable $e) {
+        $out['state'] = 'unavailable';
+    }
+    return $out;
+}
+
+function evershelfHaWorkerHeartbeat(): bool {
+    $path = evershelfHaOutboxDir() . '/worker.heartbeat';
+    return !is_link($path) && @touch($path);
 }
 
 function evershelfHaOutboxTargetHash(string $url, string $caBundle): string {
@@ -105,7 +160,7 @@ function evershelfHaOutboxEnqueue(string $event, string $payload, string $url, s
 function evershelfHaOutboxDrain(): int {
     if (PHP_SAPI !== 'cli') return 0;
     $dir = evershelfHaOutboxDir();
-    if (!is_dir($dir)) return 0;
+    if (!is_dir($dir) && !evershelfHaWorkerRequired()) return 0;
     $lock = $gate = null;
     $mask = umask(0077);
     try {
@@ -135,6 +190,7 @@ function evershelfHaOutboxDrain(): int {
             }
             evershelfHaWebhookSend($row['event'], $row['payload'], $target[0], $target[1]);
         }
+        if (!evershelfHaWorkerHeartbeat()) throw new RuntimeException('Heartbeat write failed');
         return $processed;
     } catch (Throwable $e) {
         EverLog::warn('HA outbox: worker failed');

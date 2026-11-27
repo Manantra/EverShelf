@@ -266,7 +266,9 @@ jobs:
           docker stop test-evershelf
 
       - name: Test scheduled HA delivery inside isolated Docker container
-        run: python3 scripts/test-ha-webhook-docker.py evershelf-test
+        run: |
+          python3 scripts/test-ha-webhook-docker.py evershelf-test
+          python3 scripts/test-ha-webhook-docker.py evershelf-test --unraid
 
   validate-translations:
     name: Validate Translation Files
